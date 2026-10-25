@@ -1,0 +1,179 @@
+package service
+
+import (
+	"context"
+	"encoding/base64"
+	"encoding/json"
+	"errors"
+	"net/http"
+	"net/http/httptest"
+	"os"
+	"strings"
+	"testing"
+
+	"github.com/flipped-aurora/gin-vue-admin/server/global"
+	"github.com/flipped-aurora/gin-vue-admin/server/plugin/xianyu/model"
+	xianyuRequest "github.com/flipped-aurora/gin-vue-admin/server/plugin/xianyu/model/request"
+	"github.com/glebarez/sqlite"
+	"github.com/stretchr/testify/require"
+	"golang.org/x/net/websocket"
+	"gorm.io/gorm"
+)
+
+type fixedWebSocketToken struct{}
+
+func TestWebSocketMIDIsUnique(t *testing.T) {
+	seen := make(map[string]struct{}, 10000)
+	for range 10000 {
+		mid := webSocketMID()
+		if _, exists := seen[mid]; exists {
+			t.Fatalf("duplicate WebSocket request ID: %s", mid)
+		}
+		seen[mid] = struct{}{}
+	}
+}
+
+func (fixedWebSocketToken) Get(context.Context, uint, uint) (string, string, error) {
+	return "websocket-token", "DEVICE-user-demo", nil
+}
+
+func TestXianyuDialerRegistersAndRoutesSyncMessages(t *testing.T) {
+	fixture, err := os.ReadFile("../protocol/testdata/sync_message.json")
+	require.NoError(t, err)
+	var fixtureEnvelope map[string]any
+	require.NoError(t, json.Unmarshal(fixture, &fixtureEnvelope))
+	fixtureEnvelope["lwp"] = "/s/current-protocol"
+	fixtureEnvelope["headers"] = map[string]any{"mid": "message-mid", "sid": "session-id"}
+	fixture = mustJSON(t, fixtureEnvelope)
+	serverResult := make(chan error, 1)
+	server := httptest.NewServer(websocket.Server{
+		Handshake: func(_ *websocket.Config, request *http.Request) error {
+			require.Equal(t, webBrowserUA, request.UserAgent())
+			return nil
+		},
+		Handler: func(conn *websocket.Conn) {
+			var registration map[string]any
+			if err := websocket.JSON.Receive(conn, &registration); err != nil {
+				serverResult <- err
+				return
+			}
+			registrationJSON, _ := json.Marshal(registration)
+			headers := registration["headers"].(map[string]any)
+			if registration["lwp"] != "/reg" || headers["ua"] != webSocketRegistrationUA || strings.Contains(string(registrationJSON), "cookie2") {
+				serverResult <- errors.New("注册消息格式错误或泄露 Cookie")
+				return
+			}
+			if err := websocket.JSON.Send(conn, map[string]any{
+				"code": 200, "headers": map[string]any{"reg-sid": "registered"},
+			}); err != nil {
+				serverResult <- err
+				return
+			}
+			var syncStatus map[string]any
+			if err := websocket.JSON.Receive(conn, &syncStatus); err != nil || syncStatus["lwp"] != "/r/SyncStatus/ackDiff" {
+				serverResult <- errors.New("同步状态消息格式错误")
+				return
+			}
+			if err := websocket.JSON.Send(conn, map[string]any{
+				"lwp": "/s/para", "headers": map[string]any{"mid": "control-mid"}, "body": map[string]any{"params": []any{}},
+			}); err != nil {
+				serverResult <- err
+				return
+			}
+			var controlAck map[string]any
+			if err := websocket.JSON.Receive(conn, &controlAck); err != nil || controlAck["code"] != float64(200) {
+				serverResult <- errors.New("控制消息确认格式错误")
+				return
+			}
+			if err := websocket.Message.Send(conn, fixture); err != nil {
+				serverResult <- err
+				return
+			}
+			var ack map[string]any
+			if err := websocket.JSON.Receive(conn, &ack); err != nil || ack["code"] != float64(200) {
+				serverResult <- errors.New("消息确认格式错误")
+				return
+			}
+			var sent map[string]any
+			if err := websocket.JSON.Receive(conn, &sent); err != nil || sent["lwp"] != "/r/MessageSend/sendByReceiverScope" {
+				serverResult <- errors.New("发送消息格式错误")
+				return
+			}
+			sentHeaders := sent["headers"].(map[string]any)
+			if err := websocket.JSON.Send(conn, map[string]any{"headers": map[string]any{"mid": sentHeaders["mid"]}, "body": map[string]any{"success": true}}); err != nil {
+				serverResult <- err
+				return
+			}
+			var responseAck map[string]any
+			if err := websocket.JSON.Receive(conn, &responseAck); err != nil || responseAck["code"] != float64(200) {
+				serverResult <- errors.New("请求响应确认格式错误")
+				return
+			}
+			serverResult <- nil
+		},
+	})
+	t.Cleanup(server.Close)
+
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	require.NoError(t, err)
+	require.NoError(t, db.AutoMigrate(&model.Account{}, &model.Credential{}))
+	oldDB := global.GVA_DB
+	t.Cleanup(func() { global.GVA_DB = oldDB })
+	global.GVA_DB = db
+	t.Setenv(credentialKeyEnvironment, base64.StdEncoding.EncodeToString([]byte("0123456789abcdef0123456789abcdef")))
+	accountService := new(account)
+	created, err := accountService.Create(t.Context(), 10, xianyuRequest.CreateAccount{Label: "连接账号"})
+	require.NoError(t, err)
+	require.NoError(t, accountService.SaveCredential(t.Context(), 10, xianyuRequest.SaveCredential{
+		ID: created.ID, Cookie: "unb=user-demo; cookie2=do-not-send-in-register",
+	}))
+
+	dialer := &xianyuDialer{token: fixedWebSocketToken{}, endpoint: "ws" + strings.TrimPrefix(server.URL, "http")}
+	connection, err := dialer.Dial(t.Context(), created.ID)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = connection.Close() })
+	control, err := connection.Read(t.Context())
+	require.NoError(t, err)
+	require.Empty(t, control)
+	message, err := connection.Read(t.Context())
+	require.NoError(t, err)
+	require.JSONEq(t, string(fixture), string(message))
+	payload, err := buildTextMessage("session-demo@goofish", "buyer-demo", "user-demo", "你好")
+	require.NoError(t, err)
+	readCtx, cancelRead := context.WithCancel(t.Context())
+	defer cancelRead()
+	go func() { _, _ = connection.Read(readCtx) }()
+	require.NoError(t, connection.Send(t.Context(), payload))
+	require.NoError(t, <-serverResult)
+}
+
+func mustJSON(t *testing.T, value any) []byte {
+	t.Helper()
+	data, err := json.Marshal(value)
+	require.NoError(t, err)
+	return data
+}
+
+func TestIsSyncChangeSignal(t *testing.T) {
+	require.True(t, isSyncChangeSignal([]byte(`{"lwp":"/s/sync","body":{"syncExtraType":{"type":2}}}`)))
+	require.False(t, isSyncChangeSignal([]byte(`{"lwp":"/s/vulcan","body":{"syncExtraType":{"type":3}}}`)))
+	require.False(t, isSyncChangeSignal([]byte(`not-json`)))
+}
+
+func TestWebSocketStatusIsOwnerIsolated(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	require.NoError(t, err)
+	require.NoError(t, db.AutoMigrate(&model.Account{}, &model.Credential{}))
+	oldDB := global.GVA_DB
+	t.Cleanup(func() { global.GVA_DB = oldDB })
+	global.GVA_DB = db
+	created, err := new(account).Create(t.Context(), 10, xianyuRequest.CreateAccount{Label: "隔离账号"})
+	require.NoError(t, err)
+
+	service := newWebSocketService(new(message))
+	status, err := service.Status(t.Context(), 10, created.ID)
+	require.NoError(t, err)
+	require.False(t, status.Running)
+	_, err = service.Status(t.Context(), 11, created.ID)
+	require.Error(t, err)
+}

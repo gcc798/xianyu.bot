@@ -1,0 +1,17 @@
+{% extends "base.html" %}{% block content %}
+<div class="d-flex justify-content-between mb-3"><h1 class="h3">群聊与频道 <small class="text-muted fs-6">{{ total }} 项</small></h1><a class="btn btn-outline-success" href="/export.csv?{{ request.query_params }}">导出 CSV</a></div>
+{% if request.query_params.get('leave_success') %}<div class="alert {{ 'alert-warning' if request.query_params.get('leave_failed') != '0' else 'alert-success' }}">退出成功 {{ request.query_params.get('leave_success') }} 项，失败 {{ request.query_params.get('leave_failed') }} 项。</div>{% endif %}
+<form class="card card-body mb-3" method="get"><div class="row g-2">
+  <div class="col-md-4"><input class="form-control" name="q" value="{{ filters.q }}" placeholder="输入部分名称模糊搜索"></div>
+  <div class="col-md-2"><select class="form-select" name="filter">{% for value,label in [('', '全部'),('groups','群组'),('channels','频道'),('creator','我创建'),('normal','正常'),('invalid','失效'),('muted','静音'),('archived','归档')] %}<option value="{{ value }}" {% if filters.filter==value %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></div>
+  {% for key,label in [('members_min','成员 ≥'),('members_max','成员 ≤')] %}<div class="col-md-2"><input class="form-control" type="number" min="0" name="{{ key }}" value="{{ filters[key] }}" placeholder="{{ label }}"></div>{% endfor %}
+  <input type="hidden" name="sort" value="{{ sort }}"><input type="hidden" name="order" value="{{ order }}"><div class="col-auto"><button class="btn btn-primary">筛选</button></div>
+</div></form>
+{% macro sort_link(key,label) -%}<a href="?{{ query }}&sort={{ key }}&order={{ 'asc' if sort==key and order=='desc' else 'desc' }}">{{ label }}{% if sort==key %} {{ '↑' if order=='asc' else '↓' }}{% endif %}</a>{%- endmacro %}
+<form method="post" action="/cleanup/leave" onsubmit="return confirm('确定退出选中的群聊/频道？此操作不可由本工具撤销。')"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="confirm" value="退出">
+<div class="table-responsive"><table class="table table-hover table-sm align-middle"><thead><tr><th><input type="checkbox" data-check-all aria-label="全选"></th><th>{{ sort_link('name','群名称') }}</th><th>{{ sort_link('type','类型') }}</th><th>{{ sort_link('members','人数') }}</th><th>{{ sort_link('last_message','最后消息') }}</th><th>{{ sort_link('unread','未读') }}</th><th>我创建</th><th>静音</th><th>归档</th><th>{{ sort_link('status','状态') }}</th></tr></thead><tbody>
+{% for row in rows %}<tr><td><input type="checkbox" name="selected" value="{{ row.id }}" aria-label="选择 {{ row.name }}"></td><td><div class="fw-semibold">{% if row.telegram_url %}<a href="{{ row.telegram_url }}" target="_blank" rel="noopener">{{ row.name }}</a>{% else %}{{ row.name }}{% endif %}</div>{% for tag in row.tags %}<span class="badge text-bg-secondary">{{ tag }}</span> {% endfor %}</td><td>{{ row.dialog_type }}</td><td>{{ row.member_count if row.member_count is not none else '-' }}</td><td>{{ row.last_message_at or '-' }}</td><td>{{ row.unread_count }}</td><td>{{ '是' if row.is_creator else '-' }}</td><td>{{ '是' if row.is_muted else '-' }}</td><td>{{ '是' if row.is_archived else '-' }}</td><td>{{ row.status }}</td></tr>{% else %}<tr><td colspan="10" class="text-center text-muted">没有匹配项</td></tr>{% endfor %}
+</tbody></table></div>
+<button class="btn btn-danger mb-3" type="submit">退出选中项</button></form>
+<p class="text-muted">点击列标题可切换升序/降序。有用户名的会话直接打开；私有频道/超级群会定位到最新消息。</p>
+{% endblock %}

@@ -39,6 +39,10 @@ web/pnpm-lock.yaml
 
 # SQLite database files
 *.db
+*.db-*
 *.sqlite
 *.sqlite3
+/.playwright-cli/
+/output/playwright/
 worktrees/
+/tmp/

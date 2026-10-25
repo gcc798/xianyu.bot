@@ -1,0 +1,82 @@
+package service
+
+import (
+	"encoding/base64"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"sync/atomic"
+	"testing"
+	"time"
+
+	"github.com/flipped-aurora/gin-vue-admin/server/global"
+	"github.com/flipped-aurora/gin-vue-admin/server/plugin/xianyu/model"
+	xianyuRequest "github.com/flipped-aurora/gin-vue-admin/server/plugin/xianyu/model/request"
+	"github.com/glebarez/sqlite"
+	"github.com/stretchr/testify/require"
+	"gorm.io/gorm"
+)
+
+func TestWebSocketTokenIsEncryptedAndCached(t *testing.T) {
+	var calls atomic.Int64
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		if request.URL.Path == "/device" {
+			http.SetCookie(writer, &http.Cookie{Name: "cna", Value: "device-cookie", Path: "/"})
+			return
+		}
+		calls.Add(1)
+		require.NoError(t, request.ParseForm())
+		var data map[string]string
+		require.NoError(t, json.Unmarshal([]byte(request.Form.Get("data")), &data))
+		require.NotEmpty(t, data["deviceId"])
+		require.NotEmpty(t, request.URL.Query().Get("sign"))
+		require.Equal(t, "a21ybx.im.0.0", request.URL.Query().Get("spm_cnt"))
+		require.Equal(t, "same-site", request.Header.Get("Sec-Fetch-Site"))
+		require.Contains(t, request.Header.Get("Cookie"), "cna=device-cookie")
+		http.SetCookie(writer, &http.Cookie{Name: "_m_h5_tk", Value: "new-token_expiry", Path: "/"})
+		_, _ = writer.Write([]byte(`{"ret":["SUCCESS::调用成功"],"data":{"accessToken":"secret-websocket-token"}}`))
+	}))
+	t.Cleanup(server.Close)
+
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	require.NoError(t, err)
+	require.NoError(t, db.AutoMigrate(&model.Account{}, &model.Credential{}))
+	oldDB := global.GVA_DB
+	t.Cleanup(func() { global.GVA_DB = oldDB })
+	global.GVA_DB = db
+	t.Setenv(credentialKeyEnvironment, base64.StdEncoding.EncodeToString([]byte("0123456789abcdef0123456789abcdef")))
+	accountService := new(account)
+	created, err := accountService.Create(t.Context(), 10, xianyuRequest.CreateAccount{Label: "Token 账号"})
+	require.NoError(t, err)
+	require.NoError(t, accountService.SaveCredential(t.Context(), 10, xianyuRequest.SaveCredential{
+		ID: created.ID, Cookie: "unb=user-demo; _m_h5_tk=old-token_expiry; cookie2=session",
+	}))
+
+	tokenService := newWebSocketToken()
+	tokenService.endpoint = server.URL
+	tokenService.deviceCookieEndpoint = server.URL + "/device"
+	token, deviceID, err := tokenService.Get(t.Context(), 10, created.ID)
+	require.NoError(t, err)
+	require.Equal(t, "secret-websocket-token", token)
+	require.Contains(t, deviceID, "-user-demo")
+
+	var credential model.Credential
+	require.NoError(t, db.Where("account_id = ?", created.ID).First(&credential).Error)
+	require.NotContains(t, credential.TokenCiphertext, token)
+	require.Equal(t, uint(2), credential.Version)
+	require.WithinDuration(t, time.Now().Add(webSocketTokenLifetime), *credential.TokenExpiresAt, time.Minute)
+	plainToken, err := decryptCredential(credential.TokenCiphertext, credentialAAD(created.ID, "token"))
+	require.NoError(t, err)
+	require.Equal(t, token, plainToken)
+	plainCookie, err := decryptCredential(credential.CookieCiphertext, credentialAAD(created.ID, "cookie"))
+	require.NoError(t, err)
+	require.Contains(t, plainCookie, "_m_h5_tk=new-token_expiry")
+
+	cached, cachedDeviceID, err := tokenService.Get(t.Context(), 10, created.ID)
+	require.NoError(t, err)
+	require.Equal(t, token, cached)
+	require.Equal(t, deviceID, cachedDeviceID)
+	require.Equal(t, int64(1), calls.Load())
+	_, _, err = tokenService.Get(t.Context(), 11, created.ID)
+	require.Error(t, err)
+}

@@ -91,5 +91,14 @@
   "/src/plugin/auto/view/installPlugin/index.vue": "Index",
   "/src/plugin/auto/view/pubPlug/pubPlug.vue": "PubPlug",
   "/src/plugin/auto/view/skills/index.vue": "Index",
-  "/src/plugin/email/view/index.vue": "Email"
+  "/src/plugin/email/view/index.vue": "Email",
+  "/src/plugin/xianyu/view/accounts.vue": "XianyuAccounts",
+  "/src/plugin/xianyu/view/business-events.vue": "XianyuBusinessEvents",
+  "/src/plugin/xianyu/view/dashboard.vue": "XianyuDashboard",
+  "/src/plugin/xianyu/view/delivery-rules.vue": "XianyuDeliveryRules",
+  "/src/plugin/xianyu/view/delivery-tasks.vue": "XianyuDeliveryTasks",
+  "/src/plugin/xianyu/view/messages.vue": "XianyuMessages",
+  "/src/plugin/xianyu/view/orders.vue": "XianyuOrders",
+  "/src/plugin/xianyu/view/products.vue": "XianyuProducts",
+  "/src/plugin/xianyu/view/reply-rules.vue": "XianyuReplyRules"
 }

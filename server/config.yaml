@@ -76,7 +76,7 @@ email:
 system:
     env: local # 修改为public可以关闭路由日志输出
     addr: 8888
-    db-type: mysql
+    db-type: sqlite
     oss-type: local # 控制oss选择走本地还是 七牛等其他仓 自行增加其他oss仓可以在 server/utils/upload/upload.go 中 NewOss函数配置
     use-redis: false # 使用redis
     use-mongo: false     # 使用mongo
@@ -154,16 +154,16 @@ mssql:
     log-mode: ""
     log-zap: false
 sqlite:
-    path: ""
+    path: "dbdata"
     port: ""
     config: ""
-    db-name: ""
+    db-name: "xianyu_assistant"
     username: ""
     password: ""
-    max-idle-conns: 10
-    max-open-conns: 100
+    max-idle-conns: 1
+    max-open-conns: 1
     conn-max-lifetime: 0
-    log-mode: ""
+    log-mode: "error"
     log-zap: false
 db-list:
     - disable: true # 是否禁用

@@ -34,7 +34,6 @@ const updateDevice = () => {
   appStore.toggleDevice(window.innerWidth < 768 ? 'mobile' : 'desktop')
 }
 
-appStore.config.show_watermark = false
 userStore.ResetUserInfo({
   nickName: '演示管理员',
   authority: { authorityName: '超级管理员' },

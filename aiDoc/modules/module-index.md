@@ -21,6 +21,7 @@
 
 - `backend-layer-rules.md`: 后端分层、模型、Service、API、Router、初始化入口
 - `plugin-development.md`: 前后端插件结构、插件入口与开发流程
+- `plugin-xianyu.md`: 闲鱼助手插件职责、入口、边界和当前契约
 
 ## 命名建议
 
