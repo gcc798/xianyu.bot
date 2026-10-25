@@ -18,14 +18,15 @@ var (
 )
 
 type api struct {
-	Status        status
-	Account       account
-	Product       product
-	ReplyRule     replyRule
-	DeliveryRule  deliveryRule
-	Message       message
-	Order         order
-	QRLogin       qrLogin
-	WebSocket     webSocket
-	BusinessEvent businessEvent
+	Status           status
+	Account          account
+	Product          product
+	ReplyRule        replyRule
+	DeliveryRule     deliveryRule
+	Message          message
+	Order            order
+	QRLogin          qrLogin
+	WebSocket        webSocket
+	BusinessEvent    businessEvent
+	TelegramResource telegramResource
 }

@@ -1,6 +1,6 @@
 # Telegram Analyzer & Cleaner
 
-本地、单用户的 Telegram 群聊/频道分析与手工清理工具。只读取已加入的 dialogs 元数据；唯一写入 Telegram 的操作是经二次确认后退出所选群聊/频道。
+本地、单用户的 Telegram 群聊/频道分析、手工清理与授权资源检索工具。资源检索只读取已加入并已扫描的公开正常来源，不会自动加入群组。
 
 ## 安装与启动
 
@@ -23,16 +23,16 @@ TG_PROXY_HOST=127.0.0.1
 TG_PROXY_PORT=17891
 ```
 
-浏览器打开 <http://127.0.0.1:8080>。首次使用点击“生成二维码”，用手机 Telegram 的“设置 → 设备 → 链接桌面设备”扫码。Session、SQLite 数据库保存在 `data/`，不要分享该目录。
+浏览器打开 <http://127.0.0.1:8080>。首次使用点击“生成二维码”，用手机 Telegram 的“设置 → 设备 → 链接桌面设备”扫码。登录 session 保存在 PostgreSQL `xianyu_assistant.tel_settings` 中，应按凭据保护，不要导出或分享。
 
 ## 使用
 
 - 快速扫描只遍历 dialogs，保存名称、类型、人数、最新消息时间、未读、静音、归档和创建者状态。
-- 不读取消息历史，不下载视频、图片或文件；人数缺失时显示 `-`，不额外请求成员列表。
+- 只有手动创建资源任务后才会在所选来源中搜索消息文本和文件名，匹配扩展名后下载；并发默认 1，最大 3。
 - 群聊页一次展示全部结果，集成名称模糊搜索、筛选、升降序、Telegram 跳转、勾选退出和 CSV 导出。
 - 退出前会再弹窗确认；每项结果写入 `leave_history`。
 
-运行最小自检：
+运行元数据自检；设置 `DATABASE_URL` 时还会在共用 PostgreSQL 中运行隔离的增删改查集成检查（仅操作唯一测试数据）：
 
 ```bash
 python test_core.py
@@ -44,6 +44,14 @@ python test_core.py
 
 Compose 中的服务统一使用 `go.xianyu.assistant` 网络。PostgreSQL 映射到宿主机 `15432`，RustFS 的 S3 API/控制台分别映射到 `19000`/`19001`，Telegram Web UI 映射到 `127.0.0.1:8081`。
 
-旧 SQLite 数据不会自动删除或覆盖。停掉旧后端后执行根目录的 `script/migrate_sqlite_to_pg.sh`，脚本会先在根目录 `tmp/` 创建快照，再导入 PostgreSQL；完整步骤见 `docs/migration/sqlite-to-postgres.md`。
+Telegram 与 Go 后端共用 `xianyu_assistant` 数据库，Telegram 表统一使用 `tel_` 前缀；PostgreSQL 通过宿主机 `15432` 端口连接。原 SQLite 业务数据不再使用，不提供 SQLite 迁移流程。
 
-Telegram 群/频道检索上线前应增加合规审核门禁，只允许检索经过人工确认或有明确授权的来源。模型分类不是版权授权证明。
+资源任务表为 `tel_resource_tasks`、`tel_resource_files`、`tel_resource_sources`。文件临时落在项目根目录 `tmp/telegram/`，上传 RustFS 后立即删除；网页经 Go 后端 JWT/Casbin 接口访问，不暴露 RustFS 凭据。
+
+```bash
+docker compose -f deploy/docker-compose/docker-compose.yaml up -d --build
+docker compose -f deploy/docker-compose/docker-compose.yaml config
+DATABASE_URL=postgresql://xianyu:xianyu_assistant@127.0.0.1:15432/xianyu_assistant python script/tel-bot/test_core.py
+```
+
+拒绝词只能拦截明显风险内容，不能判断版权授权；操作者仍须确认来源和保存权限。Office 文件当前提供下载，PDF、图片、文本可在线预览。

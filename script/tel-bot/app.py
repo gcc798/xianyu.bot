@@ -16,23 +16,27 @@ from fastapi import FastAPI, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from pydantic import BaseModel, Field, field_validator
 
 from analyzer import cleanup_tags, telegram_link
 from database import Database
+from resource_service import DEFAULT_TYPES, ResourceService
+from storage import RustFS
 from telegram_service import TelegramService
 
 
 ROOT = Path(__file__).resolve().parent
 load_dotenv(ROOT / ".env")
-(ROOT / "data").mkdir(exist_ok=True); (ROOT / "exports").mkdir(exist_ok=True)
+(ROOT / "exports").mkdir(exist_ok=True)
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
-db = Database(ROOT / "data" / "telegram.db")
+db = Database(os.getenv("DATABASE_URL", "postgresql://xianyu:xianyu_assistant@postgres:5432/xianyu_assistant"))
 api_id_text, api_hash = os.getenv("TG_API_ID", ""), os.getenv("TG_API_HASH", "")
 api_id = int(api_id_text) if api_id_text.isdigit() and api_id_text != "123456" else None
 api_hash = api_hash if api_hash and api_hash != "replace_with_your_api_hash" else None
 proxy_host, proxy_port = os.getenv("TG_PROXY_HOST", "").strip(), os.getenv("TG_PROXY_PORT", "").strip()
 proxy = ("socks5", proxy_host, int(proxy_port)) if proxy_host and proxy_port.isdigit() else None
-service = TelegramService(api_id, api_hash, ROOT / "data" / "telegram", db, proxy)
+service = TelegramService(api_id, api_hash, db, proxy)
+resources = ResourceService(service, db, RustFS())
 csrf_token = secrets.token_urlsafe(32)
 
 
@@ -40,17 +44,29 @@ csrf_token = secrets.token_urlsafe(32)
 async def lifespan(_app):
     # Telegram may be unreachable; local Web UI must still start immediately.
     connect_task = asyncio.create_task(service.connect()) if service.has_session else None
+    await resources.start()
     yield
     if connect_task and not connect_task.done():
         connect_task.cancel()
         with suppress(asyncio.CancelledError):
             await connect_task
+    await resources.stop()
     await service.disconnect()
 
 
 app = FastAPI(title="Telegram Analyzer & Cleaner", lifespan=lifespan)
 app.mount("/static", StaticFiles(directory=ROOT / "static"), name="static")
 templates = Jinja2Templates(directory=ROOT / "templates")
+
+
+@app.get("/healthz")
+async def healthz():
+    try:
+        database_ok = await asyncio.to_thread(db.health)
+        await asyncio.to_thread(resources.storage.ensure_bucket)
+    except Exception as exc:
+        raise HTTPException(503, "依赖服务不可用") from exc
+    return {"status": "ok", "database": database_ok, "rustfs": True, "telegram_authorized": service.authorized}
 
 
 @app.middleware("http")
@@ -68,6 +84,28 @@ def context(request: Request, **values):
 def require_login():
     if not service.authorized:
         raise HTTPException(401, "Telegram 未登录")
+
+
+class ResourceTaskInput(BaseModel):
+    keyword: str = Field(min_length=2, max_length=200)
+    file_types: list[str] = Field(min_length=1, max_length=30)
+    source_dialog_ids: list[int] = Field(min_length=1, max_length=100)
+    max_downloads: int = Field(default=10, ge=1, le=100)
+
+    @field_validator("file_types")
+    @classmethod
+    def validate_types(cls, values: list[str]) -> list[str]:
+        cleaned = list(dict.fromkeys(value.lower().lstrip(".").strip() for value in values))
+        if any(value not in DEFAULT_TYPES for value in cleaned):
+            raise ValueError("仅支持常见文档、图片和 zip 类型")
+        return cleaned
+
+
+def resource_access(request: Request):
+    internal_token = os.getenv("TELEGRAM_INTERNAL_TOKEN", "")
+    if internal_token and secrets.compare_digest(request.headers.get("x-internal-token", ""), internal_token):
+        return
+    require_login()
 
 
 def check_csrf(token: str):
@@ -175,6 +213,94 @@ async def export_csv(request: Request):
 @app.get("/settings", response_class=HTMLResponse)
 async def settings(request: Request):
     return templates.TemplateResponse("settings.html", context(request, configured=bool(service.client), host=os.getenv("WEB_HOST", "0.0.0.0"), port=os.getenv("WEB_PORT", "8080"), proxy=service.proxy))
+
+
+@app.get("/api/resources/options")
+async def resource_options(request: Request):
+    resource_access(request)
+    return {"dialogs": db.resource_dialogs(), "file_types": sorted(DEFAULT_TYPES), "max_file_size": resources.max_file_size}
+
+
+@app.post("/api/resources/tasks", status_code=201)
+async def create_resource_task(payload: ResourceTaskInput, request: Request):
+    resource_access(request)
+    if not service.authorized:
+        raise HTTPException(409, "Telegram 未登录，请先在 Telegram 服务页面完成登录")
+    try:
+        task = db.create_resource_task(payload.keyword.strip(), payload.file_types, payload.source_dialog_ids, payload.max_downloads)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    resources.enqueue(task["id"])
+    return task
+
+
+@app.get("/api/resources/tasks")
+async def resource_tasks(request: Request, page: int = 1, page_size: int = 20):
+    resource_access(request)
+    if page < 1 or not 1 <= page_size <= 100:
+        raise HTTPException(400, "分页参数无效")
+    rows, total = db.list_resource_tasks(page, page_size)
+    return {"list": rows, "total": total, "page": page, "page_size": page_size}
+
+
+@app.get("/api/resources/tasks/{task_id}")
+async def resource_task(task_id: int, request: Request):
+    resource_access(request)
+    task = db.resource_task(task_id)
+    if not task:
+        raise HTTPException(404, "任务不存在")
+    return task
+
+
+@app.post("/api/resources/tasks/{task_id}/cancel")
+async def cancel_resource_task(task_id: int, request: Request):
+    resource_access(request)
+    try:
+        resources.cancel(task_id)
+    except ValueError as exc:
+        raise HTTPException(409, str(exc)) from exc
+    return {"ok": True}
+
+
+@app.post("/api/resources/tasks/{task_id}/retry")
+async def retry_resource_task(task_id: int, request: Request):
+    resource_access(request)
+    try:
+        resources.retry(task_id)
+    except ValueError as exc:
+        raise HTTPException(409, str(exc)) from exc
+    return {"ok": True}
+
+
+@app.get("/api/resources/files")
+async def resource_files(request: Request, page: int = 1, page_size: int = 20, task_id: int | None = None, filename: str = "", file_type: str = "", status: str = "", source_id: int | None = None):
+    resource_access(request)
+    if page < 1 or not 1 <= page_size <= 100:
+        raise HTTPException(400, "分页参数无效")
+    filters = {"task_id": task_id, "filename": filename[:200], "file_type": file_type[:12], "status": status[:20], "source_id": source_id}
+    rows, total = db.list_resource_files(filters, page, page_size)
+    return {"list": rows, "total": total, "page": page, "page_size": page_size}
+
+
+def resource_redirect(file_id: int, request: Request, inline: bool):
+    resource_access(request)
+    item = db.resource_file(file_id)
+    if not item or item["upload_status"] != "success" or not item["object_key"]:
+        raise HTTPException(404, "文件不存在或尚未上传完成")
+    previewable = (item["mime_type"] or "").startswith(("image/", "text/")) or item["file_type"] == "pdf"
+    if inline and not previewable:
+        raise HTTPException(415, "该文件类型不支持在线预览")
+    return RedirectResponse(resources.storage.presigned_url(item["object_key"], item["original_filename"], inline), 307)
+
+
+@app.get("/api/resources/files/{file_id}/preview")
+async def preview_resource_file(file_id: int, request: Request):
+    return resource_redirect(file_id, request, True)
+
+
+@app.get("/api/resources/files/{file_id}/download")
+async def download_resource_file(file_id: int, request: Request):
+    return resource_redirect(file_id, request, False)
 
 
 def local_ip():

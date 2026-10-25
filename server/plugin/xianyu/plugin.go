@@ -24,7 +24,12 @@ func init() {
 func (p *plugin) Register(engine *gin.Engine) {
 	ctx := context.Background()
 	if err := initialize.Database(ctx); err != nil {
-		global.GVA_LOG.Error("初始化闲鱼助手 SQLite 配置失败", zap.Error(err))
+		global.GVA_LOG.Error("初始化闲鱼助手数据库失败", zap.Error(err))
+		panic(err)
+	}
+	if err := service.ValidateCredentialKey(); err != nil {
+		global.GVA_LOG.Error("闲鱼凭证加密密钥未配置", zap.Error(err))
+		panic(err)
 	}
 	initialize.Api(ctx)
 	initialize.Menu(ctx)

@@ -100,5 +100,6 @@
   "/src/plugin/xianyu/view/messages.vue": "XianyuMessages",
   "/src/plugin/xianyu/view/orders.vue": "XianyuOrders",
   "/src/plugin/xianyu/view/products.vue": "XianyuProducts",
-  "/src/plugin/xianyu/view/reply-rules.vue": "XianyuReplyRules"
+  "/src/plugin/xianyu/view/reply-rules.vue": "XianyuReplyRules",
+  "/src/plugin/xianyu/view/telegram-resources.vue": "XianyuTelegramResources"
 }

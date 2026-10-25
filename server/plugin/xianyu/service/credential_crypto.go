@@ -9,12 +9,17 @@ import (
 	"fmt"
 	"os"
 	"strings"
+
+	"github.com/flipped-aurora/gin-vue-admin/server/global"
+	"github.com/flipped-aurora/gin-vue-admin/server/plugin/xianyu/model"
+	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
+	"gorm.io/gorm/logger"
 )
 
 const credentialKeyEnvironment = "XIANYU_CREDENTIAL_KEY"
 
-// This file is a local-development fallback; deployments should set the environment variable.
-const localCredentialKeyFile = "/Users/guoc/business/xinayu/go.xianyu.assistant.secret.txt"
+const credentialKeySetting = "xianyu_credential_key"
 
 func encryptCredential(plaintext, associatedData string) (string, error) {
 	key, err := credentialKey()
@@ -67,15 +72,33 @@ func decryptCredential(encoded, associatedData string) (string, error) {
 func credentialKey() ([]byte, error) {
 	encoded := os.Getenv(credentialKeyEnvironment)
 	if strings.TrimSpace(encoded) == "" {
-		contents, err := os.ReadFile(localCredentialKeyFile)
-		if err != nil {
-			return nil, fmt.Errorf("read local credential key: %w", err)
+		if global.GVA_DB == nil {
+			return nil, errors.New("xianyu credential key is not configured: set XIANYU_CREDENTIAL_KEY or initialize the database setting")
 		}
-		encoded = strings.TrimSpace(string(contents))
+		var setting model.Setting
+		if err := global.GVA_DB.Where("key = ?", credentialKeySetting).First(&setting).Error; err != nil {
+			return nil, fmt.Errorf("load xianyu credential key from database: %w", err)
+		}
+		encoded = setting.Value
 	}
 	key, err := base64.StdEncoding.DecodeString(encoded)
 	if err != nil || len(key) != 32 {
 		return nil, fmt.Errorf("%s must be a base64 encoded 32-byte key", credentialKeyEnvironment)
 	}
 	return key, nil
+}
+
+func ValidateCredentialKey() error {
+	if _, err := credentialKey(); err != nil {
+		return err
+	}
+	if strings.TrimSpace(os.Getenv(credentialKeyEnvironment)) == "" {
+		return nil
+	}
+	encoded := strings.TrimSpace(os.Getenv(credentialKeyEnvironment))
+	db := global.GVA_DB.Session(&gorm.Session{Logger: logger.Default.LogMode(logger.Silent)})
+	if err := db.Clauses(clause.OnConflict{UpdateAll: true}).Create(&model.Setting{Key: credentialKeySetting, Value: encoded}).Error; err != nil {
+		return fmt.Errorf("store xianyu credential key in database: %w", err)
+	}
+	return nil
 }

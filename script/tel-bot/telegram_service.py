@@ -5,21 +5,22 @@ import base64
 import io
 import logging
 from datetime import datetime, timezone
-from pathlib import Path
 
 import qrcode
 from telethon import TelegramClient, errors, types
+from telethon.sessions import StringSession
 
 log = logging.getLogger(__name__)
 
 
 class TelegramService:
-    def __init__(self, api_id: int | None, api_hash: str | None, session: Path, db, proxy: tuple | None = None):
+    def __init__(self, api_id: int | None, api_hash: str | None, db, proxy: tuple | None = None):
         self.db = db
         self.proxy = proxy
-        self.has_session = Path(f"{session}.session").exists()
+        session_string = db.setting("telegram_session") or ""
+        self.has_session = bool(session_string)
         self.client = TelegramClient(
-            str(session), api_id, api_hash, flood_sleep_threshold=0,
+            StringSession(session_string), api_id, api_hash, flood_sleep_threshold=0,
             connection_retries=0, retry_delay=1, auto_reconnect=False,
             receive_updates=False, proxy=proxy,
         ) if api_id and api_hash else None
@@ -50,6 +51,8 @@ class TelegramService:
         if self.qr_task:
             self.qr_task.cancel()
         if self.client:
+            if self.authorized:
+                self.db.setting("telegram_session", self.client.session.save())
             await self.client.disconnect()
 
     async def call(self, func, *args, **kwargs):
@@ -111,6 +114,7 @@ class TelegramService:
         me = await self.call(self.client.get_me)
         name = " ".join(x for x in (me.first_name, me.last_name) if x) or str(me.id)
         self.db.setting("account_name", name)
+        self.db.setting("telegram_session", self.client.session.save())
         self.qr.update(status="success", error=None)
 
     def start_scan(self):
@@ -158,14 +162,14 @@ class TelegramService:
             "telegram_id": entity.id, "access_hash": getattr(entity, "access_hash", None),
             "name": dialog.name or "(未命名)", "username": getattr(entity, "username", None),
             "dialog_type": "超级群" if is_megagroup else ("频道" if is_channel else "普通群"),
-            "member_count": getattr(entity, "participants_count", None), "is_channel": int(is_channel),
-            "is_group": int(not is_channel or is_megagroup), "is_megagroup": int(is_megagroup),
-            "is_broadcast": int(bool(getattr(entity, "broadcast", False))), "is_archived": int(dialog.archived),
-            "is_muted": int(muted), "unread_count": dialog.unread_count,
+            "member_count": getattr(entity, "participants_count", None), "is_channel": is_channel,
+            "is_group": not is_channel or is_megagroup, "is_megagroup": is_megagroup,
+            "is_broadcast": bool(getattr(entity, "broadcast", False)), "is_archived": bool(dialog.archived),
+            "is_muted": muted, "unread_count": dialog.unread_count,
             "last_message_id": getattr(dialog.message, "id", None),
             "last_message_at": getattr(dialog.message, "date", None).isoformat() if dialog.message else None,
             "last_read_message_id": getattr(dialog.dialog, "read_inbox_max_id", None),
-            "is_creator": int(bool(getattr(entity, "creator", False))),
+            "is_creator": bool(getattr(entity, "creator", False)),
             "status": "forbidden" if forbidden else ("deleted" if deleted else "normal"),
         }
 

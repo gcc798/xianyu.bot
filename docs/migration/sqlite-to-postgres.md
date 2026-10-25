@@ -1,12 +1,7 @@
-# SQLite to PostgreSQL
+# PostgreSQL initialization
 
-The PostgreSQL Compose service is a new persistent volume. It does not copy or delete the existing SQLite database automatically.
+The Go application uses GORM and runs its schema migrations against PostgreSQL at startup. It uses a new, empty `xianyu_assistant` database; existing SQLite data was intentionally discarded, and the prior `xianyu` PostgreSQL database was left untouched.
 
-1. Stop the Go server so no writes happen during the snapshot: `docker compose -f deploy/docker-compose/docker-compose.yaml stop server`.
-2. Start only PostgreSQL: `docker compose -f deploy/docker-compose/docker-compose.yaml up -d postgres`.
-3. Install `pgloader` and run `./script/migrate_sqlite_to_pg.sh`.
-4. Verify row counts and credentials before starting the full stack.
+The Docker server connects to `postgres:5432`; local development connects to `127.0.0.1:15432`. Both use `xianyu_assistant` (user/password: `xianyu` / `xianyu_assistant`). After starting the Compose server, verify `http://127.0.0.1:18888/health` and inspect the schema through the host-mapped PostgreSQL port.
 
-The script creates an online SQLite backup under the ignored root `tmp/` directory, then imports that snapshot. Keep the original SQLite file until the PostgreSQL data has been checked.
-
-The default host connection is `postgresql://xianyu:xianyu-local-only@127.0.0.1:15432/xianyu`. Override the second script argument when `PGSQL_PASSWORD` is customized.
+GORM removes the need for hand-written SQL for ordinary models, but it does not automatically translate/import a SQLite database file. If a future migration needs to preserve data, it must explicitly map values and verify row counts and constraints before retiring the source database.

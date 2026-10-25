@@ -42,5 +42,14 @@ func Api(ctx context.Context) {
 		system.SysApi{Path: "/xianyu/delivery-rule/resource-import", Description: "导入卡密库存", ApiGroup: "闲鱼发货", Method: "POST"},
 		system.SysApi{Path: "/xianyu/delivery-rule/task-list", Description: "获取自动发货任务", ApiGroup: "闲鱼发货", Method: "GET"},
 		system.SysApi{Path: "/xianyu/delivery-rule/task-retry", Description: "重试自动发货任务", ApiGroup: "闲鱼发货", Method: "POST"},
+		system.SysApi{Path: "/xianyu/telegram/options", Description: "获取 Telegram 资源检索选项", ApiGroup: "Telegram 资源", Method: "GET"},
+		system.SysApi{Path: "/xianyu/telegram/tasks", Description: "创建 Telegram 资源检索任务", ApiGroup: "Telegram 资源", Method: "POST"},
+		system.SysApi{Path: "/xianyu/telegram/tasks", Description: "获取 Telegram 资源检索任务", ApiGroup: "Telegram 资源", Method: "GET"},
+		system.SysApi{Path: "/xianyu/telegram/tasks/:task_id", Description: "获取 Telegram 资源任务详情", ApiGroup: "Telegram 资源", Method: "GET"},
+		system.SysApi{Path: "/xianyu/telegram/tasks/:task_id/cancel", Description: "取消 Telegram 资源任务", ApiGroup: "Telegram 资源", Method: "POST"},
+		system.SysApi{Path: "/xianyu/telegram/tasks/:task_id/retry", Description: "重试 Telegram 资源任务", ApiGroup: "Telegram 资源", Method: "POST"},
+		system.SysApi{Path: "/xianyu/telegram/files", Description: "获取 Telegram 资源文件", ApiGroup: "Telegram 资源", Method: "GET"},
+		system.SysApi{Path: "/xianyu/telegram/files/:file_id/preview", Description: "预览 Telegram 资源文件", ApiGroup: "Telegram 资源", Method: "GET"},
+		system.SysApi{Path: "/xianyu/telegram/files/:file_id/download", Description: "下载 Telegram 资源文件", ApiGroup: "Telegram 资源", Method: "GET"},
 	)
 }

@@ -29,12 +29,16 @@ services:
     container_name: gva-server
     restart: always
     ports:
-      - '8888:8888'
+      - '18888:8888'
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
+    environment:
+      XIANYU_CREDENTIAL_KEY: ${XIANYU_CREDENTIAL_KEY:-}
+      TELEGRAM_SERVICE_URL: http://telegram:8080
+      TELEGRAM_INTERNAL_TOKEN: ${TELEGRAM_INTERNAL_TOKEN:-}
 
   postgres:
     image: postgres:17-alpine
@@ -43,12 +47,12 @@ services:
     ports:
       - '${PGSQL_HOST_PORT:-15432}:5432'
     environment:
-      POSTGRES_DB: xianyu
+      POSTGRES_DB: xianyu_assistant
       POSTGRES_USER: xianyu
-      POSTGRES_PASSWORD: ${PGSQL_PASSWORD:-xianyu-local-only}
+      POSTGRES_PASSWORD: ${PGSQL_PASSWORD:-xianyu_assistant}
       TZ: Asia/Shanghai
     healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -U xianyu -d xianyu']
+      test: ['CMD-SHELL', 'pg_isready -U xianyu -d xianyu_assistant']
       interval: 5s
       timeout: 5s
       retries: 20
@@ -95,7 +99,27 @@ services:
     env_file:
       - path: ../../script/tel-bot/.env
         required: false
+    environment:
+      DATABASE_URL: postgresql://xianyu:xianyu_assistant@postgres:5432/xianyu_assistant
+      TG_API_ID: ${TG_API_ID:-}
+      TG_API_HASH: ${TG_API_HASH:-}
+      TG_PROXY_HOST: ${TG_PROXY_HOST:-}
+      TG_PROXY_PORT: ${TG_PROXY_PORT:-}
+      TELEGRAM_INTERNAL_TOKEN: ${TELEGRAM_INTERNAL_TOKEN:-}
+      TG_RESOURCE_CONCURRENCY: ${TG_RESOURCE_CONCURRENCY:-1}
+      TG_RESOURCE_MAX_FILE_MB: ${TG_RESOURCE_MAX_FILE_MB:-200}
+      TELEGRAM_TMP_ROOT: /workspace/tmp/telegram
+      RUSTFS_ENDPOINT: http://rustfs:9000
+      RUSTFS_ACCESS_KEY: ${RUSTFS_ACCESS_KEY:-rustfs-local}
+      RUSTFS_SECRET_KEY: ${RUSTFS_SECRET_KEY:-rustfs-local-secret}
+      RUSTFS_BUCKET: ${RUSTFS_BUCKET:-telegram-resources}
+      RUSTFS_REGION: ${RUSTFS_REGION:-us-east-1}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rustfs:
+        condition: service_started
     ports:
       - '127.0.0.1:8081:8080'
     volumes:
-      - ../../script/tel-bot/data:/app/data
+      - ../../tmp:/workspace/tmp

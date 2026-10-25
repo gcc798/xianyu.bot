@@ -75,5 +75,6 @@ func Menu(ctx context.Context) {
 			Meta:      system.Meta{Title: "自动发货任务", Icon: "finished"},
 		},
 		system.SysBaseMenu{Path: "business-events", Name: "XianyuBusinessEvents", Component: "plugin/xianyu/view/business-events.vue", Sort: 9, Meta: system.Meta{Title: "业务日志", Icon: "document"}},
+		system.SysBaseMenu{Path: "telegram-resources", Name: "XianyuTelegramResources", Component: "plugin/xianyu/view/telegram-resources.vue", Sort: 10, Meta: system.Meta{Title: "Telegram 资源", Icon: "folder-opened"}},
 	)
 }

@@ -8,7 +8,7 @@ def cleanup_tags(row: dict, now: datetime | None = None) -> list[str]:
     tags = []
     last = row.get("last_message_at")
     if last:
-        last_at = datetime.fromisoformat(last)
+        last_at = datetime.fromisoformat(last) if isinstance(last, str) else last
         if last_at.tzinfo is None:
             last_at = last_at.replace(tzinfo=timezone.utc)
         age = now - last_at

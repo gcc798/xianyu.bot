@@ -116,9 +116,9 @@ pgsql:
     path: postgres
     port: "5432"
     config: "sslmode=disable TimeZone=Asia/Shanghai"
-    db-name: xianyu
+    db-name: xianyu_assistant
     username: xianyu
-    password: xianyu-local-only
+    password: xianyu_assistant
     max-idle-conns: 10
     max-open-conns: 100
     log-mode: ""
