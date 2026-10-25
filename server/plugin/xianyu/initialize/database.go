@@ -2,6 +2,7 @@ package initialize
 
 import (
 	"context"
+	"errors"
 
 	"github.com/flipped-aurora/gin-vue-admin/server/global"
 	"github.com/flipped-aurora/gin-vue-admin/server/plugin/xianyu/model"

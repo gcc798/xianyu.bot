@@ -39,3 +39,11 @@ python test_core.py
 ```
 
 局域网访问会暴露管理页面；仅在可信网络使用，并用 macOS 防火墙限制访问。Bootstrap CSS 使用 CDN，离线时功能仍可用但样式会变简陋。
+
+## Docker 与 PostgreSQL
+
+Compose 中的服务统一使用 `go.xianyu.assistant` 网络。PostgreSQL 映射到宿主机 `15432`，RustFS 的 S3 API/控制台分别映射到 `19000`/`19001`，Telegram Web UI 映射到 `127.0.0.1:8081`。
+
+旧 SQLite 数据不会自动删除或覆盖。停掉旧后端后执行根目录的 `script/migrate_sqlite_to_pg.sh`，脚本会先在根目录 `tmp/` 创建快照，再导入 PostgreSQL；完整步骤见 `docs/migration/sqlite-to-postgres.md`。
+
+Telegram 群/频道检索上线前应增加合规审核门禁，只允许检索经过人工确认或有明确授权的来源。模型分类不是版权授权证明。

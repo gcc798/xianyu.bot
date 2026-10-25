@@ -1,18 +1,14 @@
-version: "3"
+name: go.xianyu.assistant
 
-# 声明一个名为network的networks,subnet为network的子网地址,默认网关是177.7.0.1
 networks:
-  network:
-    ipam:
-      driver: default
-      config:
-        - subnet: '177.7.0.0/16'
-        
-# 设置mysql，redis持久化保存
+  default:
+    name: go.xianyu.assistant
+
 volumes:
-  mysql:
+  postgres:
+  rustfs:
   redis:
-  
+
 services:
   web:
     build:
@@ -24,10 +20,7 @@ services:
       - '8080:8080'
     depends_on:
       - server
-    command: [ 'nginx-debug', '-g', 'daemon off;' ]
-    networks:
-      network:
-        ipv4_address: 177.7.0.11
+    command: ['nginx-debug', '-g', 'daemon off;']
 
   server:
     build:
@@ -38,53 +31,71 @@ services:
     ports:
       - '8888:8888'
     depends_on:
-      mysql:
+      postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
-    links:
-      - mysql
-      - redis
-    networks:
-      network:
-        ipv4_address: 177.7.0.12
 
-  mysql:
-    image: mysql:8.0.21       # 如果您是 arm64 架构：如 MacOS 的 M1，请修改镜像为 image: mysql/mysql-server:8.0.21
-    container_name: gva-mysql
-    command: mysqld --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci #设置utf8字符集
+  postgres:
+    image: postgres:17-alpine
+    container_name: gva-postgres
     restart: always
     ports:
-      - "13306:3306"  # host物理直接映射端口为13306
+      - '${PGSQL_HOST_PORT:-15432}:5432'
     environment:
-      #MYSQL_ROOT_PASSWORD: 'Aa@6447985' # root管理员用户密码
-      MYSQL_DATABASE: 'qmPlus' # 初始化启动时要创建的数据库的名称
-      MYSQL_USER: 'gva'
-      MYSQL_PASSWORD: 'Aa@6447985'
+      POSTGRES_DB: xianyu
+      POSTGRES_USER: xianyu
+      POSTGRES_PASSWORD: ${PGSQL_PASSWORD:-xianyu-local-only}
+      TZ: Asia/Shanghai
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "gva", "-pAa@6447985"]
-      interval: 10s
+      test: ['CMD-SHELL', 'pg_isready -U xianyu -d xianyu']
+      interval: 5s
       timeout: 5s
-      retries: 3
+      retries: 20
     volumes:
-      - mysql:/var/lib/mysql
-    networks:
-      network:
-        ipv4_address: 177.7.0.13
+      - postgres:/var/lib/postgresql/data
+
+  rustfs:
+    image: rustfs/rustfs:latest
+    container_name: gva-rustfs
+    restart: always
+    command: ['--address', ':9000', '--console-enable', '--console-address', ':9001', '/data']
+    ports:
+      - '${RUSTFS_API_HOST_PORT:-19000}:9000'
+      - '${RUSTFS_CONSOLE_HOST_PORT:-19001}:9001'
+    environment:
+      RUSTFS_ACCESS_KEY: ${RUSTFS_ACCESS_KEY:-rustfs-local}
+      RUSTFS_SECRET_KEY: ${RUSTFS_SECRET_KEY:-rustfs-local-secret}
+      RUSTFS_ADDRESS: ':9000'
+      RUSTFS_CONSOLE_ADDRESS: ':9001'
+      RUSTFS_CONSOLE_ENABLE: 'true'
+    volumes:
+      - rustfs:/data
 
   redis:
-    image: redis:6.0.6
-    container_name: gva-redis # 容器名
+    image: redis:7-alpine
+    container_name: gva-redis
     restart: always
     ports:
       - '16379:6379'
     healthcheck:
-      test: ["CMD-SHELL", "redis-cli ping | grep PONG || exit 1"]
+      test: ['CMD', 'redis-cli', 'ping']
       interval: 10s
       timeout: 5s
       retries: 3
     volumes:
       - redis:/data
-    networks:
-      network:
-        ipv4_address: 177.7.0.14
+
+  telegram:
+    build:
+      context: ../../script/tel-bot
+      dockerfile: Dockerfile
+    container_name: gva-telegram
+    restart: unless-stopped
+    env_file:
+      - path: ../../script/tel-bot/.env
+        required: false
+    ports:
+      - '127.0.0.1:8081:8080'
+    volumes:
+      - ../../script/tel-bot/data:/app/data
