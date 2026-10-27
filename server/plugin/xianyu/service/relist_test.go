@@ -27,22 +27,34 @@ func TestRelistPublishesOnceAndMovesProductRules(t *testing.T) {
 	snapshot, err := json.Marshal(publishSnapshot{API: "mtop.idle.pc.idleitem.publish", Payload: map[string]any{
 		"itemTextDTO": map[string]any{"title": "商品", "desc": "商品描述"},
 		"itemCatDTO":  map[string]any{"catId": "cat-1", "channelCatId": "", "tbCatId": ""},
+		"itemAddrDTO": map[string]any{"divisionId": "330106", "gps": "30.25961,120.13026", "poiId": "poi-1", "poiName": "西湖区"},
 	}})
 	require.NoError(t, err)
-	item := model.Product{OwnerID: 10, AccountID: account.ID, ExternalProductID: "old-item", Title: "商品", Status: "sold", PublishSnapshot: string(snapshot)}
+	item := model.Product{
+		OwnerID: 10, AccountID: account.ID, ExternalProductID: "old-item", Title: "商品", PriceCent: 100, Status: "sold",
+		PublishSnapshot: string(snapshot),
+		SourceJSON:      `{"categoryId":"cat-1","detailParams":{"imageInfos":"[{\"url\":\"https://img.example/old.jpg\"}]"}}`,
+	}
 	require.NoError(t, db.Create(&item).Error)
-	require.NoError(t, db.Create(&model.ProductSetting{ProductID: item.ID, AutoRelistEnabled: true}).Error)
+	require.NoError(t, db.Create(&model.ProductSetting{ProductID: item.ID, AutoRelistEnabled: true, RelistDescription: "最新描述", RelistAddress: "西湖区"}).Error)
 	require.NoError(t, db.Create(&model.DeliveryRule{OwnerID: 10, ProductID: item.ID, Mode: model.DeliveryModeText, Template: "link", Enabled: true}).Error)
 	order := model.Order{OwnerID: 10, AccountID: account.ID, ProductID: item.ID, ExternalOrderID: "order-1", Status: model.OrderStatusShipped}
 	require.NoError(t, db.Create(&order).Error)
 	publisher := &recordingMTopCaller{}
 	publisher.calls = nil
 	service := &relist{
-		mtop:  mtopResultCaller{recordingMTopCaller: publisher, data: json.RawMessage(`{"itemId":"new-item"}`)},
-		media: func(context.Context, uint, uint, map[string]any) error { return nil },
+		mtop:     mtopResultCaller{recordingMTopCaller: publisher, data: json.RawMessage(`{"itemId":"new-item"}`)},
+		products: &product{mtop: fakeMTopCaller{data: json.RawMessage(`{"itemDO":{"imageInfos":[{"url":"https://img.example/new.jpg"}]}}`)}},
+		media:    func(context.Context, uint, uint, map[string]any) error { return nil },
 	}
 
 	require.NoError(t, service.Plan(t.Context(), order))
+	require.NoError(t, db.First(&item, item.ID).Error)
+	var refreshed publishSnapshot
+	require.NoError(t, json.Unmarshal([]byte(item.PublishSnapshot), &refreshed))
+	require.Equal(t, "最新描述", refreshed.Payload["itemTextDTO"].(map[string]any)["desc"])
+	require.Equal(t, "https://img.example/new.jpg", refreshed.Payload["imageInfoDOList"].([]any)[0].(map[string]any)["url"])
+	service.products = nil
 	var task model.RelistTask
 	require.NoError(t, db.First(&task).Error)
 	require.NoError(t, db.Model(&task).Update("next_attempt_at", time.Now().Add(-time.Second)).Error)

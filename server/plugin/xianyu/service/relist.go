@@ -44,6 +44,19 @@ func (s *relist) Plan(ctx context.Context, order model.Order) error {
 	if err := global.GVA_DB.WithContext(ctx).Where("id = ? AND owner_id = ?", order.ProductID, order.OwnerID).First(&item).Error; err != nil {
 		return err
 	}
+	if s.products != nil {
+		snapshot, err := s.products.capturePublishSnapshot(ctx, order.OwnerID, item, xianyuRequest.UpdateProductSetting{
+			ProductID: item.ID, AutoRelistEnabled: true,
+			RelistDescription: setting.RelistDescription, RelistImageURLs: setting.RelistImageURLs, RelistAddress: setting.RelistAddress,
+		})
+		if err != nil {
+			return fmt.Errorf("刷新续售发布快照: %w", err)
+		}
+		item.PublishSnapshot = snapshot
+		if err := global.GVA_DB.WithContext(ctx).Model(&item).Update("publish_snapshot", snapshot).Error; err != nil {
+			return err
+		}
+	}
 	if strings.TrimSpace(item.PublishSnapshot) == "" {
 		return errors.New("商品没有可用的发布快照")
 	}

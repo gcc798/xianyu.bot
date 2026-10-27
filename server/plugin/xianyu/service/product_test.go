@@ -2,6 +2,7 @@ package service
 
 import (
 	"encoding/base64"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -166,4 +167,20 @@ func TestLocalPublishPayloadRejectsEmptyInheritedAddress(t *testing.T) {
 	}
 	_, err := localPublishPayload(item, xianyuRequest.UpdateProductSetting{})
 	require.EqualError(t, err, "无法从闲鱼读取原商品的发布所在地，请重新登录后重试")
+}
+
+func TestCapturePublishSnapshotAdaptsDetailResponseAndUsesLatestImages(t *testing.T) {
+	item := model.Product{
+		OwnerID: 10, AccountID: 20, ExternalProductID: "item-1", Title: "测试商品", PriceCent: 100,
+		SourceJSON:      `{"categoryId":50023914,"detailParams":{"imageInfos":"[{\"url\":\"https://img.example/old.jpg\"}]"}}`,
+		PublishSnapshot: `{"api":"mtop.idle.pc.idleitem.publish","payload":{"itemAddrDTO":{"divisionId":"330106","gps":"30.25961,120.13026","poiId":"poi-1","poiName":"西湖区"}}}`,
+	}
+	service := &product{mtop: fakeMTopCaller{data: json.RawMessage(`{"itemDO":{"imageInfos":[{"url":"https://img.example/new.jpg"}]},"picDetailDO":{}}`)}}
+	snapshotJSON, err := service.capturePublishSnapshot(t.Context(), 10, item, xianyuRequest.UpdateProductSetting{RelistDescription: "新描述"})
+	require.NoError(t, err)
+	var snapshot publishSnapshot
+	require.NoError(t, json.Unmarshal([]byte(snapshotJSON), &snapshot))
+	require.Equal(t, "新描述", snapshot.Payload["itemTextDTO"].(map[string]any)["desc"])
+	images := snapshot.Payload["imageInfoDOList"].([]any)
+	require.Equal(t, "https://img.example/new.jpg", images[0].(map[string]any)["url"])
 }

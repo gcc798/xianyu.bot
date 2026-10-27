@@ -454,9 +454,19 @@ func (s *product) capturePublishSnapshot(ctx context.Context, ownerID uint, item
 	if nested, ok := payload["data"].(map[string]any); ok {
 		payload = nested
 	}
+	detailPayload := payload
 	for _, field := range []string{"itemTextDTO", "itemPriceDTO", "imageInfoDOList", "itemCatDTO", "itemAddrDTO", "itemPostFeeDTO"} {
 		if payload[field] == nil {
-			return "", fmt.Errorf("闲鱼商品发布快照缺少 %s（顶层字段: %s），不能开启自动续售", field, strings.Join(sortedMapKeys(payload), ","))
+			fallback, fallbackErr := localPublishPayload(item, input)
+			if fallbackErr != nil {
+				return "", fmt.Errorf("闲鱼商品详情不能直接用于续售（顶层字段: %s），本地商品信息也不完整: %w", strings.Join(sortedMapKeys(payload), ","), fallbackErr)
+			}
+			if strings.TrimSpace(input.RelistImageURLs) == "" {
+				if images := detailPublishImages(detailPayload); len(images) > 0 {
+					fallback["imageInfoDOList"] = images
+				}
+			}
+			return marshalPublishSnapshot(fallback)
 		}
 	}
 	if address, ok := payload["itemAddrDTO"].(map[string]any); !ok || !validPublishAddress(address) {
@@ -477,6 +487,16 @@ func (s *product) capturePublishSnapshot(ctx context.Context, ownerID uint, item
 	payload["sourceId"] = "pcMainPublish"
 	payload["bizcode"] = "pcMainPublish"
 	payload["publishScene"] = "pcMainPublish"
+	if description := strings.TrimSpace(input.RelistDescription); description != "" {
+		text, ok := payload["itemTextDTO"].(map[string]any)
+		if !ok {
+			return "", errors.New("闲鱼商品发布快照的文本格式无法识别")
+		}
+		text["desc"] = description
+	}
+	if images := configuredPublishImages(input.RelistImageURLs); len(images) > 0 {
+		payload["imageInfoDOList"] = images
+	}
 	return marshalPublishSnapshot(payload)
 }
 
@@ -519,19 +539,8 @@ func localPublishPayload(item model.Product, input xianyuRequest.UpdateProductSe
 	if address == nil {
 		return nil, errors.New("无法从闲鱼读取原商品的发布所在地，请重新登录后重试")
 	}
-	images := make([]map[string]any, 0, 9)
-	if rawURLs := strings.TrimSpace(input.RelistImageURLs); rawURLs != "" {
-		for index, line := range strings.Split(rawURLs, "\n") {
-			imageURL := strings.TrimSpace(line)
-			if imageURL == "" {
-				continue
-			}
-			images = append(images, map[string]any{"url": imageURL, "major": index == 0, "type": 0, "status": "done"})
-			if len(images) == 9 {
-				break
-			}
-		}
-	} else if source.DetailParams.ImageInfos != "" {
+	images := configuredPublishImages(input.RelistImageURLs)
+	if len(images) == 0 && source.DetailParams.ImageInfos != "" {
 		_ = json.Unmarshal([]byte(source.DetailParams.ImageInfos), &images)
 	}
 	if len(images) == 0 && item.ImageURL != "" {
@@ -552,6 +561,48 @@ func localPublishPayload(item model.Product, input xianyuRequest.UpdateProductSe
 		"itemCatDTO": map[string]any{"catId": categoryID, "catName": "", "channelCatId": "", "tbCatId": ""},
 		"sourceId":   "pcMainPublish", "bizcode": "pcMainPublish", "publishScene": "pcMainPublish",
 	}, nil
+}
+
+func configuredPublishImages(rawURLs string) []any {
+	images := make([]any, 0, 9)
+	for line := range strings.SplitSeq(strings.TrimSpace(rawURLs), "\n") {
+		imageURL := strings.TrimSpace(line)
+		if imageURL == "" {
+			continue
+		}
+		images = append(images, map[string]any{"url": imageURL, "major": len(images) == 0, "type": 0, "status": "done"})
+		if len(images) == 9 {
+			break
+		}
+	}
+	return images
+}
+
+func detailPublishImages(payload map[string]any) []any {
+	item, ok := payload["itemDO"].(map[string]any)
+	if !ok {
+		return nil
+	}
+	values, ok := item["imageInfos"].([]any)
+	if !ok {
+		return nil
+	}
+	images := make([]any, 0, min(len(values), 9))
+	for _, value := range values {
+		image, ok := value.(map[string]any)
+		if !ok {
+			continue
+		}
+		imageURL := strings.TrimSpace(fmt.Sprint(image["url"]))
+		if imageURL == "" || imageURL == "<nil>" {
+			continue
+		}
+		images = append(images, map[string]any{"url": imageURL, "major": len(images) == 0, "type": 0, "status": "done"})
+		if len(images) == 9 {
+			break
+		}
+	}
+	return images
 }
 
 func inheritedPublishAddress(snapshot string) map[string]any {
