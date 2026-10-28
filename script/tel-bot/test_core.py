@@ -1,3 +1,4 @@
+import asyncio
 from datetime import datetime, timedelta, timezone
 import os
 from pathlib import Path
@@ -9,6 +10,8 @@ from analyzer import cleanup_tags, telegram_link
 from database import Database
 from resource_service import ResourceService
 from storage import safe_filename
+from telegram_service import TelegramService
+from telethon import functions, types
 
 
 def test_resource_validation():
@@ -86,7 +89,32 @@ def test_metadata_scan_storage():
             conn.execute("DELETE FROM tel_settings WHERE key=%s", (settings_key,))
 
 
+def test_qr_login_migrates_before_rendering():
+    imported = types.auth.LoginToken(datetime.now(timezone.utc) + timedelta(seconds=30), b"new-token")
+
+    class Client:
+        def __init__(self):
+            self.dc_id = None
+
+        async def _switch_dc(self, dc_id):
+            self.dc_id = dc_id
+
+        async def __call__(self, request):
+            assert isinstance(request, functions.auth.ImportLoginTokenRequest)
+            assert request.token == b"migrate-token"
+            return imported
+
+    service = TelegramService.__new__(TelegramService)
+    service.client = Client()
+    login = SimpleNamespace(_resp=types.auth.LoginTokenMigrateTo(2, b"migrate-token"))
+
+    assert asyncio.run(service._prepare_qr(login)) is True
+    assert service.client.dc_id == 2
+    assert login._resp is imported
+
+
 if __name__ == "__main__":
     test_resource_validation()
     test_metadata_scan_storage()
+    test_qr_login_migrates_before_rendering()
     print("ok")

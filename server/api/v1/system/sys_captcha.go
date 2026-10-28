@@ -35,10 +35,7 @@ func (b *BaseApi) Captcha(c *gin.Context) {
 		global.BlackCache.Set(key, 1, time.Second*time.Duration(openCaptchaTimeOut))
 	}
 
-	var oc bool
-	if openCaptcha == 0 || openCaptcha < interfaceToInt(v) {
-		oc = true
-	}
+	oc := captchaRequired(openCaptcha, interfaceToInt(v))
 	// 字符,公式,验证码配置
 	// 生成默认数字的driver
 	driver := base64Captcha.NewDriverDigit(global.GVA_CONFIG.Captcha.ImgHeight, global.GVA_CONFIG.Captcha.ImgWidth, global.GVA_CONFIG.Captcha.KeyLong, 0.7, 80)
@@ -56,6 +53,10 @@ func (b *BaseApi) Captcha(c *gin.Context) {
 		CaptchaLength: global.GVA_CONFIG.Captcha.KeyLong,
 		OpenCaptcha:   oc,
 	}, "验证码获取成功", c)
+}
+
+func captchaRequired(limit, attempts int) bool {
+	return limit == 0 || limit > 0 && limit < attempts
 }
 
 // 类型转换

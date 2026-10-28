@@ -5,10 +5,11 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"sort"
+
 	"github.com/flipped-aurora/gin-vue-admin/server/global"
 	"github.com/flipped-aurora/gin-vue-admin/server/model/system/request"
 	"gorm.io/gorm"
-	"sort"
 )
 
 // dbReadyCallback 数据库就绪回调函数，由 initialize 包注入
@@ -93,6 +94,30 @@ func RegisterInit(order int, i SubInitializer) {
 /* ---- * service * ---- */
 
 type InitDBService struct{}
+
+// InitExistingPgsql runs the registered gin-vue-admin initializers against an empty PostgreSQL schema.
+func (initDBService *InitDBService) InitExistingPgsql(db *gorm.DB, adminPassword string) error {
+	if db == nil {
+		return errors.New("database is not initialized")
+	}
+	if len(initializers) == 0 {
+		return errors.New("无可用初始化过程，请检查初始化是否已执行完成")
+	}
+
+	ctx := context.WithValue(context.Background(), "db", db)
+	ctx = context.WithValue(ctx, "dbtype", Pgsql)
+	ctx = context.WithValue(ctx, "adminPassword", adminPassword)
+	sort.Sort(&initializers)
+
+	handler := NewPgsqlInitHandler()
+	if err := handler.InitTables(ctx, initializers); err != nil {
+		return err
+	}
+	if err := handler.InitData(ctx, initializers); err != nil {
+		return err
+	}
+	return nil
+}
 
 // InitDB 创建数据库并初始化 总入口
 func (initDBService *InitDBService) InitDB(conf request.InitDB) (err error) {

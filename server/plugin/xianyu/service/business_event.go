@@ -9,13 +9,32 @@ import (
 	"github.com/flipped-aurora/gin-vue-admin/server/plugin/xianyu/model"
 	xianyuRequest "github.com/flipped-aurora/gin-vue-admin/server/plugin/xianyu/model/request"
 	xianyuResponse "github.com/flipped-aurora/gin-vue-admin/server/plugin/xianyu/model/response"
+	"go.uber.org/zap"
 )
 
 type businessEvent struct{}
 
 func recordBusinessEvent(ctx context.Context, event model.BusinessEvent) {
+	fields := []zap.Field{
+		zap.Uint("ownerID", event.OwnerID), zap.Uint("accountID", event.AccountID),
+		zap.Uint("productID", event.ProductID), zap.Uint("orderID", event.OrderID),
+		zap.String("type", event.Type), zap.String("status", event.Status),
+		zap.String("summary", event.Summary),
+	}
+	if event.Error != "" {
+		fields = append(fields, zap.String("error", event.Error))
+	}
+	if global.GVA_LOG != nil {
+		if event.Status == "success" || event.Status == "ready" {
+			global.GVA_LOG.Info("闲鱼业务操作完成", fields...)
+		} else {
+			global.GVA_LOG.Warn("闲鱼业务操作异常", fields...)
+		}
+	}
 	if event.OwnerID != 0 {
-		_ = global.GVA_DB.WithContext(ctx).Create(&event).Error
+		if err := global.GVA_DB.WithContext(ctx).Create(&event).Error; err != nil && global.GVA_LOG != nil {
+			global.GVA_LOG.Error("保存闲鱼业务日志失败", zap.Error(err), zap.String("type", event.Type), zap.Uint("accountID", event.AccountID))
+		}
 	}
 }
 

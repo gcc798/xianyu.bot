@@ -94,6 +94,23 @@ func TestRuntimeSnapshotRecordsReconnectError(t *testing.T) {
 	require.True(t, manager.Stop(11))
 }
 
+func TestRuntimeStopsRetryingNonRetryableError(t *testing.T) {
+	dialer := &permanentErrorDialer{}
+	states := make(chan State, 4)
+	config := testConfig()
+	config.StateChanged = func(snapshot Snapshot) { states <- snapshot.State }
+	manager, err := NewManager(dialer, func(context.Context, uint, []byte) error { return nil }, config)
+	require.NoError(t, err)
+	require.NoError(t, manager.Start(t.Context(), 12))
+	require.Eventually(t, func() bool {
+		snapshot, running := manager.Snapshot(12)
+		return !running && snapshot.State == StateFailed && snapshot.LastError == "需要人工处理" && snapshot.ActionURL == "https://example.com/verify"
+	}, time.Second, time.Millisecond)
+	require.Equal(t, int64(1), dialer.calls.Load())
+	require.Equal(t, StateConnecting, <-states)
+	require.Equal(t, StateFailed, <-states)
+}
+
 func TestRuntimeReadTimeoutClosesConnection(t *testing.T) {
 	connection := newFakeConnection()
 	config := testConfig()
@@ -178,6 +195,19 @@ type fakeDialer struct {
 }
 
 type errorDialer struct{}
+
+type permanentError struct{}
+
+func (permanentError) Error() string      { return "需要人工处理" }
+func (permanentError) NonRetryable() bool { return true }
+func (permanentError) ActionURL() string  { return "https://example.com/verify" }
+
+type permanentErrorDialer struct{ calls atomic.Int64 }
+
+func (d *permanentErrorDialer) Dial(context.Context, uint) (Connection, error) {
+	d.calls.Add(1)
+	return nil, permanentError{}
+}
 
 func (errorDialer) Dial(context.Context, uint) (Connection, error) {
 	return nil, errors.New("连接失败")

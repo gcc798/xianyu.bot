@@ -114,9 +114,11 @@
       <el-form label-width="110px">
         <el-form-item label="自动回复">
           <el-switch v-model="setting.autoReplyEnabled" />
+          <el-button v-if="setting.autoReplyEnabled" link type="primary" class="ml-3" @click="openRuleSetting('XianyuReplyRules')">配置规则</el-button>
         </el-form-item>
         <el-form-item label="自动发货">
           <el-switch v-model="setting.autoDeliveryEnabled" />
+          <el-button v-if="setting.autoDeliveryEnabled" link type="primary" class="ml-3" @click="openRuleSetting('XianyuDeliveryRules')">配置规则</el-button>
         </el-form-item>
         <el-form-item label="自动续售">
           <el-switch v-model="setting.autoRelistEnabled" />
@@ -132,7 +134,10 @@
         <el-form-item v-if="setting.autoRelistEnabled" label="续售描述">
           <el-input v-model="setting.relistDescription" type="textarea" :rows="4" maxlength="5000" show-word-limit />
         </el-form-item>
-        <el-alert v-if="setting.autoRelistEnabled" title="自动续售会继承原商品的发布所在地；虚拟商品无需填写邮寄地址。" type="info" :closable="false" class="mb-4" />
+        <el-form-item v-if="setting.autoRelistEnabled" label="发布所在地" required>
+          <el-input v-model="setting.relistAddress" placeholder="请输入，例如：杭州市西湖区" />
+        </el-form-item>
+        <el-alert v-if="setting.autoRelistEnabled" title="自动续售发布时需要所在地；虚拟商品也需要填写，但不需要邮寄地址。" type="info" :closable="false" class="mb-4" />
         <el-form-item v-if="setting.autoRelistEnabled" label="续售图片">
           <el-input v-model="setting.relistImageUrls" type="textarea" :rows="3" placeholder="每行一个图片 URL，留空则使用同步到的原商品图片" />
         </el-form-item>
@@ -147,6 +152,7 @@
 
 <script setup>
   import { onMounted, reactive, ref } from 'vue'
+  import { useRouter } from 'vue-router'
   import { ElMessage } from 'element-plus'
   import { getXianyuAccountList } from '@/plugin/xianyu/api/account'
   import {
@@ -157,6 +163,7 @@
 
   defineOptions({ name: 'XianyuProducts' })
 
+  const router = useRouter()
   const loading = ref(false)
   const syncing = ref(false)
   const tableData = ref([])
@@ -238,12 +245,22 @@
     settingDialog.value = true
   }
   const saveSetting = async () => {
+    if (setting.autoRelistEnabled && !setting.relistAddress.trim()) {
+      ElMessage.warning('开启自动续售时请填写发布所在地')
+      return false
+    }
     const res = await updateXianyuProductSetting(setting)
     if (res.code === 0) {
       ElMessage.success('商品设置已保存')
       settingDialog.value = false
       load()
+      return true
     }
+    return false
+  }
+  const openRuleSetting = async (name) => {
+    if (!await saveSetting()) return
+    router.push({ name, query: { productId: setting.productId, editor: 'auto' } })
   }
 
   onMounted(() => {

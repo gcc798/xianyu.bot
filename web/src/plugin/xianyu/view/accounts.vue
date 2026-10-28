@@ -42,6 +42,12 @@
               <span v-if="connectionFor(scope.row).lastError" class="connection-error" :title="connectionFor(scope.row).lastError">
                 {{ connectionFor(scope.row).lastError }}
               </span>
+              <el-button
+                v-if="scope.row.status === 'verification_required'"
+                link
+                type="primary"
+                @click="openMessageCredential(scope.row)"
+              >处理消息验证</el-button>
             </div>
           </template>
         </el-table-column>
@@ -112,19 +118,32 @@
       </template>
     </el-dialog>
 
-    <el-dialog v-model="credentialDialog" title="设置账号凭证" width="600px" @closed="clearCredential">
-      <el-alert title="凭证只会加密保存，保存后不再回显。" type="warning" :closable="false" class="mb-4" />
+    <el-dialog v-model="credentialDialog" :title="credentialMode === 'message' ? '处理消息安全验证' : '设置账号凭证'" width="660px" @closed="clearCredential">
+      <el-alert
+        v-if="credentialMode === 'message'"
+        type="warning"
+        :closable="false"
+        class="mb-4"
+      >
+        <template #title>扫码登录不能解除消息接口的独立风控，请按下面步骤更新 Cookie。</template>
+        <ol class="credential-steps">
+          <li><el-link href="https://www.goofish.com/" target="_blank" type="primary">打开闲鱼网页版</el-link>，登录后点击“消息”，完成滑块或安全验证。</li>
+          <li>按 F12（Mac：⌥⌘I）打开开发者工具，在 Network 中搜索 <code>login.token</code>。</li>
+          <li>打开最新成功的请求，在 Request Headers 中复制完整的 <code>Cookie</code> 值并粘贴到下方。</li>
+        </ol>
+      </el-alert>
+      <el-alert v-else title="凭证只会加密保存，保存后不再回显。" type="warning" :closable="false" class="mb-4" />
       <el-form label-width="80px">
         <el-form-item label="Cookie" required>
           <el-input v-model="credential.cookie" type="textarea" :rows="5" autocomplete="off" />
         </el-form-item>
-        <el-form-item label="Token">
+        <el-form-item v-if="credentialMode !== 'message'" label="Token">
           <el-input v-model="credential.token" type="password" show-password autocomplete="new-password" />
         </el-form-item>
       </el-form>
       <template #footer>
         <el-button @click="credentialDialog = false">取消</el-button>
-        <el-button type="primary" @click="saveCredential">加密保存</el-button>
+        <el-button type="primary" @click="saveCredential">{{ credentialMode === 'message' ? '保存并重新连接' : '加密保存' }}</el-button>
       </template>
     </el-dialog>
 
@@ -143,18 +162,11 @@
         </div>
         <el-alert
           v-if="qrLogin.status === 'verification_required'"
-          title="闲鱼要求额外安全验证，系统不会绕过。"
+          title="请先在闲鱼 App 按提示完成安全验证，再重新扫码登录。"
           type="warning"
           :closable="false"
           class="mt-4"
         />
-        <el-link
-          v-if="qrLogin.verificationUrl"
-          :href="qrLogin.verificationUrl"
-          target="_blank"
-          type="primary"
-          class="mt-3"
-        >打开闲鱼验证页面</el-link>
       </div>
       <template #footer>
         <el-button @click="qrDialog = false">关闭</el-button>
@@ -188,6 +200,7 @@
   const total = ref(0)
   const accountDialog = ref(false)
   const credentialDialog = ref(false)
+  const credentialMode = ref('normal')
   const checkingId = ref(0)
   const connectionLoadingId = ref(0)
   const connections = reactive({})
@@ -249,10 +262,19 @@
     }
   }
   const openCredential = (row) => {
+    credentialMode.value = 'normal'
     Object.assign(credential, { ID: row.ID, cookie: '', token: '' })
     credentialDialog.value = true
   }
-  const clearCredential = () => Object.assign(credential, { ID: 0, cookie: '', token: '' })
+  const openMessageCredential = (row) => {
+    credentialMode.value = 'message'
+    Object.assign(credential, { ID: row.ID, cookie: '', token: '' })
+    credentialDialog.value = true
+  }
+  const clearCredential = () => {
+    credentialMode.value = 'normal'
+    Object.assign(credential, { ID: 0, cookie: '', token: '' })
+  }
   const statusText = (status) => ({
     ready: '正常',
     expired: '已失效',
@@ -269,16 +291,21 @@
   const connectionText = (connection) => ({
     connecting: '连接中',
     connected: '已连接',
-    reconnecting: '重连中'
+    reconnecting: '重连中',
+    failed: '需处理'
   }[connection.state] || '未连接')
   const connectionType = (state) => ({
     connected: 'success',
     connecting: 'primary',
-    reconnecting: 'warning'
+    reconnecting: 'warning',
+    failed: 'danger'
   }[state] || 'info')
   const refreshConnection = async (row) => {
     const res = await getXianyuWebSocketStatus({ ID: row.ID })
-    if (res.code === 0) connections[row.ID] = res.data.connection
+    if (res.code === 0) {
+      connections[row.ID] = res.data.connection
+      if (res.data.connection.accountStatus) row.status = res.data.connection.accountStatus
+    }
   }
   const refreshConnections = async () => {
     await Promise.all(tableData.value.map(refreshConnection))
@@ -368,11 +395,17 @@
   }
   const saveCredential = async () => {
     if (!credential.cookie.trim()) return ElMessage.warning('请输入 Cookie')
+    const reconnect = credentialMode.value === 'message'
+    const row = tableData.value.find(item => item.ID === credential.ID)
     const res = await saveXianyuCredential(credential)
     if (res.code === 0) {
       ElMessage.success('凭证已加密保存')
       credentialDialog.value = false
-      load()
+      if (reconnect && row) {
+        row.status = 'ready'
+        await startConnection(row)
+      }
+      await load()
     }
   }
 
@@ -387,6 +420,12 @@
 </script>
 
 <style scoped>
+  .credential-steps {
+    margin: 8px 0 0;
+    padding-left: 20px;
+    line-height: 1.8;
+  }
+
   .qr-login-panel {
     min-height: 350px;
     display: flex;

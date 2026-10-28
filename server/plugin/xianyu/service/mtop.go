@@ -17,6 +17,7 @@ import (
 
 	"github.com/flipped-aurora/gin-vue-admin/server/global"
 	"github.com/flipped-aurora/gin-vue-admin/server/plugin/xianyu/model"
+	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
 
@@ -37,6 +38,21 @@ type mtopEnvelope struct {
 var errMTopTransport = errors.New("闲鱼接口结果未知")
 
 func (m *mtopClient) Call(ctx context.Context, ownerID, accountID uint, api string, data any, seller bool) (result json.RawMessage, err error) {
+	startedAt := time.Now()
+	defer func() {
+		if global.GVA_LOG == nil {
+			return
+		}
+		fields := []zap.Field{
+			zap.Uint("ownerID", ownerID), zap.Uint("accountID", accountID), zap.String("api", api),
+			zap.Bool("seller", seller), zap.Duration("duration", time.Since(startedAt)),
+		}
+		if err != nil {
+			global.GVA_LOG.Warn("调用闲鱼 MTop 接口失败", append(fields, zap.Error(err))...)
+		} else {
+			global.GVA_LOG.Info("调用闲鱼 MTop 接口成功", fields...)
+		}
+	}()
 	lockValue, _ := credentialRefreshLocks.LoadOrStore(accountID, new(sync.Mutex))
 	lock := lockValue.(*sync.Mutex)
 	lock.Lock()

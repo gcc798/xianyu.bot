@@ -7,7 +7,7 @@ import logging
 from datetime import datetime, timezone
 
 import qrcode
-from telethon import TelegramClient, errors, types
+from telethon import TelegramClient, errors, functions, types
 from telethon.sessions import StringSession
 
 log = logging.getLogger(__name__)
@@ -77,6 +77,8 @@ class TelegramService:
         try:
             await self._ensure_connected()
             login = await self.call(self.client.qr_login)
+            if not await self._prepare_qr(login):
+                return
             image = qrcode.make(login.url)
             buffer = io.BytesIO(); image.save(buffer, format="PNG")
             self.qr = {"status": "waiting", "image": "data:image/png;base64," + base64.b64encode(buffer.getvalue()).decode(), "error": None}
@@ -86,6 +88,21 @@ class TelegramService:
         except Exception as exc:
             log.warning("QR login start failed: %s", exc)
             self.qr.update(status="error", error=f"无法连接 Telegram：{exc}")
+
+    async def _prepare_qr(self, login):
+        # shortcut: Telethon 1.x has no public initial-migration hook; remove when QRLogin handles it.
+        response = login._resp
+        if isinstance(response, types.auth.LoginTokenMigrateTo):
+            await self.client._switch_dc(response.dc_id)
+            response = await self.call(self.client, functions.auth.ImportLoginTokenRequest(response.token))
+            login._resp = response
+        if isinstance(response, types.auth.LoginTokenSuccess):
+            await self.client._on_login(response.authorization.user)
+            await self._login_done()
+            return False
+        if not isinstance(response, types.auth.LoginToken):
+            raise TypeError(f"Unexpected QR login response: {type(response).__name__}")
+        return True
 
     async def _wait_qr(self, login):
         try:

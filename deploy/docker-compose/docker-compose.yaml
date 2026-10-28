@@ -17,7 +17,7 @@ services:
     container_name: gva-web
     restart: always
     ports:
-      - '8080:8080'
+      - '18080:8080'
     depends_on:
       - server
     command: ['nginx-debug', '-g', 'daemon off;']
@@ -37,6 +37,7 @@ services:
         condition: service_healthy
     environment:
       XIANYU_CREDENTIAL_KEY: ${XIANYU_CREDENTIAL_KEY:-}
+      GVA_ADMIN_PASSWORD: ${GVA_ADMIN_PASSWORD:-123456}
       TELEGRAM_SERVICE_URL: http://telegram:8080
       TELEGRAM_INTERNAL_TOKEN: ${TELEGRAM_INTERNAL_TOKEN:-}
 
@@ -101,10 +102,6 @@ services:
         required: false
     environment:
       DATABASE_URL: postgresql://xianyu:xianyu_assistant@postgres:5432/xianyu_assistant
-      TG_API_ID: ${TG_API_ID:-}
-      TG_API_HASH: ${TG_API_HASH:-}
-      TG_PROXY_HOST: ${TG_PROXY_HOST:-}
-      TG_PROXY_PORT: ${TG_PROXY_PORT:-}
       TELEGRAM_INTERNAL_TOKEN: ${TELEGRAM_INTERNAL_TOKEN:-}
       TG_RESOURCE_CONCURRENCY: ${TG_RESOURCE_CONCURRENCY:-1}
       TG_RESOURCE_MAX_FILE_MB: ${TG_RESOURCE_MAX_FILE_MB:-200}
@@ -120,6 +117,6 @@ services:
       rustfs:
         condition: service_started
     ports:
-      - '127.0.0.1:8081:8080'
+      - '127.0.0.1:18081:8080'
     volumes:
       - ../../tmp:/workspace/tmp

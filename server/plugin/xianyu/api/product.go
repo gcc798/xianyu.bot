@@ -70,7 +70,7 @@ func (a *product) UpdateSetting(c *gin.Context) {
 		return
 	}
 	if err := productService.UpdateSetting(c.Request.Context(), utils.GetUserID(c), input); err != nil {
-		failAccount("更新闲鱼商品设置失败", err, c)
+		failAccount("更新闲鱼商品设置失败："+err.Error(), err, c)
 		return
 	}
 	response.OkWithMessage("更新成功", c)

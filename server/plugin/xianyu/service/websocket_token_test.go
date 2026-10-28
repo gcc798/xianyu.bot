@@ -3,6 +3,7 @@ package service
 import (
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"sync/atomic"
@@ -79,4 +80,41 @@ func TestWebSocketTokenIsEncryptedAndCached(t *testing.T) {
 	require.Equal(t, int64(1), calls.Load())
 	_, _, err = tokenService.Get(t.Context(), 11, created.ID)
 	require.Error(t, err)
+}
+
+func TestWebSocketTokenMarksAccountWhenVerificationIsRequired(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
+		http.SetCookie(writer, &http.Cookie{Name: "x5sec", Value: "challenge-cookie", Path: "/"})
+		_, _ = writer.Write([]byte(`{"ret":["FAIL_SYS_USER_VALIDATE::哎哟喂,被挤爆啦,请稍后重试"],"data":{"url":"https://passport.goofish.com/verify"}}`))
+	}))
+	t.Cleanup(server.Close)
+
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	require.NoError(t, err)
+	require.NoError(t, db.AutoMigrate(&model.Account{}, &model.Credential{}, &model.BusinessEvent{}))
+	oldDB := global.GVA_DB
+	t.Cleanup(func() { global.GVA_DB = oldDB })
+	global.GVA_DB = db
+	t.Setenv(credentialKeyEnvironment, base64.StdEncoding.EncodeToString([]byte("0123456789abcdef0123456789abcdef")))
+	accountService := new(account)
+	created, err := accountService.Create(t.Context(), 10, xianyuRequest.CreateAccount{Label: "需验证账号"})
+	require.NoError(t, err)
+	require.NoError(t, accountService.SaveCredential(t.Context(), 10, xianyuRequest.SaveCredential{
+		ID: created.ID, Cookie: "unb=user-demo; cna=device-cookie; _m_h5_tk=old-token_expiry; cookie2=session",
+	}))
+
+	tokenService := newWebSocketToken()
+	tokenService.endpoint = server.URL
+	_, _, err = tokenService.Get(t.Context(), 10, created.ID)
+	verification, ok := errors.AsType[*verificationRequiredError](err)
+	require.True(t, ok)
+	require.True(t, verification.NonRetryable())
+	require.NoError(t, db.First(&created, created.ID).Error)
+	require.Equal(t, "verification_required", created.Status)
+	require.NotEmpty(t, created.DeviceID)
+	var credential model.Credential
+	require.NoError(t, db.Where("account_id = ?", created.ID).First(&credential).Error)
+	cookie, err := decryptCredential(credential.CookieCiphertext, credentialAAD(created.ID, "cookie"))
+	require.NoError(t, err)
+	require.Contains(t, cookie, "x5sec=challenge-cookie")
 }

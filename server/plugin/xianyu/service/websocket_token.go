@@ -32,7 +32,9 @@ type verificationRequiredError struct {
 	URL string
 }
 
-func (e *verificationRequiredError) Error() string { return "闲鱼要求完成安全验证" }
+func (e *verificationRequiredError) Error() string      { return "消息接口需要网页安全验证并更新 Cookie" }
+func (e *verificationRequiredError) NonRetryable() bool { return true }
+func (e *verificationRequiredError) ActionURL() string  { return e.URL }
 
 type webSocketToken struct {
 	client               *http.Client
@@ -94,8 +96,34 @@ func (s *webSocketToken) Get(ctx context.Context, ownerID, accountID uint) (stri
 		if err == nil {
 			break
 		}
-		var verification *verificationRequiredError
-		if errors.As(err, &verification) || attempt == 1 || !waitContext(ctx, 500*time.Millisecond) {
+		if verification, ok := errors.AsType[*verificationRequiredError](err); ok {
+			cipherCookie, encryptErr := encryptCredential(cookie, credentialAAD(accountID, "cookie"))
+			if encryptErr != nil {
+				return "", "", errors.Join(verification, fmt.Errorf("保存风控 Cookie: %w", encryptErr))
+			}
+			statusErr := db.Transaction(func(tx *gorm.DB) error {
+				result := tx.Model(&model.Credential{}).
+					Where("id = ? AND account_id = ? AND version = ?", credential.ID, accountID, credential.Version).
+					Updates(map[string]any{"cookie_ciphertext": cipherCookie, "version": gorm.Expr("version + 1")})
+				if result.Error != nil {
+					return result.Error
+				}
+				if result.RowsAffected != 1 {
+					return errors.New("凭证已被其他操作更新，请重试")
+				}
+				return tx.Model(&model.Account{}).Where("id = ? AND owner_id = ?", accountID, ownerID).
+					Updates(map[string]any{"device_id": deviceID, "status": "verification_required"}).Error
+			})
+			recordBusinessEvent(ctx, model.BusinessEvent{
+				OwnerID: ownerID, AccountID: accountID, Type: "websocket", Status: "failed",
+				Summary: "闲鱼消息连接需要安全验证", Error: verification.Error(),
+			})
+			if statusErr != nil {
+				return "", "", errors.Join(verification, fmt.Errorf("更新账号验证状态: %w", statusErr))
+			}
+			return "", "", verification
+		}
+		if attempt == 1 || !waitContext(ctx, 500*time.Millisecond) {
 			return "", "", err
 		}
 	}

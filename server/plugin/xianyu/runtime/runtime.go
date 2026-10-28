@@ -29,7 +29,18 @@ const (
 	StateConnecting   State = "connecting"
 	StateConnected    State = "connected"
 	StateReconnecting State = "reconnecting"
+	StateFailed       State = "failed"
 )
+
+type NonRetryableError interface {
+	error
+	NonRetryable() bool
+}
+
+type ActionError interface {
+	error
+	ActionURL() string
+}
 
 // Connection 的实现必须遵守 Context 取消，Close 必须能解除正在等待的 Read/Ping。
 type Connection interface {
@@ -54,6 +65,7 @@ type Config struct {
 	BackoffMax        time.Duration
 	BackoffResetAfter time.Duration
 	JitterPercent     uint
+	StateChanged      func(Snapshot)
 }
 
 func DefaultConfig() Config {
@@ -88,6 +100,7 @@ type Snapshot struct {
 	QueueDepth int
 	Reconnects uint64
 	LastError  string
+	ActionURL  string
 }
 
 type Manager struct {
@@ -95,8 +108,9 @@ type Manager struct {
 	handler Handler
 	config  Config
 
-	mu       sync.Mutex
-	runtimes map[uint]*accountRuntime
+	mu        sync.Mutex
+	runtimes  map[uint]*accountRuntime
+	snapshots map[uint]Snapshot
 }
 
 func NewManager(dialer Dialer, handler Handler, config Config) (*Manager, error) {
@@ -106,7 +120,10 @@ func NewManager(dialer Dialer, handler Handler, config Config) (*Manager, error)
 	if err := config.validate(); err != nil {
 		return nil, err
 	}
-	return &Manager{dialer: dialer, handler: handler, config: config, runtimes: make(map[uint]*accountRuntime)}, nil
+	return &Manager{
+		dialer: dialer, handler: handler, config: config,
+		runtimes: make(map[uint]*accountRuntime), snapshots: make(map[uint]Snapshot),
+	}, nil
 }
 
 func (m *Manager) Start(ctx context.Context, accountID uint) error {
@@ -118,6 +135,7 @@ func (m *Manager) Start(ctx context.Context, accountID uint) error {
 	if _, exists := m.runtimes[accountID]; exists {
 		return ErrAlreadyRunning
 	}
+	delete(m.snapshots, accountID)
 	runCtx, cancel := context.WithCancelCause(ctx)
 	runtime := &accountRuntime{
 		accountID: accountID,
@@ -134,6 +152,7 @@ func (m *Manager) Start(ctx context.Context, accountID uint) error {
 		m.mu.Lock()
 		if m.runtimes[accountID] == runtime {
 			delete(m.runtimes, accountID)
+			m.snapshots[accountID] = runtime.snapshot()
 		}
 		m.mu.Unlock()
 		close(runtime.done)
@@ -150,15 +169,19 @@ func (m *Manager) Stop(accountID uint) bool {
 	}
 	runtime.cancel(context.Canceled)
 	<-runtime.done
+	m.mu.Lock()
+	delete(m.snapshots, accountID)
+	m.mu.Unlock()
 	return true
 }
 
 func (m *Manager) Snapshot(accountID uint) (Snapshot, bool) {
 	m.mu.Lock()
 	runtime, exists := m.runtimes[accountID]
+	snapshot := m.snapshots[accountID]
 	m.mu.Unlock()
 	if !exists {
-		return Snapshot{}, false
+		return snapshot, false
 	}
 	return runtime.snapshot(), true
 }
@@ -196,6 +219,7 @@ type accountRuntime struct {
 	queueDepth int
 	reconnects uint64
 	lastError  string
+	actionURL  string
 	connection Connection
 }
 
@@ -218,11 +242,11 @@ func (r *accountRuntime) run(ctx context.Context) {
 		if context.Cause(ctx) != nil {
 			return
 		}
-		r.mu.Lock()
-		r.state = StateReconnecting
-		r.reconnects++
-		r.lastError = err.Error()
-		r.mu.Unlock()
+		if permanent, ok := errors.AsType[NonRetryableError](err); ok && permanent.NonRetryable() {
+			r.setFailure(StateFailed, err, false)
+			return
+		}
+		r.setFailure(StateReconnecting, err, true)
 		if !wait(ctx, backoffDelay(attempt, r.config)) {
 			return
 		}
@@ -383,20 +407,47 @@ func (r *accountRuntime) heartbeatLoop(ctx context.Context, connection Connectio
 func (r *accountRuntime) snapshot() Snapshot {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	return Snapshot{AccountID: r.accountID, State: r.state, QueueDepth: r.queueDepth, Reconnects: r.reconnects, LastError: r.lastError}
+	return Snapshot{
+		AccountID: r.accountID, State: r.state, QueueDepth: r.queueDepth,
+		Reconnects: r.reconnects, LastError: r.lastError, ActionURL: r.actionURL,
+	}
 }
 
 func (r *accountRuntime) setState(state State) {
 	r.mu.Lock()
 	r.state = state
 	r.mu.Unlock()
+	r.notify()
 }
 
 func (r *accountRuntime) setConnected() {
 	r.mu.Lock()
 	r.state = StateConnected
 	r.lastError = ""
+	r.actionURL = ""
 	r.mu.Unlock()
+	r.notify()
+}
+
+func (r *accountRuntime) setFailure(state State, err error, reconnect bool) {
+	r.mu.Lock()
+	r.state = state
+	if reconnect {
+		r.reconnects++
+	}
+	r.lastError = err.Error()
+	r.actionURL = ""
+	if action, ok := errors.AsType[ActionError](err); ok {
+		r.actionURL = action.ActionURL()
+	}
+	r.mu.Unlock()
+	r.notify()
+}
+
+func (r *accountRuntime) notify() {
+	if r.config.StateChanged != nil {
+		r.config.StateChanged(r.snapshot())
+	}
 }
 
 func (r *accountRuntime) setQueueDepth(depth int) {

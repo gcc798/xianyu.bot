@@ -8,7 +8,8 @@ RUN go env -w GO111MODULE=on \
     && go env -w CGO_ENABLED=0 \
     && go env \
     && go mod tidy \
-    && go build -o server .
+    && go build -o server . \
+    && go build -o initdb ./cmd/initdb
 
 FROM alpine:latest
 
@@ -21,6 +22,7 @@ RUN apk update && apk add --no-cache tzdata openntpd \
 WORKDIR /go/src/github.com/flipped-aurora/gin-vue-admin/server
 
 COPY --from=0 /go/src/github.com/flipped-aurora/gin-vue-admin/server/server ./
+COPY --from=0 /go/src/github.com/flipped-aurora/gin-vue-admin/server/initdb ./
 COPY --from=0 /go/src/github.com/flipped-aurora/gin-vue-admin/server/resource ./resource/
 COPY --from=0 /go/src/github.com/flipped-aurora/gin-vue-admin/server/config.docker.yaml ./
 

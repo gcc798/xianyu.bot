@@ -89,16 +89,30 @@ func credentialKey() ([]byte, error) {
 }
 
 func ValidateCredentialKey() error {
-	if _, err := credentialKey(); err != nil {
-		return err
-	}
-	if strings.TrimSpace(os.Getenv(credentialKeyEnvironment)) == "" {
-		return nil
-	}
 	encoded := strings.TrimSpace(os.Getenv(credentialKeyEnvironment))
+	if encoded == "" {
+		if _, err := credentialKey(); err == nil {
+			return nil
+		} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+			return err
+		}
+		key := make([]byte, 32)
+		if _, err := rand.Read(key); err != nil {
+			return fmt.Errorf("generate xianyu credential key: %w", err)
+		}
+		encoded = base64.StdEncoding.EncodeToString(key)
+	}
+	if global.GVA_DB == nil {
+		return errors.New("database is not initialized")
+	}
 	db := global.GVA_DB.Session(&gorm.Session{Logger: logger.Default.LogMode(logger.Silent)})
-	if err := db.Clauses(clause.OnConflict{UpdateAll: true}).Create(&model.Setting{Key: credentialKeySetting, Value: encoded}).Error; err != nil {
+	conflict := clause.OnConflict{UpdateAll: true}
+	if strings.TrimSpace(os.Getenv(credentialKeyEnvironment)) == "" {
+		conflict = clause.OnConflict{DoNothing: true}
+	}
+	if err := db.Clauses(conflict).Create(&model.Setting{Key: credentialKeySetting, Value: encoded}).Error; err != nil {
 		return fmt.Errorf("store xianyu credential key in database: %w", err)
 	}
-	return nil
+	_, err := credentialKey()
+	return err
 }

@@ -115,6 +115,7 @@
 
 <script setup>
   import { onMounted, reactive, ref } from 'vue'
+  import { useRoute, useRouter } from 'vue-router'
   import { ElMessage } from 'element-plus'
   import { getXianyuProductList } from '@/plugin/xianyu/api/product'
   import {
@@ -127,6 +128,9 @@
 
   defineOptions({ name: 'XianyuDeliveryRules' })
 
+  const route = useRoute()
+  const router = useRouter()
+  const routeProductId = Number(route.query.productId) || undefined
   const loading = ref(false)
   const tableData = ref([])
   const products = ref([])
@@ -135,7 +139,7 @@
   const importVisible = ref(false)
   const importRuleId = ref(0)
   const resourceText = ref('')
-  const searchInfo = reactive({ page: 1, pageSize: 10, keyword: '', productId: undefined, mode: '' })
+  const searchInfo = reactive({ page: 1, pageSize: 10, keyword: '', productId: routeProductId, mode: '' })
   const form = reactive({ ID: 0, productId: undefined, skuKey: '', skuName: '', mode: 'text', template: '', enabled: true })
 
   const load = async () => {
@@ -163,7 +167,7 @@
     load()
   }
   const openCreate = () => {
-    Object.assign(form, { ID: 0, productId: undefined, skuKey: '', skuName: '', mode: 'text', template: '', enabled: true })
+    Object.assign(form, { ID: 0, productId: searchInfo.productId, skuKey: '', skuName: '', mode: 'text', template: '', enabled: true })
     dialogVisible.value = true
   }
   const openEdit = (row) => {
@@ -206,8 +210,14 @@
     const res = await getXianyuDeliveryInventory({ ID: row.ID })
     if (res.code === 0) ElMessage.info(`可用 ${res.data.available}，已占用 ${res.data.reserved}，已消耗 ${res.data.consumed}`)
   }
-  onMounted(() => {
-    loadProducts()
-    load()
+  onMounted(async () => {
+    await loadProducts()
+    await load()
+    if (route.query.editor === 'auto' && routeProductId) {
+      const commonRule = tableData.value.find(item => !item.skuKey)
+      if (commonRule) openEdit(commonRule)
+      else openCreate()
+      router.replace({ query: { productId: routeProductId } })
+    }
   })
 </script>

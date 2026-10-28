@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"html"
 	"net/http"
 	"strconv"
 	"strings"
@@ -14,6 +15,7 @@ import (
 	"time"
 
 	"github.com/flipped-aurora/gin-vue-admin/server/global"
+	emailUtils "github.com/flipped-aurora/gin-vue-admin/server/plugin/email/utils"
 	"github.com/flipped-aurora/gin-vue-admin/server/plugin/xianyu/model"
 	xianyuResponse "github.com/flipped-aurora/gin-vue-admin/server/plugin/xianyu/model/response"
 	"github.com/flipped-aurora/gin-vue-admin/server/plugin/xianyu/protocol"
@@ -38,6 +40,8 @@ type webSocketService struct {
 	messages    *message
 	keepaliveMu sync.Mutex
 	keepalives  map[uint]context.CancelFunc
+	alertMu     sync.Mutex
+	alerted     map[uint]bool
 	delivery    interface {
 		StartAccount(uint)
 		StopAccount(uint)
@@ -66,13 +70,73 @@ type webSocketResponse struct {
 func newWebSocketService(messages *message) *webSocketService {
 	token := newWebSocketToken()
 	dialer := &xianyuDialer{token: &token, endpoint: webSocketEndpoint}
-	service := &webSocketService{messages: messages}
-	manager, err := xianyuRuntime.NewManager(dialer, service.handleRuntimeMessage, xianyuRuntime.DefaultConfig())
+	service := &webSocketService{messages: messages, alerted: make(map[uint]bool)}
+	config := xianyuRuntime.DefaultConfig()
+	config.StateChanged = service.connectionStateChanged
+	manager, err := xianyuRuntime.NewManager(dialer, service.handleRuntimeMessage, config)
 	if err != nil {
 		panic(err)
 	}
 	service.manager = manager
 	return service
+}
+
+func (s *webSocketService) connectionStateChanged(snapshot xianyuRuntime.Snapshot) {
+	if global.GVA_LOG != nil {
+		fields := []zap.Field{
+			zap.Uint("accountID", snapshot.AccountID), zap.String("state", string(snapshot.State)),
+			zap.Uint64("reconnects", snapshot.Reconnects), zap.String("lastError", snapshot.LastError),
+		}
+		if snapshot.State == xianyuRuntime.StateConnected || snapshot.State == xianyuRuntime.StateConnecting {
+			global.GVA_LOG.Info("闲鱼消息连接状态变化", fields...)
+		} else {
+			global.GVA_LOG.Warn("闲鱼消息连接状态变化", fields...)
+		}
+	}
+
+	s.alertMu.Lock()
+	if snapshot.State == xianyuRuntime.StateConnected {
+		delete(s.alerted, snapshot.AccountID)
+		s.alertMu.Unlock()
+		return
+	}
+	shouldAlert := (snapshot.State == xianyuRuntime.StateReconnecting || snapshot.State == xianyuRuntime.StateFailed) && !s.alerted[snapshot.AccountID]
+	if shouldAlert {
+		s.alerted[snapshot.AccountID] = true
+	}
+	s.alertMu.Unlock()
+	if shouldAlert {
+		go s.sendConnectionAlert(snapshot)
+	}
+	if snapshot.State == xianyuRuntime.StateFailed {
+		s.stopAccountWorkers(snapshot.AccountID)
+	}
+}
+
+func (s *webSocketService) sendConnectionAlert(snapshot xianyuRuntime.Snapshot) {
+	var account model.Account
+	if err := global.GVA_DB.Where("id = ?", snapshot.AccountID).First(&account).Error; err != nil {
+		if global.GVA_LOG != nil {
+			global.GVA_LOG.Error("读取闲鱼消息告警账号失败", zap.Uint("accountID", snapshot.AccountID), zap.Error(err))
+		}
+		return
+	}
+	subject := "[闲鱼助手告警] 消息连接不可用"
+	body := fmt.Sprintf("账号：%s（ID: %d）<br>状态：%s<br>原因：%s<br>时间：%s",
+		html.EscapeString(account.Label), account.ID, html.EscapeString(string(snapshot.State)),
+		html.EscapeString(snapshot.LastError), time.Now().Format(time.DateTime))
+	if snapshot.ActionURL != "" {
+		body += "<br>处理方式：请在管理后台点击“重新扫码验证”，并在闲鱼 App 完成安全验证。"
+	}
+	if err := emailUtils.Email("force_gc@163.com", subject, body); err != nil {
+		if global.GVA_LOG != nil {
+			global.GVA_LOG.Error("发送闲鱼消息连接告警邮件失败", zap.Uint("accountID", snapshot.AccountID), zap.Error(err))
+		}
+		return
+	}
+	if global.GVA_LOG != nil {
+		global.GVA_LOG.Info("已发送闲鱼消息连接告警邮件", zap.Uint("accountID", snapshot.AccountID), zap.String("recipient", "force_gc@163.com"))
+	}
 }
 
 func (s *webSocketService) handleRuntimeMessage(ctx context.Context, accountID uint, raw []byte) error {
@@ -117,6 +181,9 @@ func (s *webSocketService) Start(ctx context.Context, ownerID, accountID uint) e
 		s.messages.StartAccount(accountID)
 	}
 	s.startKeepalive(ownerID, accountID)
+	if snapshot, running := s.manager.Snapshot(accountID); !running && snapshot.State == xianyuRuntime.StateFailed {
+		s.stopAccountWorkers(accountID)
+	}
 	return nil
 }
 
@@ -137,6 +204,14 @@ func (s *webSocketService) Stop(ctx context.Context, ownerID, accountID uint) er
 	if _, err := ownedAccount(ctx, ownerID, accountID); err != nil {
 		return err
 	}
+	s.stopAccountWorkers(accountID)
+	if !s.manager.Stop(accountID) {
+		return errors.New("账号连接未运行")
+	}
+	return nil
+}
+
+func (s *webSocketService) stopAccountWorkers(accountID uint) {
 	if s.delivery != nil {
 		s.delivery.StopAccount(accountID)
 	}
@@ -144,10 +219,6 @@ func (s *webSocketService) Stop(ctx context.Context, ownerID, accountID uint) er
 		s.messages.StopAccount(accountID)
 	}
 	s.stopKeepalive(accountID)
-	if !s.manager.Stop(accountID) {
-		return errors.New("账号连接未运行")
-	}
-	return nil
 }
 
 func (s *webSocketService) startKeepalive(ownerID, accountID uint) {
@@ -261,13 +332,15 @@ func (s *webSocketService) stopKeepalive(accountID uint) {
 }
 
 func (s *webSocketService) Status(ctx context.Context, ownerID, accountID uint) (xianyuResponse.WebSocketStatus, error) {
-	if _, err := ownedAccount(ctx, ownerID, accountID); err != nil {
+	account, err := ownedAccount(ctx, ownerID, accountID)
+	if err != nil {
 		return xianyuResponse.WebSocketStatus{}, err
 	}
 	snapshot, running := s.manager.Snapshot(accountID)
 	return xianyuResponse.WebSocketStatus{
 		AccountID: accountID, State: string(snapshot.State), QueueDepth: snapshot.QueueDepth,
 		Reconnects: snapshot.Reconnects, Running: running, LastError: snapshot.LastError,
+		AccountStatus: account.Status,
 	}, nil
 }
 
@@ -289,7 +362,16 @@ func (s *webSocketService) SendText(ctx context.Context, ownerID, accountID uint
 	}
 	sendCtx, cancel := context.WithTimeoutCause(ctx, 10*time.Second, errors.New("闲鱼消息发送结果未知"))
 	defer cancel()
-	return s.manager.Send(sendCtx, accountID, payload)
+	err = s.manager.Send(sendCtx, accountID, payload)
+	if global.GVA_LOG != nil {
+		fields := []zap.Field{zap.Uint("ownerID", ownerID), zap.Uint("accountID", accountID), zap.String("sessionID", sessionID), zap.String("toUserID", toUserID), zap.Int("textLength", len([]rune(text)))}
+		if err != nil {
+			global.GVA_LOG.Warn("发送闲鱼消息失败", append(fields, zap.Error(err))...)
+		} else {
+			global.GVA_LOG.Info("发送闲鱼消息成功", fields...)
+		}
+	}
+	return err
 }
 
 func buildTextMessage(sessionID, toUserID, fromUserID, text string) ([]byte, error) {

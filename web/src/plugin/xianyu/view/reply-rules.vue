@@ -118,6 +118,7 @@
 
 <script setup>
 import { computed, onMounted, reactive, ref } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { getXianyuProductList } from '@/plugin/xianyu/api/product'
 import {
@@ -128,6 +129,9 @@ import {
 
 defineOptions({ name: 'XianyuReplyRules' })
 
+const route = useRoute()
+const router = useRouter()
+const routeProductId = Number(route.query.productId) || undefined
 const ruleTypes = [
   { label: '模糊匹配', value: 'fuzzy' },
   { label: '兜底回复', value: 'fallback' }
@@ -138,7 +142,7 @@ const products = ref([])
 const onSaleProducts = ref([])
 const total = ref(0)
 const dialogVisible = ref(false)
-const searchInfo = reactive({ page: 1, pageSize: 10, keyword: '', productId: undefined, type: '' })
+const searchInfo = reactive({ page: 1, pageSize: 10, keyword: '', productId: routeProductId, type: '' })
 const form = reactive({ ID: 0, productId: undefined, type: 'fuzzy', keyword: '', priority: 100, enabled: true, content: '', legacyExact: false })
 
 const selectedProduct = computed(() => products.value.find(item => item.ID === searchInfo.productId))
@@ -242,5 +246,10 @@ const remove = async (row) => {
 onMounted(async () => {
   await loadProducts()
   await load()
+  if (route.query.editor === 'auto' && routeProductId) {
+    if (total.value === 1) openEdit(tableData.value[0])
+    else openCreate()
+    router.replace({ query: { productId: routeProductId } })
+  }
 })
 </script>
