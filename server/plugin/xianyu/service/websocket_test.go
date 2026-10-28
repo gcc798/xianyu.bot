@@ -10,10 +10,12 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/flipped-aurora/gin-vue-admin/server/global"
 	"github.com/flipped-aurora/gin-vue-admin/server/plugin/xianyu/model"
 	xianyuRequest "github.com/flipped-aurora/gin-vue-admin/server/plugin/xianyu/model/request"
+	xianyuRuntime "github.com/flipped-aurora/gin-vue-admin/server/plugin/xianyu/runtime"
 	"github.com/glebarez/sqlite"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/net/websocket"
@@ -176,4 +178,103 @@ func TestWebSocketStatusIsOwnerIsolated(t *testing.T) {
 	require.False(t, status.Running)
 	_, err = service.Status(t.Context(), 11, created.ID)
 	require.Error(t, err)
+}
+
+func TestConnectionStateChangedAlertsOnlyWhenUnavailableAtWindowEnd(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open("file:websocket-alert?mode=memory&cache=shared"), &gorm.Config{})
+	require.NoError(t, err)
+	sqlDB, err := db.DB()
+	require.NoError(t, err)
+	sqlDB.SetMaxOpenConns(1)
+	require.NoError(t, db.AutoMigrate(&model.Account{}, &model.BusinessEvent{}))
+	account := model.Account{OwnerID: 10, Label: "告警账号", Status: "ready", Enabled: true}
+	require.NoError(t, db.Create(&account).Error)
+	oldDB := global.GVA_DB
+	t.Cleanup(func() { global.GVA_DB = oldDB })
+	global.GVA_DB = db
+
+	subjects := make(chan string, 3)
+	service := &webSocketService{
+		alertWindows:        make(map[uint]*connectionAlertWindow),
+		alertWindowDuration: 100 * time.Millisecond,
+		sendNotificationEmail: func(_ string, subject string, _ string) error {
+			subjects <- subject
+			return nil
+		},
+	}
+	failure := xianyuRuntime.Snapshot{AccountID: account.ID, State: xianyuRuntime.StateReconnecting, LastError: "连接中断"}
+	service.connectionStateChanged(failure)
+	service.connectionStateChanged(xianyuRuntime.Snapshot{AccountID: account.ID, State: xianyuRuntime.StateConnected})
+	service.connectionStateChanged(failure)
+	select {
+	case subject := <-subjects:
+		t.Fatalf("一小时窗口结束前不应发送邮件: %s", subject)
+	case <-time.After(30 * time.Millisecond):
+	}
+	require.Contains(t, receiveSubject(t, subjects), "连接不可用")
+
+	service.connectionStateChanged(xianyuRuntime.Snapshot{AccountID: account.ID, State: xianyuRuntime.StateConnected})
+	require.Contains(t, receiveSubject(t, subjects), "连接已恢复")
+	require.Eventually(t, func() bool {
+		var count int64
+		return db.Model(&model.BusinessEvent{}).Where("account_id = ? AND type = ?", account.ID, "websocket_alert").Count(&count).Error == nil && count == 2
+	}, time.Second, 10*time.Millisecond)
+	var sentEvents []model.BusinessEvent
+	require.NoError(t, db.Where("account_id = ? AND type = ?", account.ID, "websocket_alert").Find(&sentEvents).Error)
+	require.Contains(t, sentEvents[0].Summary, "不可用 2 次")
+
+	failedService := &webSocketService{sendNotificationEmail: func(string, string, string) error {
+		return errors.New("SMTP 不可用")
+	}}
+	failedService.sendConnectionNotification(failure, false, time.Now().Add(-time.Hour), 3)
+	var failedEvent model.BusinessEvent
+	require.NoError(t, db.Where("account_id = ? AND type = ? AND status = ?", account.ID, "websocket_alert", "failed").First(&failedEvent).Error)
+	require.Contains(t, failedEvent.Summary, "发送闲鱼消息连接故障邮件失败")
+}
+
+func TestConnectionStateChangedSuppressesAlertWhenConnectedAtWindowEnd(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open("file:websocket-alert-suppressed?mode=memory&cache=shared"), &gorm.Config{})
+	require.NoError(t, err)
+	sqlDB, err := db.DB()
+	require.NoError(t, err)
+	sqlDB.SetMaxOpenConns(1)
+	require.NoError(t, db.AutoMigrate(&model.Account{}, &model.BusinessEvent{}))
+	account := model.Account{OwnerID: 10, Label: "恢复账号", Status: "ready", Enabled: true}
+	require.NoError(t, db.Create(&account).Error)
+	oldDB := global.GVA_DB
+	t.Cleanup(func() { global.GVA_DB = oldDB })
+	global.GVA_DB = db
+
+	subjects := make(chan string, 1)
+	service := &webSocketService{
+		alertWindows:        make(map[uint]*connectionAlertWindow),
+		alertWindowDuration: 30 * time.Millisecond,
+		sendNotificationEmail: func(_ string, subject string, _ string) error {
+			subjects <- subject
+			return nil
+		},
+	}
+	service.connectionStateChanged(xianyuRuntime.Snapshot{AccountID: account.ID, State: xianyuRuntime.StateReconnecting, LastError: "短暂中断"})
+	service.connectionStateChanged(xianyuRuntime.Snapshot{AccountID: account.ID, State: xianyuRuntime.StateConnected})
+	var event model.BusinessEvent
+	require.Eventually(t, func() bool {
+		return db.Where("account_id = ? AND type = ?", account.ID, "websocket_alert").First(&event).Error == nil
+	}, time.Second, 10*time.Millisecond)
+	select {
+	case subject := <-subjects:
+		t.Fatalf("窗口结束时连接正常不应发送邮件: %s", subject)
+	default:
+	}
+	require.Contains(t, event.Summary, "未发送告警")
+}
+
+func receiveSubject(t *testing.T, subjects <-chan string) string {
+	t.Helper()
+	select {
+	case subject := <-subjects:
+		return subject
+	case <-time.After(time.Second):
+		t.Fatal("等待连接通知邮件超时")
+		return ""
+	}
 }

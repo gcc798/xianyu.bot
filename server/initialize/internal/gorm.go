@@ -18,9 +18,10 @@ type _gorm struct{}
 func (g *_gorm) Config(general config.GeneralDB) *gorm.Config {
 	return &gorm.Config{
 		Logger: logger.New(NewWriter(general), logger.Config{
-			SlowThreshold: 200 * time.Millisecond,
-			LogLevel:      general.LogLevel(),
-			Colorful:      true,
+			SlowThreshold:        200 * time.Millisecond,
+			LogLevel:             general.LogLevel(),
+			Colorful:             true,
+			ParameterizedQueries: true,
 		}),
 		NamingStrategy: schema.NamingStrategy{
 			TablePrefix:   general.Prefix,

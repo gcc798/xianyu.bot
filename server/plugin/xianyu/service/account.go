@@ -40,7 +40,7 @@ func (s *account) Update(ctx context.Context, ownerID uint, input xianyuRequest.
 		return err
 	}
 	if !input.Enabled && Service.WebSocket != nil {
-		Service.WebSocket.manager.Stop(input.ID)
+		Service.WebSocket.stopRuntime(input.ID)
 	}
 	return nil
 }
@@ -54,7 +54,7 @@ func (s *account) Delete(ctx context.Context, ownerID, id uint) error {
 		return err
 	}
 	if Service.WebSocket != nil {
-		Service.WebSocket.manager.Stop(id)
+		Service.WebSocket.stopRuntime(id)
 	}
 	return global.GVA_DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := tx.Where("account_id = ?", id).Delete(&model.Credential{}).Error; err != nil {

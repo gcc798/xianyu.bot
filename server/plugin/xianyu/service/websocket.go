@@ -35,17 +35,29 @@ type webSocketTokenGetter interface {
 }
 
 type webSocketService struct {
-	manager     *xianyuRuntime.Manager
-	accounts    *account
-	messages    *message
-	keepaliveMu sync.Mutex
-	keepalives  map[uint]context.CancelFunc
-	alertMu     sync.Mutex
-	alerted     map[uint]bool
-	delivery    interface {
+	manager               *xianyuRuntime.Manager
+	accounts              *account
+	messages              *message
+	keepaliveMu           sync.Mutex
+	keepalives            map[uint]context.CancelFunc
+	alertMu               sync.Mutex
+	// shortcut: active alert windows reset on process restart; persist them if cross-restart continuity becomes required.
+	alertWindows          map[uint]*connectionAlertWindow
+	alertWindowDuration   time.Duration
+	sendNotificationEmail func(string, string, string) error
+	delivery              interface {
 		StartAccount(uint)
 		StopAccount(uint)
 	}
+}
+
+type connectionAlertWindow struct {
+	startedAt        time.Time
+	unavailable      bool
+	unavailableCount uint
+	alerted          bool
+	lastFailure      xianyuRuntime.Snapshot
+	notificationDone chan struct{}
 }
 
 type xianyuDialer struct {
@@ -70,7 +82,12 @@ type webSocketResponse struct {
 func newWebSocketService(messages *message) *webSocketService {
 	token := newWebSocketToken()
 	dialer := &xianyuDialer{token: &token, endpoint: webSocketEndpoint}
-	service := &webSocketService{messages: messages, alerted: make(map[uint]bool)}
+	service := &webSocketService{
+		messages:              messages,
+		alertWindows:          make(map[uint]*connectionAlertWindow),
+		alertWindowDuration:   time.Hour,
+		sendNotificationEmail: emailUtils.Email,
+	}
 	config := xianyuRuntime.DefaultConfig()
 	config.StateChanged = service.connectionStateChanged
 	manager, err := xianyuRuntime.NewManager(dialer, service.handleRuntimeMessage, config)
@@ -94,26 +111,99 @@ func (s *webSocketService) connectionStateChanged(snapshot xianyuRuntime.Snapsho
 		}
 	}
 
-	s.alertMu.Lock()
-	if snapshot.State == xianyuRuntime.StateConnected {
-		delete(s.alerted, snapshot.AccountID)
-		s.alertMu.Unlock()
-		return
-	}
-	shouldAlert := (snapshot.State == xianyuRuntime.StateReconnecting || snapshot.State == xianyuRuntime.StateFailed) && !s.alerted[snapshot.AccountID]
-	if shouldAlert {
-		s.alerted[snapshot.AccountID] = true
-	}
-	s.alertMu.Unlock()
-	if shouldAlert {
-		go s.sendConnectionAlert(snapshot)
-	}
+	s.trackConnectionAlertWindow(snapshot)
 	if snapshot.State == xianyuRuntime.StateFailed {
 		s.stopAccountWorkers(snapshot.AccountID)
 	}
 }
 
-func (s *webSocketService) sendConnectionAlert(snapshot xianyuRuntime.Snapshot) {
+func (s *webSocketService) trackConnectionAlertWindow(snapshot xianyuRuntime.Snapshot) {
+	if snapshot.State != xianyuRuntime.StateConnected && snapshot.State != xianyuRuntime.StateReconnecting && snapshot.State != xianyuRuntime.StateFailed {
+		return
+	}
+
+	s.alertMu.Lock()
+	window := s.alertWindows[snapshot.AccountID]
+	if snapshot.State == xianyuRuntime.StateConnected {
+		if window == nil {
+			s.alertMu.Unlock()
+			return
+		}
+		window.unavailable = false
+		if !window.alerted {
+			s.alertMu.Unlock()
+			return
+		}
+		delete(s.alertWindows, snapshot.AccountID)
+		notificationDone := window.notificationDone
+		s.alertMu.Unlock()
+		go func() {
+			<-notificationDone
+			s.sendConnectionNotification(snapshot, true, window.startedAt, window.unavailableCount)
+		}()
+		return
+	}
+
+	if window == nil {
+		window = &connectionAlertWindow{startedAt: time.Now()}
+		s.alertWindows[snapshot.AccountID] = window
+		duration := s.alertWindowDuration
+		if duration <= 0 {
+			duration = time.Hour
+		}
+		time.AfterFunc(duration, func() { s.finishConnectionAlertWindow(snapshot.AccountID, window) })
+	}
+	if !window.unavailable {
+		window.unavailableCount++
+	}
+	window.unavailable = true
+	window.lastFailure = snapshot
+	s.alertMu.Unlock()
+}
+
+func (s *webSocketService) finishConnectionAlertWindow(accountID uint, target *connectionAlertWindow) {
+	s.alertMu.Lock()
+	window := s.alertWindows[accountID]
+	if window != target || window.alerted {
+		s.alertMu.Unlock()
+		return
+	}
+	if !window.unavailable {
+		delete(s.alertWindows, accountID)
+		s.alertMu.Unlock()
+		s.recordSuppressedConnectionAlert(accountID, window)
+		return
+	}
+	window.alerted = true
+	window.notificationDone = make(chan struct{})
+	snapshot := window.lastFailure
+	s.alertMu.Unlock()
+	s.sendConnectionNotification(snapshot, false, window.startedAt, window.unavailableCount)
+	close(window.notificationDone)
+}
+
+func (s *webSocketService) recordSuppressedConnectionAlert(accountID uint, window *connectionAlertWindow) {
+	var account model.Account
+	if err := global.GVA_DB.Where("id = ?", accountID).First(&account).Error; err != nil {
+		if global.GVA_LOG != nil {
+			global.GVA_LOG.Error("记录闲鱼消息连接抖动失败", zap.Uint("accountID", accountID), zap.Error(err))
+		}
+		return
+	}
+	recordBusinessEvent(context.Background(), model.BusinessEvent{
+		OwnerID: account.OwnerID, AccountID: account.ID, Type: "websocket_alert", Status: "success",
+		Summary: fmt.Sprintf("一小时连接抖动窗口结束，当前连接正常（不可用 %d 次，未发送告警）", window.unavailableCount),
+		Error:   window.lastFailure.LastError,
+	})
+}
+
+func (s *webSocketService) cancelConnectionAlertWindow(accountID uint) {
+	s.alertMu.Lock()
+	delete(s.alertWindows, accountID)
+	s.alertMu.Unlock()
+}
+
+func (s *webSocketService) sendConnectionNotification(snapshot xianyuRuntime.Snapshot, recovered bool, startedAt time.Time, unavailableCount uint) {
 	var account model.Account
 	if err := global.GVA_DB.Where("id = ?", snapshot.AccountID).First(&account).Error; err != nil {
 		if global.GVA_LOG != nil {
@@ -122,20 +212,42 @@ func (s *webSocketService) sendConnectionAlert(snapshot xianyuRuntime.Snapshot) 
 		return
 	}
 	subject := "[闲鱼助手告警] 消息连接不可用"
-	body := fmt.Sprintf("账号：%s（ID: %d）<br>状态：%s<br>原因：%s<br>时间：%s",
+	body := fmt.Sprintf("账号：%s（ID: %d）<br>状态：%s<br>原因：%s<br>窗口开始：%s<br>一小时内不可用次数：%d<br>时间：%s",
 		html.EscapeString(account.Label), account.ID, html.EscapeString(string(snapshot.State)),
-		html.EscapeString(snapshot.LastError), time.Now().Format(time.DateTime))
-	if snapshot.ActionURL != "" {
+		html.EscapeString(snapshot.LastError), startedAt.Format(time.DateTime), unavailableCount, time.Now().Format(time.DateTime))
+	summary := "已发送闲鱼消息连接故障邮件"
+	if recovered {
+		subject = "[闲鱼助手恢复] 消息连接已恢复"
+		body = fmt.Sprintf("账号：%s（ID: %d）<br>状态：已恢复正常<br>故障窗口开始：%s<br>一小时内不可用次数：%d<br>时间：%s",
+			html.EscapeString(account.Label), account.ID, startedAt.Format(time.DateTime), unavailableCount, time.Now().Format(time.DateTime))
+		summary = "已发送闲鱼消息连接恢复邮件"
+	} else if snapshot.ActionURL != "" {
 		body += "<br>处理方式：请在管理后台点击“重新扫码验证”，并在闲鱼 App 完成安全验证。"
 	}
-	if err := emailUtils.Email("force_gc@163.com", subject, body); err != nil {
+	sender := s.sendNotificationEmail
+	if sender == nil {
+		sender = emailUtils.Email
+	}
+	if err := sender("force_gc@163.com", subject, body); err != nil {
+		recordBusinessEvent(context.Background(), model.BusinessEvent{
+			OwnerID: account.OwnerID, AccountID: account.ID, Type: "websocket_alert", Status: "failed",
+			Summary: summary + "失败", Error: err.Error(),
+		})
 		if global.GVA_LOG != nil {
-			global.GVA_LOG.Error("发送闲鱼消息连接告警邮件失败", zap.Uint("accountID", snapshot.AccountID), zap.Error(err))
+			global.GVA_LOG.Error(summary+"失败", zap.Uint("accountID", snapshot.AccountID), zap.Error(err))
 		}
 		return
 	}
+	event := model.BusinessEvent{
+		OwnerID: account.OwnerID, AccountID: account.ID, Type: "websocket_alert", Status: "success",
+		Summary: fmt.Sprintf("%s（一小时内不可用 %d 次）", summary, unavailableCount),
+	}
+	if !recovered {
+		event.Error = snapshot.LastError
+	}
+	recordBusinessEvent(context.Background(), event)
 	if global.GVA_LOG != nil {
-		global.GVA_LOG.Info("已发送闲鱼消息连接告警邮件", zap.Uint("accountID", snapshot.AccountID), zap.String("recipient", "force_gc@163.com"))
+		global.GVA_LOG.Info(summary, zap.Uint("accountID", snapshot.AccountID), zap.String("recipient", "force_gc@163.com"))
 	}
 }
 
@@ -204,11 +316,16 @@ func (s *webSocketService) Stop(ctx context.Context, ownerID, accountID uint) er
 	if _, err := ownedAccount(ctx, ownerID, accountID); err != nil {
 		return err
 	}
-	s.stopAccountWorkers(accountID)
-	if !s.manager.Stop(accountID) {
+	if !s.stopRuntime(accountID) {
 		return errors.New("账号连接未运行")
 	}
 	return nil
+}
+
+func (s *webSocketService) stopRuntime(accountID uint) bool {
+	s.stopAccountWorkers(accountID)
+	s.cancelConnectionAlertWindow(accountID)
+	return s.manager.Stop(accountID)
 }
 
 func (s *webSocketService) stopAccountWorkers(accountID uint) {
@@ -277,10 +394,16 @@ func (s *webSocketService) syncRecentMessages(ctx context.Context, accountID uin
 	defer cancel()
 	listPayload, err := buildIMRequest("/r/Conversation/listNewestPagination", []any{int64(9007199254740991), 5})
 	if err != nil {
+		if global.GVA_LOG != nil {
+			global.GVA_LOG.Warn("构造闲鱼最近会话同步请求失败", zap.Uint("accountID", accountID), zap.Error(err))
+		}
 		return
 	}
 	response, err := s.manager.Request(requestCtx, accountID, listPayload)
 	if err != nil {
+		if global.GVA_LOG != nil && requestCtx.Err() == nil {
+			global.GVA_LOG.Warn("请求闲鱼最近会话失败", zap.Uint("accountID", accountID), zap.Error(err))
+		}
 		return
 	}
 	conversations, err := protocol.ParseConversationResponse(response)
@@ -294,10 +417,16 @@ func (s *webSocketService) syncRecentMessages(ctx context.Context, accountID uin
 		}
 		messagePayload, err := buildIMRequest("/r/MessageManager/listUserMessages", []any{ensureGoofishID(sessionID), false, int64(9007199254740991), 20, false})
 		if err != nil {
+			if global.GVA_LOG != nil {
+				global.GVA_LOG.Warn("构造闲鱼历史消息同步请求失败", zap.Uint("accountID", accountID), zap.String("sessionID", sessionID), zap.Error(err))
+			}
 			return
 		}
 		history, err := s.manager.Request(requestCtx, accountID, messagePayload)
 		if err != nil {
+			if global.GVA_LOG != nil && requestCtx.Err() == nil {
+				global.GVA_LOG.Warn("请求闲鱼历史消息失败", zap.Uint("accountID", accountID), zap.String("sessionID", sessionID), zap.Error(err))
+			}
 			return
 		}
 		if err := s.messages.HandleHistory(requestCtx, accountID, sessionID, history); err != nil {
