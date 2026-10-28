@@ -20,6 +20,7 @@
 - 新增或修复闲鱼接口适配前，优先查阅 [zhinianboke/xianyu-auto-reply](https://github.com/zhinianboke/xianyu-auto-reply) 中对应的登录、WebSocket、消息、商品、订单或调度实现，作为私有协议行为参考，避免盲目试错。只提取并验证协议事实，在当前 Go/GVA 分层中独立实现；不照搬其源码、架构、表结构或功能范围，并记录参考的分支/提交。其许可证为 AGPL-3.0，代码复用需另行评估。
 - Cookie、Token、API Key、卡密均为敏感数据，不写普通日志或列表响应。
 - 关键任务必须持久化；连接和后台任务必须支持 Context 取消。
+- 闲鱼插件的所有 HTTP 入口必须使用 `/xianyu/*`；Telegram 服务透明代理使用 `/xianyu/proxy/telegram/*`。
 
 ## 当前契约
 
@@ -44,3 +45,5 @@
 协议层当前支持 `/s/para` 与 `/s/sync` 外层 JSON、Base64 MessagePack 数据及内嵌内容 JSON，输出不依赖数据库的 `protocol.ChatMessage`。解析器限制消息体大小和批次数量，过滤空批次、已读回执与已识别的同步游标包；传输层会 ACK 并忽略不含同步包的控制推送。未知 LWP、坏编码和缺少 PNM ID 会返回明确错误。fixture 使用脱敏合成标识，不包含真实账号、买家、商品或订单数据。
 
 通信 runtime 通过 `Dialer`、`Connection` 和 `Handler` 与真实传输及业务处理解耦。`Manager` 保证同一账号只有一个运行实例，每个连接使用有限消息队列，并执行可取消读取、消费和心跳；读取超时、心跳超时、队列满或处理失败都会关闭连接并进入有上限的抖动指数退避，状态接口同时返回最近一次错误。真实传输会解密当前账号 Cookie、取得并加密缓存 WebSocket Token，完成 `/reg`、`/r/SyncStatus/ackDiff`、消息 ACK 和 `/!` 心跳，只把实际同步包交给协议解析器。解析结果按 owner 和 `(account_id, pnm_id)` 唯一键幂等写入 `xy_messages`；`/xianyu/message/list` 与“消息记录”页面提供 owner 隔离的分页查询。Token 和 Cookie 均不进入 API 响应或日志。
+
+Telegram 管理页面已拆分为概览与登录、群组与频道、资源检索、资源文件和服务设置。浏览器只请求 Xianyu 插件的 `/xianyu/proxy/telegram/*`；插件保留 `gva-telegram` 定义的具体 URL 并透明转发。多来源资源检索与后续 Agent 边界见 `resource-discovery.md`。

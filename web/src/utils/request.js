@@ -153,7 +153,7 @@ service.interceptors.request.use(
 )
 
 function getErrorMessage(error) {
-  return error.response?.data?.msg || error.response?.statusText || '请求失败'
+  return error.response?.data?.msg || error.response?.data?.detail || error.response?.statusText || '请求失败'
 }
 
 service.interceptors.response.use(

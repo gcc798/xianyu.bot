@@ -3,12 +3,23 @@ package initialize
 import (
 	"context"
 
+	"github.com/flipped-aurora/gin-vue-admin/server/global"
 	"github.com/flipped-aurora/gin-vue-admin/server/model/system"
 	pluginUtils "github.com/flipped-aurora/gin-vue-admin/server/plugin/plugin-tool/utils"
+	"go.uber.org/zap"
+)
+
+const (
+	telegramProxyPolicyPath       = "/xianyu/proxy/telegram/*"
+	legacyTelegramProxyPolicyPath = "/xianyu/proxy/telegram/*path"
 )
 
 func Api(ctx context.Context) {
-	_ = ctx
+	if err := global.GVA_DB.WithContext(ctx).Model(&system.SysApi{}).
+		Where("path = ?", legacyTelegramProxyPolicyPath).
+		Update("path", telegramProxyPolicyPath).Error; err != nil {
+		zap.L().Error("迁移 Telegram 代理 API 失败", zap.Error(err))
+	}
 	pluginUtils.RegisterApis(
 		system.SysApi{Path: "/xianyu/status", Description: "获取闲鱼助手基础服务状态", ApiGroup: "闲鱼助手", Method: "GET"},
 		system.SysApi{Path: "/xianyu/account/list", Description: "获取闲鱼账号列表", ApiGroup: "闲鱼账号", Method: "GET"},
@@ -42,14 +53,10 @@ func Api(ctx context.Context) {
 		system.SysApi{Path: "/xianyu/delivery-rule/resource-import", Description: "导入卡密库存", ApiGroup: "闲鱼发货", Method: "POST"},
 		system.SysApi{Path: "/xianyu/delivery-rule/task-list", Description: "获取自动发货任务", ApiGroup: "闲鱼发货", Method: "GET"},
 		system.SysApi{Path: "/xianyu/delivery-rule/task-retry", Description: "重试自动发货任务", ApiGroup: "闲鱼发货", Method: "POST"},
-		system.SysApi{Path: "/xianyu/telegram/options", Description: "获取 Telegram 资源检索选项", ApiGroup: "Telegram 资源", Method: "GET"},
-		system.SysApi{Path: "/xianyu/telegram/tasks", Description: "创建 Telegram 资源检索任务", ApiGroup: "Telegram 资源", Method: "POST"},
-		system.SysApi{Path: "/xianyu/telegram/tasks", Description: "获取 Telegram 资源检索任务", ApiGroup: "Telegram 资源", Method: "GET"},
-		system.SysApi{Path: "/xianyu/telegram/tasks/:task_id", Description: "获取 Telegram 资源任务详情", ApiGroup: "Telegram 资源", Method: "GET"},
-		system.SysApi{Path: "/xianyu/telegram/tasks/:task_id/cancel", Description: "取消 Telegram 资源任务", ApiGroup: "Telegram 资源", Method: "POST"},
-		system.SysApi{Path: "/xianyu/telegram/tasks/:task_id/retry", Description: "重试 Telegram 资源任务", ApiGroup: "Telegram 资源", Method: "POST"},
-		system.SysApi{Path: "/xianyu/telegram/files", Description: "获取 Telegram 资源文件", ApiGroup: "Telegram 资源", Method: "GET"},
-		system.SysApi{Path: "/xianyu/telegram/files/:file_id/preview", Description: "预览 Telegram 资源文件", ApiGroup: "Telegram 资源", Method: "GET"},
-		system.SysApi{Path: "/xianyu/telegram/files/:file_id/download", Description: "下载 Telegram 资源文件", ApiGroup: "Telegram 资源", Method: "GET"},
+		system.SysApi{Path: telegramProxyPolicyPath, Description: "代理读取 Telegram 服务", ApiGroup: "Telegram 服务代理", Method: "GET"},
+		system.SysApi{Path: telegramProxyPolicyPath, Description: "代理写入 Telegram 服务", ApiGroup: "Telegram 服务代理", Method: "POST"},
+		system.SysApi{Path: telegramProxyPolicyPath, Description: "代理更新 Telegram 服务", ApiGroup: "Telegram 服务代理", Method: "PUT"},
+		system.SysApi{Path: telegramProxyPolicyPath, Description: "代理部分更新 Telegram 服务", ApiGroup: "Telegram 服务代理", Method: "PATCH"},
+		system.SysApi{Path: telegramProxyPolicyPath, Description: "代理删除 Telegram 服务资源", ApiGroup: "Telegram 服务代理", Method: "DELETE"},
 	)
 }

@@ -101,11 +101,21 @@ class ResourceTaskInput(BaseModel):
         return cleaned
 
 
-def resource_access(request: Request):
+class TelegramPasswordInput(BaseModel):
+    password: str = Field(min_length=1, max_length=256)
+
+
+class LeaveDialogsInput(BaseModel):
+    dialog_ids: list[int] = Field(min_length=1, max_length=100)
+    confirm: str
+
+
+def internal_access(request: Request):
     internal_token = os.getenv("TELEGRAM_INTERNAL_TOKEN", "")
-    if internal_token and secrets.compare_digest(request.headers.get("x-internal-token", ""), internal_token):
+    # shortcut: an unset token relies on the Docker port staying loopback-only, require a token before external exposure.
+    if not internal_token or secrets.compare_digest(request.headers.get("x-internal-token", ""), internal_token):
         return
-    require_login()
+    raise HTTPException(403, "Telegram 内部访问令牌未配置或不匹配")
 
 
 def check_csrf(token: str):
@@ -215,15 +225,131 @@ async def settings(request: Request):
     return templates.TemplateResponse("settings.html", context(request, configured=bool(service.client), host=os.getenv("WEB_HOST", "0.0.0.0"), port=os.getenv("WEB_PORT", "8080"), proxy=service.proxy))
 
 
+@app.get("/api/admin/status")
+async def admin_status(request: Request):
+    internal_access(request)
+    return {
+        "authorized": service.authorized,
+        "configured": bool(service.client),
+        "account": db.setting("account_name"),
+        "summary": db.summary(),
+        "latest_scan": db.latest_scan(),
+        "qr": service.qr,
+    }
+
+
+@app.post("/api/admin/login/qr")
+async def admin_login_qr(request: Request):
+    internal_access(request)
+    try:
+        service.start_qr()
+    except Exception as exc:
+        service.qr.update(status="error", error=str(exc))
+        raise HTTPException(409, str(exc)) from exc
+    return service.qr
+
+
+@app.get("/api/admin/login/status")
+async def admin_login_status(request: Request):
+    internal_access(request)
+    return service.qr
+
+
+@app.post("/api/admin/login/2fa")
+async def admin_login_2fa(payload: TelegramPasswordInput, request: Request):
+    internal_access(request)
+    await service.submit_2fa(payload.password)
+    return service.qr
+
+
+@app.post("/api/admin/scan")
+async def admin_start_scan(request: Request):
+    internal_access(request)
+    require_login()
+    started = service.start_scan()
+    return {"started": started, "progress": service.progress}
+
+
+@app.get("/api/admin/scan/status")
+async def admin_scan_status(request: Request):
+    internal_access(request)
+    require_login()
+    return service.progress
+
+
+@app.get("/api/admin/dialogs")
+async def admin_dialogs(
+    request: Request,
+    page: int = 1,
+    page_size: int = 30,
+    q: str = "",
+    filter: str = "",
+    members_min: int | None = None,
+    members_max: int | None = None,
+    sort: str = "last_message",
+    order: str = "desc",
+):
+    internal_access(request)
+    require_login()
+    if page < 1 or not 1 <= page_size <= 100:
+        raise HTTPException(400, "分页参数无效")
+    filters = {"q": q[:200], "filter": filter, "members_min": members_min, "members_max": members_max}
+    rows, total = db.list_dialogs(filters, page, page_size, sort, order)
+    for row in rows:
+        row.update(tags=cleanup_tags(row), telegram_url=telegram_link(row))
+    return {"list": rows, "total": total, "page": page, "page_size": page_size}
+
+
+@app.post("/api/admin/dialogs/leave")
+async def admin_leave_dialogs(payload: LeaveDialogsInput, request: Request):
+    internal_access(request)
+    require_login()
+    if payload.confirm.strip() != "退出":
+        raise HTTPException(400, "请输入“退出”确认")
+    success = failed = 0
+    for dialog_id in dict.fromkeys(payload.dialog_ids):
+        item = db.dialog(dialog_id)
+        if not item or item["status"] == "left":
+            continue
+        ok, _error = await service.leave(item)
+        success += int(ok)
+        failed += int(not ok)
+        await asyncio.sleep(1)
+    return {"success": success, "failed": failed}
+
+
+@app.get("/api/admin/dialogs/export")
+async def admin_export_dialogs(request: Request):
+    internal_access(request)
+    require_login()
+    content = "\ufeff" + db.export_csv(filters_from(request))
+    filename = f"telegram-dialogs-{datetime.now():%Y%m%d-%H%M%S}.csv"
+    return Response(content, media_type="text/csv; charset=utf-8", headers={"Content-Disposition": f'attachment; filename="{filename}"'})
+
+
+@app.get("/api/admin/settings")
+async def admin_settings(request: Request):
+    internal_access(request)
+    return {
+        "telegram_api_configured": bool(service.client),
+        "authorized": service.authorized,
+        "account": db.setting("account_name"),
+        "proxy": f"{service.proxy[1]}:{service.proxy[2]}" if service.proxy else "",
+        "listen": f"{os.getenv('WEB_HOST', '0.0.0.0')}:{os.getenv('WEB_PORT', '8080')}",
+        "resource_max_file_size": resources.max_file_size,
+        "resource_concurrency": resources.concurrency,
+    }
+
+
 @app.get("/api/resources/options")
 async def resource_options(request: Request):
-    resource_access(request)
+    internal_access(request)
     return {"dialogs": db.resource_dialogs(), "file_types": sorted(DEFAULT_TYPES), "max_file_size": resources.max_file_size}
 
 
 @app.post("/api/resources/tasks", status_code=201)
 async def create_resource_task(payload: ResourceTaskInput, request: Request):
-    resource_access(request)
+    internal_access(request)
     if not service.authorized:
         raise HTTPException(409, "Telegram 未登录，请先在 Telegram 服务页面完成登录")
     try:
@@ -236,7 +362,7 @@ async def create_resource_task(payload: ResourceTaskInput, request: Request):
 
 @app.get("/api/resources/tasks")
 async def resource_tasks(request: Request, page: int = 1, page_size: int = 20):
-    resource_access(request)
+    internal_access(request)
     if page < 1 or not 1 <= page_size <= 100:
         raise HTTPException(400, "分页参数无效")
     rows, total = db.list_resource_tasks(page, page_size)
@@ -245,7 +371,7 @@ async def resource_tasks(request: Request, page: int = 1, page_size: int = 20):
 
 @app.get("/api/resources/tasks/{task_id}")
 async def resource_task(task_id: int, request: Request):
-    resource_access(request)
+    internal_access(request)
     task = db.resource_task(task_id)
     if not task:
         raise HTTPException(404, "任务不存在")
@@ -254,7 +380,7 @@ async def resource_task(task_id: int, request: Request):
 
 @app.post("/api/resources/tasks/{task_id}/cancel")
 async def cancel_resource_task(task_id: int, request: Request):
-    resource_access(request)
+    internal_access(request)
     try:
         resources.cancel(task_id)
     except ValueError as exc:
@@ -264,7 +390,7 @@ async def cancel_resource_task(task_id: int, request: Request):
 
 @app.post("/api/resources/tasks/{task_id}/retry")
 async def retry_resource_task(task_id: int, request: Request):
-    resource_access(request)
+    internal_access(request)
     try:
         resources.retry(task_id)
     except ValueError as exc:
@@ -274,7 +400,7 @@ async def retry_resource_task(task_id: int, request: Request):
 
 @app.get("/api/resources/files")
 async def resource_files(request: Request, page: int = 1, page_size: int = 20, task_id: int | None = None, filename: str = "", file_type: str = "", status: str = "", source_id: int | None = None):
-    resource_access(request)
+    internal_access(request)
     if page < 1 or not 1 <= page_size <= 100:
         raise HTTPException(400, "分页参数无效")
     filters = {"task_id": task_id, "filename": filename[:200], "file_type": file_type[:12], "status": status[:20], "source_id": source_id}
@@ -283,7 +409,7 @@ async def resource_files(request: Request, page: int = 1, page_size: int = 20, t
 
 
 def resource_redirect(file_id: int, request: Request, inline: bool):
-    resource_access(request)
+    internal_access(request)
     item = db.resource_file(file_id)
     if not item or item["upload_status"] != "success" or not item["object_key"]:
         raise HTTPException(404, "文件不存在或尚未上传完成")

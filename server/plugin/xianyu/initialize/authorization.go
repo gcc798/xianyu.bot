@@ -15,7 +15,7 @@ const administratorAuthorityID = 888
 func Authorization(ctx context.Context) error {
 	var menus []system.SysBaseMenu
 	if err := global.GVA_DB.WithContext(ctx).
-		Where("name IN ?", []string{"Xianyu", "XianyuDashboard", "XianyuAccounts", "XianyuProducts", "XianyuMessages", "XianyuOrders", "XianyuReplyRules", "XianyuDeliveryRules", "XianyuDeliveryTasks", "XianyuBusinessEvents", "XianyuTelegramResources"}).
+		Where("name IN ?", []string{"Xianyu", "XianyuDashboard", "XianyuAccounts", "XianyuProducts", "XianyuMessages", "XianyuOrders", "XianyuReplyRules", "XianyuDeliveryRules", "XianyuDeliveryTasks", "XianyuBusinessEvents", "XianyuTelegramResources", "XianyuTelegramOverview", "XianyuTelegramDialogs", "XianyuTelegramTasks", "XianyuTelegramFiles", "XianyuTelegramSettings"}).
 		Find(&menus).Error; err != nil {
 		return err
 	}
@@ -31,6 +31,9 @@ func Authorization(ctx context.Context) error {
 	enforcer := utils.GetCasbin()
 	if enforcer == nil {
 		return errors.New("casbin enforcer is not initialized")
+	}
+	if _, err := enforcer.RemoveFilteredPolicy(1, legacyTelegramProxyPolicyPath); err != nil {
+		return err
 	}
 	for _, policy := range [][2]string{
 		{"/menu/getMenu", "POST"},
@@ -67,15 +70,11 @@ func Authorization(ctx context.Context) error {
 		{"/xianyu/delivery-rule/resource-import", "POST"},
 		{"/xianyu/delivery-rule/task-list", "GET"},
 		{"/xianyu/delivery-rule/task-retry", "POST"},
-		{"/xianyu/telegram/options", "GET"},
-		{"/xianyu/telegram/tasks", "POST"},
-		{"/xianyu/telegram/tasks", "GET"},
-		{"/xianyu/telegram/tasks/:task_id", "GET"},
-		{"/xianyu/telegram/tasks/:task_id/cancel", "POST"},
-		{"/xianyu/telegram/tasks/:task_id/retry", "POST"},
-		{"/xianyu/telegram/files", "GET"},
-		{"/xianyu/telegram/files/:file_id/preview", "GET"},
-		{"/xianyu/telegram/files/:file_id/download", "GET"},
+		{telegramProxyPolicyPath, "GET"},
+		{telegramProxyPolicyPath, "POST"},
+		{telegramProxyPolicyPath, "PUT"},
+		{telegramProxyPolicyPath, "PATCH"},
+		{telegramProxyPolicyPath, "DELETE"},
 	} {
 		if _, err := enforcer.AddPolicy(authorityID, policy[0], policy[1]); err != nil {
 			return err

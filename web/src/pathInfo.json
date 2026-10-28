@@ -101,5 +101,9 @@
   "/src/plugin/xianyu/view/orders.vue": "XianyuOrders",
   "/src/plugin/xianyu/view/products.vue": "XianyuProducts",
   "/src/plugin/xianyu/view/reply-rules.vue": "XianyuReplyRules",
-  "/src/plugin/xianyu/view/telegram-resources.vue": "XianyuTelegramResources"
+  "/src/plugin/xianyu/view/telegram-dialogs.vue": "XianyuTelegramDialogs",
+  "/src/plugin/xianyu/view/telegram-overview.vue": "XianyuTelegramOverview",
+  "/src/plugin/xianyu/view/telegram-resource-files.vue": "XianyuTelegramFiles",
+  "/src/plugin/xianyu/view/telegram-resource-tasks.vue": "XianyuTelegramTasks",
+  "/src/plugin/xianyu/view/telegram-settings.vue": "XianyuTelegramSettings"
 }

@@ -20,5 +20,5 @@ func Router(engine *gin.Engine) {
 	router.Router.Message.Init(private)
 	router.Router.Order.Init(private)
 	router.Router.BusinessEvent.Init(private)
-	router.Router.TelegramResource.Init(private)
+	router.Router.TelegramProxy.Init(private)
 }

@@ -61,10 +61,13 @@ func RegisterApis(apis ...system.SysApi) {
 }
 
 func RegisterMenus(menus ...system.SysBaseMenu) {
+	if len(menus) == 0 {
+		return
+	}
 	name := getPluginName()
 	if name != "" {
 		rw.Lock()
-		MenuMap[name] = menus
+		MenuMap[name] = flattenMenus(menus)
 		rw.Unlock()
 	}
 
@@ -78,11 +81,24 @@ func RegisterMenus(menus ...system.SysBaseMenu) {
 		}
 		pid := parentMenu.ID
 		for i := range otherMenus {
-			otherMenus[i].ParentId = pid
-			err = tx.Model(system.SysBaseMenu{}).Where("name = ? ", otherMenus[i].Name).FirstOrCreate(&otherMenus[i]).Error
+			definition := otherMenus[i]
+			definition.ParentId = pid
+			stored := definition
+			stored.Children = nil
+			err = tx.Model(system.SysBaseMenu{}).Where("name = ? ", definition.Name).FirstOrCreate(&stored).Error
 			if err != nil {
 				zap.L().Error("注册菜单失败", zap.Error(err))
 				return errors.Wrap(err, "注册菜单失败")
+			}
+			if len(definition.Children) > 0 {
+				definition.ID = stored.ID
+				err = updateMenuDefinition(tx, &definition, pid)
+				if err != nil {
+					return errors.Wrap(err, "更新父菜单失败")
+				}
+				if err = registerMenuChildren(tx, definition.ID, definition.Children); err != nil {
+					return err
+				}
 			}
 		}
 		return nil
@@ -91,6 +107,53 @@ func RegisterMenus(menus ...system.SysBaseMenu) {
 		zap.L().Error("注册菜单失败", zap.Error(err))
 	}
 
+}
+
+func registerMenuChildren(tx *gorm.DB, parentID uint, menus []system.SysBaseMenu) error {
+	for i := range menus {
+		definition := menus[i]
+		definition.ParentId = parentID
+		stored := definition
+		stored.Children = nil
+		if err := tx.Model(system.SysBaseMenu{}).Where("name = ?", definition.Name).FirstOrCreate(&stored).Error; err != nil {
+			return errors.Wrap(err, "注册子菜单失败")
+		}
+		definition.ID = stored.ID
+		if err := updateMenuDefinition(tx, &definition, parentID); err != nil {
+			return errors.Wrap(err, "更新子菜单失败")
+		}
+		if err := registerMenuChildren(tx, definition.ID, definition.Children); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func updateMenuDefinition(tx *gorm.DB, menu *system.SysBaseMenu, parentID uint) error {
+	return tx.Model(menu).Updates(map[string]any{
+		"parent_id": parentID,
+		"path":      menu.Path,
+		"component": menu.Component,
+		"sort":      menu.Sort,
+		"hidden":    menu.Hidden,
+		"title":     menu.Meta.Title,
+		"icon":      menu.Meta.Icon,
+	}).Error
+}
+
+func flattenMenus(menus []system.SysBaseMenu) []system.SysBaseMenu {
+	flattened := make([]system.SysBaseMenu, 0, len(menus))
+	var appendMenus func([]system.SysBaseMenu)
+	appendMenus = func(entries []system.SysBaseMenu) {
+		for _, menu := range entries {
+			children := menu.Children
+			menu.Children = nil
+			flattened = append(flattened, menu)
+			appendMenus(children)
+		}
+	}
+	appendMenus(menus)
+	return flattened
 }
 
 func RegisterDictionaries(dictionaries ...system.SysDictionary) {
@@ -135,4 +198,3 @@ func GetPluginData(pluginName string) ([]system.SysApi, []system.SysBaseMenu, []
 	defer rw.Unlock()
 	return ApiMap[pluginName], MenuMap[pluginName], DictMap[pluginName]
 }
-
