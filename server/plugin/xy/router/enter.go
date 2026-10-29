@@ -15,6 +15,7 @@ var (
 	webSocketApi     = api.Api.WebSocket
 	businessEventApi = api.Api.BusinessEvent
 	telegramProxyApi = api.Api.TelegramProxy
+	aiConfigAPI      = api.Api.AIConfig
 )
 
 type router struct {
@@ -29,4 +30,5 @@ type router struct {
 	WebSocket     webSocket
 	BusinessEvent businessEvent
 	TelegramProxy telegramProxy
+	AIConfig      aiConfig
 }

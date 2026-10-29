@@ -35,4 +35,5 @@ type service struct {
 	QRLogin       qrLogin
 	WebSocket     *webSocketService
 	BusinessEvent businessEvent
+	AIConfig      aiConfig
 }

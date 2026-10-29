@@ -52,6 +52,17 @@ var xyAPIs = []system.SysApi{
 	{Path: telegramProxyPolicyPath, Description: "代理更新 Telegram 服务", ApiGroup: "Telegram 服务代理", Method: "PUT"},
 	{Path: telegramProxyPolicyPath, Description: "代理部分更新 Telegram 服务", ApiGroup: "Telegram 服务代理", Method: "PATCH"},
 	{Path: telegramProxyPolicyPath, Description: "代理删除 Telegram 服务资源", ApiGroup: "Telegram 服务代理", Method: "DELETE"},
+	{Path: "/xy/ai/models", Description: "获取 AI 模型配置", ApiGroup: "AI 基础配置", Method: "GET"},
+	{Path: "/xy/ai/models", Description: "创建 AI 模型配置", ApiGroup: "AI 基础配置", Method: "POST"},
+	{Path: "/xy/ai/models/:id", Description: "更新 AI 模型配置", ApiGroup: "AI 基础配置", Method: "PUT"},
+	{Path: "/xy/ai/models/:id", Description: "删除 AI 模型配置", ApiGroup: "AI 基础配置", Method: "DELETE"},
+	{Path: "/xy/ai/models/:id/default", Description: "设置默认 AI 模型", ApiGroup: "AI 基础配置", Method: "PUT"},
+	{Path: "/xy/ai/mcp-servers", Description: "获取 MCP 服务配置", ApiGroup: "AI 基础配置", Method: "GET"},
+	{Path: "/xy/ai/mcp-servers", Description: "创建 MCP 服务配置", ApiGroup: "AI 基础配置", Method: "POST"},
+	{Path: "/xy/ai/mcp-servers/:id", Description: "更新 MCP 服务配置", ApiGroup: "AI 基础配置", Method: "PUT"},
+	{Path: "/xy/ai/mcp-servers/:id", Description: "删除 MCP 服务配置", ApiGroup: "AI 基础配置", Method: "DELETE"},
+	{Path: "/xy/ai/agent-config", Description: "获取 Agent 运行配置", ApiGroup: "AI 基础配置", Method: "GET"},
+	{Path: "/xy/ai/agent-config", Description: "更新 Agent 运行配置", ApiGroup: "AI 基础配置", Method: "PUT"},
 }
 
 func Api(ctx context.Context) {

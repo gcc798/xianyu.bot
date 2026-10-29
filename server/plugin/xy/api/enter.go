@@ -15,6 +15,7 @@ var (
 	qrLoginService       = service.Service.QRLogin
 	webSocketService     = service.Service.WebSocket
 	businessEventService = service.Service.BusinessEvent
+	aiConfigService      = service.Service.AIConfig
 )
 
 type api struct {
@@ -29,4 +30,5 @@ type api struct {
 	WebSocket     webSocket
 	BusinessEvent businessEvent
 	TelegramProxy telegramProxy
+	AIConfig      aiConfig
 }
