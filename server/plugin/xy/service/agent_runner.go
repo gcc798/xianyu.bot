@@ -188,7 +188,7 @@ func (s *agentRunner) execute(ctx context.Context, prepared preparedAgentRun) (a
 		if event.Output == nil || event.Output.MessageOutput == nil {
 			continue
 		}
-		message, err := s.agentEventMessage(run.SessionID, event.Output.MessageOutput)
+		message, err := s.agentEventMessage(run.SessionID, run.ID, event.Output.MessageOutput)
 		if err != nil {
 			return s.failRun(ctx, run, harness, started, "stream_failed", err)
 		}
@@ -217,11 +217,11 @@ func (s *agentRunner) execute(ctx context.Context, prepared preparedAgentRun) (a
 	return result, nil
 }
 
-func (s *agentRunner) agentEventMessage(sessionID uint, output *adk.MessageVariant) (*schema.Message, error) {
+func (s *agentRunner) agentEventMessage(sessionID, runID uint, output *adk.MessageVariant) (*schema.Message, error) {
 	if !output.IsStreaming {
 		message := output.Message
 		if message != nil && output.Role == schema.Assistant && message.Content != "" {
-			s.publish(sessionID, "assistant.delta", map[string]any{"content": message.Content})
+			s.publish(sessionID, "assistant.delta", map[string]any{"runId": runID, "content": message.Content})
 		}
 		return message, nil
 	}
@@ -237,7 +237,7 @@ func (s *agentRunner) agentEventMessage(sessionID uint, output *adk.MessageVaria
 		}
 		chunks = append(chunks, chunk)
 		if output.Role == schema.Assistant && chunk.Content != "" {
-			s.publish(sessionID, "assistant.delta", map[string]any{"content": chunk.Content})
+			s.publish(sessionID, "assistant.delta", map[string]any{"runId": runID, "content": chunk.Content})
 		}
 	}
 	if len(chunks) == 0 {
