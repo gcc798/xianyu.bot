@@ -1,7 +1,11 @@
 from __future__ import annotations
 
 import asyncio
+import json
+import logging
 import os
+import re
+import urllib.request
 import zipfile
 from datetime import datetime, timezone
 from pathlib import Path
@@ -15,6 +19,45 @@ BLOCKED_TERMS = {
 }
 DEFAULT_TYPES = {"pdf", "epub", "mobi", "doc", "docx", "xls", "xlsx", "ppt", "pptx", "zip", "txt", "csv", "rtf", "md", "json", "xml", "odt", "ods", "odp", "jpg", "jpeg", "png", "webp"}
 BLOCKED_ARCHIVE_EXTENSIONS = {".exe", ".dll", ".scr", ".bat", ".cmd", ".com", ".msi", ".ps1", ".vbs", ".js", ".jar", ".apk"}
+LOGGER = logging.getLogger(__name__)
+
+
+def request_ai_json(config: dict, system_prompt: str, payload: dict) -> dict | None:
+    base_url = config["base_url"].rstrip("/")
+    api_key = config["api_key"]
+    model = config["model"]
+    if not base_url or not api_key or not model:
+        return None
+    body = json.dumps({
+        "model": model,
+        "temperature": 0,
+        "response_format": {"type": "json_object"},
+        "messages": [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": json.dumps(payload, ensure_ascii=False)},
+        ],
+    }, ensure_ascii=False).encode()
+    request = urllib.request.Request(f"{base_url}/chat/completions", data=body, headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"})
+    try:
+        with urllib.request.urlopen(request, timeout=12) as response:
+            result = json.load(response)
+        parsed = json.loads(result["choices"][0]["message"]["content"])
+        return parsed if isinstance(parsed, dict) else None
+    except Exception as exc:
+        LOGGER.warning("AI request failed: %s", exc)
+        return None
+
+
+def rank_sources(keyword: str, dialogs: list[dict]) -> list[dict]:
+    query = keyword.casefold().strip()
+    tokens = set(re.findall(r"[a-z0-9]+|[\u4e00-\u9fff]{2,}", query))
+
+    def score(dialog: dict) -> tuple[int, object, str]:
+        text = f"{dialog.get('name') or ''} {dialog.get('username') or ''}".casefold()
+        relevance = int(query in text) * 100 + sum(int(token in text) * 10 for token in tokens)
+        return relevance, dialog.get("last_message_at") or datetime.min.replace(tzinfo=timezone.utc), text
+
+    return sorted(dialogs, key=score, reverse=True)
 
 
 class ResourceService:
@@ -31,6 +74,17 @@ class ResourceService:
         default_tmp = module_path.parents[2] / "tmp" / "telegram" if len(module_path.parents) > 2 else Path.cwd() / "tmp" / "telegram"
         self.tmp_root = Path(configured_tmp or default_tmp).resolve()
 
+    def ai_settings(self) -> dict[str, str]:
+        return {
+            "base_url": (self.db.setting("ai_base_url") or os.getenv("TG_RESOURCE_AI_BASE_URL", "")).strip(),
+            "api_key": (self.db.setting("ai_api_key") or os.getenv("TG_RESOURCE_AI_API_KEY", "")).strip(),
+            "model": (self.db.setting("ai_model") or os.getenv("TG_RESOURCE_AI_MODEL", "")).strip(),
+        }
+
+    async def probe_ai(self, config: dict[str, str]) -> bool:
+        result = await asyncio.to_thread(request_ai_json, config, "仅返回 JSON：{\"ok\":true}。", {"action": "connection_test"})
+        return result is not None
+
     async def start(self) -> None:
         self.tmp_root.mkdir(parents=True, exist_ok=True)
         self.workers = [asyncio.create_task(self._worker()) for _ in range(self.concurrency)]
@@ -44,6 +98,58 @@ class ResourceService:
 
     def enqueue(self, task_id: int) -> None:
         self.queue.put_nowait(task_id)
+
+    async def plan_sources(self, keyword: str, source_mode: str, selected_ids: list[int]) -> tuple[list[int], str]:
+        dialogs = self.db.resource_dialogs()
+        if source_mode == "manual":
+            return selected_ids, "manual"
+        if not dialogs:
+            raise ValueError("没有可检索的公开正常群组或频道，请先完成扫描")
+        if source_mode == "all":
+            return [item["id"] for item in dialogs], "all"
+        ranked = rank_sources(keyword, dialogs)
+        ai_ids = await asyncio.to_thread(self._ai_source_ids, keyword, ranked)
+        if ai_ids is None:
+            return [item["id"] for item in ranked], "metadata"
+        by_id = {item["id"]: item for item in ranked}
+        ordered = list(dict.fromkeys(source_id for source_id in ai_ids if source_id in by_id))
+        selected = set(ordered)
+        ordered.extend(item["id"] for item in ranked if item["id"] not in selected)
+        return ordered, "ai"
+
+    def _ai_source_ids(self, keyword: str, dialogs: list[dict]) -> list[int] | None:
+        sources = [{key: item.get(key) for key in ("id", "name", "username", "dialog_type")} for item in dialogs]
+        result = request_ai_json(self.ai_settings(), "根据来源名称判断与检索主题的相关性，返回 JSON：{\"source_ids\":[按相关性降序的来源ID]}。不要编造ID。", {"keyword": keyword, "sources": sources})
+        if result is None:
+            return None
+        source_ids = []
+        for value in result.get("source_ids", []):
+            try:
+                source_ids.append(int(value))
+            except (TypeError, ValueError):
+                continue
+        return source_ids
+
+    async def refresh_adult_dialogs(self) -> str:
+        dialogs = self.db.adult_classification_dialogs()
+        if not dialogs:
+            self.db.save_adult_dialog_ids([])
+            return "ai"
+        prompt = "仅根据群组或频道的名称、用户名判断是否可能主要提供露骨色情或成人性内容。保守识别，不要把普通两性、健康或教育内容误判。返回 JSON：{\"adult_dialog_ids\":[来源ID]}，不要编造ID。"
+        result = await asyncio.to_thread(request_ai_json, self.ai_settings(), prompt, {"dialogs": dialogs})
+        if result is None:
+            return "cached"
+        valid_ids = {dialog["id"] for dialog in dialogs}
+        adult_ids = []
+        for value in result.get("adult_dialog_ids", []):
+            try:
+                dialog_id = int(value)
+            except (TypeError, ValueError):
+                continue
+            if dialog_id in valid_ids and dialog_id not in adult_ids:
+                adult_ids.append(dialog_id)
+        self.db.save_adult_dialog_ids(adult_ids)
+        return "ai"
 
     def cancel(self, task_id: int) -> None:
         task = self.db.resource_task(task_id)
@@ -127,7 +233,7 @@ class ResourceService:
         cleaned = safe_filename(filename)
         extension = cleaned.rsplit(".", 1)[-1].lower() if "." in cleaned else ""
         haystack = f"{cleaned}\n{message.raw_text or ''}".lower()
-        if task["keyword"].lower() not in haystack or extension not in set(task["file_types"]):
+        if task["keyword"].lower() not in haystack or task["file_types"] and extension not in set(task["file_types"]):
             return None
         if any(term in haystack for term in BLOCKED_TERMS):
             return None

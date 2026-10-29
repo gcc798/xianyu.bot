@@ -18,6 +18,8 @@ import (
 	"gorm.io/gorm/clause"
 )
 
+const virtualProductFallbackReply = "虚拟商品，下单自动网盘发货"
+
 type textSender interface {
 	SendText(context.Context, uint, uint, string, string, string) error
 }
@@ -298,11 +300,12 @@ func (s *message) scheduleAutoReply(ctx context.Context, account model.Account, 
 	}
 	var setting struct {
 		ProductID         uint
+		VirtualProduct    bool
 		AutoReplyEnabled  bool
 		ReplyDelaySeconds int
 	}
 	err := global.GVA_DB.WithContext(ctx).Table("xy_products AS p").
-		Select("p.id AS product_id, s.auto_reply_enabled, s.reply_delay_seconds").
+		Select("p.id AS product_id, s.virtual_product, s.auto_reply_enabled, s.reply_delay_seconds").
 		Joins("JOIN xy_product_settings AS s ON s.product_id = p.id AND s.deleted_at IS NULL").
 		Where("p.owner_id = ? AND p.account_id = ? AND p.external_product_id = ? AND p.deleted_at IS NULL",
 			account.OwnerID, account.ID, item.ExternalProductID).
@@ -320,8 +323,14 @@ func (s *message) scheduleAutoReply(ctx context.Context, account model.Account, 
 		return err
 	}
 	rule, err := s.rules.Resolve(ctx, account.OwnerID, setting.ProductID, item.Content)
-	if err != nil || rule == nil {
+	if err != nil {
 		return err
+	}
+	if rule == nil && setting.VirtualProduct {
+		rule = &xianyuResponse.ReplyRule{Content: virtualProductFallbackReply}
+	}
+	if rule == nil {
+		return nil
 	}
 	now := time.Now()
 	task := model.ReplyTask{
@@ -408,6 +417,10 @@ func (s *message) runReplyTask(ctx context.Context, task model.ReplyTask) {
 	var setting model.ProductSetting
 	if err := db.Where("product_id = ? AND auto_reply_enabled = ?", task.ProductID, true).First(&setting).Error; err != nil {
 		_ = s.finishReplyTask(task.ID, model.ReplyTaskCancelled, "商品自动回复已关闭")
+		return
+	}
+	if task.RuleID == 0 && !setting.VirtualProduct {
+		_ = s.finishReplyTask(task.ID, model.ReplyTaskCancelled, "商品已关闭虚拟商品设置")
 		return
 	}
 	if err := s.sender.SendText(ctx, task.OwnerID, task.AccountID, task.SessionID, task.RecipientID, task.ReplyText); err != nil {

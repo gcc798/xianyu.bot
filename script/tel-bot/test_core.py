@@ -7,8 +7,9 @@ import uuid
 import zipfile
 
 from analyzer import cleanup_tags, telegram_link
-from database import Database
-from resource_service import ResourceService
+from database import ADULT_NAME_PATTERN, Database
+import resource_service
+from resource_service import ResourceService, rank_sources
 from storage import safe_filename
 from telegram_service import TelegramService
 from telethon import functions, types
@@ -22,11 +23,15 @@ def test_resource_validation():
     message = SimpleNamespace(document=SimpleNamespace(id=7), file=SimpleNamespace(name="training.pdf", size=9, mime_type="application/pdf"), raw_text="authorized training")
     task = {"keyword": "training", "file_types": ["pdf"]}
     assert service._match(message, task)["filename"] == "training.pdf"
+    task["file_types"] = []
+    assert service._match(message, task)["filename"] == "training.pdf"
+    ranked = rank_sources("Kubernetes 指南", [{"id": 1, "name": "日常闲聊", "username": "chat"}, {"id": 2, "name": "Kubernetes 资料", "username": "k8s"}])
+    assert [item["id"] for item in ranked] == [2, 1]
     message.raw_text = "crack training"
     assert service._match(message, task) is None
     message.raw_text = "authorized training"; message.file.size = 11
     assert service._match(message, task) is None
-    archive_path = Path(__file__).resolve().parents[2] / "tmp" / "telegram" / f"{uuid.uuid4()}.zip"
+    archive_path = Path(os.getenv("TELEGRAM_TMP_ROOT", Path(__file__).resolve().parent / "tmp")) / f"{uuid.uuid4()}.zip"
     archive_path.parent.mkdir(parents=True, exist_ok=True)
     try:
         with zipfile.ZipFile(archive_path, "w") as archive:
@@ -38,6 +43,79 @@ def test_resource_validation():
             pass
     finally:
         archive_path.unlink(missing_ok=True)
+
+
+def test_adult_dialog_filter_uses_cached_ids_without_ai():
+    settings = {"adult_mode": "false", "adult_dialog_ids": '[7, "8"]'}
+    database = Database.__new__(Database)
+    database.setting = lambda key, value=None: settings.get(key) if value is None else settings.setdefault(key, value)
+    clause, params = database._adult_visibility()
+    assert clause and params[0] == [7, 8] and "LOWER(d.name)" in clause
+    assert all(term in ADULT_NAME_PATTERN for term in ("熟女", "stripchat", "裸舞", "乱伦"))
+
+    class FakeDatabase:
+        saved = None
+
+        def setting(self, _key):
+            return None
+
+        def adult_classification_dialogs(self):
+            return [{"id": 7, "name": "test", "username": "test", "dialog_type": "频道"}, {"id": 8, "name": "safe", "username": "safe", "dialog_type": "频道"}]
+
+        def save_adult_dialog_ids(self, dialog_ids):
+            self.saved = dialog_ids
+
+    names = ("TG_RESOURCE_AI_BASE_URL", "TG_RESOURCE_AI_API_KEY", "TG_RESOURCE_AI_MODEL")
+    previous = {name: os.environ.pop(name, None) for name in names}
+    try:
+        service = ResourceService.__new__(ResourceService)
+        service.db = FakeDatabase()
+        assert asyncio.run(service.refresh_adult_dialogs()) == "cached"
+        assert service.db.saved is None
+
+        original = resource_service.request_ai_json
+        resource_service.request_ai_json = lambda *_args, **_kwargs: {"adult_dialog_ids": [7, "7", 999, "invalid"]}
+        try:
+            assert asyncio.run(service.refresh_adult_dialogs()) == "ai"
+            assert service.db.saved == [7]
+        finally:
+            resource_service.request_ai_json = original
+    finally:
+        for name, value in previous.items():
+            if value is not None:
+                os.environ[name] = value
+
+
+def test_ai_settings_prefer_database_and_keep_environment_fallback():
+    class FakeDatabase:
+        values = {"ai_base_url": "https://database.example/v1", "ai_model": "database-model"}
+
+        def setting(self, key):
+            return self.values.get(key)
+
+    names = ("TG_RESOURCE_AI_BASE_URL", "TG_RESOURCE_AI_API_KEY", "TG_RESOURCE_AI_MODEL")
+    previous = {name: os.environ.get(name) for name in names}
+    os.environ.update({"TG_RESOURCE_AI_BASE_URL": "https://environment.example/v1", "TG_RESOURCE_AI_API_KEY": "environment-secret", "TG_RESOURCE_AI_MODEL": "environment-model"})
+    try:
+        service = ResourceService.__new__(ResourceService)
+        service.db = FakeDatabase()
+        assert service.ai_settings() == {"base_url": "https://database.example/v1", "api_key": "environment-secret", "model": "database-model"}
+    finally:
+        for name, value in previous.items():
+            if value is None:
+                os.environ.pop(name, None)
+            else:
+                os.environ[name] = value
+
+
+def test_ai_probe_does_not_refresh_adult_cache():
+    original = resource_service.request_ai_json
+    resource_service.request_ai_json = lambda config, *_args: {"ok": config["api_key"] == "secret"}
+    try:
+        service = ResourceService.__new__(ResourceService)
+        assert asyncio.run(service.probe_ai({"base_url": "https://ai.example/v1", "api_key": "secret", "model": "test"})) is True
+    finally:
+        resource_service.request_ai_json = original
 
 
 def test_metadata_scan_storage():
@@ -115,6 +193,9 @@ def test_qr_login_migrates_before_rendering():
 
 if __name__ == "__main__":
     test_resource_validation()
+    test_adult_dialog_filter_uses_cached_ids_without_ai()
+    test_ai_settings_prefer_database_and_keep_environment_fallback()
+    test_ai_probe_does_not_refresh_adult_cache()
     test_metadata_scan_storage()
     test_qr_login_migrates_before_rendering()
     print("ok")

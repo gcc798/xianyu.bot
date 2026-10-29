@@ -99,6 +99,7 @@ func (s *product) List(ctx context.Context, ownerID uint, input xianyuRequest.Pr
 	list := make([]xianyuResponse.Product, 0)
 	err := db.Select(`p.id, p.created_at, p.updated_at, p.account_id, a.label AS account_label,
 		p.external_product_id, p.title, p.price_cent, p.status, p.image_url, p.source_json,
+		COALESCE(s.virtual_product, false) AS virtual_product,
 		COALESCE(s.auto_reply_enabled, false) AS auto_reply_enabled,
 		COALESCE(s.auto_delivery_enabled, false) AS auto_delivery_enabled,
 		COALESCE(s.auto_relist_enabled, false) AS auto_relist_enabled,
@@ -397,10 +398,16 @@ func (s *product) UpdateSetting(ctx context.Context, ownerID uint, input xianyuR
 	if err := db.Where("id = ? AND owner_id = ?", input.ProductID, ownerID).First(&item).Error; err != nil {
 		return err
 	}
+	if strings.TrimSpace(input.RelistDescription) == item.Title {
+		input.RelistDescription = ""
+	}
 	if input.AutoRelistEnabled {
 		snapshot, err := s.capturePublishSnapshot(ctx, ownerID, item, input)
 		if err != nil {
 			return err
+		}
+		if strings.TrimSpace(input.RelistDescription) == "" {
+			input.RelistDescription = publishSnapshotDescription(snapshot)
 		}
 		item.PublishSnapshot = snapshot
 		if err := db.Model(&item).Update("publish_snapshot", snapshot).Error; err != nil {
@@ -408,7 +415,7 @@ func (s *product) UpdateSetting(ctx context.Context, ownerID uint, input xianyuR
 		}
 	}
 	setting := model.ProductSetting{
-		ProductID: input.ProductID, AutoReplyEnabled: input.AutoReplyEnabled,
+		ProductID: input.ProductID, VirtualProduct: input.VirtualProduct, AutoReplyEnabled: input.AutoReplyEnabled,
 		AutoDeliveryEnabled: input.AutoDeliveryEnabled, AutoRelistEnabled: input.AutoRelistEnabled,
 		ReplyDelaySeconds: input.ReplyDelaySeconds, RelistDelaySeconds: input.RelistDelaySeconds,
 		RelistDescription: strings.TrimSpace(input.RelistDescription), RelistImageURLs: strings.TrimSpace(input.RelistImageURLs),
@@ -417,8 +424,9 @@ func (s *product) UpdateSetting(ctx context.Context, ownerID uint, input xianyuR
 	return db.Clauses(clause.OnConflict{
 		Columns: []clause.Column{{Name: "product_id"}},
 		DoUpdates: clause.Assignments(map[string]any{
-			"auto_reply_enabled": input.AutoReplyEnabled, "auto_delivery_enabled": input.AutoDeliveryEnabled,
-			"auto_relist_enabled": input.AutoRelistEnabled, "reply_delay_seconds": input.ReplyDelaySeconds,
+			"virtual_product": input.VirtualProduct, "auto_reply_enabled": input.AutoReplyEnabled,
+			"auto_delivery_enabled": input.AutoDeliveryEnabled,
+			"auto_relist_enabled":   input.AutoRelistEnabled, "reply_delay_seconds": input.ReplyDelaySeconds,
 			"relist_delay_seconds": input.RelistDelaySeconds, "relist_description": strings.TrimSpace(input.RelistDescription),
 			"relist_image_urls": strings.TrimSpace(input.RelistImageURLs), "relist_address": strings.TrimSpace(input.RelistAddress),
 			"updated_at": gorm.Expr("CURRENT_TIMESTAMP"),
@@ -506,6 +514,16 @@ func marshalPublishSnapshot(payload map[string]any) (string, error) {
 		return "", err
 	}
 	return string(snapshot), nil
+}
+
+func publishSnapshotDescription(raw string) string {
+	var snapshot publishSnapshot
+	if json.Unmarshal([]byte(raw), &snapshot) != nil {
+		return ""
+	}
+	text, _ := snapshot.Payload["itemTextDTO"].(map[string]any)
+	description, _ := text["desc"].(string)
+	return strings.TrimSpace(description)
 }
 
 func localPublishPayload(item model.Product, input xianyuRequest.UpdateProductSetting) (map[string]any, error) {

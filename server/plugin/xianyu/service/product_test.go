@@ -74,7 +74,10 @@ func TestProductSyncUsesRemoteDataAndIsOwnerScoped(t *testing.T) {
 	require.Contains(t, updatedCookie, "_m_h5_tk=newtoken_2")
 
 	require.Error(t, service.UpdateSetting(t.Context(), 11, xianyuRequest.UpdateProductSetting{ProductID: list[0].ID, AutoReplyEnabled: true}))
-	require.NoError(t, service.UpdateSetting(t.Context(), 10, xianyuRequest.UpdateProductSetting{ProductID: list[0].ID, AutoReplyEnabled: true, ReplyDelaySeconds: 5}))
+	require.NoError(t, service.UpdateSetting(t.Context(), 10, xianyuRequest.UpdateProductSetting{ProductID: list[0].ID, VirtualProduct: true, AutoReplyEnabled: true, ReplyDelaySeconds: 5}))
+	list, _, err = service.List(t.Context(), 10, xianyuRequest.ProductSearch{})
+	require.NoError(t, err)
+	require.True(t, list[0].VirtualProduct)
 }
 
 func TestProductListFiltersByTitleOrIDAndStatus(t *testing.T) {
@@ -183,4 +186,38 @@ func TestCapturePublishSnapshotAdaptsDetailResponseAndUsesLatestImages(t *testin
 	require.Equal(t, "新描述", snapshot.Payload["itemTextDTO"].(map[string]any)["desc"])
 	images := snapshot.Payload["imageInfoDOList"].([]any)
 	require.Equal(t, "https://img.example/new.jpg", images[0].(map[string]any)["url"])
+}
+
+func TestUpdateSettingUsesOriginalDescriptionUnlessCustomized(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	require.NoError(t, err)
+	require.NoError(t, db.AutoMigrate(&model.Product{}, &model.ProductSetting{}))
+	oldDB := global.GVA_DB
+	t.Cleanup(func() { global.GVA_DB = oldDB })
+	global.GVA_DB = db
+	item := model.Product{OwnerID: 10, AccountID: 20, ExternalProductID: "item-1", Title: "商品标题", Status: "on_sale"}
+	require.NoError(t, db.Create(&item).Error)
+	detail := json.RawMessage(`{
+		"itemTextDTO":{"title":"商品标题","desc":"原商品完整正文"},
+		"itemPriceDTO":{},"imageInfoDOList":[],"itemCatDTO":{},"itemPostFeeDTO":{},
+		"itemAddrDTO":{"divisionId":"330106","gps":"30.25961,120.13026","poiId":"poi-1","poiName":"西湖区"}
+	}`)
+	service := &product{mtop: fakeMTopCaller{data: detail}}
+
+	require.NoError(t, service.UpdateSetting(t.Context(), 10, xianyuRequest.UpdateProductSetting{
+		ProductID: item.ID, AutoRelistEnabled: true, RelistDescription: item.Title,
+	}))
+	var setting model.ProductSetting
+	require.NoError(t, db.Where("product_id = ?", item.ID).First(&setting).Error)
+	require.Equal(t, "原商品完整正文", setting.RelistDescription)
+	require.NoError(t, db.First(&item, item.ID).Error)
+	require.Equal(t, "原商品完整正文", publishSnapshotDescription(item.PublishSnapshot))
+
+	require.NoError(t, service.UpdateSetting(t.Context(), 10, xianyuRequest.UpdateProductSetting{
+		ProductID: item.ID, AutoRelistEnabled: true, RelistDescription: "用户自定义续售正文",
+	}))
+	require.NoError(t, db.Where("product_id = ?", item.ID).First(&setting).Error)
+	require.Equal(t, "用户自定义续售正文", setting.RelistDescription)
+	require.NoError(t, db.First(&item, item.ID).Error)
+	require.Equal(t, "用户自定义续售正文", publishSnapshotDescription(item.PublishSnapshot))
 }

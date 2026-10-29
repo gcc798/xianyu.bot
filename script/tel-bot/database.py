@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import csv
 import io
+import json
 from contextlib import contextmanager
 from datetime import datetime, timezone
 
@@ -10,6 +11,12 @@ from psycopg.rows import dict_row
 
 TABLES = {"dialogs": "tel_dialogs", "scan_history": "tel_scan_history", "leave_history": "tel_leave_history", "settings": "tel_settings"}
 SORTS = {"name": "d.name", "type": "d.dialog_type", "members": "d.member_count", "last_message": "d.last_message_at", "unread": "d.unread_count", "status": "d.status"}
+ADULT_NAME_PATTERN = (
+    r"成人|色情|情色|成人视频|裸聊|裸舞|裸播|裸照|约炮|炮友|一夜情|援交|福利姬|福利视频|福利资源|"
+    r"熟女|少妇|人妻|萝莉|乱伦|母狗|调教|换妻|群交|迷奸|强奸|自拍偷拍|国产自拍|鲍鱼资源|"
+    r"草榴|杏吧|色花堂|海角社区|stripchat|onlyfans|pornhub|xvideos|xhamster|redtube|"
+    r"18禁|无码|有码|av女优|\m(?:porn|xxx|nsfw|jav)\M"
+)
 
 
 class Database:
@@ -42,6 +49,7 @@ class Database:
                 )
             """)
             db.execute(f"CREATE TABLE IF NOT EXISTS {TABLES['settings']} (key TEXT PRIMARY KEY, value TEXT)")
+            db.execute(f"INSERT INTO {TABLES['settings']}(key,value) VALUES('adult_mode','false'),('adult_dialog_ids','[]') ON CONFLICT(key) DO NOTHING")
             db.execute("ALTER TABLE tel_dialogs ADD COLUMN IF NOT EXISTS resource_compliance_status TEXT NOT NULL DEFAULT 'allowed'")
             db.execute("""
                 CREATE TABLE IF NOT EXISTS tel_resource_tasks (
@@ -104,6 +112,8 @@ class Database:
             db.execute("CREATE INDEX IF NOT EXISTS idx_tel_resource_files_task ON tel_resource_files(task_id)")
             db.execute("CREATE INDEX IF NOT EXISTS idx_tel_resource_files_filter ON tel_resource_files(download_status,file_type)")
             db.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_tel_resource_files_telegram_file ON tel_resource_files(telegram_file_id) WHERE telegram_file_id IS NOT NULL")
+            db.execute("ALTER TABLE tel_resource_tasks ADD COLUMN IF NOT EXISTS source_mode TEXT NOT NULL DEFAULT 'manual'")
+            db.execute("ALTER TABLE tel_resource_tasks ADD COLUMN IF NOT EXISTS source_strategy TEXT NOT NULL DEFAULT 'manual'")
             db.execute(f"UPDATE {TABLES['scan_history']} SET status='interrupted', finished_at=%s WHERE status='running'", (now_iso(),))
             db.execute("UPDATE tel_resource_tasks SET status='failed',completed_at=NOW(),error_message='service restarted' WHERE status='running'")
 
@@ -122,6 +132,29 @@ class Database:
     def health(self) -> bool:
         with self.connect() as db:
             return db.execute("SELECT 1 AS ok").fetchone()["ok"] == 1
+
+    def adult_mode(self) -> bool:
+        return self.setting("adult_mode") == "true"
+
+    def set_adult_mode(self, enabled: bool) -> None:
+        self.setting("adult_mode", "true" if enabled else "false")
+
+    def adult_dialog_ids(self) -> list[int]:
+        try:
+            values = json.loads(self.setting("adult_dialog_ids") or "[]")
+            if not isinstance(values, list):
+                return []
+            return list(dict.fromkeys(int(value) for value in values))
+        except (TypeError, ValueError, json.JSONDecodeError):
+            return []
+
+    def save_adult_dialog_ids(self, dialog_ids: list[int]) -> None:
+        self.setting("adult_dialog_ids", json.dumps(sorted(set(dialog_ids))))
+
+    def _adult_visibility(self, alias: str = "d") -> tuple[str | None, list]:
+        if self.adult_mode():
+            return None, []
+        return f"NOT ({alias}.id=ANY(%s) OR LOWER({alias}.name) ~ %s OR LOWER(COALESCE({alias}.username,'')) ~ %s)", [self.adult_dialog_ids(), ADULT_NAME_PATTERN, ADULT_NAME_PATTERN]
 
     def start_scan(self) -> int:
         with self.connect() as db:
@@ -149,12 +182,17 @@ class Database:
             return db.execute(f"SELECT * FROM {TABLES['scan_history']} ORDER BY id DESC LIMIT 1").fetchone()
 
     def summary(self) -> dict:
+        visibility, params = self._adult_visibility()
+        where = "d.status!='left'" + (f" AND {visibility}" if visibility else "")
         with self.connect() as db:
-            row = db.execute(f"SELECT COUNT(*) AS total, COALESCE(SUM(is_group::int),0) AS groups_count, COALESCE(SUM(is_broadcast::int),0) AS channels_count, COALESCE(SUM((status!='normal')::int),0) AS abnormal, COALESCE(SUM(is_muted::int),0) AS muted, COALESCE(SUM(is_archived::int),0) AS archived, COALESCE(SUM(is_creator::int),0) AS created_by_me, COALESCE(SUM(unread_count),0) AS unread FROM {TABLES['dialogs']} WHERE status!='left'").fetchone()
+            row = db.execute(f"SELECT COUNT(*) AS total, COALESCE(SUM(is_group::int),0) AS groups_count, COALESCE(SUM(is_broadcast::int),0) AS channels_count, COALESCE(SUM((status!='normal')::int),0) AS abnormal, COALESCE(SUM(is_muted::int),0) AS muted, COALESCE(SUM(is_archived::int),0) AS archived, COALESCE(SUM(is_creator::int),0) AS created_by_me, COALESCE(SUM(unread_count),0) AS unread FROM {TABLES['dialogs']} d WHERE {where}", params).fetchone()
             return dict(row)
 
     def list_dialogs(self, filters: dict, page: int = 1, page_size: int = 30, sort: str = "last_message", order: str = "desc") -> tuple[list[dict], int]:
         where, params = ["d.status!='left'"], []
+        visibility, visibility_params = self._adult_visibility()
+        if visibility:
+            where.append(visibility); params.extend(visibility_params)
         if filters.get("q"): where.append("d.name ILIKE %s"); params.append(f"%{filters['q']}%")
         kind = filters.get("filter")
         if kind == "groups": where.append("d.is_group")
@@ -184,21 +222,31 @@ class Database:
         return output.getvalue()
 
     def resource_dialogs(self) -> list[dict]:
+        visibility, params = self._adult_visibility()
+        adult_filter = f" AND {visibility}" if visibility else ""
         with self.connect() as db:
-            return db.execute("SELECT id,telegram_id,name,username,dialog_type FROM tel_dialogs WHERE status='normal' AND resource_compliance_status='allowed' AND username IS NOT NULL AND (is_group OR is_broadcast) ORDER BY name").fetchall()
+            return db.execute(f"SELECT d.id,d.telegram_id,d.name,d.username,d.dialog_type,d.member_count,d.last_message_at FROM tel_dialogs d WHERE d.status='normal' AND d.resource_compliance_status='allowed' AND d.username IS NOT NULL AND (d.is_group OR d.is_broadcast){adult_filter} ORDER BY d.last_message_at DESC NULLS LAST,d.name", params).fetchall()
 
-    def create_resource_task(self, keyword: str, file_types: list[str], source_ids: list[int], max_downloads: int) -> dict:
+    def adult_classification_dialogs(self) -> list[dict]:
         with self.connect() as db:
-            allowed = db.execute("SELECT id FROM tel_dialogs WHERE id=ANY(%s) AND status='normal' AND resource_compliance_status='allowed' AND username IS NOT NULL AND (is_group OR is_broadcast)", (source_ids,)).fetchall()
+            return db.execute("SELECT id,name,username,dialog_type FROM tel_dialogs WHERE status!='left' ORDER BY id").fetchall()
+
+    def create_resource_task(self, keyword: str, file_types: list[str], source_ids: list[int], max_downloads: int, source_mode: str = "manual", source_strategy: str = "manual") -> dict:
+        visibility, visibility_params = self._adult_visibility()
+        adult_filter = f" AND {visibility}" if visibility else ""
+        with self.connect() as db:
+            allowed = db.execute(f"SELECT d.id FROM tel_dialogs d WHERE d.id=ANY(%s) AND d.status='normal' AND d.resource_compliance_status='allowed' AND d.username IS NOT NULL AND (d.is_group OR d.is_broadcast){adult_filter}", (source_ids, *visibility_params)).fetchall()
             if len(allowed) != len(set(source_ids)):
                 raise ValueError("搜索范围包含未扫描、非公开或状态异常的群组/频道")
-            return db.execute("INSERT INTO tel_resource_tasks(keyword,file_types,source_dialog_ids,max_downloads) VALUES(%s,%s,%s,%s) RETURNING *", (keyword, file_types, source_ids, max_downloads)).fetchone()
+            return db.execute("INSERT INTO tel_resource_tasks(keyword,file_types,source_dialog_ids,max_downloads,source_mode,source_strategy) VALUES(%s,%s,%s,%s,%s,%s) RETURNING *", (keyword, file_types, source_ids, max_downloads, source_mode, source_strategy)).fetchone()
 
     def resource_task(self, task_id: int) -> dict | None:
+        visibility, visibility_params = self._adult_visibility()
+        adult_filter = f" AND {visibility}" if visibility else ""
         with self.connect() as db:
             row = db.execute("SELECT * FROM tel_resource_tasks WHERE id=%s", (task_id,)).fetchone()
             if row:
-                row["sources"] = db.execute("SELECT id,telegram_id,name,username,dialog_type,status,resource_compliance_status FROM tel_dialogs WHERE id=ANY(%s) ORDER BY name", (row["source_dialog_ids"],)).fetchall()
+                row["sources"] = db.execute(f"SELECT d.id,d.telegram_id,d.name,d.username,d.dialog_type,d.status,d.resource_compliance_status FROM tel_dialogs d WHERE d.id=ANY(%s){adult_filter} ORDER BY array_position(%s::bigint[],d.id)", (row["source_dialog_ids"], *visibility_params, row["source_dialog_ids"])).fetchall()
             return row
 
     def list_resource_tasks(self, page: int = 1, page_size: int = 20) -> tuple[list[dict], int]:

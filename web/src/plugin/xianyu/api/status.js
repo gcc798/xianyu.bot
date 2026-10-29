@@ -8,3 +8,11 @@ export const getXianyuStatus = () => {
     method: 'get'
   })
 }
+
+export const getXianyuDashboardOverview = (params) => {
+  return service({
+    url: '/xianyu/dashboard/overview',
+    method: 'get',
+    params
+  })
+}

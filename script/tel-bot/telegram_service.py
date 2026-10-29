@@ -29,6 +29,7 @@ class TelegramService:
         self.qr_task = None
         self.connect_lock = asyncio.Lock()
         self.scan_task = None
+        self.refresh_adult_dialogs = None
         self.progress = {"status": "idle", "current": 0, "total": 0, "name": "", "message": ""}
 
     async def connect(self):
@@ -159,8 +160,14 @@ class TelegramService:
                     failed += 1
                     log.exception("Failed to scan %s", dialog.name)
                 self.db.update_scan(scan_id, dialogs_success=success, dialogs_failed=failed)
+            if self.refresh_adult_dialogs:
+                try:
+                    self.progress.update(name="", message="正在刷新成人频道识别结果")
+                    await self.refresh_adult_dialogs()
+                except Exception:
+                    log.exception("Adult dialog classification failed after scan")
             self.db.update_scan(scan_id, finished_at=datetime.now(timezone.utc).isoformat(), status="completed")
-            self.progress.update(status="completed", message=f"扫描完成：成功 {success}，失败 {failed}")
+            self.progress.update(status="completed", name="", message=f"扫描完成：成功 {success}，失败 {failed}")
         except Exception as exc:
             log.exception("Scan failed")
             self.db.update_scan(scan_id, finished_at=datetime.now(timezone.utc).isoformat(), status="failed", error_message=str(exc))

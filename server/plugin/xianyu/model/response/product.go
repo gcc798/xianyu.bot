@@ -15,6 +15,7 @@ type Product struct {
 	ImageURL            string    `json:"imageUrl"`
 	ImageURLs           []string  `json:"imageUrls"`
 	SourceJSON          string    `json:"-"`
+	VirtualProduct      bool      `json:"virtualProduct"`
 	AutoReplyEnabled    bool      `json:"autoReplyEnabled"`
 	AutoDeliveryEnabled bool      `json:"autoDeliveryEnabled"`
 	AutoRelistEnabled   bool      `json:"autoRelistEnabled"`

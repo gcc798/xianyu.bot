@@ -23,6 +23,7 @@ type ProductSync struct {
 
 type UpdateProductSetting struct {
 	ProductID           uint   `json:"productId"`
+	VirtualProduct      bool   `json:"virtualProduct"`
 	AutoReplyEnabled    bool   `json:"autoReplyEnabled"`
 	AutoDeliveryEnabled bool   `json:"autoDeliveryEnabled"`
 	AutoRelistEnabled   bool   `json:"autoRelistEnabled"`

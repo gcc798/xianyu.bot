@@ -112,6 +112,9 @@
 
     <el-dialog v-model="settingDialog" title="商品业务设置" width="500px">
       <el-form label-width="110px">
+        <el-form-item label="虚拟商品">
+          <el-switch v-model="setting.virtualProduct" />
+        </el-form-item>
         <el-form-item label="自动回复">
           <el-switch v-model="setting.autoReplyEnabled" />
           <el-button v-if="setting.autoReplyEnabled" link type="primary" class="ml-3" @click="openRuleSetting('XianyuReplyRules')">配置规则</el-button>
@@ -132,7 +135,7 @@
           <span class="ml-2 text-gray-500">秒</span>
         </el-form-item>
         <el-form-item v-if="setting.autoRelistEnabled" label="续售描述">
-          <el-input v-model="setting.relistDescription" type="textarea" :rows="4" maxlength="5000" show-word-limit />
+          <el-input v-model="setting.relistDescription" type="textarea" :rows="4" maxlength="5000" show-word-limit placeholder="留空则读取原商品完整描述" />
         </el-form-item>
         <el-form-item v-if="setting.autoRelistEnabled" label="发布所在地" required>
           <el-input v-model="setting.relistAddress" placeholder="请输入，例如：杭州市西湖区" />
@@ -173,6 +176,7 @@
   const searchInfo = reactive({ page: 1, pageSize: 10, titleOrId: '', accountId: undefined, status: '' })
   const setting = reactive({
     productId: 0,
+    virtualProduct: false,
     autoReplyEnabled: false,
     autoDeliveryEnabled: false,
     autoRelistEnabled: false,
@@ -233,12 +237,13 @@
   const openSetting = (row) => {
     Object.assign(setting, {
       productId: row.ID,
+      virtualProduct: row.virtualProduct,
       autoReplyEnabled: row.autoReplyEnabled,
       autoDeliveryEnabled: row.autoDeliveryEnabled,
       autoRelistEnabled: row.autoRelistEnabled,
       replyDelaySeconds: row.replyDelaySeconds,
       relistDelaySeconds: row.relistDelaySeconds,
-      relistDescription: row.relistDescription || row.title,
+      relistDescription: row.relistDescription === row.title ? '' : (row.relistDescription || ''),
       relistImageUrls: row.relistImageUrls || '',
       relistAddress: row.relistAddress || ''
     })

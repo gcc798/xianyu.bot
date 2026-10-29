@@ -214,6 +214,38 @@ func TestAutoReplyMergesMessagesAndSendsOnlyLatest(t *testing.T) {
 	require.Equal(t, model.ReplyTaskSent, tasks[1].Status)
 }
 
+func TestVirtualProductUsesDefaultFallbackReply(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	require.NoError(t, err)
+	require.NoError(t, db.AutoMigrate(
+		&model.Account{}, &model.Product{}, &model.ProductSetting{}, &model.ReplyRule{}, &model.ReplyContent{},
+		&model.Message{}, &model.ConversationTakeover{}, &model.ReplyTask{},
+	))
+	oldDB := global.GVA_DB
+	t.Cleanup(func() { global.GVA_DB = oldDB })
+	global.GVA_DB = db
+	account := model.Account{OwnerID: 10, ExternalUserID: "seller-1", Label: "消息账号", Status: "ready", Enabled: true}
+	require.NoError(t, db.Create(&account).Error)
+	product := model.Product{OwnerID: 10, AccountID: account.ID, ExternalProductID: "item-1", Title: "虚拟商品", Status: "on_sale"}
+	require.NoError(t, db.Create(&product).Error)
+	require.NoError(t, db.Create(&model.ProductSetting{ProductID: product.ID, VirtualProduct: true, AutoReplyEnabled: true}).Error)
+	incoming := model.Message{
+		OwnerID: 10, AccountID: account.ID, PNMID: "one", SessionID: "session-1", ContentType: 1,
+		Content: "你好", SenderUserID: "buyer-1", ExternalProductID: "item-1", Direction: "inbound", Source: "remote",
+	}
+	require.NoError(t, db.Create(&incoming).Error)
+	sent := make(chan string, 1)
+	service := &message{sender: channelTextSender(sent), rules: new(replyRule), pending: make(map[string]pendingReply)}
+
+	require.NoError(t, service.scheduleAutoReply(t.Context(), account, incoming))
+	select {
+	case text := <-sent:
+		require.Equal(t, virtualProductFallbackReply, text)
+	case <-time.After(time.Second):
+		t.Fatal("虚拟商品兜底回复未发送")
+	}
+}
+
 func TestHandleHistoryRepliesOnlyToLatestRecentMessage(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)

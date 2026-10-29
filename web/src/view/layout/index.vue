@@ -37,7 +37,6 @@
               </transition>
             </div>
           </router-view>
-          <BottomInfo />
         </div>
       </div>
     </div>
@@ -49,7 +48,6 @@
   import GvaHeader from '@/view/layout/header/index.vue'
   import useResponsive from '@/hooks/responsive'
   import GvaTabs from './tabs/index.vue'
-  import BottomInfo from '@/components/bottomInfo/bottomInfo.vue'
   import { emitter } from '@/utils/bus.js'
   import { ref, onMounted, nextTick } from 'vue'
   import { useRouter, useRoute } from 'vue-router'

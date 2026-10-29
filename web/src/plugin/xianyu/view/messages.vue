@@ -108,11 +108,13 @@
 <script setup>
   import { onMounted, reactive, ref } from 'vue'
   import { ElMessage, ElMessageBox } from 'element-plus'
+  import { useRoute } from 'vue-router'
   import { getXianyuAccountList } from '@/plugin/xianyu/api/account'
   import { getXianyuMessageList, replyXianyuMessage, updateXianyuTakeover } from '@/plugin/xianyu/api/message'
 
   defineOptions({ name: 'XianyuMessages' })
 
+  const route = useRoute()
   const loading = ref(false)
   const tableData = ref([])
   const total = ref(0)
@@ -195,6 +197,11 @@
   }
 
   onMounted(async () => {
+    const startTime = Number(route.query.startTime || 0)
+    const endTime = Number(route.query.endTime || 0)
+    const accountId = Number(route.query.accountId || 0)
+    if (startTime && endTime) searchInfo.timeRange = [startTime, endTime]
+    if (accountId) searchInfo.accountId = accountId
     const accountRes = await getXianyuAccountList({ page: 1, pageSize: 100 })
     if (accountRes.code === 0) accounts.value = accountRes.data.list || []
     load()

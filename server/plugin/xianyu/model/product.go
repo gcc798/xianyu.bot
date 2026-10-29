@@ -20,6 +20,7 @@ func (Product) TableName() string { return "xy_products" }
 type ProductSetting struct {
 	global.GVA_MODEL
 	ProductID           uint   `json:"productId" gorm:"not null;uniqueIndex"`
+	VirtualProduct      bool   `json:"virtualProduct" gorm:"not null;default:false"`
 	AutoReplyEnabled    bool   `json:"autoReplyEnabled" gorm:"not null;default:false"`
 	AutoDeliveryEnabled bool   `json:"autoDeliveryEnabled" gorm:"not null;default:false"`
 	AutoRelistEnabled   bool   `json:"autoRelistEnabled" gorm:"not null;default:false"`

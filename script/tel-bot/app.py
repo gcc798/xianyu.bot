@@ -8,7 +8,8 @@ import socket
 from contextlib import asynccontextmanager, suppress
 from datetime import datetime
 from pathlib import Path
-from urllib.parse import urlencode
+from typing import Literal
+from urllib.parse import urlencode, urlparse
 
 import uvicorn
 from dotenv import load_dotenv
@@ -16,7 +17,7 @@ from fastapi import FastAPI, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 from analyzer import cleanup_tags, telegram_link
 from database import Database
@@ -37,6 +38,7 @@ proxy_host, proxy_port = os.getenv("TG_PROXY_HOST", "").strip(), os.getenv("TG_P
 proxy = ("socks5", proxy_host, int(proxy_port)) if proxy_host and proxy_port.isdigit() else None
 service = TelegramService(api_id, api_hash, db, proxy)
 resources = ResourceService(service, db, RustFS())
+service.refresh_adult_dialogs = resources.refresh_adult_dialogs
 csrf_token = secrets.token_urlsafe(32)
 
 
@@ -88,8 +90,9 @@ def require_login():
 
 class ResourceTaskInput(BaseModel):
     keyword: str = Field(min_length=2, max_length=200)
-    file_types: list[str] = Field(min_length=1, max_length=30)
-    source_dialog_ids: list[int] = Field(min_length=1, max_length=100)
+    file_types: list[str] = Field(default_factory=list, max_length=30)
+    source_mode: Literal["smart", "all", "manual"] = "smart"
+    source_dialog_ids: list[int] = Field(default_factory=list, max_length=100)
     max_downloads: int = Field(default=10, ge=1, le=100)
 
     @field_validator("file_types")
@@ -100,9 +103,37 @@ class ResourceTaskInput(BaseModel):
             raise ValueError("仅支持常见文档、图片和 zip 类型")
         return cleaned
 
+    @model_validator(mode="after")
+    def validate_sources(self):
+        if self.source_mode == "manual" and not self.source_dialog_ids:
+            raise ValueError("手动选择模式至少需要一个搜索来源")
+        return self
+
 
 class TelegramPasswordInput(BaseModel):
     password: str = Field(min_length=1, max_length=256)
+
+
+class AdultModeInput(BaseModel):
+    adult_mode: bool
+
+
+class AISettingsInput(BaseModel):
+    base_url: str = Field(min_length=1, max_length=1000)
+    api_key: str = Field(default="", max_length=4096)
+    model: str = Field(min_length=1, max_length=200)
+
+    @model_validator(mode="after")
+    def validate_ai_settings(self):
+        self.base_url = self.base_url.strip().rstrip("/")
+        self.api_key = self.api_key.strip()
+        self.model = self.model.strip()
+        parsed = urlparse(self.base_url)
+        if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+            raise ValueError("AI 服务地址必须是有效的 HTTP 或 HTTPS 地址")
+        if not self.model:
+            raise ValueError("AI 模型不能为空")
+        return self
 
 
 class LeaveDialogsInput(BaseModel):
@@ -125,6 +156,25 @@ def check_csrf(token: str):
 
 def filters_from(request: Request):
     return {key: request.query_params.get(key, "") for key in ("q", "filter", "members_min", "members_max")}
+
+
+def public_ai_settings() -> dict:
+    config = resources.ai_settings()
+    masked_key = f"sk-{'•' * 12}" if config["api_key"].startswith("sk-") else "•" * 12
+    return {
+        "ai_base_url": config["base_url"],
+        "ai_model": config["model"],
+        "ai_api_key_configured": bool(config["api_key"]),
+        "ai_api_key_masked": masked_key if config["api_key"] else "",
+    }
+
+
+def requested_ai_settings(payload: AISettingsInput) -> dict[str, str]:
+    current = resources.ai_settings()
+    api_key = payload.api_key or current["api_key"]
+    if not api_key:
+        raise HTTPException(400, "请填写 AI API Key")
+    return {"base_url": payload.base_url, "api_key": api_key, "model": payload.model}
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -338,7 +388,43 @@ async def admin_settings(request: Request):
         "listen": f"{os.getenv('WEB_HOST', '0.0.0.0')}:{os.getenv('WEB_PORT', '8080')}",
         "resource_max_file_size": resources.max_file_size,
         "resource_concurrency": resources.concurrency,
+        "adult_mode": db.adult_mode(),
+        "adult_dialog_count": len(db.adult_dialog_ids()),
+        **public_ai_settings(),
     }
+
+
+@app.post("/api/admin/settings/adult-mode")
+async def update_adult_mode(payload: AdultModeInput, request: Request):
+    internal_access(request)
+    db.set_adult_mode(payload.adult_mode)
+    return {"adult_mode": db.adult_mode(), "adult_dialog_count": len(db.adult_dialog_ids())}
+
+
+@app.post("/api/admin/settings/ai")
+async def update_ai_settings(payload: AISettingsInput, request: Request):
+    internal_access(request)
+    requested_ai_settings(payload)
+    db.setting("ai_base_url", payload.base_url)
+    db.setting("ai_model", payload.model)
+    if payload.api_key:
+        db.setting("ai_api_key", payload.api_key)
+    return public_ai_settings()
+
+
+@app.post("/api/admin/settings/ai/probe")
+async def probe_ai_settings(payload: AISettingsInput, request: Request):
+    internal_access(request)
+    return {"available": await resources.probe_ai(requested_ai_settings(payload))}
+
+
+@app.get("/api/admin/settings/ai/key")
+async def reveal_ai_api_key(request: Request):
+    internal_access(request)
+    api_key = resources.ai_settings()["api_key"]
+    if not api_key:
+        raise HTTPException(404, "AI API Key 未配置")
+    return JSONResponse({"api_key": api_key}, headers={"Cache-Control": "no-store", "Pragma": "no-cache"})
 
 
 @app.get("/api/resources/options")
@@ -353,7 +439,8 @@ async def create_resource_task(payload: ResourceTaskInput, request: Request):
     if not service.authorized:
         raise HTTPException(409, "Telegram 未登录，请先在 Telegram 服务页面完成登录")
     try:
-        task = db.create_resource_task(payload.keyword.strip(), payload.file_types, payload.source_dialog_ids, payload.max_downloads)
+        source_ids, strategy = await resources.plan_sources(payload.keyword.strip(), payload.source_mode, payload.source_dialog_ids)
+        task = db.create_resource_task(payload.keyword.strip(), payload.file_types, source_ids, payload.max_downloads, payload.source_mode, strategy)
     except ValueError as exc:
         raise HTTPException(400, str(exc)) from exc
     resources.enqueue(task["id"])
