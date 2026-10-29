@@ -35,22 +35,25 @@ func (ResourceCandidate) TableName() string { return "xy_resource_candidates" }
 
 type ResourceTask struct {
 	global.GVA_MODEL
-	OwnerID         uint       `json:"-" gorm:"not null;index:idx_xy_resource_tasks_owner;uniqueIndex:idx_xy_resource_task_idempotency"`
-	CandidateID     uint       `json:"candidateId" gorm:"not null;index"`
-	MCPServerCode   string     `json:"mcpServerCode" gorm:"size:64;not null"`
-	ExternalTaskID  string     `json:"externalTaskId" gorm:"size:200;index"`
-	IdempotencyKey  string     `json:"-" gorm:"size:100;not null;uniqueIndex:idx_xy_resource_task_idempotency"`
-	State           string     `json:"state" gorm:"size:32;not null;default:queued;index"`
-	Stage           string     `json:"stage" gorm:"size:64"`
-	ProgressPercent int        `json:"progressPercent" gorm:"not null;default:0"`
-	ProgressDone    int64      `json:"progressDone" gorm:"not null;default:0"`
-	ProgressTotal   int64      `json:"progressTotal" gorm:"not null;default:0"`
-	ProgressUnit    string     `json:"progressUnit" gorm:"size:32"`
-	Result          string     `json:"result" gorm:"type:text"`
-	ErrorCode       string     `json:"errorCode" gorm:"size:64"`
-	ErrorMessage    string     `json:"errorMessage" gorm:"size:2000"`
-	StartedAt       *time.Time `json:"startedAt"`
-	CompletedAt     *time.Time `json:"completedAt"`
+	OwnerID           uint       `json:"-" gorm:"not null;index:idx_xy_resource_tasks_owner;uniqueIndex:idx_xy_resource_task_idempotency"`
+	CandidateID       uint       `json:"candidateId" gorm:"not null;index"`
+	MCPServerCode     string     `json:"mcpServerCode" gorm:"size:64;not null"`
+	ExternalTaskID    string     `json:"externalTaskId" gorm:"size:200;index"`
+	IdempotencyKey    string     `json:"-" gorm:"size:100;not null;uniqueIndex:idx_xy_resource_task_idempotency"`
+	State             string     `json:"state" gorm:"size:32;not null;default:queued;index"`
+	Stage             string     `json:"stage" gorm:"size:64"`
+	ProgressPercent   int        `json:"progressPercent" gorm:"not null;default:0"`
+	ProgressDone      int64      `json:"progressDone" gorm:"not null;default:0"`
+	ProgressTotal     int64      `json:"progressTotal" gorm:"not null;default:0"`
+	ProgressUnit      string     `json:"progressUnit" gorm:"size:32"`
+	Result            string     `json:"result" gorm:"type:text"`
+	ErrorCode         string     `json:"errorCode" gorm:"size:64"`
+	ErrorMessage      string     `json:"errorMessage" gorm:"size:2000"`
+	StartedAt         *time.Time `json:"startedAt"`
+	CompletedAt       *time.Time `json:"completedAt"`
+	DeliveryTokenHash string     `json:"-" gorm:"size:64"`
+	DeliveryExpiresAt *time.Time `json:"-"`
+	UploadObjectKey   string     `json:"-" gorm:"size:1000"`
 }
 
 func (ResourceTask) TableName() string { return "xy_resource_tasks" }

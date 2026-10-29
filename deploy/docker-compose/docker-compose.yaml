@@ -40,6 +40,10 @@ services:
       GVA_ADMIN_PASSWORD: ${GVA_ADMIN_PASSWORD:-123456}
       TELEGRAM_SERVICE_URL: http://telegram:8080
       TELEGRAM_INTERNAL_TOKEN: ${TELEGRAM_INTERNAL_TOKEN:-}
+      RUSTFS_ENDPOINT: http://rustfs:9000
+      RUSTFS_ACCESS_KEY: ${RUSTFS_ACCESS_KEY:-rustfs-local}
+      RUSTFS_SECRET_KEY: ${RUSTFS_SECRET_KEY:-rustfs-local-secret}
+      RUSTFS_BUCKET: ${RUSTFS_BUCKET:-telegram-resources}
 
   postgres:
     image: postgres:17-alpine

@@ -9,3 +9,8 @@ func (r *resource) Init(private *gin.RouterGroup) {
 	private.GET("xy/resources/:id", resourceAPI.Get)
 	private.GET("xy/resource-tasks/:id", resourceAPI.GetTask)
 }
+
+func (r *resource) InitInternal(internal *gin.RouterGroup) {
+	internal.POST("resource-tasks/:id/upload", resourceAPI.PresignDelivery)
+	internal.POST("resource-tasks/:id/complete", resourceAPI.CompleteDelivery)
+}

@@ -48,3 +48,34 @@ func (a *resource) GetTask(c *gin.Context) {
 	}
 	response.OkWithData(gin.H{"task": task}, c)
 }
+
+func (a *resource) PresignDelivery(c *gin.Context) {
+	taskID, ok := pathID(c)
+	if !ok {
+		return
+	}
+	uploadURL, expiresAt, err := resourceService.PresignDelivery(c.Request.Context(), taskID, c.GetHeader("X-Delivery-Token"))
+	if err != nil {
+		response.FailWithMessage(err.Error(), c)
+		return
+	}
+	response.OkWithData(gin.H{"uploadUrl": uploadURL, "expiresAt": expiresAt}, c)
+}
+
+func (a *resource) CompleteDelivery(c *gin.Context) {
+	taskID, ok := pathID(c)
+	if !ok {
+		return
+	}
+	var input xyRequest.CompleteResourceDelivery
+	if err := c.ShouldBindJSON(&input); err != nil {
+		response.FailWithMessage(err.Error(), c)
+		return
+	}
+	resource, err := resourceService.CompleteDelivery(c.Request.Context(), taskID, c.GetHeader("X-Delivery-Token"), input.Size, input.SHA256)
+	if err != nil {
+		response.FailWithMessage(err.Error(), c)
+		return
+	}
+	response.OkWithData(gin.H{"resource": resource}, c)
+}

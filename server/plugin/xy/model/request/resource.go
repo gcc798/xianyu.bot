@@ -13,6 +13,11 @@ type ResourceSearch struct {
 	State    string `json:"state" form:"state"`
 }
 
+type CompleteResourceDelivery struct {
+	Size   int64  `json:"size" binding:"required"`
+	SHA256 string `json:"sha256" binding:"required"`
+}
+
 func (r *ResourceSearch) Paginate() func(*gorm.DB) *gorm.DB {
 	return (&commonRequest.PageInfo{Page: r.Page, PageSize: r.PageSize}).Paginate()
 }

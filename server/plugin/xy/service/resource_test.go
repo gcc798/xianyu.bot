@@ -1,17 +1,43 @@
 package service
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
+	"net/url"
 	"testing"
+	"time"
 
 	"github.com/flipped-aurora/gin-vue-admin/server/global"
 	"github.com/flipped-aurora/gin-vue-admin/server/plugin/xy/model"
 	xyRequest "github.com/flipped-aurora/gin-vue-admin/server/plugin/xy/model/request"
 	"github.com/glebarez/sqlite"
+	"github.com/minio/minio-go/v7"
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
 )
+
+type fakeResourceObjectStore struct {
+	size          int64
+	bucketCreated bool
+}
+
+func (s *fakeResourceObjectStore) PresignedPutObject(_ context.Context, _, objectKey string, _ time.Duration) (*url.URL, error) {
+	return url.Parse("http://rustfs:9000/resources/" + objectKey)
+}
+
+func (s *fakeResourceObjectStore) StatObject(context.Context, string, string, minio.StatObjectOptions) (minio.ObjectInfo, error) {
+	return minio.ObjectInfo{Size: s.size}, nil
+}
+
+func (s *fakeResourceObjectStore) BucketExists(context.Context, string) (bool, error) {
+	return s.bucketCreated, nil
+}
+
+func (s *fakeResourceObjectStore) MakeBucket(context.Context, string, minio.MakeBucketOptions) error {
+	s.bucketCreated = true
+	return nil
+}
 
 func TestResourceCatalogScopesQueriesByOwner(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
@@ -48,4 +74,56 @@ func TestResourceCatalogScopesQueriesByOwner(t *testing.T) {
 	require.NoError(t, err)
 	require.NotContains(t, string(payload), "owners/11/go.pdf")
 	require.NotContains(t, string(payload), "secret-bucket")
+}
+
+func TestResourceDeliveryGrantAndCompletion(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	require.NoError(t, err)
+	require.NoError(t, db.AutoMigrate(&model.ResourceSearch{}, &model.ResourceCandidate{}, &model.ResourceTask{}, &model.Resource{}, &model.ResourceSource{}))
+	oldDB := global.GVA_DB
+	global.GVA_DB = db
+	t.Cleanup(func() { global.GVA_DB = oldDB })
+
+	search := model.ResourceSearch{OwnerID: 11, Query: "Go", Status: "completed"}
+	require.NoError(t, db.Create(&search).Error)
+	candidate := model.ResourceCandidate{
+		SearchID: search.ID, MCPServerCode: "telegram", ExternalID: "signed-candidate", Name: "Go.pdf",
+		Size: 2048, MIMEType: "application/pdf", Source: `{"name":"Go 资料","username":"go_docs"}`, License: "unknown",
+	}
+	require.NoError(t, db.Create(&candidate).Error)
+	store := &fakeResourceObjectStore{size: candidate.Size}
+	catalog := &resourceCatalog{objectStore: store, bucket: "resources"}
+
+	grant, err := catalog.CreateDeliveryTask(t.Context(), 11, candidate.ID, "request-1")
+	require.NoError(t, err)
+	require.NotEmpty(t, grant.Token)
+	_, err = catalog.CreateDeliveryTask(t.Context(), 22, candidate.ID, "request-other")
+	require.True(t, errors.Is(err, gorm.ErrRecordNotFound))
+	expiredAt := time.Now().Add(-time.Minute)
+	expiredCandidate := candidate
+	expiredCandidate.ID = 0
+	expiredCandidate.ExternalID = "expired-candidate"
+	expiredCandidate.ExpiresAt = &expiredAt
+	require.NoError(t, db.Create(&expiredCandidate).Error)
+	_, err = catalog.CreateDeliveryTask(t.Context(), 11, expiredCandidate.ID, "request-expired")
+	require.ErrorContains(t, err, "候选已过期")
+
+	uploadURL, _, err := catalog.PresignDelivery(t.Context(), grant.Task.ID, grant.Token)
+	require.NoError(t, err)
+	require.Contains(t, uploadURL, "resources/11/")
+	require.True(t, store.bucketCreated)
+
+	checksum := "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+	resource, err := catalog.CompleteDelivery(t.Context(), grant.Task.ID, grant.Token, candidate.Size, checksum)
+	require.NoError(t, err)
+	require.Equal(t, uint(11), resource.OwnerID)
+	require.Equal(t, checksum, resource.SHA256)
+
+	repeated, err := catalog.CompleteDelivery(t.Context(), grant.Task.ID, grant.Token, candidate.Size, checksum)
+	require.NoError(t, err)
+	require.Equal(t, resource.ID, repeated.ID)
+	_, _, err = catalog.PresignDelivery(t.Context(), grant.Task.ID, grant.Token)
+	require.ErrorContains(t, err, "当前不能上传")
+	_, _, err = catalog.PresignDelivery(t.Context(), grant.Task.ID, "wrong-token")
+	require.ErrorContains(t, err, "授权无效")
 }

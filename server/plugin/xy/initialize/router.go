@@ -10,6 +10,7 @@ import (
 func Router(engine *gin.Engine) {
 	private := engine.Group(global.GVA_CONFIG.System.RouterPrefix)
 	private.Use(middleware.JWTAuth()).Use(middleware.CasbinHandler())
+	internal := engine.Group(global.GVA_CONFIG.System.RouterPrefix + "/xy/internal")
 	router.Router.Status.Init(private)
 	router.Router.Account.Init(private)
 	router.Router.Product.Init(private)
@@ -23,4 +24,5 @@ func Router(engine *gin.Engine) {
 	router.Router.TelegramProxy.Init(private)
 	router.Router.AIConfig.Init(private)
 	router.Router.Resource.Init(private)
+	router.Router.Resource.InitInternal(internal)
 }
