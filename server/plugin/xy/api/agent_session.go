@@ -89,7 +89,7 @@ func (a *agentSession) SendMessage(c *gin.Context) {
 	if headerKey != "" {
 		input.IdempotencyKey = headerKey
 	}
-	result, err := agentRunnerService.Submit(c.Request.Context(), utils.GetUserID(c), sessionID, input.Content, input.IdempotencyKey)
+	result, err := agentRunnerService.Submit(c.Request.Context(), utils.GetUserID(c), sessionID, input.Message, input.IdempotencyKey, input.Directives...)
 	if err != nil {
 		global.GVA_LOG.Error("提交 Agent 消息失败", zap.Error(err))
 		response.FailWithMessage("消息提交失败，请检查 Agent 基础配置后重试", c)

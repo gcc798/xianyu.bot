@@ -11,6 +11,7 @@ import (
 	"github.com/cloudwego/eino/schema"
 	"github.com/flipped-aurora/gin-vue-admin/server/global"
 	"github.com/flipped-aurora/gin-vue-admin/server/plugin/xy/model"
+	xyRequest "github.com/flipped-aurora/gin-vue-admin/server/plugin/xy/model/request"
 	"github.com/glebarez/sqlite"
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
@@ -97,6 +98,19 @@ func TestAgentRunnerSubmitPublishesStreamingEvents(t *testing.T) {
 	var stored model.AgentRun
 	require.NoError(t, db.First(&stored, accepted.Run.ID).Error)
 	require.Equal(t, "completed", stored.Status)
+}
+
+func TestValidateAgentDirectives(t *testing.T) {
+	directives := []xyRequest.AgentDirective{
+		{Type: " skill ", Name: " resource-discovery "},
+		{Type: "tool", Name: "resource_search"},
+	}
+	require.NoError(t, validateAgentDirectives(directives))
+	require.Equal(t, "skill", directives[0].Type)
+	require.Equal(t, "resource-discovery", directives[0].Name)
+	require.ErrorContains(t, validateAgentDirectives([]xyRequest.AgentDirective{{Type: "skill", Name: "unknown"}}), "Skill 不存在")
+	require.ErrorContains(t, validateAgentDirectives([]xyRequest.AgentDirective{{Type: "tool", Name: "bad tool"}}), "Tool 名称无效")
+	require.ErrorContains(t, validateAgentDirectives([]xyRequest.AgentDirective{{Type: "tool", Name: "task_get"}, {Type: "tool", Name: "resource_search"}}), "只能指定一次")
 }
 
 func agentRunnerTestDB(t *testing.T) *gorm.DB {
