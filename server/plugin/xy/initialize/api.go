@@ -63,6 +63,9 @@ var xyAPIs = []system.SysApi{
 	{Path: "/xy/ai/mcp-servers/:id", Description: "删除 MCP 服务配置", ApiGroup: "AI 基础配置", Method: "DELETE"},
 	{Path: "/xy/ai/agent-config", Description: "获取 Agent 运行配置", ApiGroup: "AI 基础配置", Method: "GET"},
 	{Path: "/xy/ai/agent-config", Description: "更新 Agent 运行配置", ApiGroup: "AI 基础配置", Method: "PUT"},
+	{Path: "/xy/resources", Description: "获取当前用户资源列表", ApiGroup: "AI 资源", Method: "GET"},
+	{Path: "/xy/resources/:id", Description: "获取当前用户资源详情", ApiGroup: "AI 资源", Method: "GET"},
+	{Path: "/xy/resource-tasks/:id", Description: "获取当前用户资源任务", ApiGroup: "AI 资源", Method: "GET"},
 }
 
 func Api(ctx context.Context) {

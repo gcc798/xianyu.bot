@@ -16,6 +16,7 @@ var (
 	businessEventApi = api.Api.BusinessEvent
 	telegramProxyApi = api.Api.TelegramProxy
 	aiConfigAPI      = api.Api.AIConfig
+	resourceAPI      = api.Api.Resource
 )
 
 type router struct {
@@ -31,4 +32,5 @@ type router struct {
 	BusinessEvent businessEvent
 	TelegramProxy telegramProxy
 	AIConfig      aiConfig
+	Resource      resource
 }

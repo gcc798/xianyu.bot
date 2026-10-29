@@ -16,6 +16,7 @@ var (
 	webSocketService     = service.Service.WebSocket
 	businessEventService = service.Service.BusinessEvent
 	aiConfigService      = service.Service.AIConfig
+	resourceService      = service.Service.Resource
 )
 
 type api struct {
@@ -31,4 +32,5 @@ type api struct {
 	BusinessEvent businessEvent
 	TelegramProxy telegramProxy
 	AIConfig      aiConfig
+	Resource      resource
 }

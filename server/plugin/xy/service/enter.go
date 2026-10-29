@@ -36,4 +36,5 @@ type service struct {
 	WebSocket     *webSocketService
 	BusinessEvent businessEvent
 	AIConfig      aiConfig
+	Resource      resourceCatalog
 }
