@@ -32,8 +32,9 @@ func (AgentMessage) TableName() string { return "xy_agent_messages" }
 
 type AgentRun struct {
 	global.GVA_MODEL
-	OwnerID        uint       `json:"-" gorm:"not null;index:idx_xy_agent_runs_owner"`
+	OwnerID        uint       `json:"-" gorm:"not null;index:idx_xy_agent_runs_owner;uniqueIndex:idx_xy_agent_runs_owner_idempotency"`
 	SessionID      uint       `json:"sessionId" gorm:"not null;index"`
+	IdempotencyKey *string    `json:"-" gorm:"size:100;uniqueIndex:idx_xy_agent_runs_owner_idempotency"`
 	ModelID        uint       `json:"modelId" gorm:"not null"`
 	ModelName      string     `json:"modelName" gorm:"size:120;not null"`
 	Status         string     `json:"status" gorm:"size:32;not null;default:running;index"`
