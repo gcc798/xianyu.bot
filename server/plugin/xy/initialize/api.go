@@ -67,6 +67,8 @@ var xyAPIs = []system.SysApi{
 	{Path: "/xy/ai/agent/sessions", Description: "获取 Agent 会话列表", ApiGroup: "AI Agent", Method: "GET"},
 	{Path: "/xy/ai/agent/sessions/:id", Description: "获取 Agent 会话详情", ApiGroup: "AI Agent", Method: "GET"},
 	{Path: "/xy/ai/agent/sessions/:id", Description: "删除 Agent 会话", ApiGroup: "AI Agent", Method: "DELETE"},
+	{Path: "/xy/ai/agent/sessions/:id/messages", Description: "发送 Agent 消息", ApiGroup: "AI Agent", Method: "POST"},
+	{Path: "/xy/ai/agent/sessions/:id/events", Description: "订阅 Agent 会话事件", ApiGroup: "AI Agent", Method: "GET"},
 	{Path: "/xy/resources", Description: "获取当前用户资源列表", ApiGroup: "AI 资源", Method: "GET"},
 	{Path: "/xy/resources/:id", Description: "获取当前用户资源详情", ApiGroup: "AI 资源", Method: "GET"},
 	{Path: "/xy/resource-tasks/:id", Description: "获取当前用户资源任务", ApiGroup: "AI 资源", Method: "GET"},

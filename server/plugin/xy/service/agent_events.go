@@ -3,6 +3,7 @@ package service
 import (
 	"encoding/json"
 	"errors"
+	"strings"
 	"sync"
 	"time"
 )
@@ -35,7 +36,7 @@ func newAgentEventHub() *agentEventHub {
 }
 
 func (h *agentEventHub) Publish(sessionID uint, eventType string, data any) (agentEvent, error) {
-	if sessionID == 0 || eventType == "" {
+	if sessionID == 0 || eventType == "" || strings.ContainsAny(eventType, "\r\n") {
 		return agentEvent{}, errors.New("Agent 事件缺少会话或类型")
 	}
 	payload, err := json.Marshal(data)
@@ -87,6 +88,18 @@ func (h *agentEventHub) Subscribe(sessionID uint, afterID uint64) ([]agentEvent,
 		}
 	})
 	return replay, stream, cancel
+}
+
+func (h *agentEventHub) Forget(sessionID uint) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if session := h.sessions[sessionID]; session != nil {
+		for subscriber := range session.subscribers {
+			close(subscriber)
+			delete(session.subscribers, subscriber)
+		}
+		delete(h.sessions, sessionID)
+	}
 }
 
 func (h *agentEventHub) session(sessionID uint) *agentEventSession {

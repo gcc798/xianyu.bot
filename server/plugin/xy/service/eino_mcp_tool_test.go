@@ -6,9 +6,12 @@ import (
 	"sync/atomic"
 	"testing"
 
+	"github.com/flipped-aurora/gin-vue-admin/server/global"
 	"github.com/flipped-aurora/gin-vue-admin/server/plugin/xy/model"
+	"github.com/glebarez/sqlite"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/stretchr/testify/require"
+	"gorm.io/gorm"
 )
 
 func TestEinoMCPToolHidesDeliveryFieldsAndRequiresApproval(t *testing.T) {
@@ -48,6 +51,12 @@ func TestEinoMCPToolHidesDeliveryFieldsAndRequiresApproval(t *testing.T) {
 }
 
 func TestEinoMCPToolCallsReadCapability(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	require.NoError(t, err)
+	require.NoError(t, db.AutoMigrate(&model.AgentRunTool{}))
+	oldDB := global.GVA_DB
+	global.GVA_DB = db
+	t.Cleanup(func() { global.GVA_DB = oldDB })
 	client := new(recordingMCPClient)
 	connection := &mcpConnection{
 		Server: model.MCPServer{Code: "telegram", RequestTimeoutSeconds: 15}, Client: client,
@@ -60,11 +69,17 @@ func TestEinoMCPToolCallsReadCapability(t *testing.T) {
 	}
 	target, err := newEinoMCPTool(connection, definition, newAgentHarness(model.DefaultAgentConfig()))
 	require.NoError(t, err)
+	target.runID = 9
 	result, err := target.InvokableRun(t.Context(), `{"query":"Go"}`)
 	require.NoError(t, err)
 	require.Contains(t, result, "structuredContent")
 	require.EqualValues(t, 1, client.calls.Load())
 	require.Equal(t, "resource_search", client.lastName)
+	var call model.AgentRunTool
+	require.NoError(t, db.First(&call).Error)
+	require.EqualValues(t, 9, call.RunID)
+	require.Equal(t, "completed", call.Status)
+	require.Empty(t, call.ErrorMessage)
 }
 
 type recordingMCPClient struct {

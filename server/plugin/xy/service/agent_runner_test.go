@@ -5,6 +5,7 @@ import (
 	"errors"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	einomodel "github.com/cloudwego/eino/components/model"
 	"github.com/cloudwego/eino/schema"
@@ -67,10 +68,44 @@ func TestAgentRunnerRecordsModelFailure(t *testing.T) {
 	require.Equal(t, 1, stored.ModelCalls)
 }
 
+func TestAgentRunnerSubmitPublishesStreamingEvents(t *testing.T) {
+	db := agentRunnerTestDB(t)
+	session := model.AgentSession{OwnerID: 11, Title: "异步会话"}
+	require.NoError(t, db.Create(&session).Error)
+	events := newAgentEventHub()
+	runner := &agentRunner{events: events, newModel: func(context.Context, model.AIModel, model.AgentConfig) (einomodel.BaseChatModel, error) {
+		return &stubAgentModel{answer: "流式回答"}, nil
+	}}
+	_, stream, cancel := events.Subscribe(session.ID, 0)
+	defer cancel()
+
+	accepted, err := runner.Submit(t.Context(), 11, session.ID, "异步问题", "request-async")
+	require.NoError(t, err)
+	require.Equal(t, "running", accepted.Run.Status)
+
+	types := make([]string, 0, 3)
+	deadline := time.After(3 * time.Second)
+	for len(types) < 3 {
+		select {
+		case event := <-stream:
+			types = append(types, event.Type)
+		case <-deadline:
+			t.Fatalf("timed out waiting for events: %v", types)
+		}
+	}
+	require.Equal(t, []string{"run.started", "assistant.delta", "run.completed"}, types)
+	var stored model.AgentRun
+	require.NoError(t, db.First(&stored, accepted.Run.ID).Error)
+	require.Equal(t, "completed", stored.Status)
+}
+
 func agentRunnerTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
+	sqlDB, err := db.DB()
+	require.NoError(t, err)
+	sqlDB.SetMaxOpenConns(1)
 	require.NoError(t, db.AutoMigrate(
 		&model.AIModel{}, &model.MCPServer{}, &model.AgentConfig{}, &model.AgentSession{},
 		&model.AgentMessage{}, &model.AgentRun{}, &model.AgentRunTool{},
@@ -96,13 +131,13 @@ type stubAgentModel struct {
 }
 
 func (m *stubAgentModel) Generate(_ context.Context, _ []*schema.Message, _ ...einomodel.Option) (*schema.Message, error) {
+	return nil, errors.New("unexpected non-streaming call")
+}
+
+func (m *stubAgentModel) Stream(context.Context, []*schema.Message, ...einomodel.Option) (*schema.StreamReader[*schema.Message], error) {
 	m.calls.Add(1)
 	if m.err != nil {
 		return nil, m.err
 	}
-	return schema.AssistantMessage(m.answer, nil), nil
-}
-
-func (m *stubAgentModel) Stream(context.Context, []*schema.Message, ...einomodel.Option) (*schema.StreamReader[*schema.Message], error) {
-	return nil, errors.New("unexpected streaming call")
+	return schema.StreamReaderFromArray([]*schema.Message{schema.AssistantMessage(m.answer, nil)}), nil
 }

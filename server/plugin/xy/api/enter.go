@@ -18,6 +18,8 @@ var (
 	aiConfigService      = service.Service.AIConfig
 	resourceService      = service.Service.Resource
 	agentSessionService  = service.Service.AgentSession
+	agentRunnerService   = service.Service.AgentRunner
+	agentEventService    = service.Service.AgentEvents
 )
 
 type api struct {

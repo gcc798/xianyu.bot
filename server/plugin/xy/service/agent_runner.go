@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"slices"
 	"strings"
 	"time"
@@ -31,6 +32,7 @@ type agentModelFactory func(context.Context, model.AIModel, model.AgentConfig) (
 type agentRunner struct {
 	registry *mcpRegistry
 	newModel agentModelFactory
+	events   *agentEventHub
 }
 
 type agentRunResult struct {
@@ -39,23 +41,77 @@ type agentRunResult struct {
 }
 
 func (s *agentRunner) Run(ctx context.Context, ownerID, sessionID uint, content, idempotencyKey string) (agentRunResult, error) {
+	prepared, existing, err := s.prepare(ctx, ownerID, sessionID, content, idempotencyKey)
+	if err != nil {
+		return agentRunResult{}, err
+	}
+	if existing != nil {
+		return *existing, nil
+	}
+	s.publish(prepared.run.SessionID, "run.started", map[string]any{"runId": prepared.run.ID, "model": prepared.run.ModelName})
+	return s.execute(ctx, prepared)
+}
+
+func (s *agentRunner) Submit(ctx context.Context, ownerID, sessionID uint, content, idempotencyKey string) (agentRunResult, error) {
+	prepared, existing, err := s.prepare(ctx, ownerID, sessionID, content, idempotencyKey)
+	if err != nil {
+		return agentRunResult{}, err
+	}
+	if existing != nil {
+		return *existing, nil
+	}
+	s.publish(prepared.run.SessionID, "run.started", map[string]any{"runId": prepared.run.ID, "model": prepared.run.ModelName})
+	go func() {
+		defer func() {
+			if recover() != nil {
+				s.failSubmittedRun(prepared.run)
+			}
+		}()
+		_, _ = s.execute(context.Background(), prepared)
+	}()
+	return agentRunResult{Run: prepared.run}, nil
+}
+
+func (s *agentRunner) failSubmittedRun(run model.AgentRun) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	completedAt := time.Now()
+	_ = global.GVA_DB.WithContext(ctx).Model(&run).Updates(map[string]any{
+		"status": "failed", "end_reason": "panic", "error_message": "Agent 运行异常",
+		"completed_at": completedAt,
+	}).Error
+	s.publish(run.SessionID, "run.failed", map[string]any{"runId": run.ID, "reason": "panic", "message": "Agent 运行失败"})
+}
+
+type preparedAgentRun struct {
+	run     model.AgentRun
+	aiModel model.AIModel
+	config  model.AgentConfig
+}
+
+func (s *agentRunner) prepare(ctx context.Context, ownerID, sessionID uint, content, idempotencyKey string) (preparedAgentRun, *agentRunResult, error) {
 	content = strings.TrimSpace(content)
 	idempotencyKey = strings.TrimSpace(idempotencyKey)
 	if ownerID == 0 || sessionID == 0 || content == "" || idempotencyKey == "" || len(idempotencyKey) > 100 {
-		return agentRunResult{}, errors.New("会话、消息和幂等键不能为空")
+		return preparedAgentRun{}, nil, errors.New("会话、消息和幂等键不能为空")
 	}
 	aiModel, config, snapshot, err := loadAgentRunConfig(ctx)
 	if err != nil {
-		return agentRunResult{}, err
+		return preparedAgentRun{}, nil, err
 	}
 	run, existing, err := createAgentRun(ctx, ownerID, sessionID, content, idempotencyKey, aiModel, snapshot)
 	if err != nil {
-		return agentRunResult{}, err
+		return preparedAgentRun{}, nil, err
 	}
 	if existing {
-		return existingAgentRunResult(ctx, run)
+		result, err := existingAgentRunResult(ctx, run)
+		return preparedAgentRun{}, &result, err
 	}
+	return preparedAgentRun{run: run, aiModel: aiModel, config: config}, nil, nil
+}
 
+func (s *agentRunner) execute(ctx context.Context, prepared preparedAgentRun) (agentRunResult, error) {
+	run, aiModel, config := prepared.run, prepared.aiModel, prepared.config
 	started := time.Now()
 	harness := newAgentHarness(config)
 	runContext, cancel := harness.Context(ctx)
@@ -63,7 +119,7 @@ func (s *agentRunner) Run(ctx context.Context, ownerID, sessionID uint, content,
 	connections, discoveryErr := s.mcpRegistryOrDefault().Discover(runContext)
 	defer func() { _ = closeMCPConnections(connections) }()
 
-	tools, err := buildEinoMCPTools(connections, harness)
+	tools, err := buildEinoMCPTools(connections, harness, s.events, run)
 	if err != nil {
 		return s.failRun(ctx, run, harness, started, "tool_setup_failed", err)
 	}
@@ -88,11 +144,11 @@ func (s *agentRunner) Run(ctx context.Context, ownerID, sessionID uint, content,
 	if err != nil {
 		return s.failRun(ctx, run, harness, started, "agent_setup_failed", err)
 	}
-	history, err := loadAgentHistory(runContext, ownerID, sessionID, config.ConversationHistoryLimit)
+	history, err := loadAgentHistory(runContext, run.OwnerID, run.SessionID, config.ConversationHistoryLimit)
 	if err != nil {
 		return s.failRun(ctx, run, harness, started, "history_failed", err)
 	}
-	iterator := adk.NewRunner(runContext, adk.RunnerConfig{Agent: agent}).Run(runContext, history)
+	iterator := adk.NewRunner(runContext, adk.RunnerConfig{Agent: agent, EnableStreaming: true}).Run(runContext, history)
 	var finalMessage *schema.Message
 	inputTokens, outputTokens := 0, 0
 	for event, ok := iterator.Next(); ok; event, ok = iterator.Next() {
@@ -102,7 +158,7 @@ func (s *agentRunner) Run(ctx context.Context, ownerID, sessionID uint, content,
 		if event.Output == nil || event.Output.MessageOutput == nil {
 			continue
 		}
-		message, err := event.Output.MessageOutput.GetMessage()
+		message, err := s.agentEventMessage(run.SessionID, event.Output.MessageOutput)
 		if err != nil {
 			return s.failRun(ctx, run, harness, started, "stream_failed", err)
 		}
@@ -120,7 +176,44 @@ func (s *agentRunner) Run(ctx context.Context, ownerID, sessionID uint, content,
 	if finalMessage == nil || strings.TrimSpace(finalMessage.Content) == "" {
 		return s.failRun(ctx, run, harness, started, "empty_response", errors.New("模型未返回最终消息"))
 	}
-	return completeAgentRun(ctx, run, harness, started, inputTokens, outputTokens, finalMessage.Content)
+	result, err := completeAgentRun(ctx, run, harness, started, inputTokens, outputTokens, finalMessage.Content)
+	if err != nil {
+		return agentRunResult{}, err
+	}
+	s.publish(run.SessionID, "run.completed", map[string]any{
+		"runId": run.ID, "messageId": result.Assistant.ID, "iterations": result.Run.Iterations,
+		"modelCalls": result.Run.ModelCalls, "toolCalls": result.Run.ToolCalls,
+	})
+	return result, nil
+}
+
+func (s *agentRunner) agentEventMessage(sessionID uint, output *adk.MessageVariant) (*schema.Message, error) {
+	if !output.IsStreaming {
+		message := output.Message
+		if message != nil && output.Role == schema.Assistant && message.Content != "" {
+			s.publish(sessionID, "assistant.delta", map[string]any{"content": message.Content})
+		}
+		return message, nil
+	}
+	defer output.MessageStream.Close()
+	chunks := make([]*schema.Message, 0)
+	for {
+		chunk, err := output.MessageStream.Recv()
+		if errors.Is(err, io.EOF) {
+			break
+		}
+		if err != nil {
+			return nil, err
+		}
+		chunks = append(chunks, chunk)
+		if output.Role == schema.Assistant && chunk.Content != "" {
+			s.publish(sessionID, "assistant.delta", map[string]any{"content": chunk.Content})
+		}
+	}
+	if len(chunks) == 0 {
+		return nil, nil
+	}
+	return schema.ConcatMessages(chunks)
 }
 
 type agentHarnessMiddleware struct {
@@ -254,7 +347,7 @@ func loadAgentHistory(ctx context.Context, ownerID, sessionID uint, limit int) (
 	return history, nil
 }
 
-func buildEinoMCPTools(connections []*mcpConnection, harness *agentHarness) ([]tool.BaseTool, error) {
+func buildEinoMCPTools(connections []*mcpConnection, harness *agentHarness, events *agentEventHub, run model.AgentRun) ([]tool.BaseTool, error) {
 	tools := make([]tool.BaseTool, 0)
 	for _, connection := range connections {
 		for _, definition := range connection.Tools {
@@ -262,6 +355,9 @@ func buildEinoMCPTools(connections []*mcpConnection, harness *agentHarness) ([]t
 			if err != nil {
 				return nil, err
 			}
+			adapted.events = events
+			adapted.sessionID = run.SessionID
+			adapted.runID = run.ID
 			tools = append(tools, adapted)
 		}
 	}
@@ -333,8 +429,10 @@ func (s *agentRunner) failRun(ctx context.Context, run model.AgentRun, harness *
 	run.CompletedAt = &completedAt
 	run.ErrorMessage = message
 	if updateErr != nil {
+		s.publish(run.SessionID, "run.failed", map[string]any{"runId": run.ID, "reason": reason, "message": "Agent 运行失败"})
 		return agentRunResult{Run: run}, errors.Join(cause, fmt.Errorf("保存 Agent 失败状态: %w", updateErr))
 	}
+	s.publish(run.SessionID, "run.failed", map[string]any{"runId": run.ID, "reason": reason, "message": "Agent 运行失败"})
 	return agentRunResult{Run: run}, cause
 }
 
@@ -360,4 +458,10 @@ func (s *agentRunner) mcpRegistryOrDefault() *mcpRegistry {
 		return s.registry
 	}
 	return new(mcpRegistry)
+}
+
+func (s *agentRunner) publish(sessionID uint, eventType string, data any) {
+	if s.events != nil {
+		_, _ = s.events.Publish(sessionID, eventType, data)
+	}
 }

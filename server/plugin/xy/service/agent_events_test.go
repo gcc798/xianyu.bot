@@ -23,6 +23,9 @@ func TestAgentEventHubReplaysAfterLastEventID(t *testing.T) {
 	third, err := hub.Publish(11, "run.completed", map[string]any{"runId": 1})
 	require.NoError(t, err)
 	require.Equal(t, third, <-stream)
+	hub.Forget(11)
+	_, open := <-stream
+	require.False(t, open)
 }
 
 func TestAgentEventHubSeparatesSessionsAndRejectsOversizedData(t *testing.T) {

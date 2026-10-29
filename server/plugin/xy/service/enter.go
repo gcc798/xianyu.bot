@@ -19,7 +19,9 @@ func newService() *service {
 	messages.sender = webSocket
 	orders.sender = webSocket
 	webSocket.delivery = deliveries
-	return &service{Account: *accounts, Product: *products, Message: messages, ReplyRule: *rules, DeliveryRule: *deliveryRules, Delivery: deliveries, Relist: relists, Order: orders, QRLogin: newQRLogin(), WebSocket: webSocket}
+	agentEvents := newAgentEventHub()
+	agentRunner := &agentRunner{events: agentEvents}
+	return &service{Account: *accounts, Product: *products, Message: messages, ReplyRule: *rules, DeliveryRule: *deliveryRules, Delivery: deliveries, Relist: relists, Order: orders, QRLogin: newQRLogin(), WebSocket: webSocket, AgentRunner: agentRunner, AgentEvents: agentEvents}
 }
 
 type service struct {
@@ -38,4 +40,6 @@ type service struct {
 	AIConfig      aiConfig
 	Resource      resourceCatalog
 	AgentSession  agentSession
+	AgentRunner   *agentRunner
+	AgentEvents   *agentEventHub
 }

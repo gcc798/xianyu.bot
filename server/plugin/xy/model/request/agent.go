@@ -14,6 +14,11 @@ type AgentSessionSearch struct {
 	PageSize int `json:"pageSize" form:"pageSize"`
 }
 
+type SendAgentMessage struct {
+	Content        string `json:"content" binding:"required,max=20000"`
+	IdempotencyKey string `json:"idempotencyKey" binding:"omitempty,max=100"`
+}
+
 func (r *AgentSessionSearch) Paginate() func(*gorm.DB) *gorm.DB {
 	return (&commonRequest.PageInfo{Page: r.Page, PageSize: r.PageSize}).Paginate()
 }
