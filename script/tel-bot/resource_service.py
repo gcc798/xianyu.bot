@@ -1,13 +1,17 @@
 from __future__ import annotations
 
 import asyncio
+import base64
+import binascii
+import hashlib
+import hmac
 import json
 import logging
 import os
 import re
 import urllib.request
 import zipfile
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from storage import RustFS, safe_filename
@@ -20,6 +24,14 @@ BLOCKED_TERMS = {
 DEFAULT_TYPES = {"pdf", "epub", "mobi", "doc", "docx", "xls", "xlsx", "ppt", "pptx", "zip", "txt", "csv", "rtf", "md", "json", "xml", "odt", "ods", "odp", "jpg", "jpeg", "png", "webp"}
 BLOCKED_ARCHIVE_EXTENSIONS = {".exe", ".dll", ".scr", ".bat", ".cmd", ".com", ".msi", ".ps1", ".vbs", ".js", ".jar", ".apk"}
 LOGGER = logging.getLogger(__name__)
+CANDIDATE_TTL = timedelta(hours=24)
+
+
+class ResourceCapabilityError(Exception):
+    def __init__(self, code: str, message: str, retryable: bool = False):
+        super().__init__(message)
+        self.code = code
+        self.retryable = retryable
 
 
 def request_ai_json(config: dict, system_prompt: str, payload: dict) -> dict | None:
@@ -60,6 +72,10 @@ def rank_sources(keyword: str, dialogs: list[dict]) -> list[dict]:
     return sorted(dialogs, key=score, reverse=True)
 
 
+def _decode_base64(value: str) -> bytes:
+    return base64.urlsafe_b64decode(value + "=" * (-len(value) % 4))
+
+
 class ResourceService:
     def __init__(self, telegram, db, storage: RustFS):
         self.telegram = telegram
@@ -98,6 +114,105 @@ class ResourceService:
 
     def enqueue(self, task_id: int) -> None:
         self.queue.put_nowait(task_id)
+
+    async def search_candidates(self, query: str, file_types: list[str] | None, limit: int, source_ids: list[int] | None = None) -> list[dict]:
+        query = query.strip()
+        cleaned_types = list(dict.fromkeys(value.lower().lstrip(".").strip() for value in (file_types or [])))
+        if len(query) < 2 or len(query) > 200:
+            raise ResourceCapabilityError("invalid_argument", "检索关键词长度必须在 2 到 200 个字符之间")
+        if len(cleaned_types) > 30 or any(value not in DEFAULT_TYPES for value in cleaned_types):
+            raise ResourceCapabilityError("unsupported_file_type", "文件类型不在允许范围内")
+        if limit < 1 or limit > 100:
+            raise ResourceCapabilityError("invalid_argument", "结果数量必须在 1 到 100 之间")
+        if not self.telegram.authorized:
+            raise ResourceCapabilityError("authentication_required", "当前能力需要先完成认证")
+
+        dialogs = self.db.resource_dialogs()
+        if source_ids:
+            requested = set(source_ids)
+            dialogs = [dialog for dialog in dialogs if dialog["id"] in requested]
+            if {dialog["id"] for dialog in dialogs} != requested:
+                raise ResourceCapabilityError("source_not_found", "检索来源不存在或当前不可用")
+        if not dialogs:
+            raise ResourceCapabilityError("source_unavailable", "当前没有可检索来源")
+
+        await self.telegram._ensure_connected()
+        candidates = []
+        failed_sources = 0
+        for dialog in rank_sources(query, dialogs):
+            try:
+                entity = await self.telegram.call(self.telegram.client.get_entity, dialog["telegram_id"])
+                async for message in self.telegram.client.iter_messages(entity, search=query, limit=max(limit * 5, 100)):
+                    metadata = self._match(message, {"keyword": query, "file_types": cleaned_types})
+                    if not metadata:
+                        continue
+                    candidates.append(self._candidate(dialog, message, metadata))
+                    if len(candidates) >= limit:
+                        return candidates
+            except Exception as exc:
+                failed_sources += 1
+                LOGGER.warning("Resource search skipped source %s: %s", dialog["id"], exc)
+        if failed_sources == len(dialogs):
+            raise ResourceCapabilityError("source_unavailable", "检索来源当前不可用", retryable=True)
+        return candidates
+
+    async def inspect_candidate(self, candidate_id: str) -> dict:
+        candidate = self._decode_candidate(candidate_id)
+        dialog = self.db.dialog(candidate["source_id"])
+        if not dialog or dialog["status"] != "normal" or dialog["resource_compliance_status"] != "allowed":
+            raise ResourceCapabilityError("source_unavailable", "资源来源当前不可用")
+        if not self.telegram.authorized:
+            raise ResourceCapabilityError("authentication_required", "当前能力需要先完成认证")
+
+        await self.telegram._ensure_connected()
+        try:
+            entity = await self.telegram.call(self.telegram.client.get_entity, dialog["telegram_id"])
+            message = await self.telegram.call(self.telegram.client.get_messages, entity, ids=candidate["message_id"])
+        except Exception as exc:
+            raise ResourceCapabilityError("resource_unavailable", "资源当前不可用", retryable=True) from exc
+        metadata = self._match(message, {"keyword": "", "file_types": []}) if message else None
+        if not metadata:
+            raise ResourceCapabilityError("resource_not_found", "资源不存在或已不符合安全限制")
+        if metadata["file_id"] != candidate["file_id"]:
+            raise ResourceCapabilityError("resource_changed", "资源内容已发生变化")
+        return self._candidate(dialog, message, metadata, candidate_id)
+
+    def _candidate(self, dialog: dict, message, metadata: dict, candidate_id: str | None = None) -> dict:
+        return {
+            "candidate_id": candidate_id or self._encode_candidate(dialog["id"], message.id, metadata["file_id"]),
+            "name": metadata["filename"],
+            "size": metadata["size"],
+            "mime_type": metadata["mime_type"],
+            "source": {"id": dialog["id"], "name": dialog["name"], "username": dialog.get("username")},
+            "published_at": message.date.isoformat() if getattr(message, "date", None) else None,
+            "preview": (message.raw_text or "")[:500],
+            "license": "unknown",
+            "risk": "来源未提供可验证的许可证信息",
+        }
+
+    def _encode_candidate(self, source_id: int, message_id: int, file_id: str) -> str:
+        secret = os.getenv("TELEGRAM_INTERNAL_TOKEN", "").encode()
+        if not secret:
+            raise ResourceCapabilityError("internal_error", "候选签名密钥未配置")
+        payload = json.dumps({"s": source_id, "m": message_id, "f": file_id, "t": int(datetime.now(timezone.utc).timestamp())}, separators=(",", ":")).encode()
+        encoded = base64.urlsafe_b64encode(payload).rstrip(b"=")
+        signature = hmac.new(secret, encoded, hashlib.sha256).digest()
+        return f"{encoded.decode()}.{base64.urlsafe_b64encode(signature).rstrip(b'=').decode()}"
+
+    def _decode_candidate(self, candidate_id: str) -> dict:
+        secret = os.getenv("TELEGRAM_INTERNAL_TOKEN", "").encode()
+        try:
+            encoded, encoded_signature = candidate_id.split(".", 1)
+            signature = _decode_base64(encoded_signature)
+            if not secret or not hmac.compare_digest(signature, hmac.new(secret, encoded.encode(), hashlib.sha256).digest()):
+                raise ValueError
+            payload = json.loads(_decode_base64(encoded))
+            issued_at = datetime.fromtimestamp(int(payload["t"]), timezone.utc)
+            if datetime.now(timezone.utc) - issued_at > CANDIDATE_TTL or issued_at > datetime.now(timezone.utc) + timedelta(minutes=1):
+                raise ValueError
+            return {"source_id": int(payload["s"]), "message_id": int(payload["m"]), "file_id": str(payload["f"])}
+        except (binascii.Error, KeyError, OverflowError, TypeError, ValueError, json.JSONDecodeError) as exc:
+            raise ResourceCapabilityError("invalid_argument", "候选 ID 无效或已过期") from exc
 
     async def plan_sources(self, keyword: str, source_mode: str, selected_ids: list[int]) -> tuple[list[int], str]:
         dialogs = self.db.resource_dialogs()

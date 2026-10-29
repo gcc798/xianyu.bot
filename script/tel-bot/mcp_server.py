@@ -4,6 +4,8 @@ from typing import Any
 
 from mcp.server.mcpserver import MCPServer
 
+from resource_service import ResourceCapabilityError
+
 
 def success(data: Any) -> dict:
     return {"status": "success", "data": data, "error": None}
@@ -82,16 +84,21 @@ def build_mcp(telegram, resources, db) -> tuple[MCPServer, Any]:
         return success({"task_id": f"source_sync:{scan_id}"})
 
     @server.tool()
-    def resource_search(query: str, file_types: list[str] | None = None, limit: int = 20) -> dict:
+    async def resource_search(query: str, file_types: list[str] | None = None, limit: int = 20, source_ids: list[int] | None = None) -> dict:
         """搜索轻量资源候选，不下载文件。"""
-        _ = query, file_types, limit
-        return not_supported("resource_search")
+        try:
+            candidates = await resources.search_candidates(query, file_types, limit, source_ids)
+            return success({"candidates": candidates, "count": len(candidates)})
+        except ResourceCapabilityError as exc:
+            return _failed(exc.code, str(exc), exc.retryable)
 
     @server.tool()
-    def resource_inspect(candidate_id: str) -> dict:
+    async def resource_inspect(candidate_id: str) -> dict:
         """检查资源候选的最新元数据与有限预览。"""
-        _ = candidate_id
-        return not_supported("resource_inspect")
+        try:
+            return success(await resources.inspect_candidate(candidate_id))
+        except ResourceCapabilityError as exc:
+            return _failed(exc.code, str(exc), exc.retryable)
 
     @server.tool()
     def resource_acquire(candidate_id: str, task_id: str, idempotency_key: str) -> dict:
@@ -135,8 +142,8 @@ def build_mcp(telegram, resources, db) -> tuple[MCPServer, Any]:
     return server, app
 
 
-def _failed(code: str, message: str) -> dict:
-    return {"status": "failed", "data": None, "error": {"code": code, "message": message, "retryable": False}}
+def _failed(code: str, message: str, retryable: bool = False) -> dict:
+    return {"status": "failed", "data": None, "error": {"code": code, "message": message, "retryable": retryable}}
 
 
 def _scan_task(task_id: str, task: dict) -> dict:
