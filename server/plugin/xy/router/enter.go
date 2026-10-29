@@ -17,6 +17,7 @@ var (
 	telegramProxyApi = api.Api.TelegramProxy
 	aiConfigAPI      = api.Api.AIConfig
 	resourceAPI      = api.Api.Resource
+	agentSessionAPI  = api.Api.AgentSession
 )
 
 type router struct {
@@ -33,4 +34,5 @@ type router struct {
 	TelegramProxy telegramProxy
 	AIConfig      aiConfig
 	Resource      resource
+	AgentSession  agentSession
 }

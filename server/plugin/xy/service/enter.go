@@ -37,4 +37,5 @@ type service struct {
 	BusinessEvent businessEvent
 	AIConfig      aiConfig
 	Resource      resourceCatalog
+	AgentSession  agentSession
 }

@@ -17,6 +17,7 @@ var (
 	businessEventService = service.Service.BusinessEvent
 	aiConfigService      = service.Service.AIConfig
 	resourceService      = service.Service.Resource
+	agentSessionService  = service.Service.AgentSession
 )
 
 type api struct {
@@ -33,4 +34,5 @@ type api struct {
 	TelegramProxy telegramProxy
 	AIConfig      aiConfig
 	Resource      resource
+	AgentSession  agentSession
 }

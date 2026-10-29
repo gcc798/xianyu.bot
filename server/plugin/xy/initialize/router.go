@@ -24,5 +24,6 @@ func Router(engine *gin.Engine) {
 	router.Router.TelegramProxy.Init(private)
 	router.Router.AIConfig.Init(private)
 	router.Router.Resource.Init(private)
+	router.Router.AgentSession.Init(private)
 	router.Router.Resource.InitInternal(internal)
 }
