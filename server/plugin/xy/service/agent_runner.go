@@ -9,6 +9,7 @@ import (
 	"regexp"
 	"slices"
 	"strings"
+	"sync"
 	"time"
 
 	openai "github.com/cloudwego/eino-ext/components/model/openai"
@@ -43,6 +44,8 @@ type agentRunner struct {
 	registry *mcpRegistry
 	newModel agentModelFactory
 	events   *agentEventHub
+	workerMu sync.Mutex
+	workers  map[uint]context.CancelFunc
 }
 
 type agentRunResult struct {
@@ -71,15 +74,55 @@ func (s *agentRunner) Submit(ctx context.Context, ownerID, sessionID uint, conte
 		return *existing, nil
 	}
 	s.publish(prepared.run.SessionID, "run.started", map[string]any{"runId": prepared.run.ID, "model": prepared.run.ModelName})
+	runContext, cancel := context.WithCancel(context.Background())
+	s.setWorker(prepared.run.ID, cancel)
 	go func() {
+		defer cancel()
+		defer s.clearWorker(prepared.run.ID)
 		defer func() {
 			if recover() != nil {
 				s.failSubmittedRun(prepared.run)
 			}
 		}()
-		_, _ = s.execute(context.Background(), prepared)
+		_, _ = s.execute(runContext, prepared)
 	}()
 	return agentRunResult{Run: prepared.run}, nil
+}
+
+func (s *agentRunner) Cancel(ctx context.Context, ownerID, sessionID, runID uint) error {
+	if ownerID == 0 || sessionID == 0 || runID == 0 {
+		return errors.New("运行标识不能为空")
+	}
+	var run model.AgentRun
+	if err := global.GVA_DB.WithContext(ctx).Where("id = ? AND session_id = ? AND owner_id = ?", runID, sessionID, ownerID).First(&run).Error; err != nil {
+		return err
+	}
+	if run.Status != "running" {
+		return nil
+	}
+	s.workerMu.Lock()
+	cancel := s.workers[runID]
+	s.workerMu.Unlock()
+	if cancel == nil {
+		return errors.New("Agent 运行不在当前进程")
+	}
+	cancel()
+	return nil
+}
+
+func (s *agentRunner) setWorker(runID uint, cancel context.CancelFunc) {
+	s.workerMu.Lock()
+	defer s.workerMu.Unlock()
+	if s.workers == nil {
+		s.workers = make(map[uint]context.CancelFunc)
+	}
+	s.workers[runID] = cancel
+}
+
+func (s *agentRunner) clearWorker(runID uint) {
+	s.workerMu.Lock()
+	defer s.workerMu.Unlock()
+	delete(s.workers, runID)
 }
 
 func (s *agentRunner) failSubmittedRun(run model.AgentRun) {
@@ -464,6 +507,9 @@ func completeAgentRun(ctx context.Context, run model.AgentRun, harness *agentHar
 }
 
 func (s *agentRunner) failRun(ctx context.Context, run model.AgentRun, harness *agentHarness, started time.Time, reason string, cause error) (agentRunResult, error) {
+	if contextReason := agentEndReason(ctx, cause); contextReason != "failed" {
+		reason = contextReason
+	}
 	usage := harness.Usage()
 	completedAt := time.Now()
 	message := cause.Error()
@@ -472,13 +518,17 @@ func (s *agentRunner) failRun(ctx context.Context, run model.AgentRun, harness *
 	}
 	finishContext, cancel := agentFinishContext(ctx)
 	defer cancel()
+	status, eventType, eventMessage := "failed", "run.failed", "Agent 运行失败"
+	if reason == "cancelled" {
+		status, eventType, eventMessage = "cancelled", "run.cancelled", "Agent 运行已取消"
+	}
 	updateErr := global.GVA_DB.WithContext(finishContext).Model(&run).Updates(map[string]any{
-		"status": "failed", "end_reason": reason, "iterations": usage.Iterations,
+		"status": status, "end_reason": reason, "iterations": usage.Iterations,
 		"model_calls": usage.ModelCalls, "tool_calls": usage.ToolCalls,
 		"wall_time_millis": time.Since(started).Milliseconds(), "completed_at": completedAt,
 		"error_message": message,
 	}).Error
-	run.Status = "failed"
+	run.Status = status
 	run.EndReason = reason
 	run.Iterations = usage.Iterations
 	run.ModelCalls = usage.ModelCalls
@@ -487,10 +537,10 @@ func (s *agentRunner) failRun(ctx context.Context, run model.AgentRun, harness *
 	run.CompletedAt = &completedAt
 	run.ErrorMessage = message
 	if updateErr != nil {
-		s.publish(run.SessionID, "run.failed", map[string]any{"runId": run.ID, "reason": reason, "message": "Agent 运行失败"})
+		s.publish(run.SessionID, eventType, map[string]any{"runId": run.ID, "reason": reason, "message": eventMessage})
 		return agentRunResult{Run: run}, errors.Join(cause, fmt.Errorf("保存 Agent 失败状态: %w", updateErr))
 	}
-	s.publish(run.SessionID, "run.failed", map[string]any{"runId": run.ID, "reason": reason, "message": "Agent 运行失败"})
+	s.publish(run.SessionID, eventType, map[string]any{"runId": run.ID, "reason": reason, "message": eventMessage})
 	return agentRunResult{Run: run}, cause
 }
 
@@ -505,7 +555,7 @@ func agentEndReason(ctx context.Context, err error) string {
 	if errors.Is(err, ErrAgentBudgetExceeded) {
 		return "budget_exceeded"
 	}
-	if errors.Is(err, context.Canceled) {
+	if errors.Is(context.Cause(ctx), context.Canceled) || errors.Is(err, context.Canceled) {
 		return "cancelled"
 	}
 	return "failed"

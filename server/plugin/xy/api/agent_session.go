@@ -102,6 +102,23 @@ func (a *agentSession) SendMessage(c *gin.Context) {
 	response.OkWithData(gin.H{"run": accepted}, c)
 }
 
+func (a *agentSession) CancelRun(c *gin.Context) {
+	sessionID, ok := pathID(c)
+	if !ok {
+		return
+	}
+	runID, err := strconv.ParseUint(c.Param("runId"), 10, 64)
+	if err != nil || runID == 0 {
+		response.FailWithMessage("运行 ID 无效", c)
+		return
+	}
+	if err := agentRunnerService.Cancel(c.Request.Context(), utils.GetUserID(c), sessionID, uint(runID)); err != nil {
+		response.FailWithMessage("取消 Agent 运行失败", c)
+		return
+	}
+	response.OkWithMessage("已请求取消", c)
+}
+
 func (a *agentSession) Events(c *gin.Context) {
 	sessionID, ok := pathID(c)
 	if !ok {

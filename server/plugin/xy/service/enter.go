@@ -20,7 +20,7 @@ func newService() *service {
 	orders.sender = webSocket
 	webSocket.delivery = deliveries
 	agentEvents := newAgentEventHub()
-	agentRunner := &agentRunner{events: agentEvents}
+	agentRunner := &agentRunner{events: agentEvents, workers: make(map[uint]context.CancelFunc)}
 	return &service{Account: *accounts, Product: *products, Message: messages, ReplyRule: *rules, DeliveryRule: *deliveryRules, Delivery: deliveries, Relist: relists, Order: orders, QRLogin: newQRLogin(), WebSocket: webSocket, AgentRunner: agentRunner, AgentEvents: agentEvents}
 }
 

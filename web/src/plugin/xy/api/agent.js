@@ -22,6 +22,10 @@ export const sendAgentMessage = (sessionId, data) => service({
   headers: { 'Idempotency-Key': data.idempotencyKey }, donNotShowLoading: true
 })
 
+export const cancelAgentRun = (sessionId, runId) => service({
+  url: `/xy/ai/agent/sessions/${sessionId}/runs/${runId}`, method: 'delete', donNotShowLoading: true
+})
+
 export const streamAgentEvents = async (sessionId, { afterId = 0, signal, onEvent }) => {
   const userStore = useUserStore()
   const response = await fetch(`${import.meta.env.VITE_BASE_API || ''}/xy/ai/agent/sessions/${sessionId}/events`, {

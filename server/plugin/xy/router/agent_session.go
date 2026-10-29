@@ -11,5 +11,6 @@ func (r *agentSession) Init(private *gin.RouterGroup) {
 	group.GET(":id", agentSessionAPI.Get)
 	group.DELETE(":id", agentSessionAPI.Delete)
 	group.POST(":id/messages", agentSessionAPI.SendMessage)
+	group.DELETE(":id/runs/:runId", agentSessionAPI.CancelRun)
 	group.GET(":id/events", agentSessionAPI.Events)
 }

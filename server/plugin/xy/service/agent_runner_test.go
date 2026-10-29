@@ -100,6 +100,40 @@ func TestAgentRunnerSubmitPublishesStreamingEvents(t *testing.T) {
 	require.Equal(t, "completed", stored.Status)
 }
 
+func TestAgentRunnerCancelsOwnedRun(t *testing.T) {
+	db := agentRunnerTestDB(t)
+	session := model.AgentSession{OwnerID: 11, Title: "取消会话"}
+	require.NoError(t, db.Create(&session).Error)
+	events := newAgentEventHub()
+	runner := &agentRunner{events: events, newModel: func(context.Context, model.AIModel, model.AgentConfig) (einomodel.BaseChatModel, error) {
+		return cancelAwareAgentModel{}, nil
+	}}
+	_, stream, unsubscribe := events.Subscribe(session.ID, 0)
+	defer unsubscribe()
+
+	accepted, err := runner.Submit(t.Context(), 11, session.ID, "等待取消", "request-cancel")
+	require.NoError(t, err)
+	require.Error(t, runner.Cancel(t.Context(), 22, session.ID, accepted.Run.ID))
+	require.NoError(t, runner.Cancel(t.Context(), 11, session.ID, accepted.Run.ID))
+
+	deadline := time.After(3 * time.Second)
+	for {
+		select {
+		case event := <-stream:
+			if event.Type != "run.cancelled" {
+				continue
+			}
+			var stored model.AgentRun
+			require.NoError(t, db.First(&stored, accepted.Run.ID).Error)
+			require.Equal(t, "cancelled", stored.Status)
+			require.Equal(t, "cancelled", stored.EndReason)
+			return
+		case <-deadline:
+			t.Fatal("timed out waiting for cancellation")
+		}
+	}
+}
+
 func TestValidateAgentDirectives(t *testing.T) {
 	directives := []xyRequest.AgentDirective{
 		{Type: " skill ", Name: " resource-discovery "},
@@ -142,6 +176,17 @@ type stubAgentModel struct {
 	answer string
 	err    error
 	calls  atomic.Int64
+}
+
+type cancelAwareAgentModel struct{}
+
+func (cancelAwareAgentModel) Generate(context.Context, []*schema.Message, ...einomodel.Option) (*schema.Message, error) {
+	return nil, errors.New("unexpected non-streaming call")
+}
+
+func (cancelAwareAgentModel) Stream(ctx context.Context, _ []*schema.Message, _ ...einomodel.Option) (*schema.StreamReader[*schema.Message], error) {
+	<-ctx.Done()
+	return nil, ctx.Err()
 }
 
 func (m *stubAgentModel) Generate(_ context.Context, _ []*schema.Message, _ ...einomodel.Option) (*schema.Message, error) {
