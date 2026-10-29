@@ -181,6 +181,10 @@ class Database:
         with self.connect() as db:
             return db.execute(f"SELECT * FROM {TABLES['scan_history']} ORDER BY id DESC LIMIT 1").fetchone()
 
+    def scan_history(self, scan_id: int) -> dict | None:
+        with self.connect() as db:
+            return db.execute(f"SELECT * FROM {TABLES['scan_history']} WHERE id=%s", (scan_id,)).fetchone()
+
     def summary(self) -> dict:
         visibility, params = self._adult_visibility()
         where = "d.status!='left'" + (f" AND {visibility}" if visibility else "")

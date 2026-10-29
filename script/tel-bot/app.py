@@ -21,6 +21,7 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 
 from analyzer import cleanup_tags, telegram_link
 from database import Database
+from mcp_server import build_mcp
 from resource_service import DEFAULT_TYPES, ResourceService
 from storage import RustFS
 from telegram_service import TelegramService
@@ -39,6 +40,7 @@ proxy = ("socks5", proxy_host, int(proxy_port)) if proxy_host and proxy_port.isd
 service = TelegramService(api_id, api_hash, db, proxy)
 resources = ResourceService(service, db, RustFS())
 service.refresh_adult_dialogs = resources.refresh_adult_dialogs
+telegram_mcp, telegram_mcp_app = build_mcp(service, resources, db)
 csrf_token = secrets.token_urlsafe(32)
 
 
@@ -46,18 +48,20 @@ csrf_token = secrets.token_urlsafe(32)
 async def lifespan(_app):
     # Telegram may be unreachable; local Web UI must still start immediately.
     connect_task = asyncio.create_task(service.connect()) if service.has_session else None
-    await resources.start()
-    yield
-    if connect_task and not connect_task.done():
-        connect_task.cancel()
-        with suppress(asyncio.CancelledError):
-            await connect_task
-    await resources.stop()
-    await service.disconnect()
+    async with telegram_mcp.session_manager.run():
+        await resources.start()
+        yield
+        if connect_task and not connect_task.done():
+            connect_task.cancel()
+            with suppress(asyncio.CancelledError):
+                await connect_task
+        await resources.stop()
+        await service.disconnect()
 
 
 app = FastAPI(title="Telegram Analyzer & Cleaner", lifespan=lifespan)
 app.mount("/static", StaticFiles(directory=ROOT / "static"), name="static")
+app.mount("/mcp", telegram_mcp_app)
 templates = Jinja2Templates(directory=ROOT / "templates")
 
 
@@ -73,6 +77,12 @@ async def healthz():
 
 @app.middleware("http")
 async def disable_script_cache(request: Request, call_next):
+    if request.url.path.startswith("/mcp"):
+        internal_token = os.getenv("TELEGRAM_INTERNAL_TOKEN", "")
+        if not internal_token:
+            return JSONResponse({"detail": "服务访问令牌未配置"}, status_code=503)
+        if not secrets.compare_digest(request.headers.get("x-internal-token", ""), internal_token):
+            return JSONResponse({"detail": "访问令牌无效"}, status_code=403)
     response = await call_next(request)
     if request.url.path == "/static/app.js":
         response.headers["Cache-Control"] = "no-store"
@@ -316,8 +326,8 @@ async def admin_login_2fa(payload: TelegramPasswordInput, request: Request):
 async def admin_start_scan(request: Request):
     internal_access(request)
     require_login()
-    started = service.start_scan()
-    return {"started": started, "progress": service.progress}
+    scan_id = service.start_scan()
+    return {"started": scan_id is not None, "task_id": scan_id, "progress": service.progress}
 
 
 @app.get("/api/admin/scan/status")

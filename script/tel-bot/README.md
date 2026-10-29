@@ -27,6 +27,8 @@ TG_PROXY_PORT=17891
 
 浏览器打开 <http://127.0.0.1:8080>。首次使用点击“生成二维码”，用手机 Telegram 的“设置 → 设备 → 链接桌面设备”扫码。登录 session 保存在 PostgreSQL `xianyu_assistant.tel_settings` 中，应按凭据保护，不要导出或分享。
 
+Streamable HTTP MCP 端点为 `/mcp/`，固定提供渠道、来源、资源和通用任务工具。调用必须携带 `x-internal-token`，其值来自 `TELEGRAM_INTERNAL_TOKEN`；未配置令牌时 MCP 端点拒绝服务。
+
 ## 使用
 
 - 快速扫描只遍历 dialogs，保存名称、类型、人数、最新消息时间、未读、静音、归档和创建者状态。

@@ -8,3 +8,6 @@ qrcode[pil]==8.2
 python-dotenv==1.1.1
 psycopg[binary]==3.2.10
 boto3==1.40.66
+mcp==2.3.0
+starlette==0.48.0
+sse-starlette==3.0.3

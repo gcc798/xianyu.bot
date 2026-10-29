@@ -137,12 +137,20 @@ class TelegramService:
 
     def start_scan(self):
         if self.scan_task and not self.scan_task.done():
+            return None
+        scan_id = self.db.start_scan()
+        self.scan_task = asyncio.create_task(self.scan(scan_id))
+        return scan_id
+
+    def cancel_scan(self, scan_id: int) -> bool:
+        task = self.db.scan_history(scan_id)
+        if not task or task["status"] != "running" or not self.scan_task or self.scan_task.done():
             return False
-        self.scan_task = asyncio.create_task(self.scan())
+        self.scan_task.cancel()
+        self.db.update_scan(scan_id, finished_at=datetime.now(timezone.utc).isoformat(), status="cancelled")
         return True
 
-    async def scan(self):
-        scan_id = self.db.start_scan()
+    async def scan(self, scan_id: int):
         self.progress = {"status": "running", "current": 0, "total": 0, "name": "", "message": "正在读取会话列表"}
         success = failed = 0
         try:
