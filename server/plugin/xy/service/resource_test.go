@@ -26,6 +26,10 @@ func (s *fakeResourceObjectStore) PresignedPutObject(_ context.Context, _, objec
 	return url.Parse("http://rustfs:9000/resources/" + objectKey)
 }
 
+func (s *fakeResourceObjectStore) PresignedGetObject(_ context.Context, _, objectKey string, _ time.Duration, _ url.Values) (*url.URL, error) {
+	return url.Parse("http://rustfs:9000/download/" + objectKey)
+}
+
 func (s *fakeResourceObjectStore) StatObject(context.Context, string, string, minio.StatObjectOptions) (minio.ObjectInfo, error) {
 	return minio.ObjectInfo{Size: s.size}, nil
 }
@@ -74,6 +78,13 @@ func TestResourceCatalogScopesQueriesByOwner(t *testing.T) {
 	require.NoError(t, err)
 	require.NotContains(t, string(payload), "owners/11/go.pdf")
 	require.NotContains(t, string(payload), "secret-bucket")
+	catalog.objectStore, catalog.bucket = new(fakeResourceObjectStore), "resources"
+	downloadURL, expiresAt, err := catalog.Download(t.Context(), 11, ownerResource.ID)
+	require.NoError(t, err)
+	require.Contains(t, downloadURL, "owners/11/go.pdf")
+	require.True(t, expiresAt.After(time.Now()))
+	_, _, err = catalog.Download(t.Context(), 11, otherResource.ID)
+	require.True(t, errors.Is(err, gorm.ErrRecordNotFound))
 }
 
 func TestResourceDeliveryGrantAndCompletion(t *testing.T) {

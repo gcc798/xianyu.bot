@@ -24,12 +24,16 @@ import (
 	"gorm.io/gorm"
 )
 
-const resourceDeliveryTTL = 10 * time.Minute
+const (
+	resourceDeliveryTTL = 10 * time.Minute
+	resourceDownloadTTL = 10 * time.Minute
+)
 
 var sha256Pattern = regexp.MustCompile(`^[a-f0-9]{64}$`)
 
 type resourceObjectStore interface {
 	PresignedPutObject(ctx context.Context, bucket, objectKey string, expiry time.Duration) (*url.URL, error)
+	PresignedGetObject(ctx context.Context, bucket, objectKey string, expiry time.Duration, reqParams url.Values) (*url.URL, error)
 	StatObject(ctx context.Context, bucket, objectKey string, opts minio.StatObjectOptions) (minio.ObjectInfo, error)
 	BucketExists(ctx context.Context, bucket string) (bool, error)
 	MakeBucket(ctx context.Context, bucket string, opts minio.MakeBucketOptions) error
@@ -91,6 +95,28 @@ func (s *resourceCatalog) GetTask(ctx context.Context, ownerID, taskID uint) (mo
 	var task model.ResourceTask
 	err := global.GVA_DB.WithContext(ctx).Where("id = ? AND owner_id = ?", taskID, ownerID).First(&task).Error
 	return task, err
+}
+
+func (s *resourceCatalog) Download(ctx context.Context, ownerID, resourceID uint) (string, time.Time, error) {
+	if ownerID == 0 || resourceID == 0 {
+		return "", time.Time{}, errors.New("资源 ID 不能为空")
+	}
+	var resource model.Resource
+	if err := global.GVA_DB.WithContext(ctx).Where("id = ? AND owner_id = ? AND state = ?", resourceID, ownerID, "available").First(&resource).Error; err != nil {
+		return "", time.Time{}, err
+	}
+	store, _, err := s.storage()
+	if err != nil {
+		return "", time.Time{}, err
+	}
+	expiresAt := time.Now().Add(resourceDownloadTTL)
+	downloadURL, err := store.PresignedGetObject(ctx, resource.Bucket, resource.ObjectKey, resourceDownloadTTL, url.Values{
+		"response-content-disposition": {fmt.Sprintf(`attachment; filename="%s"`, strings.ReplaceAll(resource.Name, `"`, ""))},
+	})
+	if err != nil {
+		return "", time.Time{}, fmt.Errorf("生成资源下载地址: %w", err)
+	}
+	return downloadURL.String(), expiresAt, nil
 }
 
 func (s *resourceCatalog) CreateDeliveryTask(ctx context.Context, ownerID, candidateID uint, idempotencyKey string) (ResourceDeliveryGrant, error) {

@@ -36,6 +36,19 @@ func (a *resource) Get(c *gin.Context) {
 	response.OkWithData(gin.H{"resource": resource}, c)
 }
 
+func (a *resource) Download(c *gin.Context) {
+	resourceID, ok := pathID(c)
+	if !ok {
+		return
+	}
+	downloadURL, expiresAt, err := resourceService.Download(c.Request.Context(), utils.GetUserID(c), resourceID)
+	if err != nil {
+		failAccount("获取资源下载地址失败", err, c)
+		return
+	}
+	response.OkWithData(gin.H{"downloadUrl": downloadURL, "expiresAt": expiresAt}, c)
+}
+
 func (a *resource) GetTask(c *gin.Context) {
 	taskID, ok := pathID(c)
 	if !ok {
