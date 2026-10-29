@@ -16,7 +16,7 @@ const administratorAuthorityID = 888
 func Authorization(ctx context.Context) error {
 	var menus []system.SysBaseMenu
 	if err := global.GVA_DB.WithContext(ctx).
-		Where("name IN ?", []string{"Xy", "XyDashboard", "XyAccounts", "XyProducts", "XyMessages", "XyOrders", "XyReplyRules", "XyDeliveryRules", "XyDeliveryTasks", "XyBusinessEvents", "XyTelegramResources", "XyTelegramOverview", "XyTelegramDialogs", "XyTelegramTasks", "XyTelegramFiles", "XyTelegramSettings"}).
+		Where("name IN ?", []string{"Xy", "XyDashboard", "XyAccounts", "XyProducts", "XyMessages", "XyOrders", "XyReplyRules", "XyDeliveryRules", "XyDeliveryTasks", "XyBusinessEvents", "XyTelegramResources", "XyTelegramOverview", "XyTelegramDialogs", "XyTelegramTasks", "XyTelegramFiles", "XyTelegramSettings", "XyAI", "XyAgent", "XyAISettings"}).
 		Find(&menus).Error; err != nil {
 		return err
 	}

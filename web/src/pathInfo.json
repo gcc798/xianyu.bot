@@ -93,6 +93,8 @@
   "/src/plugin/auto/view/skills/index.vue": "Index",
   "/src/plugin/email/view/index.vue": "Email",
   "/src/plugin/xy/view/accounts.vue": "XyAccounts",
+  "/src/plugin/xy/view/ai-agent.vue": "XyAgent",
+  "/src/plugin/xy/view/ai-settings.vue": "XyAISettings",
   "/src/plugin/xy/view/business-events.vue": "XyBusinessEvents",
   "/src/plugin/xy/view/dashboard.vue": "XyDashboard",
   "/src/plugin/xy/view/delivery-rules.vue": "XyDeliveryRules",

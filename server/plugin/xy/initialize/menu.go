@@ -86,5 +86,13 @@ func Menu(ctx context.Context) {
 				{Path: "settings", Name: "XyTelegramSettings", Component: "plugin/xy/view/telegram-settings.vue", Sort: 5, Meta: system.Meta{Title: "服务设置", Icon: "setting"}},
 			},
 		},
+		system.SysBaseMenu{
+			ParentId: 0, Path: "ai", Name: "XyAI", Component: "view/routerHolder.vue", Sort: 3,
+			Meta: system.Meta{Title: "AI", Icon: "cpu"},
+			Children: []system.SysBaseMenu{
+				{Path: "agent", Name: "XyAgent", Component: "plugin/xy/view/ai-agent.vue", Sort: 1, Meta: system.Meta{Title: "Agent", Icon: "chat-dot-square"}},
+				{Path: "settings", Name: "XyAISettings", Component: "plugin/xy/view/ai-settings.vue", Sort: 2, Meta: system.Meta{Title: "基础配置", Icon: "setting"}},
+			},
+		},
 	)
 }
