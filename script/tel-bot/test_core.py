@@ -159,7 +159,13 @@ def test_metadata_scan_storage():
             assert db.resource_file(resource["id"])["source_name"] == row["name"]
             db.update_resource_task(task["id"], status="cancelled", cancel_requested=True, completed_at=now)
             assert db.resource_task(task["id"])["status"] == "cancelled"
+            acquisition, created = db.create_acquisition_task(task["id"], "candidate-test", "acquisition-" + uuid.uuid4().hex)
+            assert created is True
+            db.update_acquisition_task(acquisition["id"], state="failed", error_code="timeout")
+            retried, created = db.create_acquisition_task(task["id"], "candidate-test", acquisition["idempotency_key"])
+            assert created is True and retried["id"] == acquisition["id"] and retried["state"] == "queued"
         finally:
+            conn.execute("DELETE FROM tel_acquisition_tasks WHERE id=%s", (locals().get("acquisition", {}).get("id", -1),))
             conn.execute("DELETE FROM tel_resource_tasks WHERE id=%s", (locals().get("task", {}).get("id", -1),))
             conn.execute("DELETE FROM tel_leave_history WHERE telegram_id=%s", (telegram_id,))
             conn.execute("DELETE FROM tel_dialogs WHERE telegram_id=%s", (telegram_id,))

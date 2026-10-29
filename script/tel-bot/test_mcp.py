@@ -37,12 +37,12 @@ class MCPContractTest(unittest.IsolatedAsyncioTestCase):
             ],
         )
 
-    async def test_unimplemented_capability_returns_not_supported(self):
+    async def test_invalid_task_id_returns_contract_error(self):
         async with Client(self.server()) as client:
-            result = await client.call_tool("resource_acquire", {"candidate_id": "candidate", "task_id": "task", "idempotency_key": "key"})
+            result = await client.call_tool("task_get", {"task_id": "invalid"})
         payload = json.loads(result.content[0].text)
-        self.assertEqual(payload["status"], "not_supported")
-        self.assertEqual(payload["error"]["capability"], "resource_acquire")
+        self.assertEqual(payload["status"], "failed")
+        self.assertEqual(payload["error"]["code"], "invalid_argument")
 
     async def test_status_does_not_expose_credentials(self):
         async with Client(self.server()) as client:

@@ -107,6 +107,7 @@ services:
     environment:
       DATABASE_URL: postgresql://xianyu:xianyu_assistant@postgres:5432/xianyu_assistant
       TELEGRAM_INTERNAL_TOKEN: ${TELEGRAM_INTERNAL_TOKEN:-}
+      GVA_INTERNAL_URL: http://server:8888
       TG_RESOURCE_CONCURRENCY: ${TG_RESOURCE_CONCURRENCY:-1}
       TG_RESOURCE_MAX_FILE_MB: ${TG_RESOURCE_MAX_FILE_MB:-200}
       TG_RESOURCE_AI_BASE_URL: ${TG_RESOURCE_AI_BASE_URL:-}

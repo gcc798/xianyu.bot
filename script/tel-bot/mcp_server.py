@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from typing import Any
 
 from mcp.server.mcpserver import MCPServer
@@ -101,10 +102,15 @@ def build_mcp(telegram, resources, db) -> tuple[MCPServer, Any]:
             return _failed(exc.code, str(exc), exc.retryable)
 
     @server.tool()
-    def resource_acquire(candidate_id: str, task_id: str, idempotency_key: str) -> dict:
+    async def resource_acquire(candidate_id: str, task_id: int, idempotency_key: str, delivery_token: str) -> dict:
         """提交异步资源获取任务。"""
-        _ = candidate_id, task_id, idempotency_key
-        return not_supported("resource_acquire")
+        try:
+            task = await resources.submit_acquisition(candidate_id, task_id, idempotency_key, delivery_token)
+            return success({"task_id": f"resource_acquire:{task['id']}"})
+        except ResourceCapabilityError as exc:
+            return _failed(exc.code, str(exc), exc.retryable)
+        except ValueError as exc:
+            return _failed("invalid_argument", str(exc))
 
     @server.tool()
     def task_get(task_id: str) -> dict:
@@ -116,7 +122,7 @@ def build_mcp(telegram, resources, db) -> tuple[MCPServer, Any]:
             task = db.scan_history(int(raw_id))
             return success(_scan_task(task_id, task)) if task else _failed("resource_not_found", "任务不存在")
         if kind == "resource_acquire":
-            task = db.resource_task(int(raw_id))
+            task = db.acquisition_task(int(raw_id))
             return success(_resource_task(task_id, task)) if task else _failed("resource_not_found", "任务不存在")
         return _failed("invalid_argument", "任务类型无效")
 
@@ -131,7 +137,7 @@ def build_mcp(telegram, resources, db) -> tuple[MCPServer, Any]:
                 return _failed("invalid_state", "任务当前不能取消")
         elif kind == "resource_acquire":
             try:
-                resources.cancel(int(raw_id))
+                resources.cancel_acquisition(int(raw_id))
             except ValueError:
                 return _failed("invalid_state", "任务当前不能取消")
         else:
@@ -157,10 +163,11 @@ def _scan_task(task_id: str, task: dict) -> dict:
 
 
 def _resource_task(task_id: str, task: dict) -> dict:
-    total = task.get("max_downloads") or 0
-    done = task.get("files_completed") or 0
+    total = task.get("bytes_total") or 0
+    done = task.get("bytes_completed") or 0
     return {
-        "task_id": task_id, "task_type": "resource_acquire", "state": task["status"],
-        "progress": {"percent": round(done * 100 / total) if total else 0, "stage": "downloading", "completed": done, "total": total, "unit": "files"},
-        "result": None, "error": task.get("error_message"),
+        "task_id": task_id, "task_type": "resource_acquire", "state": task["state"],
+        "progress": {"percent": round(done * 100 / total) if total else 0, "stage": task.get("stage"), "completed": done, "total": total, "unit": "bytes"},
+        "result": json.loads(task["result_json"]) if task.get("result_json") else None,
+        "error": {"code": task.get("error_code"), "message": task.get("error_message")} if task.get("error_code") else None,
     }

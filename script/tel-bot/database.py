@@ -114,8 +114,28 @@ class Database:
             db.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_tel_resource_files_telegram_file ON tel_resource_files(telegram_file_id) WHERE telegram_file_id IS NOT NULL")
             db.execute("ALTER TABLE tel_resource_tasks ADD COLUMN IF NOT EXISTS source_mode TEXT NOT NULL DEFAULT 'manual'")
             db.execute("ALTER TABLE tel_resource_tasks ADD COLUMN IF NOT EXISTS source_strategy TEXT NOT NULL DEFAULT 'manual'")
+            db.execute("""
+                CREATE TABLE IF NOT EXISTS tel_acquisition_tasks (
+                    id BIGSERIAL PRIMARY KEY,
+                    gva_task_id BIGINT NOT NULL UNIQUE,
+                    candidate_id TEXT NOT NULL,
+                    idempotency_key TEXT NOT NULL UNIQUE,
+                    state TEXT NOT NULL DEFAULT 'queued',
+                    stage TEXT,
+                    bytes_completed BIGINT NOT NULL DEFAULT 0,
+                    bytes_total BIGINT NOT NULL DEFAULT 0,
+                    result_json TEXT,
+                    error_code TEXT,
+                    error_message TEXT,
+                    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                    started_at TIMESTAMPTZ,
+                    completed_at TIMESTAMPTZ,
+                    CHECK (state IN ('queued','running','completed','failed','cancelled'))
+                )
+            """)
             db.execute(f"UPDATE {TABLES['scan_history']} SET status='interrupted', finished_at=%s WHERE status='running'", (now_iso(),))
             db.execute("UPDATE tel_resource_tasks SET status='failed',completed_at=NOW(),error_message='service restarted' WHERE status='running'")
+            db.execute("UPDATE tel_acquisition_tasks SET state='failed',completed_at=NOW(),error_code='internal_error',error_message='service restarted' WHERE state IN ('queued','running')")
 
     @contextmanager
     def connect(self):
@@ -262,6 +282,35 @@ class Database:
     def queued_resource_tasks(self) -> list[int]:
         with self.connect() as db:
             return [row["id"] for row in db.execute("SELECT id FROM tel_resource_tasks WHERE status='queued' AND NOT cancel_requested ORDER BY id").fetchall()]
+
+    def create_acquisition_task(self, gva_task_id: int, candidate_id: str, idempotency_key: str) -> tuple[dict, bool]:
+        with self.connect() as db:
+            row = db.execute(
+                "INSERT INTO tel_acquisition_tasks(gva_task_id,candidate_id,idempotency_key) VALUES(%s,%s,%s) ON CONFLICT(idempotency_key) DO NOTHING RETURNING *",
+                (gva_task_id, candidate_id, idempotency_key),
+            ).fetchone()
+            if row:
+                return row, True
+            existing = db.execute("SELECT * FROM tel_acquisition_tasks WHERE idempotency_key=%s", (idempotency_key,)).fetchone()
+            if not existing or existing["gva_task_id"] != gva_task_id or existing["candidate_id"] != candidate_id:
+                raise ValueError("幂等键已用于其他资源任务")
+            if existing["state"] in {"failed", "cancelled"}:
+                existing = db.execute(
+                    "UPDATE tel_acquisition_tasks SET state='queued',stage=NULL,bytes_completed=0,bytes_total=0,result_json=NULL,error_code=NULL,error_message=NULL,started_at=NULL,completed_at=NULL WHERE id=%s RETURNING *",
+                    (existing["id"],),
+                ).fetchone()
+                return existing, True
+            return existing, False
+
+    def acquisition_task(self, task_id: int) -> dict | None:
+        with self.connect() as db:
+            return db.execute("SELECT * FROM tel_acquisition_tasks WHERE id=%s", (task_id,)).fetchone()
+
+    def update_acquisition_task(self, task_id: int, **values) -> None:
+        if values:
+            with self.connect() as db:
+                assignments = ", ".join(f"{key}=%s" for key in values)
+                db.execute(f"UPDATE tel_acquisition_tasks SET {assignments} WHERE id=%s", (*values.values(), task_id))
 
     def update_resource_task(self, task_id: int, **values) -> None:
         allowed = {"status", "files_found", "files_completed", "error_message", "started_at", "completed_at", "cancel_requested"}

@@ -5,11 +5,13 @@ import base64
 import binascii
 import hashlib
 import hmac
+import http.client
 import json
 import logging
 import os
 import re
 import urllib.request
+from urllib.parse import urlsplit
 import zipfile
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -76,6 +78,37 @@ def _decode_base64(value: str) -> bytes:
     return base64.urlsafe_b64decode(value + "=" * (-len(value) % 4))
 
 
+def _sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as source:
+        for chunk in iter(lambda: source.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _put_file(upload_url: str, path: Path, mime_type: str | None) -> None:
+    target = urlsplit(upload_url)
+    if target.scheme not in {"http", "https"} or not target.hostname:
+        raise ResourceCapabilityError("delivery_failed", "上传地址无效")
+    connection_type = http.client.HTTPSConnection if target.scheme == "https" else http.client.HTTPConnection
+    connection = connection_type(target.hostname, target.port, timeout=30)
+    request_path = target.path + (f"?{target.query}" if target.query else "")
+    try:
+        connection.putrequest("PUT", request_path)
+        connection.putheader("Content-Length", str(path.stat().st_size))
+        connection.putheader("Content-Type", mime_type or "application/octet-stream")
+        connection.endheaders()
+        with path.open("rb") as source:
+            for chunk in iter(lambda: source.read(1024 * 1024), b""):
+                connection.send(chunk)
+        response = connection.getresponse()
+        response.read()
+        if response.status < 200 or response.status >= 300:
+            raise ResourceCapabilityError("delivery_failed", "资源上传失败", retryable=response.status >= 500)
+    finally:
+        connection.close()
+
+
 class ResourceService:
     def __init__(self, telegram, db, storage: RustFS):
         self.telegram = telegram
@@ -83,6 +116,7 @@ class ResourceService:
         self.storage = storage
         self.queue: asyncio.Queue[int] = asyncio.Queue()
         self.workers: list[asyncio.Task] = []
+        self.acquisitions: dict[int, asyncio.Task] = {}
         self.concurrency = min(max(int(os.getenv("TG_RESOURCE_CONCURRENCY", "1")), 1), 3)
         self.max_file_size = int(os.getenv("TG_RESOURCE_MAX_FILE_MB", "200")) * 1024 * 1024
         configured_tmp = os.getenv("TELEGRAM_TMP_ROOT")
@@ -111,9 +145,107 @@ class ResourceService:
         for worker in self.workers:
             worker.cancel()
         await asyncio.gather(*self.workers, return_exceptions=True)
+        for task in self.acquisitions.values():
+            task.cancel()
+        await asyncio.gather(*self.acquisitions.values(), return_exceptions=True)
 
     def enqueue(self, task_id: int) -> None:
         self.queue.put_nowait(task_id)
+
+    async def submit_acquisition(self, candidate_id: str, gva_task_id: int, idempotency_key: str, delivery_token: str) -> dict:
+        if gva_task_id < 1 or not idempotency_key.strip() or not delivery_token:
+            raise ResourceCapabilityError("invalid_argument", "资源任务参数不完整")
+        await self.inspect_candidate(candidate_id)
+        task, created = self.db.create_acquisition_task(gva_task_id, candidate_id, idempotency_key.strip())
+        if created:
+            worker = asyncio.create_task(self._acquire(task["id"], candidate_id, gva_task_id, delivery_token))
+            self.acquisitions[task["id"]] = worker
+            worker.add_done_callback(lambda _worker, task_id=task["id"]: self.acquisitions.pop(task_id, None))
+        return task
+
+    def cancel_acquisition(self, task_id: int) -> None:
+        task = self.db.acquisition_task(task_id)
+        if not task or task["state"] not in {"queued", "running"}:
+            raise ValueError("任务不存在或当前状态不能取消")
+        worker = self.acquisitions.get(task_id)
+        if worker:
+            worker.cancel()
+        self.db.update_acquisition_task(task_id, state="cancelled", completed_at=datetime.now(timezone.utc))
+
+    async def _acquire(self, task_id: int, candidate_id: str, gva_task_id: int, delivery_token: str) -> None:
+        task_dir = self.tmp_root / f"acquire-{task_id}"
+        path = None
+        self.db.update_acquisition_task(task_id, state="running", stage="downloading", started_at=datetime.now(timezone.utc))
+        try:
+            candidate = self._decode_candidate(candidate_id)
+            dialog = self.db.dialog(candidate["source_id"])
+            if not dialog:
+                raise ResourceCapabilityError("source_not_found", "资源来源不存在")
+            await self.telegram._ensure_connected()
+            entity = await self.telegram.call(self.telegram.client.get_entity, dialog["telegram_id"])
+            message = await self.telegram.call(self.telegram.client.get_messages, entity, ids=candidate["message_id"])
+            metadata = self._match(message, {"keyword": "", "file_types": []}) if message else None
+            if not metadata or metadata["file_id"] != candidate["file_id"]:
+                raise ResourceCapabilityError("resource_changed", "资源不存在或已发生变化")
+
+            task_dir.mkdir(parents=True, exist_ok=True)
+            path = task_dir / safe_filename(metadata["filename"])
+            downloaded = await self.telegram.call(self.telegram.client.download_media, message, file=str(path))
+            if not downloaded or not path.is_file():
+                raise ResourceCapabilityError("delivery_failed", "资源下载失败", retryable=True)
+            size = path.stat().st_size
+            if size != metadata["size"] or size > self.max_file_size:
+                raise ResourceCapabilityError("resource_changed", "资源大小已发生变化")
+            self._validate_download(path, path.suffix.lower().lstrip("."))
+            checksum = await asyncio.to_thread(_sha256_file, path)
+
+            self.db.update_acquisition_task(task_id, stage="waiting_upload", bytes_completed=size, bytes_total=size)
+            upload = await asyncio.to_thread(self._gva_json, f"/xy/internal/resource-tasks/{gva_task_id}/upload", delivery_token, None)
+            self.db.update_acquisition_task(task_id, stage="uploading")
+            await asyncio.to_thread(_put_file, upload["uploadUrl"], path, metadata["mime_type"])
+            completed = await asyncio.to_thread(
+                self._gva_json,
+                f"/xy/internal/resource-tasks/{gva_task_id}/complete",
+                delivery_token,
+                {"size": size, "sha256": checksum},
+            )
+            self.db.update_acquisition_task(
+                task_id, state="completed", stage="completed", result_json=json.dumps(completed, ensure_ascii=False),
+                completed_at=datetime.now(timezone.utc), error_code=None, error_message=None,
+            )
+        except asyncio.CancelledError:
+            self.db.update_acquisition_task(task_id, state="cancelled", completed_at=datetime.now(timezone.utc))
+            raise
+        except ResourceCapabilityError as exc:
+            self.db.update_acquisition_task(task_id, state="failed", error_code=exc.code, error_message=str(exc), completed_at=datetime.now(timezone.utc))
+        except Exception as exc:
+            LOGGER.exception("Resource acquisition failed for task %s", task_id)
+            self.db.update_acquisition_task(task_id, state="failed", error_code="delivery_failed", error_message=str(exc)[:2000], completed_at=datetime.now(timezone.utc))
+        finally:
+            if path:
+                path.unlink(missing_ok=True)
+            try:
+                task_dir.rmdir()
+            except OSError:
+                pass
+
+    def _gva_json(self, path: str, delivery_token: str, payload: dict | None) -> dict:
+        base_url = os.getenv("GVA_INTERNAL_URL", "http://server:8888").rstrip("/")
+        body = json.dumps(payload, ensure_ascii=False).encode() if payload is not None else b"{}"
+        request = urllib.request.Request(
+            base_url + path,
+            data=body,
+            headers={"Content-Type": "application/json", "X-Delivery-Token": delivery_token},
+            method="POST",
+        )
+        try:
+            with urllib.request.urlopen(request, timeout=10) as response:
+                result = json.load(response)
+        except Exception as exc:
+            raise ResourceCapabilityError("delivery_grant_failed", "无法获取资源交付授权", retryable=True) from exc
+        if result.get("code") != 0 or not isinstance(result.get("data"), dict):
+            raise ResourceCapabilityError("delivery_failed", "资源交付服务拒绝请求")
+        return result["data"]
 
     async def search_candidates(self, query: str, file_types: list[str] | None, limit: int, source_ids: list[int] | None = None) -> list[dict]:
         query = query.strip()
