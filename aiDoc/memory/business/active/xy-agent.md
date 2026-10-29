@@ -41,5 +41,7 @@
 - 已生成本地开发需求文档。
 - 已完成 `xy/Xy` 命名迁移，并保留外部协议字面量和既有数据库实例名的兼容性。
 - 已完成数据库驱动的模型、MCP 服务和 Agent 运行限制配置，以及 AI 菜单和基础配置页面。
-- Telegram 已通过 Streamable HTTP 暴露固定的 9 个 MCP 工具；来源与任务能力已接通，资源搜索、检查和获取暂返回 `not_supported`。
-- 待完成：资源搜索/获取拆分、GVA 交付与资源表、Eino Agent Loop、Skill、Harness、SSE 和完整对话页。
+- Telegram 已通过 Streamable HTTP 实现固定的 9 个 MCP 工具，搜索只返回签名候选，检查会重新读取原消息，获取按精确候选异步执行。
+- 已完成独立资源表、`owner_id` 查询隔离、一次性 RustFS 上传授权、对象大小校验和事务落库；资源不进入商品表。
+- 已完成 Agent 会话、消息、运行和工具运行表；工具运行表不保存原始参数，避免交付令牌进入运行记录。
+- 待完成：Eino Agent Loop、MCP Client Registry、Skill、Harness、SSE、资源下载签名和完整对话页。
