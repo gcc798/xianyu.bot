@@ -46,7 +46,7 @@
             <span class="event-icon">⌘</span><div><small>TOOL</small><strong>{{ message.tool }}</strong></div><el-tag size="small" :type="message.status === 'failed' ? 'danger' : message.status === 'completed' ? 'success' : 'warning'">{{ toolStatus(message.status) }}</el-tag>
           </article>
           <article v-else-if="message.role === 'approval'" class="event-card approval-card">
-            <span class="event-icon">!</span><div><small>CONFIRMATION</small><strong>{{ message.tool }} 等待确认</strong><p>该写操作尚未执行。</p></div><el-tag size="small" type="warning">待确认</el-tag>
+            <span class="event-icon">!</span><div><small>CONFIRMATION</small><strong>{{ message.tool }} 等待确认</strong><p>该写操作尚未执行。</p></div><el-button size="small" type="warning" :loading="message.approving" @click="approveRun(message)">确认执行</el-button>
           </article>
           <article v-else-if="message.role === 'skill'" class="event-card skill-card">
             <span class="event-icon">◇</span><div><small>SKILL</small><strong>{{ message.skill }}</strong></div><el-tag size="small" type="success">已加载</el-tag>
@@ -97,7 +97,7 @@
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { cancelAgentRun, createAgentSession, deleteAgentSession, getAgentSession, getAgentSessions, sendAgentMessage, streamAgentEvents } from '@/plugin/xy/api/agent'
+import { approveAgentRun, cancelAgentRun, createAgentSession, deleteAgentSession, getAgentSession, getAgentSessions, sendAgentMessage, streamAgentEvents } from '@/plugin/xy/api/agent'
 
 defineOptions({ name: 'XyAgent' })
 
@@ -177,7 +177,12 @@ const selectSession = async (id) => {
 
 const reloadConversation = async id => {
   const res = await getAgentSession(id)
-  if (res.code === 0) messages.value = res.data.session.messages || []
+  if (res.code === 0) {
+    const session = res.data.session
+    messages.value = [...(session.messages || []), ...(session.pendingApprovals || []).map(item => ({
+      localId: `approval-${item.runId}-${item.toolName}-${item.createdAt}`, role: 'approval', runId: item.runId, tool: item.toolName, createdAt: item.createdAt
+    }))]
+  }
   scrollToBottom()
 }
 
@@ -277,7 +282,7 @@ const handleRunEvent = (event, runId) => {
     const target = [...messages.value].reverse().find(item => item.role === 'tool' && item.tool === event.data.tool)
     if (target) target.status = event.data.status
   } else if (event.type === 'approval.required') {
-    messages.value.push({ localId: `approval-${event.id}`, role: 'approval', tool: event.data.tool })
+    messages.value.push({ localId: `approval-${event.id}`, role: 'approval', runId: event.data.runId, tool: event.data.tool })
   } else if (event.type === 'skill.loaded') {
     messages.value.push({ localId: `skill-${event.id}`, role: 'skill', skill: event.data.skill })
   } else if (event.type === 'run.completed' || event.type === 'run.failed' || event.type === 'run.cancelled') {
@@ -298,6 +303,17 @@ const cancelRun = async () => {
   if (!activeSessionId.value || !activeRunId.value) return
   const res = await cancelAgentRun(activeSessionId.value, activeRunId.value)
   if (res.code === 0) ElMessage.info('正在停止 Agent 运行')
+}
+
+const approveRun = async message => {
+  if (!message.runId || message.approving) return
+  message.approving = true
+  try {
+    const res = await approveAgentRun(message.runId)
+    if (res.code !== 0) return
+    ElMessage.success('操作已确认并提交')
+    await reloadConversation(activeSessionId.value)
+  } finally { message.approving = false }
 }
 
 const stopStream = () => { if (reconnectTimer) clearTimeout(reconnectTimer); reconnectTimer = null; streamController?.abort(); streamController = null }

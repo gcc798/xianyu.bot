@@ -58,6 +58,14 @@ func (t *einoMCPTool) InvokableRun(ctx context.Context, arguments string, _ ...t
 		return "", err
 	}
 	t.publish("tool.started", map[string]any{"runId": t.runID, "tool": t.definition.Name})
+	var input map[string]any
+	if err := json.Unmarshal([]byte(arguments), &input); err != nil {
+		if err := t.finishToolCall(ctx, call, "failed", "invalid_arguments", "工具参数无效"); err != nil {
+			return "", err
+		}
+		t.publish("tool.completed", map[string]any{"runId": t.runID, "tool": t.definition.Name, "status": "failed"})
+		return toolFailure("invalid_arguments", "工具参数无效"), nil
+	}
 	if err := t.harness.BeforeToolCall(t.definition); err != nil {
 		if err := t.finishToolCall(ctx, call, "failed", "budget_exceeded", "工具调用次数已达到限制"); err != nil {
 			return "", err
@@ -66,19 +74,11 @@ func (t *einoMCPTool) InvokableRun(ctx context.Context, arguments string, _ ...t
 		return toolFailure("budget_exceeded", "本轮工具调用次数已达到限制"), nil
 	}
 	if toolRequiresApproval(t.definition) {
-		if err := t.finishToolCall(ctx, call, "waiting_approval", "approval_required", "等待用户确认"); err != nil {
+		if err := t.queueApproval(ctx, call, input); err != nil {
 			return "", err
 		}
 		t.publish("approval.required", map[string]any{"runId": t.runID, "tool": t.definition.Name})
 		return toolFailure("approval_required", "此操作需要用户确认后执行"), nil
-	}
-	var input map[string]any
-	if err := json.Unmarshal([]byte(arguments), &input); err != nil {
-		if err := t.finishToolCall(ctx, call, "failed", "invalid_arguments", "工具参数无效"); err != nil {
-			return "", err
-		}
-		t.publish("tool.completed", map[string]any{"runId": t.runID, "tool": t.definition.Name, "status": "failed"})
-		return toolFailure("invalid_arguments", "工具参数无效"), nil
 	}
 	callContext, cancel := context.WithTimeout(ctx, min(toolTimeout(t.definition), time.Duration(t.connection.Server.RequestTimeoutSeconds)*time.Second))
 	defer cancel()
@@ -115,6 +115,29 @@ func (t *einoMCPTool) InvokableRun(ctx context.Context, arguments string, _ ...t
 	}
 	t.publish("tool.completed", map[string]any{"runId": t.runID, "tool": t.definition.Name, "status": status})
 	return string(payload), nil
+}
+
+func (t *einoMCPTool) queueApproval(ctx context.Context, call *model.AgentRunTool, input map[string]any) error {
+	if call == nil {
+		return nil
+	}
+	if t.definition.Name == "resource_acquire" {
+		delete(input, "task_id")
+		delete(input, "idempotency_key")
+		delete(input, "delivery_token")
+	}
+	arguments, err := json.Marshal(input)
+	if err != nil {
+		return err
+	}
+	completedAt := time.Now()
+	finishContext, cancel := agentFinishContext(ctx)
+	defer cancel()
+	return global.GVA_DB.WithContext(finishContext).Model(call).Updates(map[string]any{
+		"arguments": string(arguments), "status": "waiting_approval", "error_code": "approval_required",
+		"error_message": "等待用户确认", "completed_at": completedAt,
+		"duration_millis": time.Since(call.StartedAt).Milliseconds(),
+	}).Error
 }
 
 type resourceSearchResult struct {

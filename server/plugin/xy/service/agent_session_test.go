@@ -35,6 +35,9 @@ func TestAgentSessionScopesConversationByOwner(t *testing.T) {
 		{OwnerID: 11, SessionID: owned.ID, Sequence: 1, Role: "user", Content: "第一条"},
 		{OwnerID: 22, SessionID: other.ID, Sequence: 1, Role: "user", Content: "不可见"},
 	}).Error)
+	run := model.AgentRun{OwnerID: 11, SessionID: owned.ID, ModelID: 1, ModelName: "test", Status: "completed", ConfigSnapshot: `{}`, StartedAt: now}
+	require.NoError(t, db.Create(&run).Error)
+	require.NoError(t, db.Create(&model.AgentRunTool{RunID: run.ID, CallID: "approval-1", ToolName: "resource_acquire", Status: "waiting_approval", StartedAt: now}).Error)
 
 	list, total, err := sessions.List(t.Context(), 11, xyRequest.AgentSessionSearch{})
 	require.NoError(t, err)
@@ -44,6 +47,8 @@ func TestAgentSessionScopesConversationByOwner(t *testing.T) {
 	detail, err := sessions.Get(t.Context(), 11, owned.ID)
 	require.NoError(t, err)
 	require.Len(t, detail.Messages, 2)
+	require.Len(t, detail.PendingApprovals, 1)
+	require.Equal(t, "resource_acquire", detail.PendingApprovals[0].ToolName)
 	require.EqualValues(t, 1, detail.Messages[0].Sequence)
 	_, err = sessions.Get(t.Context(), 11, other.ID)
 	require.True(t, errors.Is(err, gorm.ErrRecordNotFound))

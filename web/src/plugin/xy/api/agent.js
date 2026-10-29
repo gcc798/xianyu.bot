@@ -26,6 +26,10 @@ export const cancelAgentRun = (sessionId, runId) => service({
   url: `/xy/ai/agent/sessions/${sessionId}/runs/${runId}`, method: 'delete', donNotShowLoading: true
 })
 
+export const approveAgentRun = (runId) => service({
+  url: `/xy/ai/agent/runs/${runId}/approve`, method: 'post', donNotShowLoading: true
+})
+
 export const streamAgentEvents = async (sessionId, { afterId = 0, signal, onEvent }) => {
   const userStore = useUserStore()
   const response = await fetch(`${import.meta.env.VITE_BASE_API || ''}/xy/ai/agent/sessions/${sessionId}/events`, {

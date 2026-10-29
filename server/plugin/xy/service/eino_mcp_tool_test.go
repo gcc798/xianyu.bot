@@ -15,6 +15,12 @@ import (
 )
 
 func TestEinoMCPToolHidesDeliveryFieldsAndRequiresApproval(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	require.NoError(t, err)
+	require.NoError(t, db.AutoMigrate(&model.AgentRunTool{}))
+	oldDB := global.GVA_DB
+	global.GVA_DB = db
+	t.Cleanup(func() { global.GVA_DB = oldDB })
 	client := new(recordingMCPClient)
 	connection := &mcpConnection{
 		Server: model.MCPServer{Code: "telegram", RequestTimeoutSeconds: 15}, Client: client,
@@ -44,10 +50,15 @@ func TestEinoMCPToolHidesDeliveryFieldsAndRequiresApproval(t *testing.T) {
 	require.NotContains(t, string(payload), "idempotency_key")
 	require.NotContains(t, string(payload), "delivery_token")
 
-	result, err := target.InvokableRun(t.Context(), `{"candidate_id":"candidate-1"}`)
+	target.runID = 9
+	result, err := target.InvokableRun(t.Context(), `{"candidate_id":"candidate-1","delivery_token":"must-not-persist"}`)
 	require.NoError(t, err)
 	require.Contains(t, result, "approval_required")
 	require.Zero(t, client.calls.Load())
+	var call model.AgentRunTool
+	require.NoError(t, db.First(&call).Error)
+	require.Equal(t, `{"candidate_id":"candidate-1"}`, call.Arguments)
+	require.NotContains(t, call.Arguments, "must-not-persist")
 }
 
 func TestEinoMCPToolCallsReadCapability(t *testing.T) {
@@ -122,14 +133,16 @@ func TestEinoMCPToolPersistsResourceSearchCandidates(t *testing.T) {
 
 type recordingMCPClient struct {
 	fakeMCPClient
-	calls    atomic.Int64
-	lastName string
-	result   any
+	calls         atomic.Int64
+	lastName      string
+	lastArguments map[string]any
+	result        any
 }
 
 func (c *recordingMCPClient) CallTool(_ context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	c.calls.Add(1)
 	c.lastName = request.Params.Name
+	c.lastArguments = request.GetArguments()
 	result := c.result
 	if result == nil {
 		result = map[string]any{"ok": true}

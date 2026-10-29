@@ -119,6 +119,20 @@ func (a *agentSession) CancelRun(c *gin.Context) {
 	response.OkWithMessage("已请求取消", c)
 }
 
+func (a *agentSession) ApproveRun(c *gin.Context) {
+	runID, ok := pathID(c)
+	if !ok {
+		return
+	}
+	call, err := agentRunnerService.Approve(c.Request.Context(), utils.GetUserID(c), runID)
+	if err != nil {
+		global.GVA_LOG.Error("确认 Agent 操作失败", zap.Error(err))
+		response.FailWithMessage("确认操作执行失败", c)
+		return
+	}
+	response.OkWithData(gin.H{"tool": call.ToolName, "status": call.Status}, c)
+}
+
 func (a *agentSession) Events(c *gin.Context) {
 	sessionID, ok := pathID(c)
 	if !ok {

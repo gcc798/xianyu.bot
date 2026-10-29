@@ -8,7 +8,14 @@ import (
 
 type AgentSessionDetail struct {
 	model.AgentSession
-	Messages []model.AgentMessage `json:"messages"`
+	Messages         []model.AgentMessage `json:"messages"`
+	PendingApprovals []AgentApproval      `json:"pendingApprovals"`
+}
+
+type AgentApproval struct {
+	RunID     uint      `json:"runId"`
+	ToolName  string    `json:"toolName"`
+	CreatedAt time.Time `json:"createdAt"`
 }
 
 type AgentRunAccepted struct {

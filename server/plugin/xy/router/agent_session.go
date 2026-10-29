@@ -5,6 +5,7 @@ import "github.com/gin-gonic/gin"
 type agentSession struct{}
 
 func (r *agentSession) Init(private *gin.RouterGroup) {
+	private.POST("xy/ai/agent/runs/:id/approve", agentSessionAPI.ApproveRun)
 	group := private.Group("xy/ai/agent/sessions")
 	group.POST("", agentSessionAPI.Create)
 	group.GET("", agentSessionAPI.List)
