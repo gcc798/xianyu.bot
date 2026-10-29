@@ -1,8 +1,8 @@
-name: go.xianyu.assistant
+name: go.xy.assistant
 
 networks:
   default:
-    name: go.xianyu.assistant
+    name: go.xy.assistant
 
 volumes:
   postgres:
@@ -36,7 +36,7 @@ services:
       redis:
         condition: service_healthy
     environment:
-      XIANYU_CREDENTIAL_KEY: ${XIANYU_CREDENTIAL_KEY:-}
+      XY_CREDENTIAL_KEY: ${XY_CREDENTIAL_KEY:-}
       GVA_ADMIN_PASSWORD: ${GVA_ADMIN_PASSWORD:-123456}
       TELEGRAM_SERVICE_URL: http://telegram:8080
       TELEGRAM_INTERNAL_TOKEN: ${TELEGRAM_INTERNAL_TOKEN:-}

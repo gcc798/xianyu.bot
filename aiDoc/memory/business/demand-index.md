@@ -3,7 +3,7 @@
 ## Active
 
 - [仓库许可证迁移到 BSL 1.1](active/license-migrate-to-bsl.md)
-- [基于 GVA 重构 XianYuAssistant](active/xianyu-assistant-rebuild.md)
+- [基于 GVA 重构 XyAssistant](active/xy-assistant-rebuild.md)
 - [XyAgent](active/xy-agent.md)
 
 ## Done

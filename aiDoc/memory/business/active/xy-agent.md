@@ -14,7 +14,7 @@
 
 ## 已确认约束
 
-- 所有新增数据库、代码、路由和前端标识统一使用 `xy` / `Xy`，现存 `xianyu/Xianyu` 代码需要单独完成全量迁移。
+- 所有新增数据库表、代码、路由和前端标识统一使用 `xy` / `Xy`；历史 `xianyu/Xianyu` 标识通过独立迁移阶段处理。
 - Agent 名称为 `XyAgent`，不能以资源检索命名。
 - MCP 固定提供渠道信息、渠道状态、来源列表、来源同步、资源搜索、资源检查、资源获取、`task_get` 和 `task_cancel`。
 - MCP 能力不区分版本；未实现时返回 `not_supported`。
@@ -33,7 +33,7 @@
 - 前端：`web/src/plugin/xy/`、AI 菜单、Agent 对话页、基础配置页和 SSE 客户端。
 - Telegram：现有资源检索拆分、MCP Server、通用任务和交付流程。
 - 部署：模型/MCP 数据库配置、服务间认证、RustFS Upload Broker。
-- 迁移：现存 `xianyu/Xianyu` 目录、标识、路由、菜单、Casbin、环境变量和测试。
+- 迁移：历史 `xianyu/Xianyu` 目录、标识、路由、菜单、Casbin、环境变量和测试。
 
 ## 当前状态
 

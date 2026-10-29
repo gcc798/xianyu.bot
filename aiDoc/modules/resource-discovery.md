@@ -7,8 +7,8 @@
 ## 当前边界
 
 - GVA Web 只访问 Go Server，不直连 `gva-telegram`。
-- Xianyu 插件在 Go Server 内提供受 JWT 与 Casbin 保护的透明代理 `/xianyu/proxy/telegram/*`；星号后的方法、路径、查询、状态码和响应体保持 `gva-telegram` 原始契约。
-- 闲鱼插件的所有 HTTP 入口统一使用 `/xianyu/*`。
+- Xy 插件在 Go Server 内提供受 JWT 与 Casbin 保护的透明代理 `/xy/proxy/telegram/*`；星号后的方法、路径、查询、状态码和响应体保持 `gva-telegram` 原始契约。
+- 闲鱼插件的所有 HTTP 入口统一使用 `/xy/*`。
 - `gva-telegram` 继续负责 Telegram 登录、扫描、群组管理、资源检索和下载，原 Python 页面保留作为本地诊断入口。
 - 当前 GVA 菜单把 Telegram 能力拆为概览与登录、群组与频道、资源检索、资源文件、服务设置五个页面。
 
@@ -31,7 +31,7 @@ Agent 只编排动作和排序，不保存 Telegram Session 或 GitHub Token。�
 ## 后端规划
 
 - Go Server 负责 GVA 用户鉴权、任务所有权、统一任务/候选/资源记录和 Agent 工具入口。
-- Telegram 保持 Python 独立服务，由 Xianyu 插件通过 `/xianyu/proxy/telegram/*` 提供管理 UI 所需的原始接口；Agent 侧通过受控工具调用，不让浏览器持有 Telegram 凭证。
+- Telegram 保持 Python 独立服务，由 Xy 插件通过 `/xy/proxy/telegram/*` 提供管理 UI 所需的原始接口；Agent 侧通过受控工具调用，不让浏览器持有 Telegram 凭证。
 - GitHub 来源优先直接使用 GitHub REST API。公开仓库检索和公开归档下载可以匿名进行，但匿名额度低；代码检索、私有仓库和稳定自动化应配置服务端凭证。
 - 生产凭证优先使用 GitHub App 安装令牌；个人环境可使用最小权限 fine-grained token。Token 只存后端密钥配置，不进入前端、日志或任务表。
 - 下载公开源码归档时固定 commit SHA；不要只保存可移动的分支名或 tag。下载后记录 SHA-256，便于复现与审计。

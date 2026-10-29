@@ -6,20 +6,20 @@
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | 后台用户与登录 | `controller/LoginController.java`、`entity/SysUser.java` | 独立 JWT、登录 Token；可用但与 GVA 重复 | **REUSE** GVA 用户/JWT/Casbin | 否 | 否 | P0 | GVA 登录、登出、角色权限回归 |
 | 系统菜单与前端 Layout | `vue-code/src/components/layout/`、`router/index.ts` | 独立导航和登录页 | **REUSE** GVA Layout、动态菜单、主题 | 否 | 否 | P0 | 菜单按角色显示、深色模式 |
-| 操作日志 | `OperationLogController.java`、`XianyuOperationLog.java` | 通用与业务日志混合 | **REUSE** GVA 操作日志；业务事件 **REDESIGN** | 业务事件表 | 查询接口 | P2 | 写操作审计且不含凭证 |
-| 系统设置 | `SysSettingController.java`、`XianyuSysSetting.java` | 键值表含 AI/邮件等配置 | **REUSE** Viper/SysParams；敏感项 **REDESIGN** | AI 凭证表 | 配置接口 | P1 | 脱敏读写、热加载测试 |
+| 操作日志 | `OperationLogController.java`、`XyOperationLog.java` | 通用与业务日志混合 | **REUSE** GVA 操作日志；业务事件 **REDESIGN** | 业务事件表 | 查询接口 | P2 | 写操作审计且不含凭证 |
+| 系统设置 | `SysSettingController.java`、`XySysSetting.java` | 键值表含 AI/邮件等配置 | **REUSE** Viper/SysParams；敏感项 **REDESIGN** | AI 凭证表 | 配置接口 | P1 | 脱敏读写、热加载测试 |
 | 数据备份 | `backup/`、`DataBackupController.java` | 按模块 JSON 导入导出 | **REDESIGN** 为 SQLite/向量快照备份 | 否 | 管理接口 | P3 | 备份恢复到临时目录后校验 |
 | 闲鱼账号 | `AccountController.java`、`AccountServiceImpl.java` | 备注、UNB、deviceId、状态；部分方法依赖外部 API | **REDESIGN**，owner CRUD/启停与登录态检查已完成 | 账号 | CRUD/启停/检查 | P1 | 已通过两用户数据隔离与状态检查测试 |
-| Cookie 管理 | `XianyuCookie.java`、`CookieRefreshServiceImpl.java` | hasLogin、Set-Cookie 合并、状态更新；待实测 | **ADAPT**；AES-256-GCM 存储、HTTP 检查、Cookie 合并和版本更新已完成 | 账号凭证 | 更新/检查 | P1 | 已验证密文与日志脱敏、同账号刷新互斥和陈旧版本保护 |
+| Cookie 管理 | `XyCookie.java`、`CookieRefreshServiceImpl.java` | hasLogin、Set-Cookie 合并、状态更新；待实测 | **ADAPT**；AES-256-GCM 存储、HTTP 检查、Cookie 合并和版本更新已完成 | 账号凭证 | 更新/检查 | P1 | 已验证密文与日志脱敏、同账号刷新互斥和陈旧版本保护 |
 | WebSocket Token | `WebSocketTokenServiceImpl.java` | 签名取 Token、重试、验证码/过期分类；待实测 | **ADAPT**；MTOP 签名、Cookie 合并、设备 ID、加密缓存、版本保护与风控分类已完成 | 账号凭证 | 连接内部使用 | P1 | 单元测试与授权账号真实 Token 获取均已通过，响应不记录 Token |
 | 二维码登录 | `QRLoginServiceImpl.java`、`QRLoginController.java` | Playwright 会话轮询并提取 Cookie；待实测 | **ADAPT** 为无浏览器 HTTP 会话；创建/轮询/取消/超时清理已完成，人机验证不绕过 | 内存会话 | 创建/状态/取消 | P2 | 授权账号扫码确认、Cookie 加密落库与登录态检查已通过 |
 | Cookie 浏览器刷新 | `PlaywrightManager.java`、`CookieRefreshServiceImpl.java` | HTTP 优先、浏览器兜底 | **ADAPT**；Go 方案实测后选型 | 否 | 触发接口 | P2 | Linux/Docker 可用性和 RSS |
-| WebSocket 连接 | `WebSocketServiceImpl.java`、`XianyuWebSocketClient.java` | 注册、心跳、Token 刷新和重连；固定线程池队列无界 | **ADAPT** 协议，**REDESIGN** 生命周期/背压；真实连接、注册、同步状态、ACK、心跳和有界重连已完成 | 进程内连接状态 | 启停/状态 | P1 | 竞态/背压/超时测试及授权账号真实长连接均已通过；页面展示最近错误 |
+| WebSocket 连接 | `WebSocketServiceImpl.java`、`XyWebSocketClient.java` | 注册、心跳、Token 刷新和重连；固定线程池队列无界 | **ADAPT** 协议，**REDESIGN** 生命周期/背压；真实连接、注册、同步状态、ACK、心跳和有界重连已完成 | 进程内连接状态 | 启停/状态 | P1 | 竞态/背压/超时测试及授权账号真实长连接均已通过；页面展示最近错误 |
 | 消息解码与路由 | `SyncMessageHandler.java`、`WebSocketMessageRouter.java` | `/s/para`、`/s/sync`，MessagePack/JSON 解析；待实测 | **ADAPT**；解析器、真实传输过滤与持久化路由已完成 | 消息 | 消息查询 | P1 | fixture 回放、空批次、无消息控制推送、已读回执和未知类型测试已通过 |
 | 消息去重保存 | `ChatMessageEventSaveListener.java`、schema 唯一索引 | `(account,pnmId)` 去重；可用 | **REDESIGN** owner+外部消息唯一键；已接入 runtime | 消息 | 查询接口 | P1 | 并发重复写入仅保存一条，owner 隔离列表测试通过 |
-| 人工接管 | `HumanTakeoverManager.java`、`XianyuHumanInterventionRecord.java` | 关键词切换、内存超时和记录 | **REDESIGN**；显式持久化接管/释放已完成，人工回复成功后自动接管 | 会话接管 | 接管/释放/回复 | P2 | owner 隔离、接管阻断与出站记录测试通过 |
+| 人工接管 | `HumanTakeoverManager.java`、`XyHumanInterventionRecord.java` | 关键词切换、内存超时和记录 | **REDESIGN**；显式持久化接管/释放已完成，人工回复成功后自动接管 | 会话接管 | 接管/释放/回复 | P2 | owner 隔离、接管阻断与出站记录测试通过 |
 | 商品同步与详情 | `ItemServiceImpl.java`、`ItemDetailSyncServiceImpl.java` | 列表/详情 API；浏览器详情兜底明确未实现 | **ADAPT**；真实在售商品分页同步、Cookie 更新、幂等落库与下架标记已完成，详情/SKU 待后续 | 商品、SKU | 同步/列表/详情 | P1 | 单元测试通过；授权账号实测同步 8 个在售商品并在页面展示 |
-| 商品业务开关 | `XianyuGoodsConfig.java` | 自动回复、关键词、上下文、发货等聚合 | **REDESIGN**；回复/发货开关与延迟已完成 | 商品设置 | 设置接口 | P1 | owner+账号+商品隔离测试已通过 |
+| 商品业务开关 | `XyGoodsConfig.java` | 自动回复、关键词、上下文、发货等聚合 | **REDESIGN**；回复/发货开关与延迟已完成 | 商品设置 | 设置接口 | P1 | owner+账号+商品隔离测试已通过 |
 | 关键词回复 | `KeywordReplyServiceImpl.java` | 多关键词模糊规则按优先级处理，未命中时兜底 | **ADAPT**；每商品多条模糊规则、一条兜底、优先级排序和真实 WebSocket 文本发送已完成，暂为单文本 | 回复规则/内容/任务 | CRUD/发送 | P2 | 优先级、历史精确规则兼容、owner 隔离、回执和超时分类已通过 |
 | AI 回复与润色 | `ReplyStrategyResolver.java`、`AIReplyStrategy.java` | 关键词+AI 时先匹配再润色，否则 RAG；失败回退 | **REDESIGN** Prompt 边界与注入防护 | AI 配置/执行记录 | 配置/测试 | P2 | 恶意输入、超时、降级测试 |
 | 延迟合并回复 | `AutoReplyDelayServiceImpl.java` | 同会话新消息取消旧任务并重计时；仅内存 | **REDESIGN**；256 会话有界调度、持久任务状态、发送前二次校验和重启恢复已完成 | 待回复任务 | 配置/状态 | P2 | 连续消息只发送最后一条、取消及重启恢复测试 |

@@ -44,7 +44,7 @@ python test_core.py
 
 ## Docker 与 PostgreSQL
 
-Compose 中的服务统一使用 `go.xianyu.assistant` 网络。闲鱼助手后台映射到宿主机 `18080`，PostgreSQL 映射到 `15432`，RustFS 的 S3 API/控制台分别映射到 `19000`/`19001`，Telegram Web UI 映射到 `127.0.0.1:18081`。
+Compose 中的服务统一使用 `go.xy.assistant` 网络。闲鱼助手后台映射到宿主机 `18080`，PostgreSQL 映射到 `15432`，RustFS 的 S3 API/控制台分别映射到 `19000`/`19001`，Telegram Web UI 映射到 `127.0.0.1:18081`。
 
 Telegram 与 Go 后端共用 `xianyu_assistant` 数据库，Telegram 表统一使用 `tel_` 前缀；PostgreSQL 通过宿主机 `15432` 端口连接。原 SQLite 业务数据不再使用，不提供 SQLite 迁移流程。
 
