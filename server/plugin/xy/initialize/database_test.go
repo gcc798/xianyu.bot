@@ -27,6 +27,9 @@ func TestDatabaseConfiguresSQLite(t *testing.T) {
 	var foreignKeys int
 	require.NoError(t, db.Raw("PRAGMA foreign_keys").Scan(&foreignKeys).Error)
 	require.Equal(t, 1, foreignKeys)
+	for _, table := range []string{"xy_resource_searches", "xy_resource_candidates", "xy_resource_tasks", "xy_resources", "xy_resource_sources"} {
+		require.Truef(t, db.Migrator().HasTable(table), "expected resource table %s", table)
+	}
 }
 
 func TestDatabaseSkipsSQLitePragmasForPostgres(t *testing.T) {

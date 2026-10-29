@@ -25,7 +25,7 @@ func Database(ctx context.Context) error {
 			}
 		}
 	}
-	if err := db.AutoMigrate(&model.Account{}, &model.Credential{}, &model.Setting{}, &model.Product{}, &model.ProductSetting{}, &model.ReplyRule{}, &model.ReplyContent{}, &model.DeliveryRule{}, &model.DeliveryResource{}, &model.DeliveryTask{}, &model.RelistTask{}, &model.Message{}, &model.ConversationTakeover{}, &model.ReplyTask{}, &model.Order{}, &model.OrderEvent{}, &model.BusinessEvent{}, &model.AIModel{}, &model.MCPServer{}, &model.AgentConfig{}); err != nil {
+	if err := db.AutoMigrate(&model.Account{}, &model.Credential{}, &model.Setting{}, &model.Product{}, &model.ProductSetting{}, &model.ReplyRule{}, &model.ReplyContent{}, &model.DeliveryRule{}, &model.DeliveryResource{}, &model.DeliveryTask{}, &model.RelistTask{}, &model.Message{}, &model.ConversationTakeover{}, &model.ReplyTask{}, &model.Order{}, &model.OrderEvent{}, &model.BusinessEvent{}, &model.AIModel{}, &model.MCPServer{}, &model.AgentConfig{}, &model.ResourceSearch{}, &model.ResourceCandidate{}, &model.ResourceTask{}, &model.Resource{}, &model.ResourceSource{}); err != nil {
 		return err
 	}
 	config := model.DefaultAgentConfig()
