@@ -457,6 +457,7 @@ func buildEinoMCPTools(connections []*mcpConnection, harness *agentHarness, even
 				return nil, err
 			}
 			adapted.events = events
+			adapted.ownerID = run.OwnerID
 			adapted.sessionID = run.SessionID
 			adapted.runID = run.ID
 			tools = append(tools, adapted)

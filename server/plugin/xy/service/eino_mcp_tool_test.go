@@ -82,14 +82,57 @@ func TestEinoMCPToolCallsReadCapability(t *testing.T) {
 	require.Empty(t, call.ErrorMessage)
 }
 
+func TestEinoMCPToolPersistsResourceSearchCandidates(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	require.NoError(t, err)
+	require.NoError(t, db.AutoMigrate(&model.AgentRunTool{}, &model.ResourceSearch{}, &model.ResourceCandidate{}))
+	oldDB := global.GVA_DB
+	global.GVA_DB = db
+	t.Cleanup(func() { global.GVA_DB = oldDB })
+	client := &recordingMCPClient{result: map[string]any{
+		"status": "success",
+		"data": map[string]any{"candidates": []any{map[string]any{
+			"candidate_id": "signed-candidate", "name": "Go.pdf", "size": 123,
+			"mime_type": "application/pdf", "source": map[string]any{"name": "Go 资料"},
+			"preview": "preview", "license": "unknown", "risk": "许可未知",
+		}}},
+	}}
+	connection := &mcpConnection{Server: model.MCPServer{Code: "resources", RequestTimeoutSeconds: 15}, Client: client}
+	definition := mcp.Tool{Name: "resource_search", InputSchema: mcp.ToolInputSchema{Type: "object", Properties: map[string]any{
+		"query": map[string]any{"type": "string"},
+	}}}
+	target, err := newEinoMCPTool(connection, definition, newAgentHarness(model.DefaultAgentConfig()))
+	require.NoError(t, err)
+	target.ownerID = 11
+	target.runID = 9
+
+	_, err = target.InvokableRun(t.Context(), `{"query":"Go"}`)
+	require.NoError(t, err)
+	var search model.ResourceSearch
+	require.NoError(t, db.First(&search).Error)
+	require.EqualValues(t, 11, search.OwnerID)
+	require.Equal(t, "Go", search.Query)
+	var candidate model.ResourceCandidate
+	require.NoError(t, db.First(&candidate).Error)
+	require.Equal(t, search.ID, candidate.SearchID)
+	require.Equal(t, "signed-candidate", candidate.ExternalID)
+	require.Equal(t, "resources", candidate.MCPServerCode)
+	require.NotNil(t, candidate.ExpiresAt)
+}
+
 type recordingMCPClient struct {
 	fakeMCPClient
 	calls    atomic.Int64
 	lastName string
+	result   any
 }
 
 func (c *recordingMCPClient) CallTool(_ context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	c.calls.Add(1)
 	c.lastName = request.Params.Name
-	return &mcp.CallToolResult{StructuredContent: map[string]any{"ok": true}}, nil
+	result := c.result
+	if result == nil {
+		result = map[string]any{"ok": true}
+	}
+	return &mcp.CallToolResult{StructuredContent: result}, nil
 }

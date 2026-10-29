@@ -16,6 +16,7 @@ import (
 	"github.com/flipped-aurora/gin-vue-admin/server/global"
 	"github.com/flipped-aurora/gin-vue-admin/server/plugin/xy/model"
 	"github.com/mark3labs/mcp-go/mcp"
+	"gorm.io/gorm"
 )
 
 type einoMCPTool struct {
@@ -25,6 +26,7 @@ type einoMCPTool struct {
 	harness    *agentHarness
 	parameters *jsonschema.Schema
 	events     *agentEventHub
+	ownerID    uint
 	sessionID  uint
 	runID      uint
 }
@@ -90,6 +92,13 @@ func (t *einoMCPTool) InvokableRun(ctx context.Context, arguments string, _ ...t
 		t.publish("tool.completed", map[string]any{"runId": t.runID, "tool": t.definition.Name, "status": "failed"})
 		return toolFailure("capability_unavailable", "MCP 能力暂不可用"), nil
 	}
+	if err := t.persistResourceSearch(ctx, input, result); err != nil {
+		if finishErr := t.finishToolCall(ctx, call, "failed", "metadata_persistence_failed", "保存资源候选失败"); finishErr != nil {
+			return "", errors.Join(err, finishErr)
+		}
+		t.publish("tool.completed", map[string]any{"runId": t.runID, "tool": t.definition.Name, "status": "failed"})
+		return toolFailure("metadata_persistence_failed", "资源候选暂时无法保存"), nil
+	}
 	payload, err := json.Marshal(result)
 	if err != nil {
 		if finishErr := t.finishToolCall(ctx, call, "failed", "invalid_result", "MCP 工具结果无效"); finishErr != nil {
@@ -106,6 +115,69 @@ func (t *einoMCPTool) InvokableRun(ctx context.Context, arguments string, _ ...t
 	}
 	t.publish("tool.completed", map[string]any{"runId": t.runID, "tool": t.definition.Name, "status": status})
 	return string(payload), nil
+}
+
+type resourceSearchResult struct {
+	Status string `json:"status"`
+	Data   struct {
+		Candidates []struct {
+			CandidateID string          `json:"candidate_id"`
+			Name        string          `json:"name"`
+			Size        int64           `json:"size"`
+			MIMEType    string          `json:"mime_type"`
+			Source      json.RawMessage `json:"source"`
+			Preview     string          `json:"preview"`
+			License     string          `json:"license"`
+			Risk        string          `json:"risk"`
+		} `json:"candidates"`
+	} `json:"data"`
+}
+
+func (t *einoMCPTool) persistResourceSearch(ctx context.Context, input map[string]any, result *mcp.CallToolResult) error {
+	if t.definition.Name != "resource_search" || result == nil || result.IsError || t.ownerID == 0 {
+		return nil
+	}
+	payload, err := json.Marshal(result.StructuredContent)
+	if err != nil {
+		return err
+	}
+	var searchResult resourceSearchResult
+	if err := json.Unmarshal(payload, &searchResult); err != nil {
+		return err
+	}
+	if searchResult.Status != "success" {
+		return nil
+	}
+	query, _ := input["query"].(string)
+	expiresAt := time.Now().Add(24 * time.Hour)
+	return global.GVA_DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		search := model.ResourceSearch{OwnerID: t.ownerID, Query: query, Status: "completed"}
+		if err := tx.Create(&search).Error; err != nil {
+			return err
+		}
+		for _, item := range searchResult.Data.Candidates {
+			if item.CandidateID == "" || item.Name == "" || item.Size < 0 {
+				return errors.New("MCP 资源候选格式无效")
+			}
+			license := item.License
+			if license == "" {
+				license = "unknown"
+			}
+			source := item.Source
+			if len(source) == 0 {
+				source = json.RawMessage(`{}`)
+			}
+			candidate := model.ResourceCandidate{
+				SearchID: search.ID, MCPServerCode: t.connection.Server.Code, ExternalID: item.CandidateID,
+				Name: item.Name, Size: item.Size, MIMEType: item.MIMEType, Source: string(source),
+				Preview: item.Preview, License: license, Risk: item.Risk, ExpiresAt: &expiresAt,
+			}
+			if err := tx.Create(&candidate).Error; err != nil {
+				return err
+			}
+		}
+		return nil
+	})
 }
 
 func (t *einoMCPTool) startToolCall(ctx context.Context) (*model.AgentRunTool, error) {
