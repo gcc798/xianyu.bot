@@ -2,6 +2,8 @@ import json
 import unittest
 
 from mcp import Client
+from mcp.server.transport_security import TransportSecurityMiddleware
+from starlette.requests import Request
 
 from mcp_server import build_mcp
 
@@ -49,6 +51,17 @@ class MCPContractTest(unittest.IsolatedAsyncioTestCase):
             result = await client.call_tool("channel_get_status", {})
         payload = json.loads(result.content[0].text)
         self.assertEqual(payload, {"status": "success", "data": {"state": "disabled"}, "error": None})
+
+    async def test_streamable_http_accepts_docker_service_host(self):
+        server, _ = build_mcp(FakeTelegram(), FakeResources(), FakeDatabase())
+        middleware = TransportSecurityMiddleware(server.session_manager.security_settings)
+        request = Request({
+            "type": "http",
+            "method": "POST",
+            "path": "/",
+            "headers": [(b"host", b"telegram:8080"), (b"content-type", b"application/json")],
+        })
+        self.assertIsNone(await middleware.validate_request(request, is_post=True))
 
 
 if __name__ == "__main__":

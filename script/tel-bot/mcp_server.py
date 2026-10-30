@@ -4,6 +4,7 @@ import json
 from typing import Any
 
 from mcp.server.mcpserver import MCPServer
+from mcp.server.transport_security import TransportSecuritySettings
 
 from resource_service import ResourceCapabilityError
 
@@ -144,7 +145,15 @@ def build_mcp(telegram, resources, db) -> tuple[MCPServer, Any]:
             return _failed("invalid_argument", "任务类型无效")
         return success({"task_id": task_id, "state": "cancelled"})
 
-    app = server.streamable_http_app(streamable_http_path="/", json_response=True, stateless_http=True)
+    app = server.streamable_http_app(
+        streamable_http_path="/",
+        json_response=True,
+        stateless_http=True,
+        transport_security=TransportSecuritySettings(
+            allowed_hosts=["127.0.0.1:*", "localhost:*", "[::1]:*", "telegram:*"],
+            allowed_origins=["http://127.0.0.1:*", "http://localhost:*", "http://[::1]:*"],
+        ),
+    )
     return server, app
 
 
