@@ -34,15 +34,20 @@ class TelegramService:
         self.progress = {"status": "idle", "current": 0, "total": 0, "name": "", "message": ""}
 
     async def connect(self):
-        if self.client:
+        if not self.client:
+            return
+        for attempt in range(3):
             try:
                 await self._ensure_connected()
                 self.authorized = await self.client.is_user_authorized()
                 if self.authorized:
                     me = await self.call(self.client.get_me)
                     self.db.setting("account_name", " ".join(x for x in (me.first_name, me.last_name) if x) or str(me.id))
+                return
             except Exception as exc:
                 log.warning("Telegram connection failed: %s", exc)
+                if attempt < 2:
+                    await asyncio.sleep(attempt + 1)
 
     async def _ensure_connected(self):
         async with self.connect_lock:

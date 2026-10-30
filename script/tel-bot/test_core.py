@@ -5,6 +5,7 @@ from pathlib import Path
 from types import SimpleNamespace
 import uuid
 import zipfile
+from unittest.mock import AsyncMock, patch
 
 from analyzer import cleanup_tags, telegram_link
 from database import ADULT_NAME_PATTERN, Database
@@ -230,6 +231,31 @@ def test_join_records_the_joined_dialog():
     assert joined["id"] == 7
 
 
+def test_connect_retries_transient_failure():
+    service = TelegramService.__new__(TelegramService)
+    service.authorized = False
+    attempts = 0
+
+    async def ensure_connected():
+        nonlocal attempts
+        attempts += 1
+        if attempts == 1:
+            raise ConnectionError("temporary failure")
+
+    service._ensure_connected = ensure_connected
+    service.call = TelegramService.call.__get__(service)
+    service.client = SimpleNamespace(
+        is_user_authorized=AsyncMock(return_value=True),
+        get_me=AsyncMock(return_value=SimpleNamespace(first_name="XY", last_name=None, id=7)),
+    )
+    service.db = SimpleNamespace(setting=lambda *_args: None)
+
+    with patch("telegram_service.asyncio.sleep", new=AsyncMock()):
+        asyncio.run(service.connect())
+    assert attempts == 2
+    assert service.authorized is True
+
+
 if __name__ == "__main__":
     test_resource_validation()
     test_adult_dialog_filter_uses_cached_ids_without_ai()
@@ -238,4 +264,5 @@ if __name__ == "__main__":
     test_metadata_scan_storage()
     test_qr_login_migrates_before_rendering()
     test_join_records_the_joined_dialog()
+    test_connect_retries_transient_failure()
     print("ok")
