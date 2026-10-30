@@ -74,6 +74,10 @@ def rank_sources(keyword: str, dialogs: list[dict]) -> list[dict]:
     return sorted(dialogs, key=score, reverse=True)
 
 
+def is_interactive_search_group(dialog: dict) -> bool:
+    return bool(dialog.get("is_group")) and "搜" in (dialog.get("name") or "")
+
+
 def _decode_base64(value: str) -> bytes:
     return base64.urlsafe_b64decode(value + "=" * (-len(value) % 4))
 
@@ -117,6 +121,8 @@ class ResourceService:
         self.queue: asyncio.Queue[int] = asyncio.Queue()
         self.workers: list[asyncio.Task] = []
         self.acquisitions: dict[int, asyncio.Task] = {}
+        self.interactive_search_lock = asyncio.Lock()
+        self.interactive_search_wait = min(max(float(os.getenv("TG_INTERACTIVE_SEARCH_WAIT_SECONDS", "8")), 1), 30)
         self.concurrency = min(max(int(os.getenv("TG_RESOURCE_CONCURRENCY", "1")), 1), 3)
         self.max_file_size = int(os.getenv("TG_RESOURCE_MAX_FILE_MB", "200")) * 1024 * 1024
         configured_tmp = os.getenv("TELEGRAM_TMP_ROOT")
@@ -292,7 +298,20 @@ class ResourceService:
         await self.telegram._ensure_connected()
         candidates = []
         failed_sources = 0
-        for dialog in rank_sources(query, dialogs):
+        ranked = rank_sources(query, dialogs)
+        interactive = [dialog for dialog in ranked if is_interactive_search_group(dialog)][:3]
+        interactive_ids = {dialog["id"] for dialog in interactive}
+        for dialog in interactive:
+            try:
+                candidates.extend(await self._search_interactive_group(dialog, query, cleaned_types, limit - len(candidates)))
+                if len(candidates) >= limit:
+                    return candidates
+            except Exception as exc:
+                failed_sources += 1
+                LOGGER.warning("Interactive resource search skipped source %s: %s", dialog["id"], exc)
+        for dialog in ranked:
+            if dialog["id"] in interactive_ids:
+                continue
             try:
                 entity = await self._dialog_entity(dialog)
                 async for message in self.telegram.client.iter_messages(entity, search=query, limit=max(limit * 5, 100)):
@@ -308,6 +327,37 @@ class ResourceService:
         if failed_sources == len(dialogs):
             raise ResourceCapabilityError("source_unavailable", "检索来源当前不可用", retryable=True)
         return candidates
+
+    async def _search_interactive_group(self, dialog: dict, query: str, file_types: list[str], limit: int) -> list[dict]:
+        if limit < 1:
+            return []
+        lock = getattr(self, "interactive_search_lock", None)
+        if lock is None:
+            lock = self.interactive_search_lock = asyncio.Lock()
+        wait_seconds = getattr(self, "interactive_search_wait", 8)
+        async with lock:
+            entity = await self._dialog_entity(dialog)
+            sent = await self.telegram.call(self.telegram.client.send_message, entity, query)
+            sent_id = int(getattr(sent, "id", 0) or 0)
+            if sent_id < 1:
+                raise RuntimeError("Telegram 未返回搜索消息标识")
+            deadline = asyncio.get_running_loop().time() + wait_seconds
+            seen = set()
+            found = []
+            while asyncio.get_running_loop().time() < deadline:
+                async for message in self.telegram.client.iter_messages(entity, min_id=sent_id, reverse=True, limit=100):
+                    if message.id in seen:
+                        continue
+                    seen.add(message.id)
+                    metadata = self._match(message, {"keyword": query, "file_types": file_types})
+                    if metadata:
+                        found.append(self._candidate(dialog, message, metadata))
+                        if len(found) >= limit:
+                            return found
+                if found:
+                    return found
+                await asyncio.sleep(min(1, wait_seconds))
+            return found
 
     async def inspect_candidate(self, candidate_id: str) -> dict:
         candidate = self._decode_candidate(candidate_id)

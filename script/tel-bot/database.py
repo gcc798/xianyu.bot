@@ -249,7 +249,7 @@ class Database:
         visibility, params = self._adult_visibility()
         adult_filter = f" AND {visibility}" if visibility else ""
         with self.connect() as db:
-            return db.execute(f"SELECT d.id,d.telegram_id,d.name,d.username,d.dialog_type,d.member_count,d.last_message_at FROM tel_dialogs d WHERE d.status='normal' AND d.resource_compliance_status='allowed' AND d.username IS NOT NULL AND (d.is_group OR d.is_broadcast){adult_filter} ORDER BY d.last_message_at DESC NULLS LAST,d.name", params).fetchall()
+            return db.execute(f"SELECT d.id,d.telegram_id,d.name,d.username,d.dialog_type,d.is_group,d.is_broadcast,d.member_count,d.last_message_at FROM tel_dialogs d WHERE d.status='normal' AND d.resource_compliance_status='allowed' AND d.username IS NOT NULL AND (d.is_group OR d.is_broadcast){adult_filter} ORDER BY d.last_message_at DESC NULLS LAST,d.name", params).fetchall()
 
     def adult_classification_dialogs(self) -> list[dict]:
         with self.connect() as db:

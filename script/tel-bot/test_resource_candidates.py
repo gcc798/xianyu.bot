@@ -6,13 +6,14 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
-from resource_service import ResourceCapabilityError, ResourceService
+from resource_service import ResourceCapabilityError, ResourceService, is_interactive_search_group
 
 
 class FakeClient:
     def __init__(self, messages):
         self.messages = messages
         self.entity_requests = []
+        self.sent = []
 
     async def get_entity(self, identifier):
         self.entity_requests.append(identifier)
@@ -21,11 +22,17 @@ class FakeClient:
     async def get_messages(self, _entity, ids):
         return next((message for message in self.messages if message.id == ids), None)
 
-    async def iter_messages(self, _entity, search, limit):
+    async def iter_messages(self, _entity, search=None, limit=100, min_id=0, reverse=False):
         _ = limit
         for message in self.messages:
-            if search.casefold() in f"{message.file.name} {message.raw_text}".casefold():
+            if message.id <= min_id:
+                continue
+            if search is None or search.casefold() in f"{message.file.name} {message.raw_text}".casefold():
                 yield message
+
+    async def send_message(self, entity, text):
+        self.sent.append((entity, text))
+        return SimpleNamespace(id=10)
 
     async def download_media(self, _message, file):
         Path(file).write_bytes(b"x" * 2048)
@@ -48,8 +55,12 @@ class FakeDatabase:
     dialog_record = {
         "id": 7, "telegram_id": 700, "name": "Go 资料", "username": "go_docs",
         "dialog_type": "频道", "last_message_at": datetime.now(timezone.utc),
+        "is_group": False, "is_broadcast": True,
         "status": "normal", "resource_compliance_status": "allowed",
     }
+
+    def __init__(self):
+        self.dialog_record = self.dialog_record.copy()
 
     def resource_dialogs(self):
         return [self.dialog_record.copy()]
@@ -90,6 +101,19 @@ class ResourceCandidateTest(unittest.IsolatedAsyncioTestCase):
         service.max_file_size = 10 * 1024 * 1024
         service.acquisitions = {}
         return service
+
+    @patch.dict(os.environ, {"TELEGRAM_INTERNAL_TOKEN": "candidate-test-secret"})
+    async def test_group_name_containing_search_character_uses_interactive_search(self):
+        service = self.service([message()])
+        service.db.dialog_record.update(name="搜书群", is_group=True, is_broadcast=False)
+        service.interactive_search_wait = 0.01
+
+        candidates = await service.search_candidates("Go", ["pdf"], 1)
+
+        self.assertEqual(len(candidates), 1)
+        self.assertEqual(service.telegram.client.sent, [("go_docs", "Go")])
+        self.assertTrue(is_interactive_search_group(service.db.dialog_record))
+        self.assertFalse(is_interactive_search_group({**service.db.dialog_record, "is_group": False}))
 
     @patch.dict(os.environ, {"TELEGRAM_INTERNAL_TOKEN": "candidate-test-secret"})
     async def test_search_and_inspect_do_not_download(self):
