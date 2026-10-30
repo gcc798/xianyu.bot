@@ -58,7 +58,7 @@ func TestAgentHarnessClassifiesUnknownToolsConservatively(t *testing.T) {
 	require.False(t, toolRequiresApproval(mcp.Tool{Name: "custom_read", Annotations: mcp.ToolAnnotation{ReadOnlyHint: &readOnly}}))
 	require.True(t, toolRequiresApproval(mcp.Tool{Name: "custom_unknown"}))
 	require.Equal(t, 5*time.Second, toolTimeout(mcp.Tool{Name: "resource_acquire"}))
-	require.Equal(t, 15*time.Second, toolTimeout(mcp.Tool{Name: "resource_search"}))
+	require.Equal(t, 45*time.Second, toolTimeout(mcp.Tool{Name: "resource_search"}))
 }
 
 func TestAgentHarnessAppliesWallTime(t *testing.T) {

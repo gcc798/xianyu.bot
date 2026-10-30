@@ -80,6 +80,9 @@ func (t *einoMCPTool) InvokableRun(ctx context.Context, arguments string, _ ...t
 		t.publish("approval.required", map[string]any{"runId": t.runID, "tool": t.definition.Name})
 		return toolFailure("approval_required", "此操作需要用户确认后执行"), nil
 	}
+	if err := t.saveToolArguments(ctx, call, input); err != nil {
+		return "", err
+	}
 	callContext, cancel := context.WithTimeout(ctx, min(toolTimeout(t.definition), time.Duration(t.connection.Server.RequestTimeoutSeconds)*time.Second))
 	defer cancel()
 	result, err := t.connection.Client.CallTool(callContext, mcp.CallToolRequest{Params: mcp.CallToolParams{
@@ -245,6 +248,17 @@ func (t *einoMCPTool) startToolCall(ctx context.Context) (*model.AgentRunTool, e
 		return nil, err
 	}
 	return call, nil
+}
+
+func (t *einoMCPTool) saveToolArguments(ctx context.Context, call *model.AgentRunTool, input map[string]any) error {
+	if call == nil {
+		return nil
+	}
+	arguments, err := json.Marshal(input)
+	if err != nil {
+		return err
+	}
+	return global.GVA_DB.WithContext(ctx).Model(call).Update("arguments", string(arguments)).Error
 }
 
 func (t *einoMCPTool) finishToolCall(ctx context.Context, call *model.AgentRunTool, status, errorCode, errorMessage string) error {

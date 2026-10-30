@@ -110,6 +110,9 @@ func toolRequiresApproval(tool mcp.Tool) bool {
 }
 
 func toolTimeout(tool mcp.Tool) time.Duration {
+	if tool.Name == "resource_search" {
+		return 45 * time.Second
+	}
 	if toolRequiresApproval(tool) || tool.Name == "task_get" {
 		return 5 * time.Second
 	}

@@ -309,7 +309,9 @@ class ResourceService:
             except Exception as exc:
                 failed_sources += 1
                 LOGGER.warning("Interactive resource search skipped source %s: %s", dialog["id"], exc)
-        for dialog in ranked:
+        history_sources = ranked if source_ids else [dialog for dialog in ranked if dialog["id"] not in interactive_ids][:5]
+        # shortcut: bound automatic history fan-out to avoid Telegram flood waits; make it configurable when operators need broader searches.
+        for dialog in history_sources:
             if dialog["id"] in interactive_ids:
                 continue
             try:

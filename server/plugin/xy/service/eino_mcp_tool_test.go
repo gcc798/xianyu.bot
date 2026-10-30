@@ -89,6 +89,7 @@ func TestEinoMCPToolCallsReadCapability(t *testing.T) {
 	var call model.AgentRunTool
 	require.NoError(t, db.First(&call).Error)
 	require.EqualValues(t, 9, call.RunID)
+	require.Equal(t, `{"query":"Go"}`, call.Arguments)
 	require.Equal(t, "completed", call.Status)
 	require.Empty(t, call.ErrorMessage)
 }
