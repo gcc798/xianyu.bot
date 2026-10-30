@@ -42,7 +42,7 @@ def build_mcp(telegram, resources, db) -> tuple[MCPServer, Any]:
             "description": "检索已加入且已扫描的群组和频道",
             "capabilities": [
                 "channel_get_info", "channel_get_status", "dialog_list", "dialog_resolve",
-                "message_send", "message_list", "message_search", "source_sync",
+                "dialog_join", "message_send", "message_list", "message_search", "source_sync",
                 "resource_inspect", "resource_acquire", "task_get", "task_cancel",
             ],
             "limits": {"max_file_size": resources.max_file_size, "max_results": 100},
@@ -92,6 +92,19 @@ def build_mcp(telegram, resources, db) -> tuple[MCPServer, Any]:
             "dialog": _resolved_dialog_payload(entity, stored),
             "accessible": stored is not None and stored.get("status") == "normal",
         })
+
+    @server.tool()
+    async def dialog_join(reference: str) -> dict:
+        """加入公开群组、频道或邀请链接；调用方应在执行前获得用户确认。"""
+        if failure := _telegram_readiness(telegram):
+            return failure
+        if not reference.strip():
+            return _failed("invalid_argument", "会话引用不能为空")
+        try:
+            dialog = await telegram.join(reference)
+        except Exception:
+            return _failed("capability_unavailable", "无法加入该群组或频道", True)
+        return success({"dialog": _dialog_payload(dialog), "accessible": True})
 
     @server.tool()
     async def message_send(dialog_id: int, text: str) -> dict:

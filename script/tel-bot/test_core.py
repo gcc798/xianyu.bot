@@ -197,6 +197,39 @@ def test_qr_login_migrates_before_rendering():
     assert login._resp is imported
 
 
+def test_join_records_the_joined_dialog():
+    entity = SimpleNamespace(id=700, username="books")
+
+    class Client:
+        async def get_entity(self, username):
+            assert username == "books"
+            return entity
+
+        async def __call__(self, request):
+            assert isinstance(request, functions.channels.JoinChannelRequest)
+
+        async def get_dialogs(self, limit=None):
+            assert limit is None
+            return [SimpleNamespace(entity=entity)]
+
+    class FakeDatabase:
+        def upsert_dialog(self, dialog):
+            assert dialog == {"telegram_id": 700}
+            return 7
+
+        def dialog(self, dialog_id):
+            assert dialog_id == 7
+            return {"id": 7, "telegram_id": 700, "status": "normal"}
+
+    service = TelegramService.__new__(TelegramService)
+    service.client = Client()
+    service.db = FakeDatabase()
+    service._dialog_data = lambda dialog: {"telegram_id": dialog.entity.id}
+
+    joined = asyncio.run(service.join("https://t.me/books"))
+    assert joined["id"] == 7
+
+
 if __name__ == "__main__":
     test_resource_validation()
     test_adult_dialog_filter_uses_cached_ids_without_ai()
@@ -204,4 +237,5 @@ if __name__ == "__main__":
     test_ai_probe_does_not_refresh_adult_cache()
     test_metadata_scan_storage()
     test_qr_login_migrates_before_rendering()
+    test_join_records_the_joined_dialog()
     print("ok")

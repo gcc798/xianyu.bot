@@ -4,6 +4,7 @@ import asyncio
 import base64
 import io
 import logging
+import re
 from datetime import datetime, timezone
 
 import qrcode
@@ -213,3 +214,21 @@ class TelegramService:
         except Exception as exc:
             self.db.record_leave(dialog, "failed", str(exc))
             return False, str(exc)
+
+    async def join(self, reference: str) -> dict:
+        value = reference.strip()
+        invite = re.fullmatch(r"(?:https?://)?t\.me/(?:joinchat/|\+)([A-Za-z0-9_-]+)", value, re.IGNORECASE)
+        if invite:
+            updates = await self.call(self.client, functions.messages.ImportChatInviteRequest(invite.group(1)))
+            joined_ids = {chat.id for chat in getattr(updates, "chats", [])}
+        else:
+            username = re.sub(r"^(?:https?://)?t\.me/", "", value, flags=re.IGNORECASE).strip("/@")
+            entity = await self.call(self.client.get_entity, username)
+            await self.call(self.client, functions.channels.JoinChannelRequest(entity))
+            joined_ids = {entity.id}
+        dialogs = await self.call(self.client.get_dialogs, limit=None)
+        joined = next((dialog for dialog in dialogs if dialog.entity.id in joined_ids), None)
+        if joined is None:
+            raise RuntimeError("加入成功但未读取到会话")
+        dialog_id = self.db.upsert_dialog(self._dialog_data(joined))
+        return self.db.dialog(dialog_id)

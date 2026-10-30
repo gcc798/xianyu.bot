@@ -18,6 +18,9 @@ class FakeTelegram:
     async def call(self, function, *args, **kwargs):
         return await function(*args, **kwargs)
 
+    async def join(self, _reference):
+        return FakeDatabase.dialog_record.copy()
+
 
 class FakeResources:
     max_file_size = 1024
@@ -95,7 +98,7 @@ class MCPContractTest(unittest.IsolatedAsyncioTestCase):
             [tool.name for tool in tools.tools],
             [
                 "channel_get_info", "channel_get_status",
-                "dialog_list", "dialog_resolve", "message_send", "message_list", "message_search",
+                "dialog_list", "dialog_resolve", "dialog_join", "message_send", "message_list", "message_search",
                 "source_sync", "resource_inspect", "resource_acquire", "task_get", "task_cancel",
             ],
         )
@@ -104,11 +107,13 @@ class MCPContractTest(unittest.IsolatedAsyncioTestCase):
         server, telegram = self.authorized_server()
         async with Client(server) as client:
             dialogs = json.loads((await client.call_tool("dialog_list", {"query": "搜"})).content[0].text)
+            joined = json.loads((await client.call_tool("dialog_join", {"reference": "https://t.me/books"})).content[0].text)
             sent = json.loads((await client.call_tool("message_send", {"dialog_id": 7, "text": "斗破苍穹"})).content[0].text)
             listed = json.loads((await client.call_tool("message_list", {"dialog_id": 7, "after_message_id": 10})).content[0].text)
             searched = json.loads((await client.call_tool("message_search", {"dialog_id": 7, "query": "斗破苍穹"})).content[0].text)
 
         self.assertEqual(dialogs["data"]["dialogs"][0]["name"], "搜书群")
+        self.assertTrue(joined["data"]["accessible"])
         self.assertEqual(sent["data"]["message"]["id"], 10)
         self.assertEqual(telegram.client.sent, [(700, "斗破苍穹")])
         self.assertEqual(listed["data"]["messages"][0]["file"]["candidate_id"], "7:11:900")

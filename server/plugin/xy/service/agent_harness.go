@@ -114,7 +114,7 @@ func toolRequiresApproval(tool mcp.Tool) bool {
 	switch tool.Name {
 	case "channel_get_info", "channel_get_status", "dialog_list", "dialog_resolve", "message_send", "message_list", "message_search", "resource_search", "resource_inspect", "task_get":
 		return false
-	case "source_sync", "resource_acquire", "task_cancel":
+	case "source_sync", "dialog_join", "resource_acquire", "task_cancel":
 		return true
 	default:
 		return tool.Annotations.ReadOnlyHint == nil || !*tool.Annotations.ReadOnlyHint
@@ -122,6 +122,9 @@ func toolRequiresApproval(tool mcp.Tool) bool {
 }
 
 func toolTimeout(tool mcp.Tool) time.Duration {
+	if tool.Name == "dialog_join" {
+		return 30 * time.Second
+	}
 	if tool.Name == "message_list" {
 		return 35 * time.Second
 	}

@@ -108,6 +108,7 @@ const capabilities = [
   { type: 'tool', name: 'dialog_list', description: '列出当前可访问的群组和频道' },
   { type: 'tool', name: 'source_sync', description: '同步来源，执行前需要确认' },
   { type: 'tool', name: 'dialog_resolve', description: '解析群组、频道用户名或链接' },
+  { type: 'tool', name: 'dialog_join', description: '加入群组或频道，执行前需要确认' },
   { type: 'tool', name: 'message_send', description: '向指定会话发送消息' },
   { type: 'tool', name: 'message_list', description: '按游标读取或等待新消息' },
   { type: 'tool', name: 'message_search', description: '搜索指定会话的历史消息' },
