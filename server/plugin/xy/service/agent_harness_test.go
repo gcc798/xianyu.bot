@@ -53,12 +53,27 @@ func TestAgentHarnessKeepsConcurrentToolCallsWithinLimit(t *testing.T) {
 	require.Equal(t, 5, harness.Usage().ToolCalls)
 }
 
+func TestAgentHarnessLimitsActiveToolCalls(t *testing.T) {
+	config := model.DefaultAgentConfig()
+	config.MaxConcurrentToolCalls = 2
+	harness := newAgentHarness(config)
+	require.NoError(t, harness.AcquireToolSlot(t.Context()))
+	require.NoError(t, harness.AcquireToolSlot(t.Context()))
+
+	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Millisecond)
+	defer cancel()
+	require.Error(t, harness.AcquireToolSlot(ctx))
+	harness.ReleaseToolSlot()
+	harness.ReleaseToolSlot()
+}
+
 func TestAgentHarnessClassifiesUnknownToolsConservatively(t *testing.T) {
 	readOnly := true
 	require.False(t, toolRequiresApproval(mcp.Tool{Name: "custom_read", Annotations: mcp.ToolAnnotation{ReadOnlyHint: &readOnly}}))
 	require.True(t, toolRequiresApproval(mcp.Tool{Name: "custom_unknown"}))
 	require.Equal(t, 5*time.Second, toolTimeout(mcp.Tool{Name: "resource_acquire"}))
-	require.Equal(t, 45*time.Second, toolTimeout(mcp.Tool{Name: "resource_search"}))
+	require.Equal(t, 35*time.Second, toolTimeout(mcp.Tool{Name: "message_list"}))
+	require.False(t, toolRequiresApproval(mcp.Tool{Name: "message_send"}))
 }
 
 func TestAgentHarnessAppliesWallTime(t *testing.T) {

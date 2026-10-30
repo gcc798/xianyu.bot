@@ -41,8 +41,9 @@ def build_mcp(telegram, resources, db) -> tuple[MCPServer, Any]:
             "name": "Telegram",
             "description": "检索已加入且已扫描的群组和频道",
             "capabilities": [
-                "channel_get_info", "channel_get_status", "source_list", "source_sync",
-                "resource_search", "resource_inspect", "resource_acquire", "task_get", "task_cancel",
+                "channel_get_info", "channel_get_status", "dialog_list", "dialog_resolve",
+                "message_send", "message_list", "message_search", "source_sync",
+                "resource_inspect", "resource_acquire", "task_get", "task_cancel",
             ],
             "limits": {"max_file_size": resources.max_file_size, "max_results": 100},
         })
@@ -59,22 +60,6 @@ def build_mcp(telegram, resources, db) -> tuple[MCPServer, Any]:
         else:
             state = "authentication_required"
         return success({"state": state})
-
-    @server.tool()
-    def source_list(page: int = 1, page_size: int = 30, keyword: str = "") -> dict:
-        """分页返回可检索来源。"""
-        page = max(page, 1)
-        page_size = min(max(page_size, 1), 100)
-        rows = db.resource_dialogs()
-        if keyword := keyword.casefold().strip():
-            rows = [row for row in rows if keyword in f"{row['name']} {row.get('username') or ''}".casefold()]
-        total = len(rows)
-        rows = rows[(page - 1) * page_size:page * page_size]
-        sources = [{
-            "id": row["id"], "name": row["name"], "username": row.get("username"),
-            "type": row["dialog_type"], "last_message_at": row["last_message_at"].isoformat() if row.get("last_message_at") else None,
-        } for row in rows]
-        return success({"list": sources, "total": total, "page": page, "page_size": page_size})
 
     @server.tool()
     def dialog_list(page: int = 1, page_size: int = 30, query: str = "", kind: str = "") -> dict:
@@ -149,15 +134,6 @@ def build_mcp(telegram, resources, db) -> tuple[MCPServer, Any]:
             latest = db.latest_scan()
             scan_id = latest["id"] if latest else 0
         return success({"task_id": f"source_sync:{scan_id}"})
-
-    @server.tool()
-    async def resource_search(query: str, file_types: list[str] | None = None, limit: int = 20, source_ids: list[int] | None = None) -> dict:
-        """搜索轻量资源候选，不下载文件。"""
-        try:
-            candidates = await resources.search_candidates(query, file_types, limit, source_ids)
-            return success({"candidates": candidates, "count": len(candidates)})
-        except ResourceCapabilityError as exc:
-            return _failed(exc.code, str(exc), exc.retryable)
 
     @server.tool()
     async def resource_inspect(candidate_id: str) -> dict:

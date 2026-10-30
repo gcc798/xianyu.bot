@@ -102,6 +102,7 @@ const configFields = [
   { key: 'maxIterations', label: '最大循环次数', help: 'Agent Loop 迭代上限', max: 50 },
   { key: 'maxModelCalls', label: '模型调用次数', help: '包含初始与后续模型请求', max: 100 },
   { key: 'maxToolCalls', label: '工具调用次数', help: '单轮全部工具调用总数', max: 200 },
+  { key: 'maxConcurrentToolCalls', label: '工具并发数', help: 'Agent Loop 同时执行的工具调用数', max: 20 },
   { key: 'maxSearchCalls', label: '检索调用次数', help: '只读检索工具子预算', max: 200 },
   { key: 'maxWriteToolCalls', label: '写工具调用次数', help: '需确认的写操作子预算', max: 200 },
   { key: 'maxOutputTokens', label: '最大输出 Token', help: '最终回答输出限制', max: 100000 },

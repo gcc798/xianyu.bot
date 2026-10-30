@@ -73,7 +73,7 @@ func TestEinoMCPToolCallsReadCapability(t *testing.T) {
 		Server: model.MCPServer{Code: "telegram", RequestTimeoutSeconds: 15}, Client: client,
 	}
 	definition := mcp.Tool{
-		Name: "resource_search",
+		Name: "message_search",
 		InputSchema: mcp.ToolInputSchema{Type: "object", Properties: map[string]any{
 			"query": map[string]any{"type": "string"},
 		}},
@@ -85,7 +85,7 @@ func TestEinoMCPToolCallsReadCapability(t *testing.T) {
 	require.NoError(t, err)
 	require.Contains(t, result, "structuredContent")
 	require.EqualValues(t, 1, client.calls.Load())
-	require.Equal(t, "resource_search", client.lastName)
+	require.Equal(t, "message_search", client.lastName)
 	var call model.AgentRunTool
 	require.NoError(t, db.First(&call).Error)
 	require.EqualValues(t, 9, call.RunID)
@@ -94,7 +94,7 @@ func TestEinoMCPToolCallsReadCapability(t *testing.T) {
 	require.Empty(t, call.ErrorMessage)
 }
 
-func TestEinoMCPToolPersistsResourceSearchCandidates(t *testing.T) {
+func TestEinoMCPToolPersistsMessageCandidates(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
 	require.NoError(t, db.AutoMigrate(&model.AgentRunTool{}, &model.ResourceSearch{}, &model.ResourceCandidate{}))
@@ -103,14 +103,15 @@ func TestEinoMCPToolPersistsResourceSearchCandidates(t *testing.T) {
 	t.Cleanup(func() { global.GVA_DB = oldDB })
 	client := &recordingMCPClient{textResult: true, result: map[string]any{
 		"status": "success",
-		"data": map[string]any{"candidates": []any{map[string]any{
-			"candidate_id": "signed-candidate", "name": "Go.pdf", "size": 123,
-			"mime_type": "application/pdf", "source": map[string]any{"name": "Go 资料"},
-			"preview": "preview", "license": "unknown", "risk": "许可未知",
-		}}},
+		"data": map[string]any{
+			"dialog": map[string]any{"id": 7, "name": "Go 资料"},
+			"messages": []any{map[string]any{"text": "preview", "file": map[string]any{
+				"candidate_id": "signed-candidate", "name": "Go.pdf", "size": 123, "mime_type": "application/pdf",
+			}}},
+		},
 	}}
 	connection := &mcpConnection{Server: model.MCPServer{Code: "resources", RequestTimeoutSeconds: 15}, Client: client}
-	definition := mcp.Tool{Name: "resource_search", InputSchema: mcp.ToolInputSchema{Type: "object", Properties: map[string]any{
+	definition := mcp.Tool{Name: "message_search", InputSchema: mcp.ToolInputSchema{Type: "object", Properties: map[string]any{
 		"query": map[string]any{"type": "string"},
 	}}}
 	target, err := newEinoMCPTool(connection, definition, newAgentHarness(model.DefaultAgentConfig()))
@@ -129,6 +130,8 @@ func TestEinoMCPToolPersistsResourceSearchCandidates(t *testing.T) {
 	require.Equal(t, search.ID, candidate.SearchID)
 	require.Equal(t, "signed-candidate", candidate.ExternalID)
 	require.Equal(t, "resources", candidate.MCPServerCode)
+	require.JSONEq(t, `{"id":7,"name":"Go 资料"}`, candidate.Source)
+	require.Equal(t, "preview", candidate.Preview)
 	require.NotNil(t, candidate.ExpiresAt)
 }
 

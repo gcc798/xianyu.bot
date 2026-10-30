@@ -94,9 +94,9 @@ class MCPContractTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(
             [tool.name for tool in tools.tools],
             [
-                "channel_get_info", "channel_get_status", "source_list",
+                "channel_get_info", "channel_get_status",
                 "dialog_list", "dialog_resolve", "message_send", "message_list", "message_search",
-                "source_sync", "resource_search", "resource_inspect", "resource_acquire", "task_get", "task_cancel",
+                "source_sync", "resource_inspect", "resource_acquire", "task_get", "task_cancel",
             ],
         )
 

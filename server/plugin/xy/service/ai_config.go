@@ -215,7 +215,7 @@ func validateHTTPURL(value string) error {
 }
 
 func validateAgentConfig(item model.AgentConfig) error {
-	values := []int{item.MaxWallTimeSeconds, item.MaxIterations, item.MaxModelCalls, item.MaxToolCalls, item.MaxSearchCalls, item.MaxWriteToolCalls, item.MaxOutputTokens, item.ConversationHistoryLimit, item.SummaryTriggerTokens}
+	values := []int{item.MaxWallTimeSeconds, item.MaxIterations, item.MaxModelCalls, item.MaxToolCalls, item.MaxConcurrentToolCalls, item.MaxSearchCalls, item.MaxWriteToolCalls, item.MaxOutputTokens, item.ConversationHistoryLimit, item.SummaryTriggerTokens}
 	for _, value := range values {
 		if value < 1 {
 			return errors.New("Agent 配置项必须为正整数")
@@ -223,6 +223,9 @@ func validateAgentConfig(item model.AgentConfig) error {
 	}
 	if item.MaxWallTimeSeconds > 600 || item.MaxIterations > 50 || item.MaxModelCalls > 100 || item.MaxToolCalls > 200 {
 		return errors.New("Agent 运行限制超出允许范围")
+	}
+	if item.MaxConcurrentToolCalls > 20 || item.MaxConcurrentToolCalls > item.MaxToolCalls {
+		return errors.New("Agent 工具并发数超出允许范围")
 	}
 	if item.MaxSearchCalls > item.MaxToolCalls || item.MaxWriteToolCalls > item.MaxToolCalls {
 		return errors.New("搜索和写工具调用次数不能超过工具调用总次数")

@@ -137,14 +137,14 @@ func TestAgentRunnerCancelsOwnedRun(t *testing.T) {
 func TestValidateAgentDirectives(t *testing.T) {
 	directives := []xyRequest.AgentDirective{
 		{Type: " skill ", Name: " resource-discovery "},
-		{Type: "tool", Name: "resource_search"},
+		{Type: "tool", Name: "message_search"},
 	}
 	require.NoError(t, validateAgentDirectives(directives))
 	require.Equal(t, "skill", directives[0].Type)
 	require.Equal(t, "resource-discovery", directives[0].Name)
 	require.ErrorContains(t, validateAgentDirectives([]xyRequest.AgentDirective{{Type: "skill", Name: "unknown"}}), "Skill 不存在")
 	require.ErrorContains(t, validateAgentDirectives([]xyRequest.AgentDirective{{Type: "tool", Name: "bad tool"}}), "Tool 名称无效")
-	require.ErrorContains(t, validateAgentDirectives([]xyRequest.AgentDirective{{Type: "tool", Name: "task_get"}, {Type: "tool", Name: "resource_search"}}), "只能指定一次")
+	require.ErrorContains(t, validateAgentDirectives([]xyRequest.AgentDirective{{Type: "tool", Name: "task_get"}, {Type: "tool", Name: "message_search"}}), "只能指定一次")
 }
 
 func agentRunnerTestDB(t *testing.T) *gorm.DB {

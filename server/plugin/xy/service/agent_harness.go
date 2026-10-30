@@ -29,6 +29,7 @@ func (e *agentLimitError) Unwrap() error { return ErrAgentBudgetExceeded }
 
 type agentHarness struct {
 	config     model.AgentConfig
+	toolSlots  chan struct{}
 	iterations atomic.Int64
 	modelCalls atomic.Int64
 	toolCalls  atomic.Int64
@@ -45,8 +46,19 @@ type agentUsage struct {
 }
 
 func newAgentHarness(config model.AgentConfig) *agentHarness {
-	return &agentHarness{config: config}
+	return &agentHarness{config: config, toolSlots: make(chan struct{}, max(config.MaxConcurrentToolCalls, 1))}
 }
+
+func (h *agentHarness) AcquireToolSlot(ctx context.Context) error {
+	select {
+	case h.toolSlots <- struct{}{}:
+		return nil
+	case <-ctx.Done():
+		return context.Cause(ctx)
+	}
+}
+
+func (h *agentHarness) ReleaseToolSlot() { <-h.toolSlots }
 
 func (h *agentHarness) Context(parent context.Context) (context.Context, context.CancelFunc) {
 	return context.WithTimeoutCause(parent, time.Duration(h.config.MaxWallTimeSeconds)*time.Second, ErrAgentWallTime)
@@ -100,7 +112,7 @@ func reserveAgentBudget(counter *atomic.Int64, limit int64, name string) error {
 
 func toolRequiresApproval(tool mcp.Tool) bool {
 	switch tool.Name {
-	case "channel_get_info", "channel_get_status", "source_list", "resource_search", "resource_inspect", "task_get":
+	case "channel_get_info", "channel_get_status", "dialog_list", "dialog_resolve", "message_send", "message_list", "message_search", "resource_search", "resource_inspect", "task_get":
 		return false
 	case "source_sync", "resource_acquire", "task_cancel":
 		return true
@@ -110,8 +122,8 @@ func toolRequiresApproval(tool mcp.Tool) bool {
 }
 
 func toolTimeout(tool mcp.Tool) time.Duration {
-	if tool.Name == "resource_search" {
-		return 45 * time.Second
+	if tool.Name == "message_list" {
+		return 35 * time.Second
 	}
 	if toolRequiresApproval(tool) || tool.Name == "task_get" {
 		return 5 * time.Second

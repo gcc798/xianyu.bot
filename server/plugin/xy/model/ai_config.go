@@ -50,6 +50,7 @@ type AgentConfig struct {
 	MaxIterations            int  `json:"maxIterations" gorm:"not null"`
 	MaxModelCalls            int  `json:"maxModelCalls" gorm:"not null"`
 	MaxToolCalls             int  `json:"maxToolCalls" gorm:"not null"`
+	MaxConcurrentToolCalls   int  `json:"maxConcurrentToolCalls" gorm:"not null;default:3"`
 	MaxSearchCalls           int  `json:"maxSearchCalls" gorm:"not null"`
 	MaxWriteToolCalls        int  `json:"maxWriteToolCalls" gorm:"not null"`
 	MaxOutputTokens          int  `json:"maxOutputTokens" gorm:"not null"`
@@ -61,8 +62,8 @@ func (AgentConfig) TableName() string { return "xy_agent_config" }
 
 func DefaultAgentConfig() AgentConfig {
 	return AgentConfig{
-		ID: 1, MaxWallTimeSeconds: 60, MaxIterations: 6, MaxModelCalls: 7,
-		MaxToolCalls: 10, MaxSearchCalls: 3, MaxWriteToolCalls: 1,
+		ID: 1, MaxWallTimeSeconds: 300, MaxIterations: 50, MaxModelCalls: 60,
+		MaxToolCalls: 200, MaxConcurrentToolCalls: 3, MaxSearchCalls: 200, MaxWriteToolCalls: 10,
 		MaxOutputTokens: 2000, ConversationHistoryLimit: 40, SummaryTriggerTokens: 24000,
 	}
 }

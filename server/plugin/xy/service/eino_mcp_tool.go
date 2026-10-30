@@ -85,6 +85,13 @@ func (t *einoMCPTool) InvokableRun(ctx context.Context, arguments string, _ ...t
 	}
 	callContext, cancel := context.WithTimeout(ctx, min(toolTimeout(t.definition), time.Duration(t.connection.Server.RequestTimeoutSeconds)*time.Second))
 	defer cancel()
+	if err := t.harness.AcquireToolSlot(callContext); err != nil {
+		if finishErr := t.finishToolCall(ctx, call, "failed", "capability_unavailable", "等待工具执行超时"); finishErr != nil {
+			return "", errors.Join(err, finishErr)
+		}
+		return toolFailure("capability_unavailable", "MCP 能力暂不可用"), nil
+	}
+	defer t.harness.ReleaseToolSlot()
 	result, err := t.connection.Client.CallTool(callContext, mcp.CallToolRequest{Params: mcp.CallToolParams{
 		Name: t.definition.Name, Arguments: input,
 	}})
@@ -95,7 +102,7 @@ func (t *einoMCPTool) InvokableRun(ctx context.Context, arguments string, _ ...t
 		t.publish("tool.completed", map[string]any{"runId": t.runID, "tool": t.definition.Name, "status": "failed"})
 		return toolFailure("capability_unavailable", "MCP 能力暂不可用"), nil
 	}
-	if err := t.persistResourceSearch(ctx, input, result); err != nil {
+	if err := t.persistResourceCandidates(ctx, input, result); err != nil {
 		if finishErr := t.finishToolCall(ctx, call, "failed", "metadata_persistence_failed", "保存资源候选失败"); finishErr != nil {
 			return "", errors.Join(err, finishErr)
 		}
@@ -143,35 +150,42 @@ func (t *einoMCPTool) queueApproval(ctx context.Context, call *model.AgentRunToo
 	}).Error
 }
 
-type resourceSearchResult struct {
+type resourceMessageFile struct {
+	CandidateID string `json:"candidate_id"`
+	Name        string `json:"name"`
+	Size        int64  `json:"size"`
+	MIMEType    string `json:"mime_type"`
+}
+
+type resourceMessage struct {
+	File *resourceMessageFile `json:"file"`
+	Text string               `json:"text"`
+}
+
+type resourceToolResult struct {
 	Status string `json:"status"`
 	Data   struct {
-		Candidates []struct {
-			CandidateID string          `json:"candidate_id"`
-			Name        string          `json:"name"`
-			Size        int64           `json:"size"`
-			MIMEType    string          `json:"mime_type"`
-			Source      json.RawMessage `json:"source"`
-			Preview     string          `json:"preview"`
-			License     string          `json:"license"`
-			Risk        string          `json:"risk"`
-		} `json:"candidates"`
+		Dialog   json.RawMessage   `json:"dialog"`
+		Messages []resourceMessage `json:"messages"`
 	} `json:"data"`
 }
 
-func (t *einoMCPTool) persistResourceSearch(ctx context.Context, input map[string]any, result *mcp.CallToolResult) error {
-	if t.definition.Name != "resource_search" || result == nil || result.IsError || t.ownerID == 0 {
+func (t *einoMCPTool) persistResourceCandidates(ctx context.Context, input map[string]any, result *mcp.CallToolResult) error {
+	if !slices.Contains([]string{"message_list", "message_search"}, t.definition.Name) || result == nil || result.IsError || t.ownerID == 0 {
 		return nil
 	}
 	payload, err := json.Marshal(mcpToolResultValue(result))
 	if err != nil {
 		return err
 	}
-	var searchResult resourceSearchResult
-	if err := json.Unmarshal(payload, &searchResult); err != nil {
+	var toolResult resourceToolResult
+	if err := json.Unmarshal(payload, &toolResult); err != nil {
 		return err
 	}
-	if searchResult.Status != "success" {
+	if toolResult.Status != "success" {
+		return nil
+	}
+	if !slices.ContainsFunc(toolResult.Data.Messages, func(message resourceMessage) bool { return message.File != nil }) {
 		return nil
 	}
 	query, _ := input["query"].(string)
@@ -181,22 +195,22 @@ func (t *einoMCPTool) persistResourceSearch(ctx context.Context, input map[strin
 		if err := tx.Create(&search).Error; err != nil {
 			return err
 		}
-		for _, item := range searchResult.Data.Candidates {
-			if item.CandidateID == "" || item.Name == "" || item.Size < 0 {
+		for _, message := range toolResult.Data.Messages {
+			if message.File == nil {
+				continue
+			}
+			file := message.File
+			if file.CandidateID == "" || file.Name == "" || file.Size < 0 {
 				return errors.New("MCP 资源候选格式无效")
 			}
-			license := item.License
-			if license == "" {
-				license = "unknown"
-			}
-			source := item.Source
+			source := toolResult.Data.Dialog
 			if len(source) == 0 {
 				source = json.RawMessage(`{}`)
 			}
 			candidate := model.ResourceCandidate{
-				SearchID: search.ID, MCPServerCode: t.connection.Server.Code, ExternalID: item.CandidateID,
-				Name: item.Name, Size: item.Size, MIMEType: item.MIMEType, Source: string(source),
-				Preview: item.Preview, License: license, Risk: item.Risk, ExpiresAt: &expiresAt,
+				SearchID: search.ID, MCPServerCode: t.connection.Server.Code, ExternalID: file.CandidateID,
+				Name: file.Name, Size: file.Size, MIMEType: file.MIMEType, Source: string(source),
+				Preview: message.Text, License: "unknown", Risk: "来源未提供可验证的许可证信息", ExpiresAt: &expiresAt,
 			}
 			if err := tx.Create(&candidate).Error; err != nil {
 				return err
