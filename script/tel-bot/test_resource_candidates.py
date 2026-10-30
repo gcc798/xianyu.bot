@@ -12,9 +12,11 @@ from resource_service import ResourceCapabilityError, ResourceService
 class FakeClient:
     def __init__(self, messages):
         self.messages = messages
+        self.entity_requests = []
 
-    async def get_entity(self, telegram_id):
-        return telegram_id
+    async def get_entity(self, identifier):
+        self.entity_requests.append(identifier)
+        return identifier
 
     async def get_messages(self, _entity, ids):
         return next((message for message in self.messages if message.id == ids), None)
@@ -100,6 +102,7 @@ class ResourceCandidateTest(unittest.IsolatedAsyncioTestCase):
         inspected = await service.inspect_candidate(candidates[0]["candidate_id"])
         self.assertEqual(inspected["name"], "Go并发编程.pdf")
         self.assertEqual(inspected["source"]["name"], "Go 资料")
+        self.assertEqual(service.telegram.client.entity_requests, ["go_docs", "go_docs"])
 
     @patch.dict(os.environ, {"TELEGRAM_INTERNAL_TOKEN": "candidate-test-secret"})
     async def test_rejects_tampered_and_changed_candidates(self):

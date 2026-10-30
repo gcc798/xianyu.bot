@@ -185,7 +185,7 @@ class ResourceService:
             if not dialog:
                 raise ResourceCapabilityError("source_not_found", "资源来源不存在")
             await self.telegram._ensure_connected()
-            entity = await self.telegram.call(self.telegram.client.get_entity, dialog["telegram_id"])
+            entity = await self._dialog_entity(dialog)
             message = await self.telegram.call(self.telegram.client.get_messages, entity, ids=candidate["message_id"])
             metadata = self._match(message, {"keyword": "", "file_types": []}) if message else None
             if not metadata or metadata["file_id"] != candidate["file_id"]:
@@ -294,7 +294,7 @@ class ResourceService:
         failed_sources = 0
         for dialog in rank_sources(query, dialogs):
             try:
-                entity = await self.telegram.call(self.telegram.client.get_entity, dialog["telegram_id"])
+                entity = await self._dialog_entity(dialog)
                 async for message in self.telegram.client.iter_messages(entity, search=query, limit=max(limit * 5, 100)):
                     metadata = self._match(message, {"keyword": query, "file_types": cleaned_types})
                     if not metadata:
@@ -319,7 +319,7 @@ class ResourceService:
 
         await self.telegram._ensure_connected()
         try:
-            entity = await self.telegram.call(self.telegram.client.get_entity, dialog["telegram_id"])
+            entity = await self._dialog_entity(dialog)
             message = await self.telegram.call(self.telegram.client.get_messages, entity, ids=candidate["message_id"])
         except Exception as exc:
             raise ResourceCapabilityError("resource_unavailable", "资源当前不可用", retryable=True) from exc
@@ -342,6 +342,9 @@ class ResourceService:
             "license": "unknown",
             "risk": "来源未提供可验证的许可证信息",
         }
+
+    async def _dialog_entity(self, dialog: dict):
+        return await self.telegram.call(self.telegram.client.get_entity, dialog.get("username") or dialog["telegram_id"])
 
     def _encode_candidate(self, source_id: int, message_id: int, file_id: str) -> str:
         secret = os.getenv("TELEGRAM_INTERNAL_TOKEN", "").encode()
@@ -464,7 +467,7 @@ class ResourceService:
                 if self._cancelled(task_id):
                     self.db.update_resource_task(task_id, status="cancelled", completed_at=datetime.now(timezone.utc))
                     return
-                entity = await self.telegram.call(self.telegram.client.get_entity, dialog["telegram_id"])
+                entity = await self._dialog_entity(dialog)
                 async for message in self.telegram.client.iter_messages(entity, search=task["keyword"], limit=max(task["max_downloads"] * 20, 100)):
                     if completed >= task["max_downloads"]:
                         break
