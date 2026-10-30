@@ -197,6 +197,32 @@ class Database:
         with self.connect() as db:
             return db.execute(f"SELECT * FROM {TABLES['dialogs']} WHERE id=%s", (dialog_id,)).fetchone()
 
+    def dialog_by_telegram_id(self, telegram_id: int) -> dict | None:
+        with self.connect() as db:
+            return db.execute(f"SELECT * FROM {TABLES['dialogs']} WHERE telegram_id=%s", (telegram_id,)).fetchone()
+
+    def dialog_by_username(self, username: str) -> dict | None:
+        with self.connect() as db:
+            return db.execute(
+                f"SELECT * FROM {TABLES['dialogs']} WHERE LOWER(username)=LOWER(%s) ORDER BY status='normal' DESC,id LIMIT 1",
+                (username.lstrip("@"),),
+            ).fetchone()
+
+    def accessible_dialogs(self, query: str = "", kind: str = "") -> list[dict]:
+        where, params = ["status='normal'", "(is_group OR is_broadcast)"], []
+        if query:
+            where.append("(name ILIKE %s OR COALESCE(username,'') ILIKE %s)")
+            params.extend((f"%{query}%", f"%{query}%"))
+        if kind == "group":
+            where.append("is_group")
+        elif kind == "channel":
+            where.append("is_broadcast")
+        with self.connect() as db:
+            return db.execute(
+                f"SELECT * FROM {TABLES['dialogs']} WHERE {' AND '.join(where)} ORDER BY last_message_at DESC NULLS LAST,name",
+                params,
+            ).fetchall()
+
     def latest_scan(self) -> dict | None:
         with self.connect() as db:
             return db.execute(f"SELECT * FROM {TABLES['scan_history']} ORDER BY id DESC LIMIT 1").fetchone()
