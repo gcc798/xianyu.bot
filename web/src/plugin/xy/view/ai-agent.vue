@@ -26,7 +26,7 @@
         <div v-if="!messages.length" class="welcome-panel">
           <p class="kicker">XY / AGENT CONSOLE</p>
           <h1>把目标交代清楚，<br><em>其余交给能力。</em></h1>
-          <p>直接对话，或输入 <kbd>/</kbd> 精确指定本轮 Skill 与 Tool。写操作始终需要你的确认。</p>
+          <p>直接对话，或输入 <kbd>/</kbd> 精确指定本轮 Skill 与 Tool。资源搜索消息可自动发送，加入来源和获取文件需要你的确认。</p>
           <div class="starter-grid">
             <button @click="useStarter('帮我检索三份 Go 并发编程的 PDF，并比较来源和许可证信息')"><span>01</span>检索并比较技术资料</button>
             <button @click="useStarter('列出当前可用的资源来源，并说明适合检索什么内容')"><span>02</span>查看可用资源来源</button>
