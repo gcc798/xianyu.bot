@@ -53,6 +53,14 @@ func (s *agentSession) Get(ctx context.Context, ownerID, sessionID uint) (xyResp
 	if err := global.GVA_DB.WithContext(ctx).Where("session_id = ? AND owner_id = ?", sessionID, ownerID).Order("sequence").Find(&messages).Error; err != nil {
 		return xyResponse.AgentSessionDetail{}, err
 	}
+	toolTraces := make([]xyResponse.AgentToolTrace, 0)
+	if err := global.GVA_DB.WithContext(ctx).Table("xy_agent_run_tools AS t").
+		Select("t.id, t.run_id, t.tool_name, t.arguments, t.result, t.status, t.duration_millis, t.created_at").
+		Joins("JOIN xy_agent_runs AS r ON r.id = t.run_id AND r.deleted_at IS NULL").
+		Where("r.session_id = ? AND r.owner_id = ? AND t.deleted_at IS NULL", sessionID, ownerID).
+		Order("t.id").Limit(200).Scan(&toolTraces).Error; err != nil {
+		return xyResponse.AgentSessionDetail{}, err
+	}
 	approvals := make([]xyResponse.AgentApproval, 0)
 	if err := global.GVA_DB.WithContext(ctx).Table("xy_agent_run_tools AS t").
 		Select("t.run_id, t.tool_name, t.created_at").
@@ -69,7 +77,7 @@ func (s *agentSession) Get(ctx context.Context, ownerID, sessionID uint) (xyResp
 		Order("t.id").Limit(50).Scan(&tasks).Error; err != nil {
 		return xyResponse.AgentSessionDetail{}, err
 	}
-	return xyResponse.AgentSessionDetail{AgentSession: session, Messages: messages, PendingApprovals: approvals, Tasks: tasks}, nil
+	return xyResponse.AgentSessionDetail{AgentSession: session, Messages: messages, ToolTraces: toolTraces, PendingApprovals: approvals, Tasks: tasks}, nil
 }
 
 func (s *agentSession) Delete(ctx context.Context, ownerID, sessionID uint) error {

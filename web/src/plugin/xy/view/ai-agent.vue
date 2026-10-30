@@ -39,7 +39,7 @@
             <div class="message-content" :class="{ streaming: message.streaming }">{{ message.content }}<span v-if="message.streaming" class="cursor" /></div>
           </article>
           <article v-else-if="message.role === 'tool'" class="event-card tool-card">
-            <span class="event-icon">⌘</span><div><small>TOOL</small><strong>{{ message.tool }}</strong></div><el-tag size="small" :type="message.status === 'failed' ? 'danger' : message.status === 'completed' ? 'success' : 'warning'">{{ toolStatus(message.status) }}</el-tag>
+            <span class="event-icon">⌘</span><div><small>TOOL</small><strong>{{ message.tool }}</strong><p v-if="message.trace">{{ toolTraceText(message.trace) }}</p></div><el-tag size="small" :type="message.status === 'failed' ? 'danger' : message.status === 'completed' ? 'success' : 'warning'">{{ toolStatus(message.status) }}</el-tag>
           </article>
           <article v-else-if="message.role === 'approval'" class="event-card approval-card">
             <span class="event-icon">!</span><div><small>CONFIRMATION</small><strong>{{ message.tool }} 等待确认</strong><p>该写操作尚未执行。</p></div><el-button size="small" type="warning" :loading="message.approving" @click="approveRun(message)">确认执行</el-button>
@@ -191,6 +191,10 @@ const reloadConversation = async id => {
     const session = res.data.session
     messages.value = [
       ...(session.messages || []),
+      ...(session.toolTraces || []).map(item => ({
+        localId: `tool-trace-${item.id}`, role: 'tool', runId: item.runId, tool: item.toolName, status: item.status,
+        trace: parseToolTrace(item.result), createdAt: item.createdAt
+      })),
       ...(session.pendingApprovals || []).map(item => ({
         localId: `approval-${item.runId}-${item.toolName}-${item.createdAt}`, role: 'approval', runId: item.runId, tool: item.toolName, createdAt: item.createdAt
       })),
@@ -296,7 +300,7 @@ const handleRunEvent = (event, runId) => {
     messages.value.push({ localId: `tool-${event.id}`, role: 'tool', tool: event.data.tool, status: 'running' })
   } else if (event.type === 'tool.completed') {
     const target = [...messages.value].reverse().find(item => item.role === 'tool' && item.tool === event.data.tool)
-    if (target) target.status = event.data.status
+    if (target) { target.status = event.data.status; target.trace = event.data.trace }
   } else if (event.type === 'approval.required') {
     messages.value.push({ localId: `approval-${event.id}`, role: 'approval', runId: event.data.runId, tool: event.data.tool })
   } else if (event.type === 'skill.loaded') {
@@ -367,6 +371,15 @@ const useStarter = text => { draft.value = text; nextTick(() => composerInput.va
 const scrollToBottom = () => nextTick(() => { if (messageViewport.value) messageViewport.value.scrollTop = messageViewport.value.scrollHeight })
 const capabilityIcon = type => ({ skill: '◇', tool: '⌘', command: '›_', model: '◉' }[type])
 const toolStatus = status => ({ running: '执行中', completed: '已完成', failed: '不可用' }[status] || status)
+const parseToolTrace = value => { try { return value ? JSON.parse(value) : null } catch { return null } }
+const toolTraceText = trace => {
+  if (!trace) return ''
+  const data = trace.data || trace
+  const dialog = data.dialog?.name ? `来源：${data.dialog.name}` : ''
+  const count = Array.isArray(data.messages) ? `消息：${data.messages.length}` : Number.isFinite(data.total) ? `来源：${data.total}` : ''
+  const cursor = data.next_message_id ? `游标：${data.next_message_id}` : ''
+  return [dialog, count, cursor].filter(Boolean).join(' · ') || (trace.truncated ? trace.message : '工具已返回结果')
+}
 const taskStatus = status => ({ queued: '等待处理', running: '正在获取资源', completed: '资源已就绪', failed: '资源获取失败', cancelled: '任务已取消' }[status] || status)
 const formatTime = value => value ? new Intl.DateTimeFormat('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }).format(new Date(value)) : ''
 const eventColor = type => type.includes('failed') ? 'danger' : type.includes('cancelled') || type.includes('tool') ? 'warning' : type.includes('completed') ? 'success' : 'primary'

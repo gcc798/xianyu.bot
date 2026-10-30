@@ -38,6 +38,7 @@ func TestAgentSessionScopesConversationByOwner(t *testing.T) {
 	run := model.AgentRun{OwnerID: 11, SessionID: owned.ID, ModelID: 1, ModelName: "test", Status: "completed", ConfigSnapshot: `{}`, StartedAt: now}
 	require.NoError(t, db.Create(&run).Error)
 	require.NoError(t, db.Create(&model.AgentRunTool{RunID: run.ID, CallID: "approval-1", ToolName: "resource_acquire", Status: "waiting_approval", StartedAt: now}).Error)
+	require.NoError(t, db.Create(&model.AgentRunTool{RunID: run.ID, CallID: "trace-1", ToolName: "message_search", Arguments: `{"query":"Go"}`, Result: `{"status":"success"}`, Status: "completed", StartedAt: now}).Error)
 	require.NoError(t, db.Create(&model.ResourceTask{OwnerID: 11, AgentRunID: new(run.ID), CandidateID: 1, MCPServerCode: "resources", IdempotencyKey: "task-1", State: "running"}).Error)
 
 	list, total, err := sessions.List(t.Context(), 11, xyRequest.AgentSessionSearch{})
@@ -51,6 +52,9 @@ func TestAgentSessionScopesConversationByOwner(t *testing.T) {
 	require.Len(t, detail.PendingApprovals, 1)
 	require.Equal(t, "resource_acquire", detail.PendingApprovals[0].ToolName)
 	require.Len(t, detail.Tasks, 1)
+	require.Len(t, detail.ToolTraces, 2)
+	require.Equal(t, "message_search", detail.ToolTraces[1].ToolName)
+	require.JSONEq(t, `{"status":"success"}`, detail.ToolTraces[1].Result)
 	require.Equal(t, run.ID, detail.Tasks[0].RunID)
 	require.EqualValues(t, 1, detail.Messages[0].Sequence)
 	_, err = sessions.Get(t.Context(), 11, other.ID)

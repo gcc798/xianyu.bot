@@ -9,8 +9,20 @@ import (
 type AgentSessionDetail struct {
 	model.AgentSession
 	Messages         []model.AgentMessage `json:"messages"`
+	ToolTraces       []AgentToolTrace     `json:"toolTraces"`
 	PendingApprovals []AgentApproval      `json:"pendingApprovals"`
 	Tasks            []AgentTask          `json:"tasks"`
+}
+
+type AgentToolTrace struct {
+	ID             uint      `json:"id"`
+	RunID          uint      `json:"runId"`
+	ToolName       string    `json:"toolName"`
+	Arguments      string    `json:"arguments"`
+	Result         string    `json:"result"`
+	Status         string    `json:"status"`
+	DurationMillis int64     `json:"durationMillis"`
+	CreatedAt      time.Time `json:"createdAt"`
 }
 
 type AgentTask struct {

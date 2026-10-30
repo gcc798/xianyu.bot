@@ -92,6 +92,7 @@ func TestEinoMCPToolCallsReadCapability(t *testing.T) {
 	require.Equal(t, `{"query":"Go"}`, call.Arguments)
 	require.Equal(t, "completed", call.Status)
 	require.Empty(t, call.ErrorMessage)
+	require.JSONEq(t, `{"ok":true}`, call.Result)
 }
 
 func TestEinoMCPToolPersistsMessageCandidates(t *testing.T) {

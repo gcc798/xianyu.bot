@@ -147,6 +147,26 @@ func TestValidateAgentDirectives(t *testing.T) {
 	require.ErrorContains(t, validateAgentDirectives([]xyRequest.AgentDirective{{Type: "tool", Name: "task_get"}, {Type: "tool", Name: "message_search"}}), "只能指定一次")
 }
 
+func TestLoadAgentHistoryIncludesRecentToolTrace(t *testing.T) {
+	db := agentRunnerTestDB(t)
+	session := model.AgentSession{OwnerID: 11, Title: "轨迹会话"}
+	require.NoError(t, db.Create(&session).Error)
+	run := model.AgentRun{OwnerID: 11, SessionID: session.ID, ModelID: 1, ModelName: "test", Status: "completed", ConfigSnapshot: "{}", StartedAt: time.Now()}
+	require.NoError(t, db.Create(&run).Error)
+	require.NoError(t, db.Create(&model.AgentRunTool{
+		RunID: run.ID, CallID: "trace-1", ToolName: "message_search", Arguments: `{"dialog_id":7,"query":"Go"}`,
+		Result: `{"status":"success","data":{"dialog":{"name":"Go 资料"},"messages":[]}}`, Status: "completed", StartedAt: time.Now(),
+	}).Error)
+	require.NoError(t, db.Create(&model.AgentMessage{OwnerID: 11, SessionID: session.ID, Sequence: 1, Role: "user", Content: "刚才搜索了哪里"}).Error)
+
+	history, err := loadAgentHistory(t.Context(), 11, session.ID, 40)
+	require.NoError(t, err)
+	require.Len(t, history, 2)
+	require.Equal(t, schema.System, history[0].Role)
+	require.Contains(t, history[0].Content, "Go 资料")
+	require.Equal(t, schema.User, history[1].Role)
+}
+
 func agentRunnerTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})

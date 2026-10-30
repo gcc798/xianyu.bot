@@ -120,10 +120,14 @@ func (t *einoMCPTool) InvokableRun(ctx context.Context, arguments string, _ ...t
 	if result.IsError {
 		status, errorCode = "failed", "mcp_error"
 	}
+	trace := compactToolTrace(mcpToolResultValue(result))
+	if err := t.saveToolResult(ctx, call, trace); err != nil {
+		return "", err
+	}
 	if err := t.finishToolCall(ctx, call, status, errorCode, ""); err != nil {
 		return "", err
 	}
-	t.publish("tool.completed", map[string]any{"runId": t.runID, "tool": t.definition.Name, "status": status})
+	t.publish("tool.completed", map[string]any{"runId": t.runID, "tool": t.definition.Name, "status": status, "trace": trace})
 	return string(payload), nil
 }
 
@@ -273,6 +277,53 @@ func (t *einoMCPTool) saveToolArguments(ctx context.Context, call *model.AgentRu
 		return err
 	}
 	return global.GVA_DB.WithContext(ctx).Model(call).Update("arguments", string(arguments)).Error
+}
+
+func (t *einoMCPTool) saveToolResult(ctx context.Context, call *model.AgentRunTool, result any) error {
+	if call == nil {
+		return nil
+	}
+	payload, err := json.Marshal(result)
+	if err != nil {
+		return err
+	}
+	finishContext, cancel := agentFinishContext(ctx)
+	defer cancel()
+	return global.GVA_DB.WithContext(finishContext).Model(call).Update("result", string(payload)).Error
+}
+
+func compactToolTrace(value any) any {
+	compacted := compactTraceValue(value)
+	payload, err := json.Marshal(compacted)
+	if err == nil && len(payload) <= agentEventMaxBytes/2 {
+		return compacted
+	}
+	return map[string]any{"truncated": true, "message": "工具结果过大，请根据游标分批读取"}
+}
+
+func compactTraceValue(value any) any {
+	switch current := value.(type) {
+	case map[string]any:
+		compacted := make(map[string]any, len(current))
+		for key, nested := range current {
+			compacted[key] = compactTraceValue(nested)
+		}
+		return compacted
+	case []any:
+		compacted := make([]any, 0, min(len(current), 100))
+		for _, nested := range current[:min(len(current), 100)] {
+			compacted = append(compacted, compactTraceValue(nested))
+		}
+		return compacted
+	case string:
+		runes := []rune(current)
+		if len(runes) > 500 {
+			return string(runes[:500]) + "…"
+		}
+		return current
+	default:
+		return value
+	}
 }
 
 func (t *einoMCPTool) finishToolCall(ctx context.Context, call *model.AgentRunTool, status, errorCode, errorMessage string) error {

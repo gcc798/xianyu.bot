@@ -60,6 +60,7 @@ type AgentRunTool struct {
 	MCPServerCode  string     `json:"mcpServerCode" gorm:"size:64"`
 	ToolName       string     `json:"toolName" gorm:"size:120;not null"`
 	Arguments      string     `json:"-" gorm:"type:text"`
+	Result         string     `json:"-" gorm:"type:text"`
 	Status         string     `json:"status" gorm:"size:32;not null"`
 	DurationMillis int64      `json:"durationMillis" gorm:"not null;default:0"`
 	ErrorCode      string     `json:"errorCode" gorm:"size:64"`
