@@ -6,7 +6,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
-from resource_service import ResourceCapabilityError, ResourceService, is_interactive_search_group
+from resource_service import ResourceCapabilityError, ResourceService, is_interactive_search_group, message_source_usernames
 
 
 class FakeClient:
@@ -27,7 +27,8 @@ class FakeClient:
         for message in self.messages:
             if message.id <= min_id:
                 continue
-            if search is None or search.casefold() in f"{message.file.name} {message.raw_text}".casefold():
+            filename = getattr(getattr(message, "file", None), "name", "") or ""
+            if search is None or search.casefold() in f"{filename} {message.raw_text}".casefold():
                 yield message
 
     async def send_message(self, entity, text):
@@ -37,6 +38,21 @@ class FakeClient:
     async def download_media(self, _message, file):
         Path(file).write_bytes(b"x" * 2048)
         return file
+
+
+class RoutedFakeClient(FakeClient):
+    def __init__(self, messages_by_entity):
+        super().__init__([message for messages in messages_by_entity.values() for message in messages])
+        self.messages_by_entity = messages_by_entity
+
+    async def iter_messages(self, entity, search=None, limit=100, min_id=0, reverse=False):
+        _ = limit, reverse
+        for current in self.messages_by_entity.get(entity, []):
+            if current.id <= min_id:
+                continue
+            filename = getattr(getattr(current, "file", None), "name", "") or ""
+            if search is None or search.casefold() in f"{filename} {current.raw_text}".casefold():
+                yield current
 
 
 class FakeTelegram:
@@ -114,6 +130,30 @@ class ResourceCandidateTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(service.telegram.client.sent, [("go_docs", "Go")])
         self.assertTrue(is_interactive_search_group(service.db.dialog_record))
         self.assertFalse(is_interactive_search_group({**service.db.dialog_record, "is_group": False}))
+
+    def test_extracts_linked_sources_from_text_entities_and_buttons(self):
+        linked = SimpleNamespace(
+            raw_text="结果在 https://t.me/Book_Search",
+            entities=[SimpleNamespace(url="https://t.me/NovelFiles")],
+            buttons=[[SimpleNamespace(url="https://t.me/MoreBooks")]],
+        )
+
+        self.assertEqual(message_source_usernames(linked), {"book_search", "novelfiles", "morebooks"})
+
+    @patch.dict(os.environ, {"TELEGRAM_INTERNAL_TOKEN": "candidate-test-secret"})
+    async def test_searches_known_source_returned_by_interactive_group(self):
+        service = self.service([])
+        search_group = {**service.db.dialog_record, "id": 7, "name": "搜书群", "username": "book_search", "is_group": True, "is_broadcast": False}
+        linked_channel = {**service.db.dialog_record, "id": 8, "name": "图书频道", "username": "book_files"}
+        service.db.resource_dialogs = lambda: [search_group, linked_channel]
+        linked_message = SimpleNamespace(id=11, document=None, file=None, raw_text="结果频道 https://t.me/book_files", entities=None, buttons=None)
+        service.telegram.client = RoutedFakeClient({"book_search": [linked_message], "book_files": [message()]})
+        service.interactive_search_wait = 0.01
+
+        candidates = await service.search_candidates("Go", ["pdf"], 1)
+
+        self.assertEqual(candidates[0]["source"]["name"], "图书频道")
+        self.assertEqual(service.telegram.client.sent, [("book_search", "Go")])
 
     @patch.dict(os.environ, {"TELEGRAM_INTERNAL_TOKEN": "candidate-test-secret"})
     async def test_search_and_inspect_do_not_download(self):

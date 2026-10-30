@@ -27,6 +27,7 @@ DEFAULT_TYPES = {"pdf", "epub", "mobi", "doc", "docx", "xls", "xlsx", "ppt", "pp
 BLOCKED_ARCHIVE_EXTENSIONS = {".exe", ".dll", ".scr", ".bat", ".cmd", ".com", ".msi", ".ps1", ".vbs", ".js", ".jar", ".apk"}
 LOGGER = logging.getLogger(__name__)
 CANDIDATE_TTL = timedelta(hours=24)
+TELEGRAM_SOURCE_PATTERN = re.compile(r"(?:https?://)?t\.me/([A-Za-z][A-Za-z0-9_]{4,})", re.IGNORECASE)
 
 
 class ResourceCapabilityError(Exception):
@@ -76,6 +77,16 @@ def rank_sources(keyword: str, dialogs: list[dict]) -> list[dict]:
 
 def is_interactive_search_group(dialog: dict) -> bool:
     return bool(dialog.get("is_group")) and "搜" in (dialog.get("name") or "")
+
+
+def message_source_usernames(message) -> set[str]:
+    values = [getattr(message, "raw_text", "") or ""]
+    for entity in getattr(message, "entities", None) or []:
+        values.append(getattr(entity, "url", "") or "")
+    for row in getattr(message, "buttons", None) or []:
+        for button in row if isinstance(row, (list, tuple)) else [row]:
+            values.append(getattr(button, "url", "") or "")
+    return {match.group(1).casefold() for value in values for match in TELEGRAM_SOURCE_PATTERN.finditer(value)}
 
 
 def _decode_base64(value: str) -> bytes:
@@ -299,17 +310,33 @@ class ResourceService:
         candidates = []
         failed_sources = 0
         ranked = rank_sources(query, dialogs)
-        interactive = [dialog for dialog in ranked if is_interactive_search_group(dialog)][:3]
-        interactive_ids = {dialog["id"] for dialog in interactive}
-        for dialog in interactive:
+        dialogs_by_username = {dialog["username"].casefold(): dialog for dialog in dialogs if dialog.get("username")}
+        interactive_queue = [dialog for dialog in ranked if is_interactive_search_group(dialog)][:3]
+        interactive_ids = set()
+        discovered = []
+        while interactive_queue and len(interactive_ids) < 3:
+            dialog = interactive_queue.pop(0)
+            if dialog["id"] in interactive_ids:
+                continue
+            interactive_ids.add(dialog["id"])
             try:
-                candidates.extend(await self._search_interactive_group(dialog, query, cleaned_types, limit - len(candidates)))
+                found, usernames = await self._search_interactive_group(dialog, query, cleaned_types, limit - len(candidates))
+                candidates.extend(found)
+                for username in usernames:
+                    linked = dialogs_by_username.get(username)
+                    if not linked or linked["id"] in interactive_ids:
+                        continue
+                    discovered.append(linked)
+                    if is_interactive_search_group(linked) and linked not in interactive_queue:
+                        interactive_queue.append(linked)
                 if len(candidates) >= limit:
                     return candidates
             except Exception as exc:
                 failed_sources += 1
                 LOGGER.warning("Interactive resource search skipped source %s: %s", dialog["id"], exc)
-        history_sources = ranked if source_ids else [dialog for dialog in ranked if dialog["id"] not in interactive_ids][:5]
+        history_candidates = discovered + ranked
+        history_sources = history_candidates if source_ids else [dialog for dialog in history_candidates if dialog["id"] not in interactive_ids][:5]
+        history_sources = list({dialog["id"]: dialog for dialog in history_sources}.values())
         # shortcut: bound automatic history fan-out to avoid Telegram flood waits; make it configurable when operators need broader searches.
         for dialog in history_sources:
             if dialog["id"] in interactive_ids:
@@ -330,9 +357,9 @@ class ResourceService:
             raise ResourceCapabilityError("source_unavailable", "检索来源当前不可用", retryable=True)
         return candidates
 
-    async def _search_interactive_group(self, dialog: dict, query: str, file_types: list[str], limit: int) -> list[dict]:
+    async def _search_interactive_group(self, dialog: dict, query: str, file_types: list[str], limit: int) -> tuple[list[dict], set[str]]:
         if limit < 1:
-            return []
+            return [], set()
         lock = getattr(self, "interactive_search_lock", None)
         if lock is None:
             lock = self.interactive_search_lock = asyncio.Lock()
@@ -346,20 +373,22 @@ class ResourceService:
             deadline = asyncio.get_running_loop().time() + wait_seconds
             seen = set()
             found = []
+            discovered = set()
             while asyncio.get_running_loop().time() < deadline:
                 async for message in self.telegram.client.iter_messages(entity, min_id=sent_id, reverse=True, limit=100):
                     if message.id in seen:
                         continue
                     seen.add(message.id)
+                    discovered.update(message_source_usernames(message))
                     metadata = self._match(message, {"keyword": query, "file_types": file_types})
                     if metadata:
                         found.append(self._candidate(dialog, message, metadata))
                         if len(found) >= limit:
-                            return found
-                if found:
-                    return found
+                            return found, discovered
+                if found or discovered:
+                    return found, discovered
                 await asyncio.sleep(min(1, wait_seconds))
-            return found
+            return found, discovered
 
     async def inspect_candidate(self, candidate_id: str) -> dict:
         candidate = self._decode_candidate(candidate_id)
