@@ -19,6 +19,7 @@ import (
 	"github.com/flipped-aurora/gin-vue-admin/server/plugin/xy/model"
 	xyRequest "github.com/flipped-aurora/gin-vue-admin/server/plugin/xy/model/request"
 	xyResponse "github.com/flipped-aurora/gin-vue-admin/server/plugin/xy/model/response"
+	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
 	"gorm.io/gorm"
@@ -42,6 +43,7 @@ type resourceObjectStore interface {
 type resourceCatalog struct {
 	objectStore resourceObjectStore
 	bucket      string
+	registry    *mcpRegistry
 }
 
 type ResourceDeliveryGrant struct {
@@ -95,6 +97,49 @@ func (s *resourceCatalog) GetTask(ctx context.Context, ownerID, taskID uint) (mo
 	var task model.ResourceTask
 	err := global.GVA_DB.WithContext(ctx).Where("id = ? AND owner_id = ?", taskID, ownerID).First(&task).Error
 	return task, err
+}
+
+func (s *resourceCatalog) CancelTask(ctx context.Context, ownerID, taskID uint) (model.ResourceTask, error) {
+	task, err := s.GetTask(ctx, ownerID, taskID)
+	if err != nil {
+		return model.ResourceTask{}, err
+	}
+	if task.State == "cancelled" {
+		return task, nil
+	}
+	if task.State != "queued" && task.State != "running" || task.ExternalTaskID == "" {
+		return model.ResourceTask{}, errors.New("资源任务当前不能取消")
+	}
+	registry := s.registry
+	if registry == nil {
+		registry = new(mcpRegistry)
+	}
+	connections, err := registry.Discover(ctx)
+	if err != nil {
+		return model.ResourceTask{}, errors.New("MCP 能力暂不可用")
+	}
+	defer func() { _ = closeMCPConnections(connections) }()
+	connection, definition := approvedTool(connections, task.MCPServerCode, "task_cancel")
+	if connection == nil {
+		return model.ResourceTask{}, errors.New("MCP 能力暂不可用")
+	}
+	requestContext, cancel := context.WithTimeout(ctx, min(toolTimeout(definition), time.Duration(connection.Server.RequestTimeoutSeconds)*time.Second))
+	defer cancel()
+	result, err := connection.Client.CallTool(requestContext, mcp.CallToolRequest{Params: mcp.CallToolParams{
+		Name: "task_cancel", Arguments: map[string]any{"task_id": task.ExternalTaskID},
+	}})
+	if err != nil || result.IsError || !approvedResultSucceeded(result.StructuredContent) {
+		return model.ResourceTask{}, errors.New("MCP 能力暂不可用")
+	}
+	completedAt := time.Now()
+	if err := global.GVA_DB.WithContext(ctx).Model(&task).Where("state IN ?", []string{"queued", "running"}).Updates(map[string]any{
+		"state": "cancelled", "stage": "cancelled", "completed_at": completedAt,
+	}).Error; err != nil {
+		return model.ResourceTask{}, err
+	}
+	task.State, task.Stage, task.CompletedAt = "cancelled", "cancelled", &completedAt
+	publishResourceTaskEvent(ctx, task, "task.updated", nil)
+	return task, nil
 }
 
 func (s *resourceCatalog) Download(ctx context.Context, ownerID, resourceID uint) (string, time.Time, error) {

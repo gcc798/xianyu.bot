@@ -30,6 +30,10 @@ export const approveAgentRun = (runId) => service({
   url: `/xy/ai/agent/runs/${runId}/approve`, method: 'post', donNotShowLoading: true
 })
 
+export const cancelResourceTask = (taskId) => service({
+  url: `/xy/resource-tasks/${taskId}/cancel`, method: 'post', donNotShowLoading: true
+})
+
 export const streamAgentEvents = async (sessionId, { afterId = 0, signal, onEvent }) => {
   const userStore = useUserStore()
   const response = await fetch(`${import.meta.env.VITE_BASE_API || ''}/xy/ai/agent/sessions/${sessionId}/events`, {

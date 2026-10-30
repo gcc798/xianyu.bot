@@ -9,6 +9,7 @@ func (r *resource) Init(private *gin.RouterGroup) {
 	private.GET("xy/resources/:id", resourceAPI.Get)
 	private.GET("xy/resources/:id/download", resourceAPI.Download)
 	private.GET("xy/resource-tasks/:id", resourceAPI.GetTask)
+	private.POST("xy/resource-tasks/:id/cancel", resourceAPI.CancelTask)
 }
 
 func (r *resource) InitInternal(internal *gin.RouterGroup) {

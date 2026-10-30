@@ -62,6 +62,19 @@ func (a *resource) GetTask(c *gin.Context) {
 	response.OkWithData(gin.H{"task": task}, c)
 }
 
+func (a *resource) CancelTask(c *gin.Context) {
+	taskID, ok := pathID(c)
+	if !ok {
+		return
+	}
+	task, err := resourceService.CancelTask(c.Request.Context(), utils.GetUserID(c), taskID)
+	if err != nil {
+		failAccount("取消资源任务失败", err, c)
+		return
+	}
+	response.OkWithData(gin.H{"task": task}, c)
+}
+
 func (a *resource) PresignDelivery(c *gin.Context) {
 	taskID, ok := pathID(c)
 	if !ok {

@@ -52,7 +52,7 @@
             <span class="event-icon">◇</span><div><small>SKILL</small><strong>{{ message.skill }}</strong></div><el-tag size="small" type="success">已加载</el-tag>
           </article>
           <article v-else-if="message.role === 'task'" class="event-card task-card">
-            <span class="event-icon">↧</span><div><small>RESOURCE TASK #{{ message.taskId }}</small><strong>{{ taskStatus(message.state) }}</strong><p>{{ message.stage || '等待处理' }} · {{ message.progressPercent || 0 }}%</p></div><el-progress type="circle" :width="38" :stroke-width="4" :percentage="message.progressPercent || 0" :status="message.state === 'failed' ? 'exception' : message.state === 'completed' ? 'success' : undefined" />
+            <span class="event-icon">↧</span><div><small>RESOURCE TASK #{{ message.taskId }}</small><strong>{{ taskStatus(message.state) }}</strong><p>{{ message.stage || '等待处理' }} · {{ message.progressPercent || 0 }}%</p></div><el-button v-if="['queued', 'running'].includes(message.state)" size="small" :loading="message.cancelling" @click="cancelTask(message)">取消</el-button><el-progress v-else type="circle" :width="38" :stroke-width="4" :percentage="message.progressPercent || 0" :status="message.state === 'failed' ? 'exception' : message.state === 'completed' ? 'success' : undefined" />
           </article>
         </template>
       </section>
@@ -100,7 +100,7 @@
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { approveAgentRun, cancelAgentRun, createAgentSession, deleteAgentSession, getAgentSession, getAgentSessions, sendAgentMessage, streamAgentEvents } from '@/plugin/xy/api/agent'
+import { approveAgentRun, cancelAgentRun, cancelResourceTask, createAgentSession, deleteAgentSession, getAgentSession, getAgentSessions, sendAgentMessage, streamAgentEvents } from '@/plugin/xy/api/agent'
 
 defineOptions({ name: 'XyAgent' })
 
@@ -347,6 +347,19 @@ const approveRun = async message => {
       startStream(activeSessionId.value, message.runId)
     }
   } finally { message.approving = false }
+}
+
+const cancelTask = async task => {
+  if (task.cancelling) return
+  task.cancelling = true
+  try {
+    const res = await cancelResourceTask(task.taskId)
+    if (res.code !== 0) return
+    Object.assign(task, res.data.task)
+    watchingTask.value = false
+    stopStream()
+    ElMessage.success('资源任务已取消')
+  } finally { task.cancelling = false }
 }
 
 const stopStream = () => { if (reconnectTimer) clearTimeout(reconnectTimer); reconnectTimer = null; streamController?.abort(); streamController = null }

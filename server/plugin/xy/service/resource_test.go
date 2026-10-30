@@ -12,6 +12,7 @@ import (
 	"github.com/flipped-aurora/gin-vue-admin/server/plugin/xy/model"
 	xyRequest "github.com/flipped-aurora/gin-vue-admin/server/plugin/xy/model/request"
 	"github.com/glebarez/sqlite"
+	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/minio/minio-go/v7"
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
@@ -161,4 +162,33 @@ func TestResourceDeliveryGrantAndCompletion(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.Equal(t, "failed", failed.State)
+}
+
+func TestResourceCatalogCancelsTaskThroughOwningMCPServer(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	require.NoError(t, err)
+	require.NoError(t, db.AutoMigrate(&model.ResourceTask{}, &model.MCPServer{}))
+	oldDB := global.GVA_DB
+	global.GVA_DB = db
+	t.Cleanup(func() { global.GVA_DB = oldDB })
+	server := model.MCPServer{Name: "资源服务", Code: "resources", BaseURL: "http://resources/mcp", Enabled: true, RequestTimeoutSeconds: 15}
+	require.NoError(t, db.Create(&server).Error)
+	task := model.ResourceTask{
+		OwnerID: 11, CandidateID: 1, MCPServerCode: server.Code, ExternalTaskID: "resource_acquire:42",
+		IdempotencyKey: "cancel-task", State: "running",
+	}
+	require.NoError(t, db.Create(&task).Error)
+	client := &recordingMCPClient{result: map[string]any{"status": "success", "data": map[string]any{}}}
+	registry := &mcpRegistry{connect: func(context.Context, model.MCPServer) (*mcpConnection, error) {
+		return &mcpConnection{Server: server, Client: client, Tools: []mcp.Tool{{Name: "task_cancel"}}}, nil
+	}}
+	catalog := &resourceCatalog{registry: registry}
+
+	_, err = catalog.CancelTask(t.Context(), 22, task.ID)
+	require.True(t, errors.Is(err, gorm.ErrRecordNotFound))
+	cancelled, err := catalog.CancelTask(t.Context(), 11, task.ID)
+	require.NoError(t, err)
+	require.Equal(t, "cancelled", cancelled.State)
+	require.Equal(t, "task_cancel", client.lastName)
+	require.Equal(t, task.ExternalTaskID, client.lastArguments["task_id"])
 }
