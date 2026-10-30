@@ -1,14 +1,18 @@
-FROM golang:1.26.10-alpine as builder
+# syntax=docker/dockerfile:1
+FROM golang:1.26.10-alpine AS builder
 
 WORKDIR /go/src/github.com/flipped-aurora/gin-vue-admin/server
-COPY . .
-
 RUN go env -w GO111MODULE=on \
     && go env -w GOPROXY=https://goproxy.cn,direct \
-    && go env -w CGO_ENABLED=0 \
-    && go env \
-    && go mod tidy \
-    && go build -o server . \
+    && go env -w CGO_ENABLED=0
+
+COPY go.mod go.sum ./
+RUN --mount=type=cache,target=/go/pkg/mod go mod download
+
+COPY . .
+RUN --mount=type=cache,target=/go/pkg/mod \
+    --mount=type=cache,target=/root/.cache/go-build \
+    go build -o server . \
     && go build -o initdb ./cmd/initdb
 
 FROM alpine:latest
