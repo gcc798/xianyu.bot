@@ -61,7 +61,15 @@ func (s *agentSession) Get(ctx context.Context, ownerID, sessionID uint) (xyResp
 		Order("t.id").Scan(&approvals).Error; err != nil {
 		return xyResponse.AgentSessionDetail{}, err
 	}
-	return xyResponse.AgentSessionDetail{AgentSession: session, Messages: messages, PendingApprovals: approvals}, nil
+	tasks := make([]xyResponse.AgentTask, 0)
+	if err := global.GVA_DB.WithContext(ctx).Table("xy_resource_tasks AS t").
+		Select("t.id, t.agent_run_id AS run_id, t.state, t.stage, t.progress_percent, t.progress_done, t.progress_total, t.progress_unit").
+		Joins("JOIN xy_agent_runs AS r ON r.id = t.agent_run_id AND r.deleted_at IS NULL").
+		Where("r.session_id = ? AND r.owner_id = ? AND t.deleted_at IS NULL", sessionID, ownerID).
+		Order("t.id").Limit(50).Scan(&tasks).Error; err != nil {
+		return xyResponse.AgentSessionDetail{}, err
+	}
+	return xyResponse.AgentSessionDetail{AgentSession: session, Messages: messages, PendingApprovals: approvals, Tasks: tasks}, nil
 }
 
 func (s *agentSession) Delete(ctx context.Context, ownerID, sessionID uint) error {
@@ -79,6 +87,16 @@ func (s *agentSession) Delete(ctx context.Context, ownerID, sessionID uint) erro
 		}
 		if running > 0 {
 			return errors.New("会话正在运行，暂不能删除")
+		}
+		var activeTasks int64
+		if err := tx.Table("xy_resource_tasks AS t").
+			Joins("JOIN xy_agent_runs AS r ON r.id = t.agent_run_id AND r.deleted_at IS NULL").
+			Where("r.session_id = ? AND r.owner_id = ? AND t.state IN ? AND t.deleted_at IS NULL", sessionID, ownerID, []string{"queued", "running"}).
+			Count(&activeTasks).Error; err != nil {
+			return err
+		}
+		if activeTasks > 0 {
+			return errors.New("会话仍有资源任务，暂不能删除")
 		}
 		runIDs := tx.Model(&model.AgentRun{}).Select("id").Where("session_id = ? AND owner_id = ?", sessionID, ownerID)
 		if err := tx.Where("run_id IN (?)", runIDs).Delete(&model.AgentRunTool{}).Error; err != nil {

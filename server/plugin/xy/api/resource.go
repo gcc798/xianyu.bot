@@ -92,3 +92,39 @@ func (a *resource) CompleteDelivery(c *gin.Context) {
 	}
 	response.OkWithData(gin.H{"resource": resource}, c)
 }
+
+func (a *resource) UpdateDelivery(c *gin.Context) {
+	taskID, ok := pathID(c)
+	if !ok {
+		return
+	}
+	var input xyRequest.UpdateResourceDelivery
+	if err := c.ShouldBindJSON(&input); err != nil {
+		response.FailWithMessage(err.Error(), c)
+		return
+	}
+	task, err := resourceService.UpdateDelivery(c.Request.Context(), taskID, c.GetHeader("X-Delivery-Token"), input)
+	if err != nil {
+		response.FailWithMessage(err.Error(), c)
+		return
+	}
+	response.OkWithData(gin.H{"task": task}, c)
+}
+
+func (a *resource) FailDelivery(c *gin.Context) {
+	taskID, ok := pathID(c)
+	if !ok {
+		return
+	}
+	var input xyRequest.FailResourceDelivery
+	if err := c.ShouldBindJSON(&input); err != nil {
+		response.FailWithMessage(err.Error(), c)
+		return
+	}
+	task, err := resourceService.FailDelivery(c.Request.Context(), taskID, c.GetHeader("X-Delivery-Token"), input)
+	if err != nil {
+		response.FailWithMessage(err.Error(), c)
+		return
+	}
+	response.OkWithData(gin.H{"task": task}, c)
+}

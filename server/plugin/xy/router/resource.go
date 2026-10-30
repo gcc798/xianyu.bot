@@ -13,5 +13,7 @@ func (r *resource) Init(private *gin.RouterGroup) {
 
 func (r *resource) InitInternal(internal *gin.RouterGroup) {
 	internal.POST("resource-tasks/:id/upload", resourceAPI.PresignDelivery)
+	internal.POST("resource-tasks/:id/progress", resourceAPI.UpdateDelivery)
 	internal.POST("resource-tasks/:id/complete", resourceAPI.CompleteDelivery)
+	internal.POST("resource-tasks/:id/fail", resourceAPI.FailDelivery)
 }

@@ -117,7 +117,10 @@ class ResourceCandidateTest(unittest.IsolatedAsyncioTestCase):
         with tempfile.TemporaryDirectory() as directory:
             service = self.service([message()])
             service.tmp_root = Path(directory)
-            service._gva_json = Mock(side_effect=[{"uploadUrl": "http://rustfs/upload"}, {"resource": {"ID": 9}}])
+            service._gva_json = Mock(side_effect=lambda path, _token, _payload: (
+                {"uploadUrl": "http://rustfs/upload"} if path.endswith("/upload") else
+                {"resource": {"ID": 9}} if path.endswith("/complete") else {}
+            ))
             candidate = (await service.search_candidates("Go", None, 1))[0]["candidate_id"]
             with patch("resource_service._put_file") as upload:
                 task = await service.submit_acquisition(candidate, 17, "request-17", "delivery-token")
@@ -127,9 +130,30 @@ class ResourceCandidateTest(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(service.db.acquisition["state"], "completed")
             self.assertEqual(service.db.acquisition["stage"], "completed")
             upload.assert_called_once()
-            complete_payload = service._gva_json.call_args_list[1].args[2]
+            complete_call = next(call for call in service._gva_json.call_args_list if call.args[0].endswith("/complete"))
+            complete_payload = complete_call.args[2]
             self.assertEqual(complete_payload["size"], 2048)
             self.assertEqual(len(complete_payload["sha256"]), 64)
+            progress_paths = [call.args[0] for call in service._gva_json.call_args_list if call.args[0].endswith("/progress")]
+            self.assertEqual(len(progress_paths), 3)
+
+    @patch.dict(os.environ, {"TELEGRAM_INTERNAL_TOKEN": "candidate-test-secret"})
+    async def test_acquisition_reports_failure_to_gva(self):
+        with tempfile.TemporaryDirectory() as directory:
+            service = self.service([message()])
+            service.tmp_root = Path(directory)
+            service._gva_json = Mock(side_effect=lambda path, _token, _payload: (
+                {"uploadUrl": "http://rustfs/upload"} if path.endswith("/upload") else {}
+            ))
+            candidate = (await service.search_candidates("Go", None, 1))[0]["candidate_id"]
+            with patch("resource_service._put_file", side_effect=ResourceCapabilityError("delivery_failed", "上传失败")):
+                task = await service.submit_acquisition(candidate, 18, "request-18", "delivery-token")
+                await service.acquisitions[task["id"]]
+
+            self.assertEqual(service.db.acquisition["state"], "failed")
+            failure = next(call for call in service._gva_json.call_args_list if call.args[0].endswith("/fail"))
+            self.assertEqual(failure.args[2]["errorCode"], "delivery_failed")
+            self.assertEqual(failure.args[2]["errorMessage"], "资源获取失败")
 
 
 if __name__ == "__main__":

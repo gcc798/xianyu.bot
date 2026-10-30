@@ -272,7 +272,76 @@ func (s *resourceCatalog) CompleteDelivery(ctx context.Context, taskID uint, tok
 			"result": string(result), "completed_at": now,
 		}).Error
 	})
+	if err == nil {
+		task.State, task.Stage, task.ProgressPercent = "completed", "completed", 100
+		task.ProgressDone, task.ProgressTotal, task.ProgressUnit = size, size, "bytes"
+		publishResourceTaskEvent(ctx, task, "task.completed", map[string]any{"resourceId": resource.ID})
+	}
 	return resource, err
+}
+
+func (s *resourceCatalog) UpdateDelivery(ctx context.Context, taskID uint, token string, input xyRequest.UpdateResourceDelivery) (model.ResourceTask, error) {
+	task, err := s.deliveryTask(ctx, taskID, token)
+	if err != nil {
+		return model.ResourceTask{}, err
+	}
+	if task.State != "queued" && task.State != "running" {
+		return model.ResourceTask{}, errors.New("资源任务当前不能更新")
+	}
+	updates := map[string]any{
+		"state": "running", "stage": input.Stage, "progress_percent": input.ProgressPercent,
+		"progress_done": input.ProgressDone, "progress_total": input.ProgressTotal, "progress_unit": input.ProgressUnit,
+	}
+	if task.StartedAt == nil {
+		updates["started_at"] = time.Now()
+	}
+	if err := global.GVA_DB.WithContext(ctx).Model(&task).Updates(updates).Error; err != nil {
+		return model.ResourceTask{}, err
+	}
+	if err := global.GVA_DB.WithContext(ctx).First(&task, task.ID).Error; err != nil {
+		return model.ResourceTask{}, err
+	}
+	publishResourceTaskEvent(ctx, task, "task.updated", nil)
+	return task, nil
+}
+
+func (s *resourceCatalog) FailDelivery(ctx context.Context, taskID uint, token string, input xyRequest.FailResourceDelivery) (model.ResourceTask, error) {
+	task, err := s.deliveryTask(ctx, taskID, token)
+	if err != nil {
+		return model.ResourceTask{}, err
+	}
+	if task.State == "completed" || task.State == "cancelled" {
+		return model.ResourceTask{}, errors.New("资源任务已结束")
+	}
+	completedAt := time.Now()
+	if err := global.GVA_DB.WithContext(ctx).Model(&task).Updates(map[string]any{
+		"state": "failed", "stage": "failed", "error_code": input.ErrorCode,
+		"error_message": input.ErrorMessage, "completed_at": completedAt,
+	}).Error; err != nil {
+		return model.ResourceTask{}, err
+	}
+	task.State, task.Stage, task.ErrorCode, task.ErrorMessage, task.CompletedAt = "failed", "failed", input.ErrorCode, input.ErrorMessage, &completedAt
+	publishResourceTaskEvent(ctx, task, "task.updated", nil)
+	return task, nil
+}
+
+func publishResourceTaskEvent(ctx context.Context, task model.ResourceTask, eventType string, extra map[string]any) {
+	if task.AgentRunID == nil || Service.AgentEvents == nil {
+		return
+	}
+	var run model.AgentRun
+	if err := global.GVA_DB.WithContext(ctx).Where("id = ? AND owner_id = ?", *task.AgentRunID, task.OwnerID).First(&run).Error; err != nil {
+		return
+	}
+	data := map[string]any{
+		"runId": run.ID, "taskId": task.ID, "state": task.State, "stage": task.Stage,
+		"progressPercent": task.ProgressPercent, "progressDone": task.ProgressDone,
+		"progressTotal": task.ProgressTotal, "progressUnit": task.ProgressUnit,
+	}
+	for key, value := range extra {
+		data[key] = value
+	}
+	_, _ = Service.AgentEvents.Publish(run.SessionID, eventType, data)
 }
 
 func (s *resourceCatalog) deliveryTask(ctx context.Context, taskID uint, token string) (model.ResourceTask, error) {

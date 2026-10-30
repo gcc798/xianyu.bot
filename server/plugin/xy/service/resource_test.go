@@ -90,7 +90,7 @@ func TestResourceCatalogScopesQueriesByOwner(t *testing.T) {
 func TestResourceDeliveryGrantAndCompletion(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
-	require.NoError(t, db.AutoMigrate(&model.ResourceSearch{}, &model.ResourceCandidate{}, &model.ResourceTask{}, &model.Resource{}, &model.ResourceSource{}))
+	require.NoError(t, db.AutoMigrate(&model.ResourceSearch{}, &model.ResourceCandidate{}, &model.ResourceTask{}, &model.Resource{}, &model.ResourceSource{}, &model.AgentRun{}))
 	oldDB := global.GVA_DB
 	global.GVA_DB = db
 	t.Cleanup(func() { global.GVA_DB = oldDB })
@@ -104,9 +104,18 @@ func TestResourceDeliveryGrantAndCompletion(t *testing.T) {
 	require.NoError(t, db.Create(&candidate).Error)
 	store := &fakeResourceObjectStore{size: candidate.Size}
 	catalog := &resourceCatalog{objectStore: store, bucket: "resources"}
+	run := model.AgentRun{OwnerID: 11, SessionID: 7, ModelID: 1, ModelName: "test", Status: "completed", ConfigSnapshot: `{}`, StartedAt: time.Now()}
+	require.NoError(t, db.Create(&run).Error)
+	oldEvents := Service.AgentEvents
+	Service.AgentEvents = newAgentEventHub()
+	t.Cleanup(func() { Service.AgentEvents = oldEvents })
+	_, taskEvents, unsubscribe := Service.AgentEvents.Subscribe(run.SessionID, 0)
+	defer unsubscribe()
 
 	grant, err := catalog.CreateDeliveryTask(t.Context(), 11, candidate.ID, "request-1")
 	require.NoError(t, err)
+	require.NoError(t, db.Model(&grant.Task).Update("agent_run_id", run.ID).Error)
+	grant.Task.AgentRunID = new(run.ID)
 	require.NotEmpty(t, grant.Token)
 	_, err = catalog.CreateDeliveryTask(t.Context(), 22, candidate.ID, "request-other")
 	require.True(t, errors.Is(err, gorm.ErrRecordNotFound))
@@ -123,12 +132,19 @@ func TestResourceDeliveryGrantAndCompletion(t *testing.T) {
 	require.NoError(t, err)
 	require.Contains(t, uploadURL, "resources/11/")
 	require.True(t, store.bucketCreated)
+	updated, err := catalog.UpdateDelivery(t.Context(), grant.Task.ID, grant.Token, xyRequest.UpdateResourceDelivery{
+		Stage: "downloading", ProgressPercent: 25, ProgressDone: 512, ProgressTotal: 2048, ProgressUnit: "bytes",
+	})
+	require.NoError(t, err)
+	require.Equal(t, "running", updated.State)
+	require.Equal(t, "task.updated", (<-taskEvents).Type)
 
 	checksum := "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 	resource, err := catalog.CompleteDelivery(t.Context(), grant.Task.ID, grant.Token, candidate.Size, checksum)
 	require.NoError(t, err)
 	require.Equal(t, uint(11), resource.OwnerID)
 	require.Equal(t, checksum, resource.SHA256)
+	require.Equal(t, "task.completed", (<-taskEvents).Type)
 
 	repeated, err := catalog.CompleteDelivery(t.Context(), grant.Task.ID, grant.Token, candidate.Size, checksum)
 	require.NoError(t, err)
@@ -137,4 +153,12 @@ func TestResourceDeliveryGrantAndCompletion(t *testing.T) {
 	require.ErrorContains(t, err, "当前不能上传")
 	_, _, err = catalog.PresignDelivery(t.Context(), grant.Task.ID, "wrong-token")
 	require.ErrorContains(t, err, "授权无效")
+
+	failedGrant, err := catalog.CreateDeliveryTask(t.Context(), 11, candidate.ID, "request-failed")
+	require.NoError(t, err)
+	failed, err := catalog.FailDelivery(t.Context(), failedGrant.Task.ID, failedGrant.Token, xyRequest.FailResourceDelivery{
+		ErrorCode: "delivery_failed", ErrorMessage: "资源获取失败",
+	})
+	require.NoError(t, err)
+	require.Equal(t, "failed", failed.State)
 }

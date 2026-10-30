@@ -146,6 +146,10 @@ func prepareResourceApproval(ctx context.Context, ownerID uint, call *model.Agen
 	if err != nil {
 		return nil, err
 	}
+	if err := global.GVA_DB.WithContext(ctx).Model(&grant.Task).Update("agent_run_id", call.RunID).Error; err != nil {
+		return nil, err
+	}
+	grant.Task.AgentRunID = new(call.RunID)
 	input["task_id"] = grant.Task.ID
 	input["idempotency_key"] = idempotencyKey
 	input["delivery_token"] = grant.Token

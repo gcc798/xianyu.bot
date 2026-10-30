@@ -10,6 +10,18 @@ type AgentSessionDetail struct {
 	model.AgentSession
 	Messages         []model.AgentMessage `json:"messages"`
 	PendingApprovals []AgentApproval      `json:"pendingApprovals"`
+	Tasks            []AgentTask          `json:"tasks"`
+}
+
+type AgentTask struct {
+	ID              uint   `json:"id"`
+	RunID           uint   `json:"runId"`
+	State           string `json:"state"`
+	Stage           string `json:"stage"`
+	ProgressPercent int    `json:"progressPercent"`
+	ProgressDone    int64  `json:"progressDone"`
+	ProgressTotal   int64  `json:"progressTotal"`
+	ProgressUnit    string `json:"progressUnit"`
 }
 
 type AgentApproval struct {

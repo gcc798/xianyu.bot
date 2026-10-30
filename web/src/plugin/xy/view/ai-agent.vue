@@ -51,6 +51,9 @@
           <article v-else-if="message.role === 'skill'" class="event-card skill-card">
             <span class="event-icon">◇</span><div><small>SKILL</small><strong>{{ message.skill }}</strong></div><el-tag size="small" type="success">已加载</el-tag>
           </article>
+          <article v-else-if="message.role === 'task'" class="event-card task-card">
+            <span class="event-icon">↧</span><div><small>RESOURCE TASK #{{ message.taskId }}</small><strong>{{ taskStatus(message.state) }}</strong><p>{{ message.stage || '等待处理' }} · {{ message.progressPercent || 0 }}%</p></div><el-progress type="circle" :width="38" :stroke-width="4" :percentage="message.progressPercent || 0" :status="message.state === 'failed' ? 'exception' : message.state === 'completed' ? 'success' : undefined" />
+          </article>
         </template>
       </section>
 
@@ -133,6 +136,7 @@ const slashQuery = ref('')
 const slashRange = ref(null)
 const activeRunId = ref(0)
 const runEvents = ref([])
+const watchingTask = ref(false)
 const composerInput = ref(null)
 const messageViewport = ref(null)
 let streamController = null
@@ -170,18 +174,29 @@ const selectSession = async (id) => {
   activeSessionId.value = id
   activeRunId.value = 0
   sending.value = false
+  watchingTask.value = false
   runEvents.value = []
   lastEventId = 0
   await reloadConversation(id)
+  const activeTask = messages.value.find(item => item.role === 'task' && ['queued', 'running'].includes(item.state))
+  if (activeTask) {
+    activeRunId.value = activeTask.runId
+    watchingTask.value = true
+    startStream(id, activeTask.runId)
+  }
 }
 
 const reloadConversation = async id => {
   const res = await getAgentSession(id)
   if (res.code === 0) {
     const session = res.data.session
-    messages.value = [...(session.messages || []), ...(session.pendingApprovals || []).map(item => ({
-      localId: `approval-${item.runId}-${item.toolName}-${item.createdAt}`, role: 'approval', runId: item.runId, tool: item.toolName, createdAt: item.createdAt
-    }))]
+    messages.value = [
+      ...(session.messages || []),
+      ...(session.pendingApprovals || []).map(item => ({
+        localId: `approval-${item.runId}-${item.toolName}-${item.createdAt}`, role: 'approval', runId: item.runId, tool: item.toolName, createdAt: item.createdAt
+      })),
+      ...(session.tasks || []).map(item => ({ localId: `task-${item.id}`, role: 'task', taskId: item.id, ...item }))
+    ]
   }
   scrollToBottom()
 }
@@ -241,6 +256,7 @@ const sendMessage = async () => {
   directives.value = []
   slashOpen.value = false
   sending.value = true
+  watchingTask.value = false
   runEvents.value = []
   scrollToBottom()
   try {
@@ -265,13 +281,14 @@ const startStream = (sessionId, runId) => {
   streamController = new AbortController()
   const controller = streamController
   streamAgentEvents(sessionId, { afterId: lastEventId, signal: controller.signal, onEvent: event => handleRunEvent(event, runId) })
-    .then(() => { if (!controller.signal.aborted && sending.value && activeRunId.value === runId) reconnectTimer = setTimeout(() => startStream(sessionId, runId), 800) })
-    .catch(() => { if (!controller.signal.aborted && sending.value && activeRunId.value === runId) reconnectTimer = setTimeout(() => startStream(sessionId, runId), 1200) })
+    .then(() => { if (!controller.signal.aborted && (sending.value || watchingTask.value) && activeRunId.value === runId) reconnectTimer = setTimeout(() => startStream(sessionId, runId), 800) })
+    .catch(() => { if (!controller.signal.aborted && (sending.value || watchingTask.value) && activeRunId.value === runId) reconnectTimer = setTimeout(() => startStream(sessionId, runId), 1200) })
 }
 
 const handleRunEvent = (event, runId) => {
   lastEventId = Math.max(lastEventId, event.id || 0)
   if (event.data?.runId !== runId) return
+  if (watchingTask.value && !sending.value && !event.type.startsWith('task.')) return
   runEvents.value.push({ ...event, at: new Date().toISOString() })
   if (event.type === 'assistant.delta') {
     const target = messages.value.find(item => item.runId === runId && item.role === 'assistant')
@@ -285,6 +302,17 @@ const handleRunEvent = (event, runId) => {
     messages.value.push({ localId: `approval-${event.id}`, role: 'approval', runId: event.data.runId, tool: event.data.tool })
   } else if (event.type === 'skill.loaded') {
     messages.value.push({ localId: `skill-${event.id}`, role: 'skill', skill: event.data.skill })
+  } else if (event.type === 'task.created' || event.type === 'task.updated' || event.type === 'task.completed') {
+    let task = messages.value.find(item => item.role === 'task' && item.taskId === event.data.taskId)
+    if (!task) {
+      task = { localId: `task-${event.data.taskId}`, role: 'task', taskId: event.data.taskId }
+      messages.value.push(task)
+    }
+    Object.assign(task, event.data)
+    if (event.type === 'task.completed' || ['failed', 'cancelled'].includes(event.data.state)) {
+      watchingTask.value = false
+      stopStream()
+    }
   } else if (event.type === 'run.completed' || event.type === 'run.failed' || event.type === 'run.cancelled') {
     finishRun(event.type === 'run.failed' ? event.data.message : '')
   }
@@ -313,6 +341,11 @@ const approveRun = async message => {
     if (res.code !== 0) return
     ElMessage.success('操作已确认并提交')
     await reloadConversation(activeSessionId.value)
+    if (message.tool === 'resource_acquire') {
+      activeRunId.value = message.runId
+      watchingTask.value = true
+      startStream(activeSessionId.value, message.runId)
+    }
   } finally { message.approving = false }
 }
 
@@ -322,9 +355,10 @@ const useStarter = text => { draft.value = text; nextTick(() => composerInput.va
 const scrollToBottom = () => nextTick(() => { if (messageViewport.value) messageViewport.value.scrollTop = messageViewport.value.scrollHeight })
 const capabilityIcon = type => ({ skill: '◇', tool: '⌘', command: '›_', model: '◉' }[type])
 const toolStatus = status => ({ running: '执行中', completed: '已完成', failed: '不可用' }[status] || status)
+const taskStatus = status => ({ queued: '等待处理', running: '正在获取资源', completed: '资源已就绪', failed: '资源获取失败', cancelled: '任务已取消' }[status] || status)
 const formatTime = value => value ? new Intl.DateTimeFormat('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }).format(new Date(value)) : ''
 const eventColor = type => type.includes('failed') ? 'danger' : type.includes('cancelled') || type.includes('tool') ? 'warning' : type.includes('completed') ? 'success' : 'primary'
-const eventLabel = event => ({ 'run.started': '开始运行', 'assistant.delta': '生成回答', 'skill.loaded': '加载 Skill', 'tool.started': '调用 Tool', 'tool.completed': 'Tool 返回', 'approval.required': '等待确认', 'run.completed': '运行完成', 'run.failed': '运行失败', 'run.cancelled': '运行已取消' }[event.type] || event.type)
+const eventLabel = event => ({ 'run.started': '开始运行', 'assistant.delta': '生成回答', 'skill.loaded': '加载 Skill', 'tool.started': '调用 Tool', 'tool.completed': 'Tool 返回', 'approval.required': '等待确认', 'task.created': '资源任务已创建', 'task.updated': '资源任务更新', 'task.completed': '资源已就绪', 'run.completed': '运行完成', 'run.failed': '运行失败', 'run.cancelled': '运行已取消' }[event.type] || event.type)
 const eventDescription = event => event.data?.tool || event.data?.skill || event.data?.message || `事件 #${event.id}`
 
 onMounted(async () => { await loadSessions(); if (sessions.value.length) await selectSession(sessions.value[0].ID) })
@@ -341,7 +375,7 @@ button { font: inherit; }.icon-button, .run-button { border: 0; color: var(--el-
 .conversation-stage { min-width: 0; display: grid; grid-template-rows: 58px minmax(0, 1fr) auto; }.conversation-head { display: flex; align-items: center; justify-content: space-between; padding: 0 24px; border-bottom: 1px solid var(--el-border-color-lighter); }.conversation-head > div { display: flex; align-items: center; gap: 9px; }.conversation-head strong { font-size: 14px; }.conversation-head small { color: var(--el-text-color-placeholder); font: 600 9px/1 ui-monospace, monospace; letter-spacing: .12em; }.status-lamp { width: 7px; height: 7px; border-radius: 50%; background: var(--agent-teal); box-shadow: 0 0 0 4px color-mix(in srgb, var(--agent-teal) 13%, transparent); }.status-lamp.busy { background: var(--agent-orange); animation: pulse 1.3s infinite; }.head-actions { display: flex; align-items: center; gap: 7px; }.run-button, .cancel-button { padding: 7px 10px; border: 0; border-radius: 8px; font-size: 12px; cursor: pointer; }.run-button { color: var(--el-text-color-secondary); background: transparent; }.cancel-button { color: var(--el-color-danger); background: var(--el-color-danger-light-9); }.run-button:not(:disabled):hover { color: var(--agent-teal); background: var(--el-fill-color-light); }.run-button:disabled { opacity: .4; cursor: default; }
 .message-viewport { overflow-y: auto; padding: 34px max(24px, calc((100% - 820px) / 2)); scroll-behavior: smooth; }.welcome-panel { max-width: 760px; margin: 8vh auto 0; }.kicker { margin: 0 0 18px; color: var(--agent-teal); font: 700 10px/1 ui-monospace, monospace; letter-spacing: .22em; }.welcome-panel h1 { margin: 0; color: var(--el-text-color-primary); font: 600 clamp(34px, 5vw, 62px)/1.06 Georgia, 'Times New Roman', serif; letter-spacing: -.035em; }.welcome-panel h1 em { color: var(--agent-teal); font-weight: 400; }.welcome-panel > p:not(.kicker) { max-width: 610px; margin: 22px 0 30px; color: var(--el-text-color-secondary); font-size: 14px; line-height: 1.8; }.welcome-panel kbd { padding: 2px 7px; border: 1px solid var(--el-border-color); border-radius: 5px; background: var(--el-bg-color); font-family: ui-monospace, monospace; }.starter-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }.starter-grid button { min-height: 92px; padding: 14px; border: 1px solid var(--el-border-color-lighter); border-radius: 10px; text-align: left; color: var(--el-text-color-regular); background: color-mix(in srgb, var(--el-bg-color) 82%, transparent); cursor: pointer; transition: .2s ease; }.starter-grid button:hover { transform: translateY(-2px); border-color: color-mix(in srgb, var(--agent-teal) 45%, var(--el-border-color)); box-shadow: 0 10px 25px rgba(25, 49, 47, .08); }.starter-grid span { display: block; margin-bottom: 14px; color: var(--agent-orange); font: 700 10px/1 ui-monospace, monospace; }
 .message-row { display: grid; grid-template-columns: 38px minmax(0, 1fr); gap: 12px; max-width: 820px; margin: 0 auto 28px; }.message-avatar { width: 34px; height: 34px; display: grid; place-items: center; border: 1px solid var(--el-border-color); border-radius: 9px; color: var(--el-text-color-secondary); font: 700 9px/1 ui-monospace, monospace; }.message-row.assistant .message-avatar { border-color: color-mix(in srgb, var(--agent-teal) 50%, var(--el-border-color)); color: var(--agent-teal); }.message-meta { display: flex; align-items: baseline; gap: 9px; margin: 1px 0 8px; }.message-meta strong { font-size: 13px; }.message-meta span { color: var(--el-text-color-placeholder); font-size: 10px; }.message-content { color: var(--el-text-color-primary); font-size: 14px; line-height: 1.8; white-space: pre-wrap; overflow-wrap: anywhere; }.message-row.user .message-content { display: inline-block; padding: 10px 14px; border-radius: 3px 13px 13px 13px; background: var(--el-fill-color-light); }.cursor { display: inline-block; width: 7px; height: 16px; margin-left: 3px; vertical-align: -3px; background: var(--agent-teal); animation: blink .8s steps(1) infinite; }
-.event-card { max-width: 740px; min-height: 54px; display: grid; grid-template-columns: 34px 1fr auto; align-items: center; gap: 12px; margin: -10px auto 22px 50px; padding: 9px 12px; border: 1px solid var(--el-border-color-lighter); border-left: 3px solid var(--agent-orange); border-radius: 8px; background: var(--el-bg-color); }.event-card.skill-card { border-left-color: var(--agent-teal); }.event-card.approval-card { border-left-color: #c58b21; }.event-icon { width: 30px; height: 30px; display: grid; place-items: center; border-radius: 7px; color: var(--agent-orange); background: color-mix(in srgb, var(--agent-orange) 10%, transparent); font: 700 13px/1 ui-monospace, monospace; }.skill-card .event-icon { color: var(--agent-teal); background: color-mix(in srgb, var(--agent-teal) 10%, transparent); }.event-card div { display: grid; }.event-card small { color: var(--el-text-color-placeholder); font: 700 8px/1 ui-monospace, monospace; letter-spacing: .14em; }.event-card strong { margin-top: 4px; font-size: 12px; }.event-card p { margin: 3px 0 0; color: var(--el-text-color-secondary); font-size: 11px; }
+.event-card { max-width: 740px; min-height: 54px; display: grid; grid-template-columns: 34px 1fr auto; align-items: center; gap: 12px; margin: -10px auto 22px 50px; padding: 9px 12px; border: 1px solid var(--el-border-color-lighter); border-left: 3px solid var(--agent-orange); border-radius: 8px; background: var(--el-bg-color); }.event-card.skill-card { border-left-color: var(--agent-teal); }.event-card.approval-card { border-left-color: #c58b21; }.event-card.task-card { border-left-color: #4b5f9c; }.event-icon { width: 30px; height: 30px; display: grid; place-items: center; border-radius: 7px; color: var(--agent-orange); background: color-mix(in srgb, var(--agent-orange) 10%, transparent); font: 700 13px/1 ui-monospace, monospace; }.skill-card .event-icon { color: var(--agent-teal); background: color-mix(in srgb, var(--agent-teal) 10%, transparent); }.task-card .event-icon { color: #4b5f9c; background: color-mix(in srgb, #4b5f9c 10%, transparent); }.event-card div { display: grid; }.event-card small { color: var(--el-text-color-placeholder); font: 700 8px/1 ui-monospace, monospace; letter-spacing: .14em; }.event-card strong { margin-top: 4px; font-size: 12px; }.event-card p { margin: 3px 0 0; color: var(--el-text-color-secondary); font-size: 11px; }
 .composer-zone { position: relative; padding: 10px max(20px, calc((100% - 860px) / 2)) 18px; background: linear-gradient(to top, var(--agent-paper) 78%, transparent); }.composer { padding: 11px 12px 9px; border: 1px solid var(--el-border-color); border-radius: 13px; background: var(--el-bg-color); box-shadow: 0 13px 35px rgba(25, 49, 47, .1); }.composer:focus-within { border-color: color-mix(in srgb, var(--agent-teal) 60%, var(--el-border-color)); box-shadow: 0 13px 35px rgba(12, 136, 126, .12); }.composer textarea { width: 100%; min-height: 52px; max-height: 150px; resize: none; padding: 4px; border: 0; outline: 0; color: var(--el-text-color-primary); background: transparent; font: 14px/1.65 inherit; }.composer textarea::placeholder { color: var(--el-text-color-placeholder); }.composer-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; }.composer-tools { display: flex; align-items: center; gap: 12px; color: var(--el-text-color-placeholder); font-size: 10px; }.model-pill { padding: 5px 8px; border: 1px solid var(--el-border-color-lighter); border-radius: 7px; color: #4b5f9c; background: var(--el-fill-color-light); }.send-button { min-width: 82px; padding: 8px 14px; border: 0; border-radius: 8px; color: white; background: var(--agent-ink); cursor: pointer; }.send-button:disabled { opacity: .45; cursor: default; }
 .directive-strip { display: flex; flex-wrap: wrap; gap: 7px; margin-bottom: 7px; }.directive-chip { display: inline-flex; align-items: center; gap: 7px; padding: 6px 8px; border: 1px solid; border-radius: 7px; font-size: 11px; background: var(--el-bg-color); }.directive-chip b { font: 700 8px/1 ui-monospace, monospace; letter-spacing: .08em; }.directive-chip.skill { border-color: color-mix(in srgb, var(--agent-teal) 45%, var(--el-border-color)); color: var(--agent-teal); }.directive-chip.tool { border-color: color-mix(in srgb, var(--agent-orange) 50%, var(--el-border-color)); color: var(--agent-orange); }.directive-chip button { border: 0; color: inherit; background: transparent; cursor: pointer; }
 .slash-menu { position: absolute; z-index: 20; right: max(20px, calc((100% - 860px) / 2)); bottom: calc(100% - 4px); left: max(20px, calc((100% - 860px) / 2)); max-height: 370px; overflow-y: auto; padding: 8px; border: 1px solid var(--el-border-color); border-radius: 12px; background: color-mix(in srgb, var(--el-bg-color) 96%, transparent); box-shadow: 0 20px 55px rgba(20, 38, 36, .18); backdrop-filter: blur(16px); }.slash-head { display: flex; justify-content: space-between; padding: 7px 9px 10px; color: var(--el-text-color-secondary); font-size: 11px; }.slash-head small { color: var(--el-text-color-placeholder); }.slash-option { width: 100%; display: grid; grid-template-columns: 34px 1fr auto; align-items: center; gap: 10px; padding: 9px; border: 0; border-radius: 8px; text-align: left; color: var(--el-text-color-primary); background: transparent; cursor: pointer; }.slash-option.active { background: var(--el-fill-color-light); }.capability-icon { width: 30px; height: 30px; display: grid; place-items: center; border-radius: 7px; font: 700 12px/1 ui-monospace, monospace; }.slash-option > span:nth-child(2) { display: grid; }.slash-option strong { font-size: 12px; }.slash-option small { margin-top: 3px; color: var(--el-text-color-secondary); font-size: 10px; }.slash-option em { padding: 3px 6px; border-radius: 4px; font: 700 8px/1 ui-monospace, monospace; letter-spacing: .08em; }.slash-option.skill .capability-icon, .slash-option.skill em { color: var(--agent-teal); background: color-mix(in srgb, var(--agent-teal) 10%, transparent); }.slash-option.tool .capability-icon, .slash-option.tool em { color: var(--agent-orange); background: color-mix(in srgb, var(--agent-orange) 11%, transparent); }.slash-option.command .capability-icon, .slash-option.command em { color: #60758e; background: color-mix(in srgb, #60758e 11%, transparent); }.slash-option.model .capability-icon, .slash-option.model em { color: #4b5f9c; background: color-mix(in srgb, #4b5f9c 11%, transparent); }.slash-empty { padding: 18px; color: var(--el-text-color-placeholder); font-size: 12px; text-align: center; }

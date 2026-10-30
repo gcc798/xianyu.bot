@@ -36,6 +36,7 @@ func (ResourceCandidate) TableName() string { return "xy_resource_candidates" }
 type ResourceTask struct {
 	global.GVA_MODEL
 	OwnerID           uint       `json:"-" gorm:"not null;index:idx_xy_resource_tasks_owner;uniqueIndex:idx_xy_resource_task_idempotency"`
+	AgentRunID        *uint      `json:"-" gorm:"index"`
 	CandidateID       uint       `json:"candidateId" gorm:"not null;index"`
 	MCPServerCode     string     `json:"mcpServerCode" gorm:"size:64;not null"`
 	ExternalTaskID    string     `json:"externalTaskId" gorm:"size:200;index"`
