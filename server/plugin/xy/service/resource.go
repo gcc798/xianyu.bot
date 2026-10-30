@@ -128,7 +128,7 @@ func (s *resourceCatalog) CancelTask(ctx context.Context, ownerID, taskID uint) 
 	result, err := connection.Client.CallTool(requestContext, mcp.CallToolRequest{Params: mcp.CallToolParams{
 		Name: "task_cancel", Arguments: map[string]any{"task_id": task.ExternalTaskID},
 	}})
-	if err != nil || result.IsError || !approvedResultSucceeded(result.StructuredContent) {
+	if err != nil || result.IsError || !approvedResultSucceeded(mcpToolResultValue(result)) {
 		return model.ResourceTask{}, errors.New("MCP 能力暂不可用")
 	}
 	completedAt := time.Now()

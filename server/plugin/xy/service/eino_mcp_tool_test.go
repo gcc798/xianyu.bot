@@ -100,7 +100,7 @@ func TestEinoMCPToolPersistsResourceSearchCandidates(t *testing.T) {
 	oldDB := global.GVA_DB
 	global.GVA_DB = db
 	t.Cleanup(func() { global.GVA_DB = oldDB })
-	client := &recordingMCPClient{result: map[string]any{
+	client := &recordingMCPClient{textResult: true, result: map[string]any{
 		"status": "success",
 		"data": map[string]any{"candidates": []any{map[string]any{
 			"candidate_id": "signed-candidate", "name": "Go.pdf", "size": 123,
@@ -137,6 +137,7 @@ type recordingMCPClient struct {
 	lastName      string
 	lastArguments map[string]any
 	result        any
+	textResult    bool
 }
 
 func (c *recordingMCPClient) CallTool(_ context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
@@ -146,6 +147,10 @@ func (c *recordingMCPClient) CallTool(_ context.Context, request mcp.CallToolReq
 	result := c.result
 	if result == nil {
 		result = map[string]any{"ok": true}
+	}
+	if c.textResult {
+		payload, _ := json.Marshal(result)
+		return &mcp.CallToolResult{Content: []mcp.Content{mcp.NewTextContent(string(payload))}}, nil
 	}
 	return &mcp.CallToolResult{StructuredContent: result}, nil
 }

@@ -78,12 +78,17 @@ func (s *agentRunner) executeApproval(ctx context.Context, run model.AgentRun, c
 		failApprovedResourceTask(ctx, task)
 		return errors.New("MCP 能力暂不可用")
 	}
-	if result.IsError || !approvedResultSucceeded(result.StructuredContent) {
+	resultValue := mcpToolResultValue(result)
+	if result.IsError || !approvedResultSucceeded(resultValue) {
 		failApprovedResourceTask(ctx, task)
 		return errors.New("MCP 操作执行失败")
 	}
 	if task != nil {
-		externalTaskID := approvedExternalTaskID(result.StructuredContent)
+		externalTaskID := approvedExternalTaskID(resultValue)
+		if externalTaskID == "" {
+			failApprovedResourceTask(ctx, task)
+			return errors.New("MCP 操作未返回任务标识")
+		}
 		now := time.Now()
 		if err := global.GVA_DB.WithContext(ctx).Model(task).Updates(map[string]any{
 			"external_task_id": externalTaskID, "state": "running", "stage": "submitted", "started_at": now,

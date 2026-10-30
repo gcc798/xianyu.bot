@@ -160,7 +160,7 @@ func (t *einoMCPTool) persistResourceSearch(ctx context.Context, input map[strin
 	if t.definition.Name != "resource_search" || result == nil || result.IsError || t.ownerID == 0 {
 		return nil
 	}
-	payload, err := json.Marshal(result.StructuredContent)
+	payload, err := json.Marshal(mcpToolResultValue(result))
 	if err != nil {
 		return err
 	}
@@ -201,6 +201,32 @@ func (t *einoMCPTool) persistResourceSearch(ctx context.Context, input map[strin
 		}
 		return nil
 	})
+}
+
+func mcpToolResultValue(result *mcp.CallToolResult) any {
+	if result == nil {
+		return nil
+	}
+	if result.StructuredContent != nil {
+		return result.StructuredContent
+	}
+	for _, content := range result.Content {
+		var text string
+		switch value := content.(type) {
+		case mcp.TextContent:
+			text = value.Text
+		case *mcp.TextContent:
+			text = value.Text
+		}
+		if text == "" {
+			continue
+		}
+		var value any
+		if json.Unmarshal([]byte(text), &value) == nil {
+			return value
+		}
+	}
+	return nil
 }
 
 func (t *einoMCPTool) startToolCall(ctx context.Context) (*model.AgentRunTool, error) {

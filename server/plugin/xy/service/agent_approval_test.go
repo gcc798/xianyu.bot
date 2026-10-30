@@ -36,7 +36,7 @@ func TestAgentRunnerApprovesResourceAcquisitionWithoutPersistingDeliveryToken(t 
 		Arguments: `{"candidate_id":"signed-candidate"}`, Status: "waiting_approval", StartedAt: time.Now(),
 	}
 	require.NoError(t, db.Create(&call).Error)
-	client := &recordingMCPClient{result: map[string]any{
+	client := &recordingMCPClient{textResult: true, result: map[string]any{
 		"status": "success", "data": map[string]any{"task_id": "resource_acquire:42"},
 	}}
 	registry := &mcpRegistry{connect: func(context.Context, model.MCPServer) (*mcpConnection, error) {
