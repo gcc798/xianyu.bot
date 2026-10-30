@@ -39,3 +39,36 @@ func TestRegisterMenusSupportsNestedChildren(t *testing.T) {
 	require.Equal(t, "新标题", section.Meta.Title)
 	require.Equal(t, "child.vue", child.Component)
 }
+
+func TestRegisterMenusSupportsMultipleRoots(t *testing.T) {
+	originalDB := global.GVA_DB
+	originalMenus := MenuMap["plugin-tool"]
+	t.Cleanup(func() {
+		global.GVA_DB = originalDB
+		MenuMap["plugin-tool"] = originalMenus
+	})
+
+	db, err := gorm.Open(sqlite.Open("file:register-menu-roots?mode=memory&cache=shared"), &gorm.Config{})
+	require.NoError(t, err)
+	require.NoError(t, db.AutoMigrate(&system.SysBaseMenu{}))
+	global.GVA_DB = db
+	MenuMap["plugin-tool"] = nil
+
+	RegisterMenus(
+		system.SysBaseMenu{Name: "FirstRoot", Path: "first"},
+		system.SysBaseMenu{Name: "FirstChild", Path: "child"},
+	)
+	RegisterMenus(
+		system.SysBaseMenu{Name: "SecondRoot", Path: "second"},
+		system.SysBaseMenu{Name: "SecondChild", Path: "child"},
+	)
+
+	var firstRoot, secondRoot, secondChild system.SysBaseMenu
+	require.NoError(t, db.Where("name = ?", "FirstRoot").First(&firstRoot).Error)
+	require.NoError(t, db.Where("name = ?", "SecondRoot").First(&secondRoot).Error)
+	require.NoError(t, db.Where("name = ?", "SecondChild").First(&secondChild).Error)
+	require.Zero(t, firstRoot.ParentId)
+	require.Zero(t, secondRoot.ParentId)
+	require.Equal(t, secondRoot.ID, secondChild.ParentId)
+	require.Len(t, MenuMap["plugin-tool"], 4)
+}

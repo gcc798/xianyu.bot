@@ -67,7 +67,7 @@ func RegisterMenus(menus ...system.SysBaseMenu) {
 	name := getPluginName()
 	if name != "" {
 		rw.Lock()
-		MenuMap[name] = flattenMenus(menus)
+		MenuMap[name] = append(MenuMap[name], flattenMenus(menus)...)
 		rw.Unlock()
 	}
 
