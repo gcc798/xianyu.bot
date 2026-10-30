@@ -18,7 +18,7 @@ func TestRegisterMenusSupportsNestedChildren(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, db.AutoMigrate(&system.SysBaseMenu{}))
 	global.GVA_DB = db
-	require.NoError(t, db.Create(&system.SysBaseMenu{Name: "TestRoot", Path: "root"}).Error)
+	require.NoError(t, db.Create(&system.SysBaseMenu{Name: "TestRoot", ParentId: 99, Path: "legacy-root"}).Error)
 	require.NoError(t, db.Create(&system.SysBaseMenu{Name: "TestSection", Path: "legacy", Component: "legacy.vue"}).Error)
 
 	RegisterMenus(
@@ -34,6 +34,8 @@ func TestRegisterMenusSupportsNestedChildren(t *testing.T) {
 	require.NoError(t, db.Where("name = ?", "TestSection").First(&section).Error)
 	require.NoError(t, db.Where("name = ?", "TestChild").First(&child).Error)
 	require.Equal(t, root.ID, section.ParentId)
+	require.Zero(t, root.ParentId)
+	require.Equal(t, "root", root.Path)
 	require.Equal(t, section.ID, child.ParentId)
 	require.Equal(t, "view/routerHolder.vue", section.Component)
 	require.Equal(t, "新标题", section.Meta.Title)

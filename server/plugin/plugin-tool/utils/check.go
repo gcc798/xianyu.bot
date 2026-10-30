@@ -72,12 +72,17 @@ func RegisterMenus(menus ...system.SysBaseMenu) {
 	}
 
 	parentMenu := menus[0]
+	parentDefinition := parentMenu
 	otherMenus := menus[1:]
 	err := global.GVA_DB.Transaction(func(tx *gorm.DB) error {
 		err := tx.Model(system.SysBaseMenu{}).Where("name = ? ", parentMenu.Name).FirstOrCreate(&parentMenu).Error
 		if err != nil {
 			zap.L().Error("注册菜单失败", zap.Error(err))
 			return errors.Wrap(err, "注册菜单失败")
+		}
+		parentDefinition.ID = parentMenu.ID
+		if err = updateMenuDefinition(tx, &parentDefinition, parentDefinition.ParentId); err != nil {
+			return errors.Wrap(err, "更新根菜单失败")
 		}
 		pid := parentMenu.ID
 		for i := range otherMenus {
