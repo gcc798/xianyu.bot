@@ -4,7 +4,7 @@
         "description": "使用gin+vue进行极速开发的全栈开发基础平台",
         "title": "Gin-Vue-Admin Swagger API接口文档",
         "contact": {},
-        "version": "v2.7.9-beta"
+        "version": "v2.9.2"
     },
     "paths": {
         "/api/createApi": {
@@ -414,6 +414,65 @@
                 }
             }
         },
+        "/api/getApiRoles": {
+            "get": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "SysApi"
+                ],
+                "summary": "获取拥有指定API权限的角色ID列表",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "API路径",
+                        "name": "path",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "请求方法",
+                        "name": "method",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "获取成功",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "object",
+                                            "additionalProperties": true
+                                        },
+                                        "msg": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
         "/api/ignoreApi": {
             "post": {
                 "security": [
@@ -434,6 +493,56 @@
                 "responses": {
                     "200": {
                         "description": "同步API",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "msg": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/api/setApiRoles": {
+            "post": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "SysApi"
+                ],
+                "summary": "全量覆盖某API关联的角色列表",
+                "parameters": [
+                    {
+                        "description": "API路径、请求方法和角色ID列表",
+                        "name": "data",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/request.SetApiAuthorities"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "设置成功",
                         "schema": {
                             "allOf": [
                                 {
@@ -871,6 +980,60 @@
                 }
             }
         },
+        "/authority/getUsersByAuthority": {
+            "get": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Authority"
+                ],
+                "summary": "获取拥有指定角色的用户ID列表",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "角色ID",
+                        "name": "authorityId",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "获取成功",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "integer"
+                                            }
+                                        },
+                                        "msg": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
         "/authority/setDataAuthority": {
             "post": {
                 "security": [
@@ -902,6 +1065,56 @@
                 "responses": {
                     "200": {
                         "description": "设置角色资源权限",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "msg": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/authority/setRoleUsers": {
+            "post": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Authority"
+                ],
+                "summary": "全量覆盖某角色关联的用户列表",
+                "parameters": [
+                    {
+                        "description": "角色ID和用户ID列表",
+                        "name": "data",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/request.SetRoleUsers"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "设置成功",
                         "schema": {
                             "allOf": [
                                 {
@@ -1350,92 +1563,6 @@
                 }
             }
         },
-        "/autoCode/getColumn": {
-            "get": {
-                "security": [
-                    {
-                        "ApiKeyAuth": []
-                    }
-                ],
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "AutoCode"
-                ],
-                "summary": "获取当前表所有字段",
-                "responses": {
-                    "200": {
-                        "description": "获取当前表所有字段",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/response.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "type": "object",
-                                            "additionalProperties": true
-                                        },
-                                        "msg": {
-                                            "type": "string"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    }
-                }
-            }
-        },
-        "/autoCode/getDB": {
-            "get": {
-                "security": [
-                    {
-                        "ApiKeyAuth": []
-                    }
-                ],
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "AutoCode"
-                ],
-                "summary": "获取当前所有数据库",
-                "responses": {
-                    "200": {
-                        "description": "获取当前所有数据库",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/response.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "type": "object",
-                                            "additionalProperties": true
-                                        },
-                                        "msg": {
-                                            "type": "string"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    }
-                }
-            }
-        },
         "/autoCode/getMeta": {
             "post": {
                 "security": [
@@ -1533,6 +1660,45 @@
                 }
             }
         },
+        "/autoCode/getPluginList": {
+            "get": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "AutoCodePlugin"
+                ],
+                "summary": "获取插件列表",
+                "responses": {
+                    "200": {
+                        "description": "获取插件列表成功",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/definitions/response.PluginInfo"
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
         "/autoCode/getSysHistory": {
             "post": {
                 "security": [
@@ -1574,49 +1740,6 @@
                                     "properties": {
                                         "data": {
                                             "$ref": "#/definitions/response.PageResult"
-                                        },
-                                        "msg": {
-                                            "type": "string"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    }
-                }
-            }
-        },
-        "/autoCode/getTables": {
-            "get": {
-                "security": [
-                    {
-                        "ApiKeyAuth": []
-                    }
-                ],
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "AutoCode"
-                ],
-                "summary": "获取当前数据库所有表",
-                "responses": {
-                    "200": {
-                        "description": "获取当前数据库所有表",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/response.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "type": "object",
-                                            "additionalProperties": true
                                         },
                                         "msg": {
                                             "type": "string"
@@ -1673,6 +1796,49 @@
             }
         },
         "/autoCode/initAPI": {
+            "post": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "AutoCodePlugin"
+                ],
+                "summary": "打包插件",
+                "responses": {
+                    "200": {
+                        "description": "打包插件成功",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "object",
+                                            "additionalProperties": true
+                                        },
+                                        "msg": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/autoCode/initDictionary": {
             "post": {
                 "security": [
                     {
@@ -1797,9 +1963,7 @@
                                     "properties": {
                                         "data": {
                                             "type": "array",
-                                            "items": {
-                                                "type": "object"
-                                            }
+                                            "items": {}
                                         },
                                         "msg": {
                                             "type": "string"
@@ -1907,6 +2071,58 @@
                                             "type": "object",
                                             "additionalProperties": true
                                         },
+                                        "msg": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/autoCode/removePlugin": {
+            "post": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "AutoCodePlugin"
+                ],
+                "summary": "删除插件",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "插件名称",
+                        "name": "pluginName",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "插件类型",
+                        "name": "pluginType",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "删除插件成功",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
                                         "msg": {
                                             "type": "string"
                                         }
@@ -3874,6 +4090,108 @@
                 }
             }
         },
+        "/menu/getMenuRoles": {
+            "get": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "AuthorityMenu"
+                ],
+                "summary": "获取拥有指定菜单的角色ID列表",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "菜单ID",
+                        "name": "menuId",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "获取成功",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "object",
+                                            "additionalProperties": true
+                                        },
+                                        "msg": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/menu/setMenuRoles": {
+            "post": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "AuthorityMenu"
+                ],
+                "summary": "全量覆盖某菜单关联的角色列表",
+                "parameters": [
+                    {
+                        "description": "菜单ID和角色ID列表",
+                        "name": "data",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/request.SetMenuAuthorities"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "设置成功",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "msg": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
         "/menu/updateBaseMenu": {
             "post": {
                 "security": [
@@ -4024,6 +4342,99 @@
                 }
             }
         },
+        "/sysDictionary/exportSysDictionary": {
+            "get": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "SysDictionary"
+                ],
+                "summary": "导出字典JSON（包含字典详情）",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "主键ID",
+                        "name": "ID",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "创建时间",
+                        "name": "createdAt",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "描述",
+                        "name": "desc",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "字典名（中）",
+                        "name": "name",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "父级字典ID",
+                        "name": "parentID",
+                        "in": "query"
+                    },
+                    {
+                        "type": "boolean",
+                        "description": "状态",
+                        "name": "status",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "字典名（英）",
+                        "name": "type",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "更新时间",
+                        "name": "updatedAt",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "导出字典JSON",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "object",
+                                            "additionalProperties": true
+                                        },
+                                        "msg": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
         "/sysDictionary/findSysDictionary": {
             "get": {
                 "security": [
@@ -4064,6 +4475,12 @@
                         "type": "string",
                         "description": "字典名（中）",
                         "name": "name",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "父级字典ID",
+                        "name": "parentID",
                         "in": "query"
                     },
                     {
@@ -4128,6 +4545,14 @@
                     "SysDictionary"
                 ],
                 "summary": "分页获取SysDictionary列表",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "字典名（中）",
+                        "name": "name",
+                        "in": "query"
+                    }
+                ],
                 "responses": {
                     "200": {
                         "description": "分页获取SysDictionary列表,返回包括列表,总数,页码,每页数量",
@@ -4142,6 +4567,56 @@
                                         "data": {
                                             "$ref": "#/definitions/response.PageResult"
                                         },
+                                        "msg": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/sysDictionary/importSysDictionary": {
+            "post": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "SysDictionary"
+                ],
+                "summary": "导入字典JSON（包含字典详情）",
+                "parameters": [
+                    {
+                        "description": "字典JSON数据",
+                        "name": "data",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/request.ImportSysDictionaryRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "导入字典",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
                                         "msg": {
                                             "type": "string"
                                         }
@@ -4334,6 +4809,12 @@
                         "in": "query"
                     },
                     {
+                        "type": "boolean",
+                        "description": "禁用状态，根据status字段动态计算",
+                        "name": "disabled",
+                        "in": "query"
+                    },
+                    {
                         "type": "string",
                         "description": "扩展值",
                         "name": "extend",
@@ -4343,6 +4824,24 @@
                         "type": "string",
                         "description": "展示值",
                         "name": "label",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "层级深度，从0开始",
+                        "name": "level",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "父级字典详情ID",
+                        "name": "parentID",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "层级路径，如 \"1,2,3\"",
+                        "name": "path",
                         "in": "query"
                     },
                     {
@@ -4402,6 +4901,234 @@
                 }
             }
         },
+        "/sysDictionaryDetail/getDictionaryDetailsByParent": {
+            "get": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "SysDictionaryDetail"
+                ],
+                "summary": "根据父级ID获取字典详情",
+                "parameters": [
+                    {
+                        "type": "boolean",
+                        "description": "是否包含子级数据",
+                        "name": "includeChildren",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "父级字典详情ID，为空时获取顶级",
+                        "name": "parentID",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "字典ID",
+                        "name": "sysDictionaryID",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "获取字典详情列表",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/definitions/system.SysDictionaryDetail"
+                                            }
+                                        },
+                                        "msg": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/sysDictionaryDetail/getDictionaryPath": {
+            "get": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "SysDictionaryDetail"
+                ],
+                "summary": "获取字典详情的完整路径",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "字典详情ID",
+                        "name": "id",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "获取字典详情路径",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/definitions/system.SysDictionaryDetail"
+                                            }
+                                        },
+                                        "msg": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/sysDictionaryDetail/getDictionaryTreeList": {
+            "get": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "SysDictionaryDetail"
+                ],
+                "summary": "获取字典详情树形结构",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "字典ID",
+                        "name": "sysDictionaryID",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "获取字典详情树形结构",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/definitions/system.SysDictionaryDetail"
+                                            }
+                                        },
+                                        "msg": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/sysDictionaryDetail/getDictionaryTreeListByType": {
+            "get": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "SysDictionaryDetail"
+                ],
+                "summary": "根据字典类型获取字典详情树形结构",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "字典类型",
+                        "name": "type",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "获取字典详情树形结构",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/definitions/system.SysDictionaryDetail"
+                                            }
+                                        },
+                                        "msg": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
         "/sysDictionaryDetail/getSysDictionaryDetailList": {
             "get": {
                 "security": [
@@ -4433,6 +5160,12 @@
                         "in": "query"
                     },
                     {
+                        "type": "boolean",
+                        "description": "禁用状态，根据status字段动态计算",
+                        "name": "disabled",
+                        "in": "query"
+                    },
+                    {
                         "type": "string",
                         "description": "扩展值",
                         "name": "extend",
@@ -4452,6 +5185,12 @@
                     },
                     {
                         "type": "integer",
+                        "description": "层级深度，用于查询指定层级的数据",
+                        "name": "level",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
                         "description": "页码",
                         "name": "page",
                         "in": "query"
@@ -4460,6 +5199,18 @@
                         "type": "integer",
                         "description": "每页大小",
                         "name": "pageSize",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "父级字典详情ID，用于查询指定父级下的子项",
+                        "name": "parentID",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "层级路径，如 \"1,2,3\"",
+                        "name": "path",
                         "in": "query"
                     },
                     {
@@ -4568,7 +5319,146 @@
                 }
             }
         },
-        "/sysExportTemplate/ExportTemplate": {
+        "/sysError/createSysError": {
+            "post": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "SysError"
+                ],
+                "summary": "创建错误日志",
+                "parameters": [
+                    {
+                        "description": "创建错误日志",
+                        "name": "data",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/system.SysError"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "创建成功",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "msg": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/sysError/deleteSysError": {
+            "delete": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "SysError"
+                ],
+                "summary": "删除错误日志",
+                "parameters": [
+                    {
+                        "description": "删除错误日志",
+                        "name": "data",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/system.SysError"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "删除成功",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "msg": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/sysError/deleteSysErrorByIds": {
+            "delete": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "SysError"
+                ],
+                "summary": "批量删除错误日志",
+                "responses": {
+                    "200": {
+                        "description": "批量删除成功",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "msg": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/sysError/findSysError": {
             "get": {
                 "security": [
                     {
@@ -4582,10 +5472,220 @@
                     "application/json"
                 ],
                 "tags": [
-                    "SysExportTemplate"
+                    "SysError"
                 ],
-                "summary": "导出表格模板",
-                "responses": {}
+                "summary": "用id查询错误日志",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "用id查询错误日志",
+                        "name": "ID",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "查询成功",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/system.SysError"
+                                        },
+                                        "msg": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/sysError/getSysErrorList": {
+            "get": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "SysError"
+                ],
+                "summary": "分页获取错误日志列表",
+                "parameters": [
+                    {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        },
+                        "collectionFormat": "csv",
+                        "name": "createdAtRange",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "name": "form",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "name": "info",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "关键字",
+                        "name": "keyword",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "页码",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "每页大小",
+                        "name": "pageSize",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "获取成功",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/response.PageResult"
+                                        },
+                                        "msg": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/sysError/getSysErrorSolution": {
+            "get": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "SysError"
+                ],
+                "summary": "根据ID触发处理：标记为处理中，1分钟后自动改为处理完成",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "错误日志ID",
+                        "name": "id",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "处理已提交",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "msg": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/sysError/updateSysError": {
+            "put": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "SysError"
+                ],
+                "summary": "更新错误日志",
+                "parameters": [
+                    {
+                        "description": "更新错误日志",
+                        "name": "data",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/system.SysError"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "更新成功",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "msg": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
             }
         },
         "/sysExportTemplate/createSysExportTemplate": {
@@ -4722,6 +5822,66 @@
                 "responses": {}
             }
         },
+        "/sysExportTemplate/exportExcelByToken": {
+            "get": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "ExportExcelByToken"
+                ],
+                "summary": "导出表格",
+                "responses": {}
+            }
+        },
+        "/sysExportTemplate/exportTemplate": {
+            "get": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "SysExportTemplate"
+                ],
+                "summary": "导出表格模板",
+                "responses": {}
+            }
+        },
+        "/sysExportTemplate/exportTemplateByToken": {
+            "get": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "ExportTemplateByToken"
+                ],
+                "summary": "通过token导出表格模板",
+                "responses": {}
+            }
+        },
         "/sysExportTemplate/findSysExportTemplate": {
             "get": {
                 "security": [
@@ -4759,6 +5919,12 @@
                         "in": "query"
                     },
                     {
+                        "type": "string",
+                        "description": "自定义导入SQL",
+                        "name": "importSql",
+                        "in": "query"
+                    },
+                    {
                         "type": "integer",
                         "name": "limit",
                         "in": "query"
@@ -4772,6 +5938,12 @@
                     {
                         "type": "string",
                         "name": "order",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "自定义导出SQL",
+                        "name": "sql",
                         "in": "query"
                     },
                     {
@@ -4852,6 +6024,12 @@
                     },
                     {
                         "type": "string",
+                        "description": "自定义导入SQL",
+                        "name": "importSql",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
                         "description": "关键字",
                         "name": "keyword",
                         "in": "query"
@@ -4882,6 +6060,12 @@
                         "type": "integer",
                         "description": "每页大小",
                         "name": "pageSize",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "自定义导出SQL",
+                        "name": "sql",
                         "in": "query"
                     },
                     {
@@ -4944,6 +6128,63 @@
                 "responses": {}
             }
         },
+        "/sysExportTemplate/previewSQL": {
+            "get": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "SysExportTemplate"
+                ],
+                "summary": "预览最终生成的SQL（不执行查询，仅返回SQL字符串）",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "导出模板ID",
+                        "name": "templateID",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "查询参数编码字符串，参考 ExportExcel 组件",
+                        "name": "params",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "获取成功",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "object",
+                                            "additionalProperties": {
+                                                "type": "string"
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
         "/sysExportTemplate/updateSysExportTemplate": {
             "put": {
                 "security": [
@@ -4977,56 +6218,6 @@
                         "description": "{\"success\":true,\"data\":{},\"msg\":\"更新成功\"}",
                         "schema": {
                             "type": "string"
-                        }
-                    }
-                }
-            }
-        },
-        "/sysOperationRecord/createSysOperationRecord": {
-            "post": {
-                "security": [
-                    {
-                        "ApiKeyAuth": []
-                    }
-                ],
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "SysOperationRecord"
-                ],
-                "summary": "创建SysOperationRecord",
-                "parameters": [
-                    {
-                        "description": "创建SysOperationRecord",
-                        "name": "data",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/system.SysOperationRecord"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "创建SysOperationRecord",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/response.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "msg": {
-                                            "type": "string"
-                                        }
-                                    }
-                                }
-                            ]
                         }
                     }
                 }
@@ -5395,57 +6586,7 @@
                 }
             }
         },
-        "/sysParams/createSysParams": {
-            "post": {
-                "security": [
-                    {
-                        "ApiKeyAuth": []
-                    }
-                ],
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "SysParams"
-                ],
-                "summary": "创建参数",
-                "parameters": [
-                    {
-                        "description": "创建参数",
-                        "name": "data",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/system.SysParams"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "创建成功",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/response.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "msg": {
-                                            "type": "string"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    }
-                }
-            }
-        },
-        "/sysParams/deleteSysParams": {
+        "/sysVersion/deleteSysVersion": {
             "delete": {
                 "security": [
                     {
@@ -5459,17 +6600,17 @@
                     "application/json"
                 ],
                 "tags": [
-                    "SysParams"
+                    "SysVersion"
                 ],
-                "summary": "删除参数",
+                "summary": "删除版本管理",
                 "parameters": [
                     {
-                        "description": "删除参数",
+                        "description": "删除版本管理",
                         "name": "data",
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/system.SysParams"
+                            "$ref": "#/definitions/system.SysVersion"
                         }
                     }
                 ],
@@ -5495,7 +6636,7 @@
                 }
             }
         },
-        "/sysParams/deleteSysParamsByIds": {
+        "/sysVersion/deleteSysVersionByIds": {
             "delete": {
                 "security": [
                     {
@@ -5509,9 +6650,9 @@
                     "application/json"
                 ],
                 "tags": [
-                    "SysParams"
+                    "SysVersion"
                 ],
-                "summary": "批量删除参数",
+                "summary": "批量删除版本管理",
                 "responses": {
                     "200": {
                         "description": "批量删除成功",
@@ -5534,7 +6675,7 @@
                 }
             }
         },
-        "/sysParams/findSysParams": {
+        "/sysVersion/downloadVersionJson": {
             "get": {
                 "security": [
                     {
@@ -5548,52 +6689,115 @@
                     "application/json"
                 ],
                 "tags": [
-                    "SysParams"
+                    "SysVersion"
                 ],
-                "summary": "用id查询参数",
+                "summary": "下载版本JSON数据",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "版本ID",
+                        "name": "ID",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "下载成功",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "object"
+                                        },
+                                        "msg": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/sysVersion/exportVersion": {
+            "post": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "SysVersion"
+                ],
+                "summary": "创建发版数据",
+                "parameters": [
+                    {
+                        "description": "创建发版数据",
+                        "name": "data",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/request.ExportVersionRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "创建成功",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "msg": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/sysVersion/findSysVersion": {
+            "get": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "SysVersion"
+                ],
+                "summary": "用id查询版本管理",
                 "parameters": [
                     {
                         "type": "integer",
-                        "description": "主键ID",
+                        "description": "用id查询版本管理",
                         "name": "ID",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "创建时间",
-                        "name": "createdAt",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "参数说明",
-                        "name": "desc",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "参数键",
-                        "name": "key",
-                        "in": "query",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "参数名称",
-                        "name": "name",
-                        "in": "query",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "更新时间",
-                        "name": "updatedAt",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "参数值",
-                        "name": "value",
                         "in": "query",
                         "required": true
                     }
@@ -5610,7 +6814,7 @@
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/system.SysParams"
+                                            "$ref": "#/definitions/system.SysVersion"
                                         },
                                         "msg": {
                                             "type": "string"
@@ -5623,7 +6827,7 @@
                 }
             }
         },
-        "/sysParams/getSysParam": {
+        "/sysVersion/getSysVersionList": {
             "get": {
                 "security": [
                     {
@@ -5637,80 +6841,23 @@
                     "application/json"
                 ],
                 "tags": [
-                    "SysParams"
+                    "SysVersion"
                 ],
-                "summary": "根据key获取参数value",
+                "summary": "分页获取版本管理列表",
                 "parameters": [
                     {
-                        "type": "string",
-                        "description": "key",
-                        "name": "key",
-                        "in": "query",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "获取成功",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/response.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "$ref": "#/definitions/system.SysParams"
-                                        },
-                                        "msg": {
-                                            "type": "string"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    }
-                }
-            }
-        },
-        "/sysParams/getSysParamsList": {
-            "get": {
-                "security": [
-                    {
-                        "ApiKeyAuth": []
-                    }
-                ],
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "SysParams"
-                ],
-                "summary": "分页获取参数列表",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "name": "endCreatedAt",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "name": "key",
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        },
+                        "collectionFormat": "csv",
+                        "name": "createdAtRange",
                         "in": "query"
                     },
                     {
                         "type": "string",
                         "description": "关键字",
                         "name": "keyword",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "name": "name",
                         "in": "query"
                     },
                     {
@@ -5727,7 +6874,12 @@
                     },
                     {
                         "type": "string",
-                        "name": "startCreatedAt",
+                        "name": "versionCode",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "name": "versionName",
                         "in": "query"
                     }
                 ],
@@ -5756,8 +6908,45 @@
                 }
             }
         },
-        "/sysParams/updateSysParams": {
-            "put": {
+        "/sysVersion/getSysVersionPublic": {
+            "get": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "SysVersion"
+                ],
+                "summary": "不需要鉴权的版本管理接口",
+                "responses": {
+                    "200": {
+                        "description": "获取成功",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "object"
+                                        },
+                                        "msg": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/sysVersion/importVersion": {
+            "post": {
                 "security": [
                     {
                         "ApiKeyAuth": []
@@ -5770,23 +6959,23 @@
                     "application/json"
                 ],
                 "tags": [
-                    "SysParams"
+                    "SysVersion"
                 ],
-                "summary": "更新参数",
+                "summary": "导入版本数据",
                 "parameters": [
                     {
-                        "description": "更新参数",
+                        "description": "版本JSON数据",
                         "name": "data",
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/system.SysParams"
+                            "$ref": "#/definitions/request.ImportVersionRequest"
                         }
                     }
                 ],
                 "responses": {
                     "200": {
-                        "description": "更新成功",
+                        "description": "导入成功",
                         "schema": {
                             "allOf": [
                                 {
@@ -5898,10 +7087,10 @@
                 "tags": [
                     "System"
                 ],
-                "summary": "重启系统",
+                "summary": "重载系统",
                 "responses": {
                     "200": {
-                        "description": "重启系统",
+                        "description": "重载系统",
                         "schema": {
                             "allOf": [
                                 {
@@ -6515,12 +7704,1474 @@
                     }
                 }
             }
+        },
+        "/xy/account/check-login": {
+            "post": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "XyAccount"
+                ],
+                "summary": "检查闲鱼账号登录态",
+                "parameters": [
+                    {
+                        "description": "账号 ID",
+                        "name": "data",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/request.AccountID"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "检查完成",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "object"
+                                        },
+                                        "msg": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/xy/account/create": {
+            "post": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "XyAccount"
+                ],
+                "summary": "创建闲鱼账号档案",
+                "parameters": [
+                    {
+                        "description": "账号资料",
+                        "name": "data",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/request.CreateAccount"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "创建成功",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "msg": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/xy/account/credential": {
+            "put": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "XyAccount"
+                ],
+                "summary": "加密保存闲鱼账号凭证",
+                "parameters": [
+                    {
+                        "description": "账号凭证",
+                        "name": "data",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/request.SaveCredential"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "保存成功",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "msg": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/xy/account/delete": {
+            "delete": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "XyAccount"
+                ],
+                "summary": "删除闲鱼账号档案",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "账号 ID",
+                        "name": "ID",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "删除成功",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "msg": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/xy/account/list": {
+            "get": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "XyAccount"
+                ],
+                "summary": "分页获取当前用户的闲鱼账号",
+                "parameters": [
+                    {
+                        "type": "boolean",
+                        "name": "enabled",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "关键字",
+                        "name": "keyword",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "页码",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "每页大小",
+                        "name": "pageSize",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "name": "status",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "获取成功",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/response.PageResult"
+                                        },
+                                        "msg": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/xy/account/update": {
+            "put": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "XyAccount"
+                ],
+                "summary": "更新闲鱼账号档案",
+                "parameters": [
+                    {
+                        "description": "账号资料",
+                        "name": "data",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/request.UpdateAccount"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "更新成功",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "msg": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/xy/dashboard/overview": {
+            "get": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Xy"
+                ],
+                "summary": "获取闲鱼助手工作台聚合数据",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "name": "accountId",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "name": "endTime",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "name": "startTime",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "获取成功",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/response.DashboardOverview"
+                                        },
+                                        "msg": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/xy/delivery-rule/delete": {
+            "delete": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "XyDeliveryRule"
+                ],
+                "summary": "删除发货规则",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "规则 ID",
+                        "name": "ID",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "删除成功",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "msg": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/xy/delivery-rule/list": {
+            "get": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "XyDeliveryRule"
+                ],
+                "summary": "分页获取发货规则",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "关键字",
+                        "name": "keyword",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "name": "mode",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "页码",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "每页大小",
+                        "name": "pageSize",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "name": "productId",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "获取成功",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/response.PageResult"
+                                        },
+                                        "msg": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/xy/delivery-rule/save": {
+            "post": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "XyDeliveryRule"
+                ],
+                "summary": "创建或更新发货规则",
+                "parameters": [
+                    {
+                        "description": "发货规则",
+                        "name": "data",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/request.SaveDeliveryRule"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "保存成功",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "msg": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/xy/message/list": {
+            "get": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "XyMessage"
+                ],
+                "summary": "分页获取当前用户的闲鱼消息",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "name": "accountId",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "name": "buyerName",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "name": "content",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "name": "direction",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "name": "endTime",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "name": "externalProductId",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "name": "pageSize",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "name": "sessionId",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "name": "startTime",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "获取成功",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/response.PageResult"
+                                        },
+                                        "msg": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/xy/message/reply": {
+            "post": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "XyMessage"
+                ],
+                "summary": "发送人工文本回复",
+                "parameters": [
+                    {
+                        "description": "回复内容",
+                        "name": "data",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/request.SendMessage"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "发送成功",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "msg": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/xy/message/takeover": {
+            "put": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "XyMessage"
+                ],
+                "summary": "更新会话人工接管状态",
+                "parameters": [
+                    {
+                        "description": "接管状态",
+                        "name": "data",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/request.UpdateTakeover"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "更新成功",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "msg": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/xy/order/list": {
+            "get": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "XyOrder"
+                ],
+                "summary": "分页获取当前用户的闲鱼订单",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "name": "accountId",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "关键字",
+                        "name": "keyword",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "页码",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "每页大小",
+                        "name": "pageSize",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "name": "status",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "获取成功",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/response.PageResult"
+                                        },
+                                        "msg": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/xy/product/list": {
+            "get": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "XyProduct"
+                ],
+                "summary": "分页获取当前用户的商品",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "name": "accountId",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "name": "pageSize",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "name": "status",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "name": "titleOrId",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "获取成功",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/response.PageResult"
+                                        },
+                                        "msg": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/xy/product/setting": {
+            "put": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "XyProduct"
+                ],
+                "summary": "更新商品业务开关",
+                "parameters": [
+                    {
+                        "description": "商品设置",
+                        "name": "data",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/request.UpdateProductSetting"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "更新成功",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "msg": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/xy/product/sync": {
+            "post": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "XyProduct"
+                ],
+                "summary": "从闲鱼同步商品",
+                "parameters": [
+                    {
+                        "description": "闲鱼账号",
+                        "name": "data",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/request.ProductSync"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "同步成功",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "msg": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/xy/qr-login/cancel": {
+            "delete": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "XyQRLogin"
+                ],
+                "summary": "取消二维码登录会话",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "会话 ID",
+                        "name": "sessionId",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "取消成功",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "msg": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/xy/qr-login/start": {
+            "post": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "XyQRLogin"
+                ],
+                "summary": "创建账号二维码登录会话",
+                "parameters": [
+                    {
+                        "description": "账号 ID",
+                        "name": "data",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/request.AccountID"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "创建成功",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "object"
+                                        },
+                                        "msg": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/xy/qr-login/status": {
+            "get": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "XyQRLogin"
+                ],
+                "summary": "获取二维码登录状态",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "会话 ID",
+                        "name": "sessionId",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "获取成功",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "object"
+                                        },
+                                        "msg": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/xy/reply-rule/delete": {
+            "delete": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "XyReplyRule"
+                ],
+                "summary": "删除回复规则",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "规则 ID",
+                        "name": "ID",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "删除成功",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "msg": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/xy/reply-rule/list": {
+            "get": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "XyReplyRule"
+                ],
+                "summary": "分页获取回复规则",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "关键字",
+                        "name": "keyword",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "页码",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "每页大小",
+                        "name": "pageSize",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "name": "productId",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "name": "type",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "获取成功",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/response.PageResult"
+                                        },
+                                        "msg": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/xy/reply-rule/save": {
+            "post": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "XyReplyRule"
+                ],
+                "summary": "创建或更新回复规则",
+                "parameters": [
+                    {
+                        "description": "回复规则",
+                        "name": "data",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/request.SaveReplyRule"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "保存成功",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "msg": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/xy/status": {
+            "get": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Xy"
+                ],
+                "summary": "获取闲鱼助手基础服务状态",
+                "responses": {
+                    "200": {
+                        "description": "获取成功",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/response.Status"
+                                        },
+                                        "msg": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/xy/websocket/start": {
+            "post": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "XyWebSocket"
+                ],
+                "summary": "启动闲鱼账号消息连接",
+                "parameters": [
+                    {
+                        "description": "账号 ID",
+                        "name": "data",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/request.AccountID"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "启动成功",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "msg": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/xy/websocket/status": {
+            "get": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "XyWebSocket"
+                ],
+                "summary": "获取闲鱼账号消息连接状态",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "账号 ID",
+                        "name": "ID",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "获取成功",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "object"
+                                        },
+                                        "msg": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/xy/websocket/stop": {
+            "post": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "XyWebSocket"
+                ],
+                "summary": "停止闲鱼账号消息连接",
+                "parameters": [
+                    {
+                        "description": "账号 ID",
+                        "name": "data",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/request.AccountID"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "停止成功",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "msg": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
         }
     },
     "definitions": {
         "common.JSONMap": {
             "type": "object",
-            "additionalProperties": true
+            "additionalProperties": {}
         },
         "config.AliyunOSS": {
             "type": "object",
@@ -6647,7 +9298,7 @@
                     "type": "integer"
                 },
                 "open-captcha": {
-                    "description": "防爆破验证码开启此数，0代表每次登录都需要验证码，其他数字代表错误密码此数，如3代表错误三次后出现验证码",
+                    "description": "-1关闭，0每次登录都需要验证码，正数代表错误密码次数阈值",
                     "type": "integer"
                 },
                 "open-captcha-timeout": {
@@ -6745,6 +9396,48 @@
                 },
                 "store-path": {
                     "description": "本地文件存储路径",
+                    "type": "string"
+                }
+            }
+        },
+        "config.MCP": {
+            "type": "object",
+            "properties": {
+                "addr": {
+                    "type": "integer"
+                },
+                "auth_header": {
+                    "type": "string"
+                },
+                "base_url": {
+                    "type": "string"
+                },
+                "message_path": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "path": {
+                    "type": "string"
+                },
+                "request_timeout": {
+                    "type": "integer"
+                },
+                "separate": {
+                    "type": "boolean"
+                },
+                "sse_path": {
+                    "description": "Deprecated fields kept for backward compatibility with older configs.",
+                    "type": "string"
+                },
+                "upstream_base_url": {
+                    "type": "string"
+                },
+                "url_prefix": {
+                    "type": "string"
+                },
+                "version": {
                     "type": "string"
                 }
             }
@@ -6851,6 +9544,10 @@
                     "description": "高级配置",
                     "type": "string"
                 },
+                "conn-max-lifetime": {
+                    "description": "连接最长复用时间,单位秒",
+                    "type": "integer"
+                },
                 "db-name": {
                     "description": "数据库名",
                     "type": "string"
@@ -6908,6 +9605,10 @@
                 "config": {
                     "description": "高级配置",
                     "type": "string"
+                },
+                "conn-max-lifetime": {
+                    "description": "连接最长复用时间,单位秒",
+                    "type": "integer"
                 },
                 "db-name": {
                     "description": "数据库名",
@@ -6967,6 +9668,10 @@
                     "description": "高级配置",
                     "type": "string"
                 },
+                "conn-max-lifetime": {
+                    "description": "连接最长复用时间,单位秒",
+                    "type": "integer"
+                },
                 "db-name": {
                     "description": "数据库名",
                     "type": "string"
@@ -7024,6 +9729,10 @@
                 "config": {
                     "description": "高级配置",
                     "type": "string"
+                },
+                "conn-max-lifetime": {
+                    "description": "连接最长复用时间,单位秒",
+                    "type": "integer"
                 },
                 "db-name": {
                     "description": "数据库名",
@@ -7138,6 +9847,10 @@
                 "useCluster": {
                     "description": "是否使用集群模式",
                     "type": "boolean"
+                },
+                "username": {
+                    "description": "ACL登录账号(云Redis自定义账号必填,默认账号留空)",
+                    "type": "string"
                 }
             }
         },
@@ -7204,6 +9917,14 @@
                         }
                     ]
                 },
+                "mcp": {
+                    "description": "MCP配置",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/config.MCP"
+                        }
+                    ]
+                },
                 "minio": {
                     "$ref": "#/definitions/config.Minio"
                 },
@@ -7262,6 +9983,10 @@
                 "config": {
                     "description": "高级配置",
                     "type": "string"
+                },
+                "conn-max-lifetime": {
+                    "description": "连接最长复用时间,单位秒",
+                    "type": "integer"
                 },
                 "db-name": {
                     "description": "数据库名",
@@ -7327,6 +10052,10 @@
                     "description": "高级配置",
                     "type": "string"
                 },
+                "conn-max-lifetime": {
+                    "description": "连接最长复用时间,单位秒",
+                    "type": "integer"
+                },
                 "db-name": {
                     "description": "数据库名",
                     "type": "string"
@@ -7388,6 +10117,10 @@
                 "db-type": {
                     "description": "数据库类型:mysql(默认)|sqlite|sqlserver|postgresql",
                     "type": "string"
+                },
+                "disable-auto-migrate": {
+                    "description": "自动迁移数据库表结构，生产环境建议设为false，手动迁移",
+                    "type": "boolean"
                 },
                 "iplimit-count": {
                     "type": "integer"
@@ -7666,6 +10399,10 @@
                     "description": "服务器地址 例如 smtp.qq.com  请前往QQ或者你要发邮件的邮箱查看其smtp协议",
                     "type": "string"
                 },
+                "is-loginauth": {
+                    "description": "是否LoginAuth   是否使用LoginAuth认证方式（适用于IBM、微软邮箱服务器等）",
+                    "type": "boolean"
+                },
                 "is-ssl": {
                     "description": "是否SSL   是否开启SSL",
                     "type": "boolean"
@@ -7720,6 +10457,14 @@
                 },
                 "userID": {
                     "description": "作者",
+                    "type": "integer"
+                }
+            }
+        },
+        "request.AccountID": {
+            "type": "object",
+            "properties": {
+                "ID": {
                     "type": "integer"
                 }
             }
@@ -7993,6 +10738,17 @@
                 }
             }
         },
+        "request.CreateAccount": {
+            "type": "object",
+            "properties": {
+                "label": {
+                    "type": "string"
+                },
+                "note": {
+                    "type": "string"
+                }
+            }
+        },
         "request.DataSource": {
             "type": "object",
             "properties": {
@@ -8040,6 +10796,48 @@
                 }
             }
         },
+        "request.ExportVersionRequest": {
+            "type": "object",
+            "required": [
+                "versionCode",
+                "versionName"
+            ],
+            "properties": {
+                "apiIds": {
+                    "description": "选中的API ID列表",
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "description": {
+                    "description": "版本描述",
+                    "type": "string"
+                },
+                "dictIds": {
+                    "description": "选中的字典ID列表",
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "menuIds": {
+                    "description": "选中的菜单ID列表",
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "versionCode": {
+                    "description": "版本号",
+                    "type": "string"
+                },
+                "versionName": {
+                    "description": "版本名称",
+                    "type": "string"
+                }
+            }
+        },
         "request.GetAuthorityId": {
             "type": "object",
             "properties": {
@@ -8061,6 +10859,10 @@
         "request.GetUserList": {
             "type": "object",
             "properties": {
+                "desc": {
+                    "description": "排序方式:升序false(默认)|降序true",
+                    "type": "boolean"
+                },
                 "email": {
                     "type": "string"
                 },
@@ -8069,6 +10871,10 @@
                     "type": "string"
                 },
                 "nickName": {
+                    "type": "string"
+                },
+                "orderKey": {
+                    "description": "排序",
                     "type": "string"
                 },
                 "page": {
@@ -8095,6 +10901,55 @@
                     "items": {
                         "type": "integer"
                     }
+                }
+            }
+        },
+        "request.ImportSysDictionaryRequest": {
+            "type": "object",
+            "required": [
+                "json"
+            ],
+            "properties": {
+                "json": {
+                    "description": "JSON字符串",
+                    "type": "string"
+                }
+            }
+        },
+        "request.ImportVersionRequest": {
+            "type": "object",
+            "required": [
+                "version"
+            ],
+            "properties": {
+                "apis": {
+                    "description": "API数据，直接复用SysApi",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/system.SysApi"
+                    }
+                },
+                "dictionaries": {
+                    "description": "字典数据，直接复用SysDictionary",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/system.SysDictionary"
+                    }
+                },
+                "menus": {
+                    "description": "菜单数据，直接复用SysBaseMenu",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/system.SysBaseMenu"
+                    }
+                },
+                "version": {
+                    "description": "版本信息",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/request.VersionInfo"
+                        }
+                    ]
                 }
             }
         },
@@ -8180,6 +11035,14 @@
                 }
             }
         },
+        "request.ProductSync": {
+            "type": "object",
+            "properties": {
+                "accountId": {
+                    "type": "integer"
+                }
+            }
+        },
         "request.Register": {
             "type": "object",
             "properties": {
@@ -8218,6 +11081,72 @@
                 "userName": {
                     "type": "string",
                     "example": "用户名"
+                }
+            }
+        },
+        "request.SaveCredential": {
+            "type": "object",
+            "properties": {
+                "ID": {
+                    "type": "integer"
+                },
+                "cookie": {
+                    "type": "string"
+                },
+                "token": {
+                    "type": "string"
+                }
+            }
+        },
+        "request.SaveDeliveryRule": {
+            "type": "object",
+            "properties": {
+                "ID": {
+                    "type": "integer"
+                },
+                "enabled": {
+                    "type": "boolean"
+                },
+                "mode": {
+                    "type": "string"
+                },
+                "productId": {
+                    "type": "integer"
+                },
+                "skuKey": {
+                    "type": "string"
+                },
+                "skuName": {
+                    "type": "string"
+                },
+                "template": {
+                    "type": "string"
+                }
+            }
+        },
+        "request.SaveReplyRule": {
+            "type": "object",
+            "properties": {
+                "ID": {
+                    "type": "integer"
+                },
+                "content": {
+                    "type": "string"
+                },
+                "enabled": {
+                    "type": "boolean"
+                },
+                "keyword": {
+                    "type": "string"
+                },
+                "priority": {
+                    "type": "integer"
+                },
+                "productId": {
+                    "type": "integer"
+                },
+                "type": {
+                    "type": "string"
                 }
             }
         },
@@ -8271,6 +11200,69 @@
                 "updatedAt": {
                     "description": "更新时间",
                     "type": "string"
+                }
+            }
+        },
+        "request.SendMessage": {
+            "type": "object",
+            "properties": {
+                "messageId": {
+                    "type": "integer"
+                },
+                "text": {
+                    "type": "string"
+                }
+            }
+        },
+        "request.SetApiAuthorities": {
+            "type": "object",
+            "properties": {
+                "authorityIds": {
+                    "description": "角色ID列表",
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "method": {
+                    "description": "请求方法",
+                    "type": "string"
+                },
+                "path": {
+                    "description": "API路径",
+                    "type": "string"
+                }
+            }
+        },
+        "request.SetMenuAuthorities": {
+            "type": "object",
+            "properties": {
+                "authorityIds": {
+                    "description": "角色ID列表",
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "menuId": {
+                    "description": "菜单ID",
+                    "type": "integer"
+                }
+            }
+        },
+        "request.SetRoleUsers": {
+            "type": "object",
+            "properties": {
+                "authorityId": {
+                    "description": "角色ID",
+                    "type": "integer"
+                },
+                "userIds": {
+                    "description": "用户ID列表",
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
                 }
             }
         },
@@ -8357,6 +11349,282 @@
                 }
             }
         },
+        "request.UpdateAccount": {
+            "type": "object",
+            "properties": {
+                "ID": {
+                    "type": "integer"
+                },
+                "enabled": {
+                    "type": "boolean"
+                },
+                "label": {
+                    "type": "string"
+                },
+                "note": {
+                    "type": "string"
+                }
+            }
+        },
+        "request.UpdateProductSetting": {
+            "type": "object",
+            "properties": {
+                "autoDeliveryEnabled": {
+                    "type": "boolean"
+                },
+                "autoRelistEnabled": {
+                    "type": "boolean"
+                },
+                "autoReplyEnabled": {
+                    "type": "boolean"
+                },
+                "productId": {
+                    "type": "integer"
+                },
+                "relistAddress": {
+                    "type": "string"
+                },
+                "relistDelaySeconds": {
+                    "type": "integer"
+                },
+                "relistDescription": {
+                    "type": "string"
+                },
+                "relistImageUrls": {
+                    "type": "string"
+                },
+                "replyDelaySeconds": {
+                    "type": "integer"
+                },
+                "virtualProduct": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "request.UpdateTakeover": {
+            "type": "object",
+            "properties": {
+                "active": {
+                    "type": "boolean"
+                },
+                "messageId": {
+                    "type": "integer"
+                }
+            }
+        },
+        "request.VersionInfo": {
+            "type": "object",
+            "required": [
+                "code",
+                "name"
+            ],
+            "properties": {
+                "code": {
+                    "description": "版本号",
+                    "type": "string"
+                },
+                "description": {
+                    "description": "版本描述",
+                    "type": "string"
+                },
+                "exportTime": {
+                    "description": "导出时间",
+                    "type": "string"
+                },
+                "name": {
+                    "description": "版本名称",
+                    "type": "string"
+                }
+            }
+        },
+        "response.BusinessEvent": {
+            "type": "object",
+            "properties": {
+                "CreatedAt": {
+                    "type": "string"
+                },
+                "ID": {
+                    "type": "integer"
+                },
+                "accountId": {
+                    "type": "integer"
+                },
+                "accountLabel": {
+                    "type": "string"
+                },
+                "error": {
+                    "type": "string"
+                },
+                "externalOrderId": {
+                    "type": "string"
+                },
+                "orderId": {
+                    "type": "integer"
+                },
+                "productId": {
+                    "type": "integer"
+                },
+                "productTitle": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
+                },
+                "summary": {
+                    "type": "string"
+                },
+                "type": {
+                    "type": "string"
+                }
+            }
+        },
+        "response.DashboardAutomation": {
+            "type": "object",
+            "properties": {
+                "deliveryFailed": {
+                    "type": "integer"
+                },
+                "deliverySuccess": {
+                    "type": "integer"
+                },
+                "relistFailed": {
+                    "type": "integer"
+                },
+                "relistSuccess": {
+                    "type": "integer"
+                },
+                "replyFailed": {
+                    "type": "integer"
+                },
+                "replySuccess": {
+                    "type": "integer"
+                }
+            }
+        },
+        "response.DashboardMessagePoint": {
+            "type": "object",
+            "properties": {
+                "autoReplies": {
+                    "type": "integer"
+                },
+                "inbound": {
+                    "type": "integer"
+                },
+                "outbound": {
+                    "type": "integer"
+                },
+                "timestamp": {
+                    "type": "integer"
+                }
+            }
+        },
+        "response.DashboardMetrics": {
+            "type": "object",
+            "properties": {
+                "accounts": {
+                    "type": "integer"
+                },
+                "autoReplies": {
+                    "type": "integer"
+                },
+                "autoReplyRate": {
+                    "type": "number"
+                },
+                "failedAutomationTasks": {
+                    "type": "integer"
+                },
+                "inboundMessages": {
+                    "type": "integer"
+                },
+                "newOrders": {
+                    "type": "integer"
+                },
+                "onSaleProducts": {
+                    "type": "integer"
+                },
+                "outboundMessages": {
+                    "type": "integer"
+                },
+                "pendingOrders": {
+                    "type": "integer"
+                },
+                "readyAccounts": {
+                    "type": "integer"
+                }
+            }
+        },
+        "response.DashboardNameValue": {
+            "type": "object",
+            "properties": {
+                "name": {
+                    "type": "string"
+                },
+                "value": {
+                    "type": "integer"
+                }
+            }
+        },
+        "response.DashboardOrderPoint": {
+            "type": "object",
+            "properties": {
+                "delivered": {
+                    "type": "integer"
+                },
+                "failed": {
+                    "type": "integer"
+                },
+                "orders": {
+                    "type": "integer"
+                },
+                "timestamp": {
+                    "type": "integer"
+                }
+            }
+        },
+        "response.DashboardOverview": {
+            "type": "object",
+            "properties": {
+                "automation": {
+                    "$ref": "#/definitions/response.DashboardAutomation"
+                },
+                "bucketMillis": {
+                    "type": "integer"
+                },
+                "endTime": {
+                    "type": "integer"
+                },
+                "messageSources": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/response.DashboardNameValue"
+                    }
+                },
+                "messageTrend": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/response.DashboardMessagePoint"
+                    }
+                },
+                "metrics": {
+                    "$ref": "#/definitions/response.DashboardMetrics"
+                },
+                "orderTrend": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/response.DashboardOrderPoint"
+                    }
+                },
+                "recentEvents": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/response.BusinessEvent"
+                    }
+                },
+                "startTime": {
+                    "type": "integer"
+                }
+            }
+        },
         "response.Email": {
             "type": "object",
             "properties": {
@@ -8435,6 +11703,36 @@
                 }
             }
         },
+        "response.PluginInfo": {
+            "type": "object",
+            "properties": {
+                "apis": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/system.SysApi"
+                    }
+                },
+                "dictionaries": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/system.SysDictionary"
+                    }
+                },
+                "menus": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/system.SysBaseMenu"
+                    }
+                },
+                "pluginName": {
+                    "type": "string"
+                },
+                "pluginType": {
+                    "description": "web, server, full",
+                    "type": "string"
+                }
+            }
+        },
         "response.PolicyPathResponse": {
             "type": "object",
             "properties": {
@@ -8455,6 +11753,35 @@
                 "data": {},
                 "msg": {
                     "type": "string"
+                }
+            }
+        },
+        "response.Status": {
+            "type": "object",
+            "properties": {
+                "accounts": {
+                    "type": "integer"
+                },
+                "database": {
+                    "type": "string"
+                },
+                "failedDeliveries": {
+                    "type": "integer"
+                },
+                "messages": {
+                    "type": "integer"
+                },
+                "onSaleProducts": {
+                    "type": "integer"
+                },
+                "pendingOrders": {
+                    "type": "integer"
+                },
+                "plugin": {
+                    "type": "string"
+                },
+                "readyAccounts": {
+                    "type": "integer"
                 }
             }
         },
@@ -8653,6 +11980,10 @@
                 },
                 "title": {
                     "description": "菜单名",
+                    "type": "string"
+                },
+                "transitionType": {
+                    "description": "路由切换动画",
                     "type": "string"
                 }
             }
@@ -8878,6 +12209,13 @@
                     "description": "主键ID",
                     "type": "integer"
                 },
+                "children": {
+                    "description": "子字典",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/system.SysDictionary"
+                    }
+                },
                 "createdAt": {
                     "description": "创建时间",
                     "type": "string"
@@ -8889,6 +12227,10 @@
                 "name": {
                     "description": "字典名（中）",
                     "type": "string"
+                },
+                "parentID": {
+                    "description": "父级字典ID",
+                    "type": "integer"
                 },
                 "status": {
                     "description": "状态",
@@ -8917,9 +12259,20 @@
                     "description": "主键ID",
                     "type": "integer"
                 },
+                "children": {
+                    "description": "子字典详情",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/system.SysDictionaryDetail"
+                    }
+                },
                 "createdAt": {
                     "description": "创建时间",
                     "type": "string"
+                },
+                "disabled": {
+                    "description": "禁用状态，根据status字段动态计算",
+                    "type": "boolean"
                 },
                 "extend": {
                     "description": "扩展值",
@@ -8927,6 +12280,18 @@
                 },
                 "label": {
                     "description": "展示值",
+                    "type": "string"
+                },
+                "level": {
+                    "description": "层级深度，从0开始",
+                    "type": "integer"
+                },
+                "parentID": {
+                    "description": "父级字典详情ID",
+                    "type": "integer"
+                },
+                "path": {
+                    "description": "层级路径，如 \"1,2,3\"",
                     "type": "string"
                 },
                 "sort": {
@@ -8947,6 +12312,45 @@
                 },
                 "value": {
                     "description": "字典值",
+                    "type": "string"
+                }
+            }
+        },
+        "system.SysError": {
+            "type": "object",
+            "required": [
+                "form"
+            ],
+            "properties": {
+                "ID": {
+                    "description": "主键ID",
+                    "type": "integer"
+                },
+                "createdAt": {
+                    "description": "创建时间",
+                    "type": "string"
+                },
+                "form": {
+                    "description": "错误来源",
+                    "type": "string"
+                },
+                "info": {
+                    "description": "错误内容",
+                    "type": "string"
+                },
+                "level": {
+                    "type": "string"
+                },
+                "solution": {
+                    "description": "解决方案",
+                    "type": "string"
+                },
+                "status": {
+                    "description": "处理状态：未处理/处理中/处理完成",
+                    "type": "string"
+                },
+                "updatedAt": {
+                    "description": "更新时间",
                     "type": "string"
                 }
             }
@@ -8972,6 +12376,10 @@
                     "description": "数据库名称",
                     "type": "string"
                 },
+                "importSql": {
+                    "description": "自定义导入SQL",
+                    "type": "string"
+                },
                 "joinTemplate": {
                     "type": "array",
                     "items": {
@@ -8986,6 +12394,10 @@
                     "type": "string"
                 },
                 "order": {
+                    "type": "string"
+                },
+                "sql": {
+                    "description": "自定义导出SQL",
                     "type": "string"
                 },
                 "tableName": {
@@ -9148,44 +12560,6 @@
                 }
             }
         },
-        "system.SysParams": {
-            "type": "object",
-            "required": [
-                "key",
-                "name",
-                "value"
-            ],
-            "properties": {
-                "ID": {
-                    "description": "主键ID",
-                    "type": "integer"
-                },
-                "createdAt": {
-                    "description": "创建时间",
-                    "type": "string"
-                },
-                "desc": {
-                    "description": "参数说明",
-                    "type": "string"
-                },
-                "key": {
-                    "description": "参数键",
-                    "type": "string"
-                },
-                "name": {
-                    "description": "参数名称",
-                    "type": "string"
-                },
-                "updatedAt": {
-                    "description": "更新时间",
-                    "type": "string"
-                },
-                "value": {
-                    "description": "参数值",
-                    "type": "string"
-                }
-            }
-        },
         "system.SysUser": {
             "type": "object",
             "properties": {
@@ -9254,6 +12628,43 @@
                 },
                 "uuid": {
                     "description": "用户UUID",
+                    "type": "string"
+                }
+            }
+        },
+        "system.SysVersion": {
+            "type": "object",
+            "required": [
+                "versionCode",
+                "versionName"
+            ],
+            "properties": {
+                "ID": {
+                    "description": "主键ID",
+                    "type": "integer"
+                },
+                "createdAt": {
+                    "description": "创建时间",
+                    "type": "string"
+                },
+                "description": {
+                    "description": "版本描述",
+                    "type": "string"
+                },
+                "updatedAt": {
+                    "description": "更新时间",
+                    "type": "string"
+                },
+                "versionCode": {
+                    "description": "版本号",
+                    "type": "string"
+                },
+                "versionData": {
+                    "description": "版本数据",
+                    "type": "string"
+                },
+                "versionName": {
+                    "description": "版本名称",
                     "type": "string"
                 }
             }

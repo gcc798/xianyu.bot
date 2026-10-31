@@ -92,10 +92,8 @@ func Routers() *gin.Engine {
 		systemRouter.InitSysDictionaryDetailRouter(PrivateGroup)            // 字典详情管理
 		systemRouter.InitAuthorityBtnRouterRouter(PrivateGroup)             // 按钮权限管理
 		systemRouter.InitSysExportTemplateRouter(PrivateGroup, PublicGroup) // 导出模板
-		systemRouter.InitSysParamsRouter(PrivateGroup, PublicGroup)         // 参数管理
 		systemRouter.InitSysErrorRouter(PrivateGroup, PublicGroup)          // 错误日志
 		systemRouter.InitLoginLogRouter(PrivateGroup)                       // 登录日志
-		systemRouter.InitApiTokenRouter(PrivateGroup)                       // apiToken签发
 		exampleRouter.InitCustomerRouter(PrivateGroup)                      // 客户路由
 		exampleRouter.InitFileUploadAndDownloadRouter(PrivateGroup)         // 文件上传下载功能路由
 		exampleRouter.InitAttachmentCategoryRouterRouter(PrivateGroup)      // 文件上传下载分类

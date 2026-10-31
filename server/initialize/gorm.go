@@ -60,10 +60,8 @@ func RegisterTables() {
 		system.SysExportTemplate{},
 		system.Condition{},
 		system.JoinTemplate{},
-		system.SysParams{},
 		system.SysVersion{},
 		system.SysError{},
-		system.SysApiToken{},
 		system.SysLoginLog{},
 
 		example.ExaFile{},

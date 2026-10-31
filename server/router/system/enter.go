@@ -18,11 +18,9 @@ type RouterGroup struct {
 	DictionaryDetailRouter
 	AuthorityBtnRouter
 	SysExportTemplateRouter
-	SysParamsRouter
 	SysVersionRouter
 	SysErrorRouter
 	LoginLogRouter
-	ApiTokenRouter
 	SkillsRouter
 }
 
@@ -32,7 +30,6 @@ var (
 	baseApi              = api.ApiGroupApp.SystemApiGroup.BaseApi
 	casbinApi            = api.ApiGroupApp.SystemApiGroup.CasbinApi
 	systemApi            = api.ApiGroupApp.SystemApiGroup.SystemApi
-	sysParamsApi         = api.ApiGroupApp.SystemApiGroup.SysParamsApi
 	autoCodeApi          = api.ApiGroupApp.SystemApiGroup.AutoCodeApi
 	authorityApi         = api.ApiGroupApp.SystemApiGroup.AuthorityApi
 	apiRouterApi         = api.ApiGroupApp.SystemApiGroup.SystemApiApi

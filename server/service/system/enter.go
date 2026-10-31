@@ -16,7 +16,6 @@ type ServiceGroup struct {
 	DictionaryDetailService
 	AuthorityBtnService
 	SysExportTemplateService
-	SysParamsService
 	SysVersionService
 	SkillsService
 	AIWorkflowSession aiWorkflowSession
@@ -26,5 +25,4 @@ type ServiceGroup struct {
 	AutoCodeTemplate  autoCodeTemplate
 	SysErrorService
 	LoginLogService
-	ApiTokenService
 }
