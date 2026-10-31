@@ -13,7 +13,7 @@
     <el-input
       v-else
       v-model="tempPath"
-      placeholder="页面:view/xxx/xx.vue 插件:plugin/xx/xx.vue"
+      placeholder="页面：view/模块/页面.vue"
       @change="emitChange"
     />
     <el-button @click="togglePathIsSelect"

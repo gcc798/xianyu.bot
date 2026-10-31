@@ -6,6 +6,7 @@ import (
 
 	"github.com/flipped-aurora/gin-vue-admin/server/docs"
 	"github.com/flipped-aurora/gin-vue-admin/server/global"
+	"github.com/flipped-aurora/gin-vue-admin/server/internal/notification/mail"
 	"github.com/flipped-aurora/gin-vue-admin/server/middleware"
 	"github.com/flipped-aurora/gin-vue-admin/server/router"
 	"github.com/gin-gonic/gin"
@@ -97,8 +98,8 @@ func Routers() *gin.Engine {
 		exampleRouter.InitAttachmentCategoryRouterRouter(PrivateGroup) // 文件上传下载分类
 	}
 
-	//插件路由安装
-	InstallPlugin(PrivateGroup, PublicGroup, Router)
+	mail.RegisterRoutes(PrivateGroup)
+	initializeXianyu(Router)
 
 	// 注册业务路由
 	initBizRouter(PrivateGroup, PublicGroup)

@@ -1534,21 +1534,11 @@ const docTemplate = `{
                         "ApiKeyAuth": []
                     }
                 ],
-                "produces": [
-                    "application/json"
-                ],
                 "tags": [
                     "System"
                 ],
                 "summary": "发送测试邮件",
-                "responses": {
-                    "200": {
-                        "description": "{\"success\":true,\"data\":{},\"msg\":\"发送成功\"}",
-                        "schema": {
-                            "type": "string"
-                        }
-                    }
-                }
+                "responses": {}
             }
         },
         "/email/sendEmail": {
@@ -1558,32 +1548,11 @@ const docTemplate = `{
                         "ApiKeyAuth": []
                     }
                 ],
-                "produces": [
-                    "application/json"
-                ],
                 "tags": [
                     "System"
                 ],
                 "summary": "发送邮件",
-                "parameters": [
-                    {
-                        "description": "发送邮件必须的参数",
-                        "name": "data",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/response.Email"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "{\"success\":true,\"data\":{},\"msg\":\"发送成功\"}",
-                        "schema": {
-                            "type": "string"
-                        }
-                    }
-                }
+                "responses": {}
             }
         },
         "/fileUploadAndDownload/deleteFile": {
@@ -6955,6 +6924,43 @@ const docTemplate = `{
                 }
             }
         },
+        "config.Email": {
+            "type": "object",
+            "properties": {
+                "from": {
+                    "description": "发件人  你自己要发邮件的邮箱",
+                    "type": "string"
+                },
+                "host": {
+                    "description": "服务器地址 例如 smtp.qq.com  请前往QQ或者你要发邮件的邮箱查看其smtp协议",
+                    "type": "string"
+                },
+                "is-loginauth": {
+                    "description": "是否LoginAuth   是否使用LoginAuth认证方式（适用于IBM、微软邮箱服务器等）",
+                    "type": "boolean"
+                },
+                "is-ssl": {
+                    "description": "是否SSL   是否开启SSL",
+                    "type": "boolean"
+                },
+                "nickname": {
+                    "description": "昵称    发件人昵称 通常为自己的邮箱",
+                    "type": "string"
+                },
+                "port": {
+                    "description": "端口     请前往QQ或者你要发邮件的邮箱查看其smtp协议 大多为 465",
+                    "type": "integer"
+                },
+                "secret": {
+                    "description": "密钥    用于登录的密钥 最好不要用邮箱密码 去邮箱smtp申请一个用于登录的密钥",
+                    "type": "string"
+                },
+                "to": {
+                    "description": "收件人:多个以英文逗号分隔 例：a@qq.com b@qq.com 正式开发中请把此项目作为参数使用",
+                    "type": "string"
+                }
+            }
+        },
         "config.Excel": {
             "type": "object",
             "properties": {
@@ -7465,7 +7471,7 @@ const docTemplate = `{
                     }
                 },
                 "email": {
-                    "$ref": "#/definitions/github_com_flipped-aurora_gin-vue-admin_server_config.Email"
+                    "$ref": "#/definitions/config.Email"
                 },
                 "excel": {
                     "$ref": "#/definitions/config.Excel"
@@ -7838,43 +7844,6 @@ const docTemplate = `{
                 },
                 "url": {
                     "description": "文件地址",
-                    "type": "string"
-                }
-            }
-        },
-        "github_com_flipped-aurora_gin-vue-admin_server_config.Email": {
-            "type": "object",
-            "properties": {
-                "from": {
-                    "description": "发件人  你自己要发邮件的邮箱",
-                    "type": "string"
-                },
-                "host": {
-                    "description": "服务器地址 例如 smtp.qq.com  请前往QQ或者你要发邮件的邮箱查看其smtp协议",
-                    "type": "string"
-                },
-                "is-loginauth": {
-                    "description": "是否LoginAuth   是否使用LoginAuth认证方式（适用于IBM、微软邮箱服务器等）",
-                    "type": "boolean"
-                },
-                "is-ssl": {
-                    "description": "是否SSL   是否开启SSL",
-                    "type": "boolean"
-                },
-                "nickname": {
-                    "description": "昵称    发件人昵称 通常为自己的邮箱",
-                    "type": "string"
-                },
-                "port": {
-                    "description": "端口     请前往QQ或者你要发邮件的邮箱查看其smtp协议 大多为 465",
-                    "type": "integer"
-                },
-                "secret": {
-                    "description": "密钥    用于登录的密钥 最好不要用邮箱密码 去邮箱smtp申请一个用于登录的密钥",
-                    "type": "string"
-                },
-                "to": {
-                    "description": "收件人:多个以英文逗号分隔 例：a@qq.com b@qq.com 正式开发中请把此项目作为参数使用",
                     "type": "string"
                 }
             }
@@ -8761,23 +8730,6 @@ const docTemplate = `{
                 },
                 "startTime": {
                     "type": "integer"
-                }
-            }
-        },
-        "response.Email": {
-            "type": "object",
-            "properties": {
-                "body": {
-                    "description": "邮件内容",
-                    "type": "string"
-                },
-                "subject": {
-                    "description": "邮件标题",
-                    "type": "string"
-                },
-                "to": {
-                    "description": "邮件发送给谁",
-                    "type": "string"
                 }
             }
         },

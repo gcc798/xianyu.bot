@@ -17,16 +17,8 @@ const createIconComponent = (name) => ({
 
 const registerIcons = async (app) => {
   const iconModules = import.meta.glob('@/assets/icons/**/*.svg') // 系统目录 svg 图标
-  const pluginIconModules = import.meta.glob(
-    '@/plugin/**/assets/icons/**/*.svg'
-  ) // 插件目录 svg 图标
-  const mergedIconModules = Object.assign({}, iconModules, pluginIconModules) // 合并所有 svg 图标
   let allKeys = []
-  for (const path in mergedIconModules) {
-    let pluginName = ''
-    if (path.startsWith('/src/plugin/')) {
-      pluginName = `${path.split('/')[3]}-`
-    }
+  for (const path in iconModules) {
     const iconName = path
       .split('/')
       .pop()
@@ -36,7 +28,7 @@ const registerIcons = async (app) => {
       console.error(`icon ${iconName}.svg includes whitespace in ${path}`)
       continue
     }
-    const key = `${pluginName}${iconName}`
+    const key = iconName
     const iconComponent = createIconComponent(key)
     config.logs.push({
       key: key,
