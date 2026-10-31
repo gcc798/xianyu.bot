@@ -15,7 +15,7 @@ import (
 	"time"
 
 	"github.com/flipped-aurora/gin-vue-admin/server/global"
-	emailUtils "github.com/flipped-aurora/gin-vue-admin/server/plugin/email/utils"
+	"github.com/flipped-aurora/gin-vue-admin/server/internal/notification/mail"
 	"github.com/flipped-aurora/gin-vue-admin/server/plugin/xy/model"
 	xyResponse "github.com/flipped-aurora/gin-vue-admin/server/plugin/xy/model/response"
 	"github.com/flipped-aurora/gin-vue-admin/server/plugin/xy/protocol"
@@ -86,7 +86,7 @@ func newWebSocketService(messages *message) *webSocketService {
 		messages:              messages,
 		alertWindows:          make(map[uint]*connectionAlertWindow),
 		alertWindowDuration:   time.Hour,
-		sendNotificationEmail: emailUtils.Email,
+		sendNotificationEmail: mail.Send,
 	}
 	config := xyRuntime.DefaultConfig()
 	config.StateChanged = service.connectionStateChanged
@@ -226,7 +226,7 @@ func (s *webSocketService) sendConnectionNotification(snapshot xyRuntime.Snapsho
 	}
 	sender := s.sendNotificationEmail
 	if sender == nil {
-		sender = emailUtils.Email
+		sender = mail.Send
 	}
 	if err := sender("force_gc@163.com", subject, body); err != nil {
 		recordBusinessEvent(context.Background(), model.BusinessEvent{

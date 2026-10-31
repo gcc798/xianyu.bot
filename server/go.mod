@@ -50,12 +50,10 @@ require (
 	golang.org/x/image v0.23.0
 	golang.org/x/net v0.48.0
 	golang.org/x/sync v0.19.0
-	gorm.io/datatypes v1.2.5
 	gorm.io/driver/mysql v1.6.0
 	gorm.io/driver/postgres v1.6.0
 	gorm.io/driver/sqlite v1.6.0
 	gorm.io/driver/sqlserver v1.6.3
-	gorm.io/gen v0.3.26
 	gorm.io/gorm v1.31.1
 )
 
@@ -177,7 +175,6 @@ require (
 	go.uber.org/multierr v1.11.0 // indirect
 	golang.org/x/arch v0.13.0 // indirect
 	golang.org/x/exp v0.0.0-20251219203646-944ab1f22d93 // indirect
-	golang.org/x/mod v0.31.0 // indirect
 	golang.org/x/sys v0.39.0 // indirect
 	golang.org/x/text v0.32.0 // indirect
 	golang.org/x/time v0.9.0 // indirect
@@ -185,7 +182,6 @@ require (
 	google.golang.org/protobuf v1.36.6 // indirect
 	gopkg.in/ini.v1 v1.67.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
-	gorm.io/hints v1.1.2 // indirect
 	gorm.io/plugin/dbresolver v1.6.2 // indirect
 	modernc.org/fileutil v1.3.40 // indirect
 	modernc.org/libc v1.67.4 // indirect

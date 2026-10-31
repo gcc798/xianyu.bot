@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/flipped-aurora/gin-vue-admin/server/plugin/email/utils"
+	"github.com/flipped-aurora/gin-vue-admin/server/internal/notification/mail"
 	utils2 "github.com/flipped-aurora/gin-vue-admin/server/utils"
 
 	"github.com/flipped-aurora/gin-vue-admin/server/global"
@@ -50,7 +50,7 @@ func ErrorToEmail() gin.HandlerFunc {
 		str := "接收到的请求为" + record.Body + "\n" + "请求方式为" + record.Method + "\n" + "报错信息如下" + record.ErrorMessage + "\n" + "耗时" + latency.String() + "\n"
 		if status != 200 {
 			subject := username + "" + record.Ip + "调用了" + record.Path + "报错了"
-			if err := utils.ErrorToEmail(subject, str); err != nil {
+			if err := mail.SendConfigured(subject, str); err != nil {
 				global.GVA_LOG.Error("ErrorToEmail Failed, err:", zap.Error(err))
 			}
 		}

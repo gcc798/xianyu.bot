@@ -93,7 +93,6 @@ func Routers() *gin.Engine {
 		systemRouter.InitAuthorityBtnRouterRouter(PrivateGroup)        // 按钮权限管理
 		systemRouter.InitSysErrorRouter(PrivateGroup, PublicGroup)     // 错误日志
 		systemRouter.InitLoginLogRouter(PrivateGroup)                  // 登录日志
-		exampleRouter.InitCustomerRouter(PrivateGroup)                 // 客户路由
 		exampleRouter.InitFileUploadAndDownloadRouter(PrivateGroup)    // 文件上传下载功能路由
 		exampleRouter.InitAttachmentCategoryRouterRouter(PrivateGroup) // 文件上传下载分类
 	}

@@ -59,9 +59,6 @@ func RegisterTables() {
 		system.SysError{},
 		system.SysLoginLog{},
 
-		example.ExaFile{},
-		example.ExaCustomer{},
-		example.ExaFileChunk{},
 		example.ExaFileUploadAndDownload{},
 		example.ExaAttachmentCategory{},
 	)
