@@ -79,24 +79,23 @@ func Routers() *gin.Engine {
 	}
 
 	{
-		systemRouter.InitApiRouter(PrivateGroup, PublicGroup)               // 注册功能api路由
-		systemRouter.InitJwtRouter(PrivateGroup)                            // jwt相关路由
-		systemRouter.InitUserRouter(PrivateGroup)                           // 注册用户路由
-		systemRouter.InitMenuRouter(PrivateGroup)                           // 注册menu路由
-		systemRouter.InitSystemRouter(PrivateGroup)                         // system相关路由
-		systemRouter.InitSysVersionRouter(PrivateGroup)                     // 发版相关路由
-		systemRouter.InitCasbinRouter(PrivateGroup)                         // 权限相关路由
-		systemRouter.InitAuthorityRouter(PrivateGroup)                      // 注册角色路由
-		systemRouter.InitSysDictionaryRouter(PrivateGroup)                  // 字典管理
-		systemRouter.InitSysOperationRecordRouter(PrivateGroup)             // 操作记录
-		systemRouter.InitSysDictionaryDetailRouter(PrivateGroup)            // 字典详情管理
-		systemRouter.InitAuthorityBtnRouterRouter(PrivateGroup)             // 按钮权限管理
-		systemRouter.InitSysExportTemplateRouter(PrivateGroup, PublicGroup) // 导出模板
-		systemRouter.InitSysErrorRouter(PrivateGroup, PublicGroup)          // 错误日志
-		systemRouter.InitLoginLogRouter(PrivateGroup)                       // 登录日志
-		exampleRouter.InitCustomerRouter(PrivateGroup)                      // 客户路由
-		exampleRouter.InitFileUploadAndDownloadRouter(PrivateGroup)         // 文件上传下载功能路由
-		exampleRouter.InitAttachmentCategoryRouterRouter(PrivateGroup)      // 文件上传下载分类
+		systemRouter.InitApiRouter(PrivateGroup, PublicGroup)          // 注册功能api路由
+		systemRouter.InitJwtRouter(PrivateGroup)                       // jwt相关路由
+		systemRouter.InitUserRouter(PrivateGroup)                      // 注册用户路由
+		systemRouter.InitMenuRouter(PrivateGroup)                      // 注册menu路由
+		systemRouter.InitSystemRouter(PrivateGroup)                    // system相关路由
+		systemRouter.InitSysVersionRouter(PrivateGroup)                // 发版相关路由
+		systemRouter.InitCasbinRouter(PrivateGroup)                    // 权限相关路由
+		systemRouter.InitAuthorityRouter(PrivateGroup)                 // 注册角色路由
+		systemRouter.InitSysDictionaryRouter(PrivateGroup)             // 字典管理
+		systemRouter.InitSysOperationRecordRouter(PrivateGroup)        // 操作记录
+		systemRouter.InitSysDictionaryDetailRouter(PrivateGroup)       // 字典详情管理
+		systemRouter.InitAuthorityBtnRouterRouter(PrivateGroup)        // 按钮权限管理
+		systemRouter.InitSysErrorRouter(PrivateGroup, PublicGroup)     // 错误日志
+		systemRouter.InitLoginLogRouter(PrivateGroup)                  // 登录日志
+		exampleRouter.InitCustomerRouter(PrivateGroup)                 // 客户路由
+		exampleRouter.InitFileUploadAndDownloadRouter(PrivateGroup)    // 文件上传下载功能路由
+		exampleRouter.InitAttachmentCategoryRouterRouter(PrivateGroup) // 文件上传下载分类
 	}
 
 	//插件路由安装

@@ -4,7 +4,6 @@ import (
 	"flag"
 	"fmt"
 	"os"
-	"path/filepath"
 
 	"github.com/flipped-aurora/gin-vue-admin/server/core/internal"
 	"github.com/flipped-aurora/gin-vue-admin/server/global"
@@ -36,8 +35,6 @@ func Viper() *viper.Viper {
 		panic(fmt.Errorf("fatal error unmarshal config: %w", err))
 	}
 
-	// root 适配性 根据root位置去找到对应迁移位置,保证root路径有效
-	global.GVA_CONFIG.AutoCode.Root, _ = filepath.Abs("..")
 	return v
 }
 

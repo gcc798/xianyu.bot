@@ -11,7 +11,6 @@ import (
 	"github.com/gookit/color"
 	"gorm.io/driver/sqlserver"
 	"gorm.io/gorm"
-	"path/filepath"
 )
 
 type MssqlInitHandler struct{}
@@ -62,7 +61,6 @@ func (h MssqlInitHandler) EnsureDB(ctx context.Context, conf *request.InitDB) (n
 		return nil, err
 	}
 
-	global.GVA_CONFIG.AutoCode.Root, _ = filepath.Abs("..")
 	next = context.WithValue(next, "db", db)
 	return next, err
 }

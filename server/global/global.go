@@ -2,7 +2,6 @@ package global
 
 import (
 	"fmt"
-	"github.com/mark3labs/mcp-go/server"
 	"sync"
 
 	"github.com/gin-gonic/gin"
@@ -36,7 +35,6 @@ var (
 	GVA_Concurrency_Control             = &singleflight.Group{}
 	GVA_ROUTERS             gin.RoutesInfo
 	GVA_ACTIVE_DBNAME       *string
-	GVA_MCP_SERVER          *server.MCPServer
 	BlackCache              local_cache.Cache
 	lock                    sync.RWMutex
 )

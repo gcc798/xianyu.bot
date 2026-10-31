@@ -6,7 +6,6 @@ import (
 	"github.com/flipped-aurora/gin-vue-admin/server/global"
 	"github.com/flipped-aurora/gin-vue-admin/server/model/system"
 	"github.com/flipped-aurora/gin-vue-admin/server/service"
-	astutil "github.com/flipped-aurora/gin-vue-admin/server/utils/ast"
 	"github.com/flipped-aurora/gin-vue-admin/server/utils/stacktrace"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
@@ -106,14 +105,9 @@ func (z *ZapCore) Write(entry zapcore.Entry, fields []zapcore.Field) error {
 		stack := entry.Stack
 		if stack != "" {
 			info = fmt.Sprintf("%s \n 调用栈：%s", info, stack)
-			// 解析最终业务调用方，并提取其方法源码
+			// 记录最终业务调用位置，避免日志只指向日志组件自身。
 			if frame, ok := stacktrace.FindFinalCaller(stack); ok {
-				fnName, fnSrc, sLine, eLine, exErr := astutil.ExtractFuncSourceByPosition(frame.File, frame.Line)
-				if exErr == nil {
-					info = fmt.Sprintf("%s \n 最终调用方法:%s:%d (%s lines %d-%d)\n----- 产生日志的方法代码如下 -----\n%s", info, frame.File, frame.Line, fnName, sLine, eLine, fnSrc)
-				} else {
-					info = fmt.Sprintf("%s \n 最终调用方法:%s:%d (%s) | extract_err=%v", info, frame.File, frame.Line, fnName, exErr)
-				}
+				info = fmt.Sprintf("%s \n 最终调用位置:%s:%d (%s)", info, frame.File, frame.Line, frame.Func)
 			}
 		}
 

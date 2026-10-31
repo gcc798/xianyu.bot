@@ -176,14 +176,6 @@ local:
     path: uploads/file
     store-path: uploads/file
 
-# autocode configuration
-autocode:
-    web: web/src
-    root: "" # root 自动适配项目根目录, 请不要手动配置,他会在项目加载的时候识别出根路径
-    server: server
-    module: 'github.com/flipped-aurora/gin-vue-admin/server'
-    ai-path: ""  # AI服务路径
-
 # qiniu configuration (请自行七牛申请对应的 公钥 私钥 bucket 和 域名地址)
 qiniu:
     zone: ZoneHuaDong
@@ -275,8 +267,3 @@ cors:
           allow-methods: GET, POST
           expose-headers: Content-Length, Access-Control-Allow-Origin, Access-Control-Allow-Headers, Content-Type
           allow-credentials: true # 布尔值
-mcp:
-    name: GVA_MCP
-    version: v1.0.0
-    addr: 8889
-    separate: false

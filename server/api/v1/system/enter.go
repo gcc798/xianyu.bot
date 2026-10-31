@@ -8,7 +8,6 @@ type ApiGroup struct {
 	BaseApi
 	SystemApi
 	CasbinApi
-	AutoCodeApi
 	SystemApiApi
 	AuthorityApi
 	DictionaryApi
@@ -16,40 +15,26 @@ type ApiGroup struct {
 	OperationRecordApi
 	DictionaryDetailApi
 	AuthorityBtnApi
-	SysExportTemplateApi
-	AutoCodePluginApi
-	AutoCodePackageApi
-	AutoCodeHistoryApi
-	AutoCodeTemplateApi
 	SysVersionApi
 	SysErrorApi
 	LoginLogApi
-	SkillsApi
-	AIWorkflowSessionApi
 }
 
 var (
-	apiService               = service.ServiceGroupApp.SystemServiceGroup.ApiService
-	jwtService               = service.ServiceGroupApp.SystemServiceGroup.JwtService
-	menuService              = service.ServiceGroupApp.SystemServiceGroup.MenuService
-	userService              = service.ServiceGroupApp.SystemServiceGroup.UserService
-	initDBService            = service.ServiceGroupApp.SystemServiceGroup.InitDBService
-	casbinService            = service.ServiceGroupApp.SystemServiceGroup.CasbinService
-	baseMenuService          = service.ServiceGroupApp.SystemServiceGroup.BaseMenuService
-	authorityService         = service.ServiceGroupApp.SystemServiceGroup.AuthorityService
-	dictionaryService        = service.ServiceGroupApp.SystemServiceGroup.DictionaryService
-	authorityBtnService      = service.ServiceGroupApp.SystemServiceGroup.AuthorityBtnService
-	systemConfigService      = service.ServiceGroupApp.SystemServiceGroup.SystemConfigService
-	operationRecordService   = service.ServiceGroupApp.SystemServiceGroup.OperationRecordService
-	dictionaryDetailService  = service.ServiceGroupApp.SystemServiceGroup.DictionaryDetailService
-	autoCodeService          = service.ServiceGroupApp.SystemServiceGroup.AutoCodeService
-	aiWorkflowSessionService = service.ServiceGroupApp.SystemServiceGroup.AIWorkflowSession
-	autoCodePluginService    = service.ServiceGroupApp.SystemServiceGroup.AutoCodePlugin
-	autoCodePackageService   = service.ServiceGroupApp.SystemServiceGroup.AutoCodePackage
-	autoCodeHistoryService   = service.ServiceGroupApp.SystemServiceGroup.AutoCodeHistory
-	autoCodeTemplateService  = service.ServiceGroupApp.SystemServiceGroup.AutoCodeTemplate
-	sysVersionService        = service.ServiceGroupApp.SystemServiceGroup.SysVersionService
-	sysErrorService          = service.ServiceGroupApp.SystemServiceGroup.SysErrorService
-	loginLogService          = service.ServiceGroupApp.SystemServiceGroup.LoginLogService
-	skillsService            = service.ServiceGroupApp.SystemServiceGroup.SkillsService
+	apiService              = service.ServiceGroupApp.SystemServiceGroup.ApiService
+	jwtService              = service.ServiceGroupApp.SystemServiceGroup.JwtService
+	menuService             = service.ServiceGroupApp.SystemServiceGroup.MenuService
+	userService             = service.ServiceGroupApp.SystemServiceGroup.UserService
+	initDBService           = service.ServiceGroupApp.SystemServiceGroup.InitDBService
+	casbinService           = service.ServiceGroupApp.SystemServiceGroup.CasbinService
+	baseMenuService         = service.ServiceGroupApp.SystemServiceGroup.BaseMenuService
+	authorityService        = service.ServiceGroupApp.SystemServiceGroup.AuthorityService
+	dictionaryService       = service.ServiceGroupApp.SystemServiceGroup.DictionaryService
+	authorityBtnService     = service.ServiceGroupApp.SystemServiceGroup.AuthorityBtnService
+	systemConfigService     = service.ServiceGroupApp.SystemServiceGroup.SystemConfigService
+	operationRecordService  = service.ServiceGroupApp.SystemServiceGroup.OperationRecordService
+	dictionaryDetailService = service.ServiceGroupApp.SystemServiceGroup.DictionaryDetailService
+	sysVersionService       = service.ServiceGroupApp.SystemServiceGroup.SysVersionService
+	sysErrorService         = service.ServiceGroupApp.SystemServiceGroup.SysErrorService
+	loginLogService         = service.ServiceGroupApp.SystemServiceGroup.LoginLogService
 )

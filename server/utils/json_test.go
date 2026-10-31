@@ -1,7 +1,7 @@
 package utils
 
 import (
-	"fmt"
+	"slices"
 	"testing"
 )
 
@@ -16,38 +16,10 @@ func TestGetJSONKeys(t *testing.T) {
 }`
 	keys, err := GetJSONKeys(jsonStr)
 	if err != nil {
-		t.Errorf("GetJSONKeys failed" + err.Error())
-		return
+		t.Fatal(err)
 	}
-	if len(keys) != 5 {
-		t.Errorf("GetJSONKeys failed" + err.Error())
-		return
+	want := []string{"Name", "TableName", "TemplateID", "TemplateInfo", "Limit"}
+	if !slices.Equal(keys, want) {
+		t.Fatalf("GetJSONKeys() = %v, want %v", keys, want)
 	}
-	if keys[0] != "Name" {
-		t.Errorf("GetJSONKeys failed" + err.Error())
-
-		return
-	}
-	if keys[1] != "TableName" {
-		t.Errorf("GetJSONKeys failed" + err.Error())
-
-		return
-	}
-	if keys[2] != "TemplateID" {
-		t.Errorf("GetJSONKeys failed" + err.Error())
-
-		return
-	}
-	if keys[3] != "TemplateInfo" {
-		t.Errorf("GetJSONKeys failed" + err.Error())
-
-		return
-	}
-	if keys[4] != "Limit" {
-		t.Errorf("GetJSONKeys failed" + err.Error())
-
-		return
-	}
-
-	fmt.Println(keys)
 }

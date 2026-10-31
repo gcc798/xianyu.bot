@@ -49,8 +49,6 @@
     Service,
     Document,
     Reading,
-    Files,
-    Memo
   } from '@element-plus/icons-vue'
   import { useRouter } from 'vue-router'
 
@@ -68,9 +66,7 @@
     { icon: Menu, title: '菜单管理', path: 'menu' },
     { icon: Link, title: 'API管理', path: 'api' },
     { icon: Service, title: '角色管理', path: 'authority' },
-    { icon: User, title: '用户管理', path: 'user' },
-    { icon: Files, title: '自动化包', path: 'autoPkg' },
-    { icon: Memo, title: '自动代码', path: 'autoCode' }
+    { icon: User, title: '用户管理', path: 'user' }
   ]
 
   const recentVisits = [

@@ -909,80 +909,6 @@
             />
           </el-form-item>
         </el-tab-pane>
-        <el-tab-pane label="自动化代码配置" name="12" class="mt-3.5">
-          <el-form-item label="是否自动重启(linux)">
-            <el-switch v-model="config.autocode['transfer-restart']" />
-          </el-form-item>
-          <el-form-item label="root(项目根路径)">
-            <el-input v-model="config.autocode.root" disabled />
-          </el-form-item>
-          <el-form-item label="Server(后端代码地址)">
-            <el-input
-              v-model.trim="config.autocode['server']"
-              placeholder="请输入后端代码地址"
-            />
-          </el-form-item>
-          <el-form-item label="SApi(后端api文件夹地址)">
-            <el-input
-              v-model.trim="config.autocode['server-api']"
-              placeholder="请输入后端api文件夹地址"
-            />
-          </el-form-item>
-          <el-form-item label="SInitialize(后端Initialize文件夹)">
-            <el-input
-              v-model.trim="config.autocode['server-initialize']"
-              placeholder="请输入后端Initialize文件夹"
-            />
-          </el-form-item>
-          <el-form-item label="SModel(后端Model文件地址)">
-            <el-input
-              v-model.trim="config.autocode['server-model']"
-              placeholder="请输入后端Model文件地址"
-            />
-          </el-form-item>
-          <el-form-item label="SRequest(后端Request文件夹地址)">
-            <el-input
-              v-model.trim="config.autocode['server-request']"
-              placeholder="请输入后端Request文件夹地址"
-            />
-          </el-form-item>
-          <el-form-item label="SRouter(后端Router文件夹地址)">
-            <el-input
-              v-model.trim="config.autocode['server-router']"
-              placeholder="请输入后端Router文件夹地址"
-            />
-          </el-form-item>
-          <el-form-item label="SService(后端Service文件夹地址)">
-            <el-input
-              v-model.trim="config.autocode['server-service']"
-              placeholder="请输入后端Service文件夹地址"
-            />
-          </el-form-item>
-          <el-form-item label="Web(前端文件夹地址)">
-            <el-input
-              v-model.trim="config.autocode.web"
-              placeholder="请输入前端文件夹地址"
-            />
-          </el-form-item>
-          <el-form-item label="WApi(后端WApi文件夹地址)">
-            <el-input
-              v-model.trim="config.autocode['web-api']"
-              placeholder="请输入后端WApi文件夹地址"
-            />
-          </el-form-item>
-          <el-form-item label="WForm(后端WForm文件夹地址)">
-            <el-input
-              v-model.trim="config.autocode['web-form']"
-              placeholder="请输入后端WForm文件夹地址"
-            />
-          </el-form-item>
-          <el-form-item label="WTable(后端WTable文件夹地址)">
-            <el-input
-              v-model.trim="config.autocode['web-table']"
-              placeholder="请输入后端WTable文件夹地址"
-            />
-          </el-form-item>
-        </el-tab-pane>
       </el-tabs>
     </el-form>
     <div class="mt-4">
@@ -1017,7 +943,6 @@
     pgsql: {},
     oracle: {},
     excel: {},
-    autocode: {},
     redis: {},
     mongo: {
       coll: '',
