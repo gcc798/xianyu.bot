@@ -147,7 +147,11 @@ func (a *agentSession) Events(c *gin.Context) {
 		response.FailWithMessage("Last-Event-ID 无效", c)
 		return
 	}
-	replay, events, unsubscribe := agentEventService.Subscribe(sessionID, afterID)
+	replay, events, unsubscribe, err := agentEventService.Subscribe(c.Request.Context(), sessionID, afterID)
+	if err != nil {
+		response.FailWithMessage("读取 Agent 事件失败", c)
+		return
+	}
 	defer unsubscribe()
 	header := c.Writer.Header()
 	header.Set("Content-Type", "text/event-stream; charset=utf-8")
@@ -195,7 +199,12 @@ func parseLastEventID(value string) (uint64, error) {
 }
 
 func writeAgentSSE(c *gin.Context, id uint64, eventType string, data []byte) error {
-	if _, err := fmt.Fprintf(c.Writer, "id: %d\nevent: %s\ndata: %s\n\n", id, eventType, data); err != nil {
+	if id > 0 {
+		if _, err := fmt.Fprintf(c.Writer, "id: %d\n", id); err != nil {
+			return err
+		}
+	}
+	if _, err := fmt.Fprintf(c.Writer, "event: %s\ndata: %s\n\n", eventType, data); err != nil {
 		return err
 	}
 	c.Writer.Flush()

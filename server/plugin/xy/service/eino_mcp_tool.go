@@ -16,6 +16,7 @@ import (
 	"github.com/flipped-aurora/gin-vue-admin/server/global"
 	"github.com/flipped-aurora/gin-vue-admin/server/plugin/xy/model"
 	"github.com/mark3labs/mcp-go/mcp"
+	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
 
@@ -341,7 +342,9 @@ func (t *einoMCPTool) finishToolCall(ctx context.Context, call *model.AgentRunTo
 
 func (t *einoMCPTool) publish(eventType string, data any) {
 	if t.events != nil {
-		_, _ = t.events.Publish(t.sessionID, eventType, data)
+		if _, err := t.events.Publish(t.sessionID, eventType, data); err != nil && global.GVA_LOG != nil {
+			global.GVA_LOG.Error("保存 Agent 工具事件失败", zap.Uint("sessionID", t.sessionID), zap.String("eventType", eventType), zap.Error(err))
+		}
 	}
 }
 

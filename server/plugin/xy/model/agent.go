@@ -70,3 +70,21 @@ type AgentRunTool struct {
 }
 
 func (AgentRunTool) TableName() string { return "xy_agent_run_tools" }
+
+// AgentEvent records the immutable facts used to replay and audit one Agent session.
+// Streaming deltas stay transient; settled messages and execution boundaries are persisted here.
+type AgentEvent struct {
+	ID           uint64    `json:"id" gorm:"primaryKey;autoIncrement"`
+	OwnerID      uint      `json:"-" gorm:"not null;index:idx_xy_agent_events_owner_session,priority:1"`
+	SessionID    uint      `json:"sessionId" gorm:"not null;index:idx_xy_agent_events_owner_session,priority:2;index:idx_xy_agent_events_session_id"`
+	RunID        *uint     `json:"runId,omitempty" gorm:"index:idx_xy_agent_events_run_id"`
+	TurnNo       *int      `json:"turnNo,omitempty"`
+	StepNo       *int      `json:"stepNo,omitempty"`
+	EventType    string    `json:"type" gorm:"size:80;not null;index:idx_xy_agent_events_type"`
+	CallID       string    `json:"callId,omitempty" gorm:"size:200;index:idx_xy_agent_events_call_id"`
+	ParentCallID string    `json:"parentCallId,omitempty" gorm:"size:200"`
+	Payload      string    `json:"-" gorm:"type:text;not null"`
+	CreatedAt    time.Time `json:"createdAt" gorm:"not null;index"`
+}
+
+func (AgentEvent) TableName() string { return "xy_agent_events" }

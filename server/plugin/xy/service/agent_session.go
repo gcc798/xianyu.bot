@@ -110,6 +110,9 @@ func (s *agentSession) Delete(ctx context.Context, ownerID, sessionID uint) erro
 		if err := tx.Where("run_id IN (?)", runIDs).Delete(&model.AgentRunTool{}).Error; err != nil {
 			return err
 		}
+		if err := tx.Where("session_id = ? AND owner_id = ?", sessionID, ownerID).Delete(&model.AgentEvent{}).Error; err != nil {
+			return err
+		}
 		if err := tx.Where("session_id = ? AND owner_id = ?", sessionID, ownerID).Delete(&model.AgentRun{}).Error; err != nil {
 			return err
 		}

@@ -16,7 +16,7 @@ import (
 func TestAgentSessionScopesConversationByOwner(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
-	require.NoError(t, db.AutoMigrate(&model.AgentSession{}, &model.AgentMessage{}, &model.AgentRun{}, &model.AgentRunTool{}, &model.ResourceTask{}))
+	require.NoError(t, db.AutoMigrate(&model.AgentSession{}, &model.AgentMessage{}, &model.AgentRun{}, &model.AgentRunTool{}, &model.AgentEvent{}, &model.ResourceTask{}))
 	oldDB := global.GVA_DB
 	global.GVA_DB = db
 	t.Cleanup(func() { global.GVA_DB = oldDB })
@@ -64,7 +64,7 @@ func TestAgentSessionScopesConversationByOwner(t *testing.T) {
 func TestAgentSessionDeleteRejectsRunningAndRemovesConversation(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
-	require.NoError(t, db.AutoMigrate(&model.AgentSession{}, &model.AgentMessage{}, &model.AgentRun{}, &model.AgentRunTool{}, &model.ResourceTask{}))
+	require.NoError(t, db.AutoMigrate(&model.AgentSession{}, &model.AgentMessage{}, &model.AgentRun{}, &model.AgentRunTool{}, &model.AgentEvent{}, &model.ResourceTask{}))
 	oldDB := global.GVA_DB
 	global.GVA_DB = db
 	t.Cleanup(func() { global.GVA_DB = oldDB })
@@ -81,7 +81,7 @@ func TestAgentSessionDeleteRejectsRunningAndRemovesConversation(t *testing.T) {
 	require.NoError(t, db.Model(&run).Update("status", "completed").Error)
 	require.NoError(t, sessions.Delete(t.Context(), 11, session.ID))
 
-	for _, table := range []any{&model.AgentSession{}, &model.AgentMessage{}, &model.AgentRun{}, &model.AgentRunTool{}} {
+	for _, table := range []any{&model.AgentSession{}, &model.AgentMessage{}, &model.AgentRun{}, &model.AgentRunTool{}, &model.AgentEvent{}} {
 		var count int64
 		require.NoError(t, db.Model(table).Count(&count).Error)
 		require.Zero(t, count)

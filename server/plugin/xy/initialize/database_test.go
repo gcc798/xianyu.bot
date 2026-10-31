@@ -30,7 +30,7 @@ func TestDatabaseConfiguresSQLite(t *testing.T) {
 	for _, table := range []string{"xy_resource_searches", "xy_resource_candidates", "xy_resource_tasks", "xy_resources", "xy_resource_sources"} {
 		require.Truef(t, db.Migrator().HasTable(table), "expected resource table %s", table)
 	}
-	for _, table := range []string{"xy_agent_sessions", "xy_agent_messages", "xy_agent_runs", "xy_agent_run_tools"} {
+	for _, table := range []string{"xy_agent_sessions", "xy_agent_messages", "xy_agent_runs", "xy_agent_run_tools", "xy_agent_events"} {
 		require.Truef(t, db.Migrator().HasTable(table), "expected agent table %s", table)
 	}
 }

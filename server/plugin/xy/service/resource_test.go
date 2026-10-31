@@ -91,7 +91,7 @@ func TestResourceCatalogScopesQueriesByOwner(t *testing.T) {
 func TestResourceDeliveryGrantAndCompletion(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
-	require.NoError(t, db.AutoMigrate(&model.ResourceSearch{}, &model.ResourceCandidate{}, &model.ResourceTask{}, &model.Resource{}, &model.ResourceSource{}, &model.AgentRun{}))
+	require.NoError(t, db.AutoMigrate(&model.ResourceSearch{}, &model.ResourceCandidate{}, &model.ResourceTask{}, &model.Resource{}, &model.ResourceSource{}, &model.AgentSession{}, &model.AgentRun{}, &model.AgentEvent{}))
 	oldDB := global.GVA_DB
 	global.GVA_DB = db
 	t.Cleanup(func() { global.GVA_DB = oldDB })
@@ -105,12 +105,15 @@ func TestResourceDeliveryGrantAndCompletion(t *testing.T) {
 	require.NoError(t, db.Create(&candidate).Error)
 	store := &fakeResourceObjectStore{size: candidate.Size}
 	catalog := &resourceCatalog{objectStore: store, bucket: "resources"}
-	run := model.AgentRun{OwnerID: 11, SessionID: 7, ModelID: 1, ModelName: "test", Status: "completed", ConfigSnapshot: `{}`, StartedAt: time.Now()}
+	session := model.AgentSession{OwnerID: 11, Title: "资源交付"}
+	require.NoError(t, db.Create(&session).Error)
+	run := model.AgentRun{OwnerID: 11, SessionID: session.ID, ModelID: 1, ModelName: "test", Status: "completed", ConfigSnapshot: `{}`, StartedAt: time.Now()}
 	require.NoError(t, db.Create(&run).Error)
 	oldEvents := Service.AgentEvents
 	Service.AgentEvents = newAgentEventHub()
 	t.Cleanup(func() { Service.AgentEvents = oldEvents })
-	_, taskEvents, unsubscribe := Service.AgentEvents.Subscribe(run.SessionID, 0)
+	_, taskEvents, unsubscribe, err := Service.AgentEvents.Subscribe(t.Context(), run.SessionID, 0)
+	require.NoError(t, err)
 	defer unsubscribe()
 
 	grant, err := catalog.CreateDeliveryTask(t.Context(), 11, candidate.ID, "request-1")

@@ -77,7 +77,8 @@ func TestAgentRunnerSubmitPublishesStreamingEvents(t *testing.T) {
 	runner := &agentRunner{events: events, newModel: func(context.Context, model.AIModel, model.AgentConfig) (einomodel.BaseChatModel, error) {
 		return &stubAgentModel{answer: "流式回答"}, nil
 	}}
-	_, stream, cancel := events.Subscribe(session.ID, 0)
+	_, stream, cancel, err := events.Subscribe(t.Context(), session.ID, 0)
+	require.NoError(t, err)
 	defer cancel()
 
 	accepted, err := runner.Submit(t.Context(), 11, session.ID, "异步问题", "request-async")
@@ -108,7 +109,8 @@ func TestAgentRunnerCancelsOwnedRun(t *testing.T) {
 	runner := &agentRunner{events: events, newModel: func(context.Context, model.AIModel, model.AgentConfig) (einomodel.BaseChatModel, error) {
 		return cancelAwareAgentModel{}, nil
 	}}
-	_, stream, unsubscribe := events.Subscribe(session.ID, 0)
+	_, stream, unsubscribe, err := events.Subscribe(t.Context(), session.ID, 0)
+	require.NoError(t, err)
 	defer unsubscribe()
 
 	accepted, err := runner.Submit(t.Context(), 11, session.ID, "等待取消", "request-cancel")
@@ -176,7 +178,7 @@ func agentRunnerTestDB(t *testing.T) *gorm.DB {
 	sqlDB.SetMaxOpenConns(1)
 	require.NoError(t, db.AutoMigrate(
 		&model.AIModel{}, &model.MCPServer{}, &model.AgentConfig{}, &model.AgentSession{},
-		&model.AgentMessage{}, &model.AgentRun{}, &model.AgentRunTool{},
+		&model.AgentMessage{}, &model.AgentRun{}, &model.AgentRunTool{}, &model.AgentEvent{},
 	))
 	oldDB := global.GVA_DB
 	global.GVA_DB = db

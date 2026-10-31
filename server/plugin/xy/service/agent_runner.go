@@ -21,6 +21,7 @@ import (
 	"github.com/flipped-aurora/gin-vue-admin/server/global"
 	"github.com/flipped-aurora/gin-vue-admin/server/plugin/xy/model"
 	xyRequest "github.com/flipped-aurora/gin-vue-admin/server/plugin/xy/model/request"
+	"go.uber.org/zap"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
@@ -268,7 +269,7 @@ func (s *agentRunner) agentEventMessage(sessionID, runID uint, output *adk.Messa
 	if !output.IsStreaming {
 		message := output.Message
 		if message != nil && output.Role == schema.Assistant && message.Content != "" {
-			s.publish(sessionID, "assistant.delta", map[string]any{"runId": runID, "content": message.Content})
+			s.publishTransient(sessionID, "assistant.delta", map[string]any{"runId": runID, "content": message.Content})
 		}
 		return message, nil
 	}
@@ -284,7 +285,7 @@ func (s *agentRunner) agentEventMessage(sessionID, runID uint, output *adk.Messa
 		}
 		chunks = append(chunks, chunk)
 		if output.Role == schema.Assistant && chunk.Content != "" {
-			s.publish(sessionID, "assistant.delta", map[string]any{"runId": runID, "content": chunk.Content})
+			s.publishTransient(sessionID, "assistant.delta", map[string]any{"runId": runID, "content": chunk.Content})
 		}
 	}
 	if len(chunks) == 0 {
@@ -606,6 +607,16 @@ func (s *agentRunner) mcpRegistryOrDefault() *mcpRegistry {
 
 func (s *agentRunner) publish(sessionID uint, eventType string, data any) {
 	if s.events != nil {
-		_, _ = s.events.Publish(sessionID, eventType, data)
+		if _, err := s.events.Publish(sessionID, eventType, data); err != nil && global.GVA_LOG != nil {
+			global.GVA_LOG.Error("保存 Agent 事件失败", zap.Uint("sessionID", sessionID), zap.String("eventType", eventType), zap.Error(err))
+		}
+	}
+}
+
+func (s *agentRunner) publishTransient(sessionID uint, eventType string, data any) {
+	if s.events != nil {
+		if _, err := s.events.PublishTransient(sessionID, eventType, data); err != nil && global.GVA_LOG != nil {
+			global.GVA_LOG.Error("广播 Agent 瞬时事件失败", zap.Uint("sessionID", sessionID), zap.String("eventType", eventType), zap.Error(err))
+		}
 	}
 }
