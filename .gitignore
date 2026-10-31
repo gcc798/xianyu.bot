@@ -47,3 +47,4 @@ web/pnpm-lock.yaml
 worktrees/
 /tmp/
 /requirements/
+/test/
