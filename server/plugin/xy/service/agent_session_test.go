@@ -59,6 +59,7 @@ func TestAgentSessionScopesConversationByOwner(t *testing.T) {
 	require.Len(t, detail.Tasks, 1)
 	require.Len(t, detail.ToolTraces, 2)
 	require.Equal(t, "message_search", detail.ToolTraces[1].ToolName)
+	require.Equal(t, "trace-1", detail.ToolTraces[1].CallID)
 	require.JSONEq(t, `{"status":"success"}`, detail.ToolTraces[1].Result)
 	require.Equal(t, run.ID, detail.Tasks[0].RunID)
 	require.EqualValues(t, 1, detail.Messages[0].Sequence)

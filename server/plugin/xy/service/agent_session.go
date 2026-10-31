@@ -56,7 +56,7 @@ func (s *agentSession) Get(ctx context.Context, ownerID, sessionID uint) (xyResp
 	}
 	toolTraces := make([]xyResponse.AgentToolTrace, 0)
 	if err := global.GVA_DB.WithContext(ctx).Table("xy_agent_run_tools AS t").
-		Select("t.id, t.run_id, t.tool_name, t.arguments, t.result, t.status, t.duration_millis, t.created_at").
+		Select("t.id, t.run_id, t.call_id, t.tool_name, t.arguments, t.result, t.status, t.duration_millis, t.created_at").
 		Joins("JOIN xy_agent_runs AS r ON r.id = t.run_id AND r.deleted_at IS NULL").
 		Where("r.session_id = ? AND r.owner_id = ? AND t.deleted_at IS NULL", sessionID, ownerID).
 		Order("t.id").Limit(200).Scan(&toolTraces).Error; err != nil {

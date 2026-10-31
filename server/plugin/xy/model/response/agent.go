@@ -18,6 +18,7 @@ type AgentSessionDetail struct {
 type AgentToolTrace struct {
 	ID             uint      `json:"id"`
 	RunID          uint      `json:"runId"`
+	CallID         string    `json:"callId"`
 	ToolName       string    `json:"toolName"`
 	Arguments      string    `json:"arguments"`
 	Result         string    `json:"result"`
