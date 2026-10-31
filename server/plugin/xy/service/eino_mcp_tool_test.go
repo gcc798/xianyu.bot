@@ -64,7 +64,7 @@ func TestEinoMCPToolHidesDeliveryFieldsAndRequiresApproval(t *testing.T) {
 func TestEinoMCPToolCallsReadCapability(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
-	require.NoError(t, db.AutoMigrate(&model.AgentRunTool{}))
+	require.NoError(t, db.AutoMigrate(&model.AgentSession{}, &model.AgentRunTool{}, &model.AgentEvent{}))
 	oldDB := global.GVA_DB
 	global.GVA_DB = db
 	t.Cleanup(func() { global.GVA_DB = oldDB })
@@ -80,7 +80,11 @@ func TestEinoMCPToolCallsReadCapability(t *testing.T) {
 	}
 	target, err := newEinoMCPTool(connection, definition, newAgentHarness(model.DefaultAgentConfig()))
 	require.NoError(t, err)
+	session := model.AgentSession{OwnerID: 11, Title: "工具轨迹"}
+	require.NoError(t, db.Create(&session).Error)
 	target.runID = 9
+	target.sessionID = session.ID
+	target.events = newAgentEventHub(db)
 	result, err := target.InvokableRun(t.Context(), `{"query":"Go"}`)
 	require.NoError(t, err)
 	require.Contains(t, result, "structuredContent")
@@ -92,7 +96,16 @@ func TestEinoMCPToolCallsReadCapability(t *testing.T) {
 	require.Equal(t, `{"query":"Go"}`, call.Arguments)
 	require.Equal(t, "completed", call.Status)
 	require.Empty(t, call.ErrorMessage)
-	require.JSONEq(t, `{"ok":true}`, call.Result)
+	require.JSONEq(t, `{"content":[],"structuredContent":{"ok":true}}`, call.Result)
+	var events []model.AgentEvent
+	require.NoError(t, db.Where("session_id = ?", session.ID).Order("id").Find(&events).Error)
+	require.Len(t, events, 2)
+	require.Equal(t, "tool.started", events[0].EventType)
+	require.Equal(t, call.CallID, events[0].CallID)
+	require.Contains(t, events[0].Payload, `"arguments":{"query":"Go"}`)
+	require.Equal(t, "tool.completed", events[1].EventType)
+	require.Equal(t, call.CallID, events[1].CallID)
+	require.Contains(t, events[1].Payload, `"resultRef"`)
 }
 
 func TestEinoMCPToolPersistsMessageCandidates(t *testing.T) {

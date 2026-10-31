@@ -298,10 +298,10 @@ const handleRunEvent = (event, runId) => {
     const target = messages.value.find(item => item.runId === runId && item.role === 'assistant')
     if (target) target.content += event.data.content || ''
   } else if (event.type === 'tool.started') {
-    messages.value.push({ localId: `tool-${event.id}`, role: 'tool', tool: event.data.tool, status: 'running' })
-  } else if (event.type === 'tool.completed') {
-    const target = [...messages.value].reverse().find(item => item.role === 'tool' && item.tool === event.data.tool)
-    if (target) { target.status = event.data.status; target.trace = event.data.trace }
+    messages.value.push({ localId: `tool-${event.id}`, role: 'tool', callId: event.data.callId, tool: event.data.tool, status: 'running' })
+  } else if (event.type === 'tool.completed' || event.type === 'tool.failed') {
+    const target = [...messages.value].reverse().find(item => item.role === 'tool' && (event.data.callId ? item.callId === event.data.callId : item.tool === event.data.tool))
+    if (target) { target.status = event.type === 'tool.failed' ? 'failed' : event.data.status; target.trace = event.data.trace || event.data.error?.message }
   } else if (event.type === 'approval.required') {
     messages.value.push({ localId: `approval-${event.id}`, role: 'approval', runId: event.data.runId, tool: event.data.tool })
   } else if (event.type === 'skill.loaded') {
@@ -384,7 +384,7 @@ const toolTraceText = trace => {
 const taskStatus = status => ({ queued: '等待处理', running: '正在获取资源', completed: '资源已就绪', failed: '资源获取失败', cancelled: '任务已取消' }[status] || status)
 const formatTime = value => value ? new Intl.DateTimeFormat('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }).format(new Date(value)) : ''
 const eventColor = type => type.includes('failed') ? 'danger' : type.includes('cancelled') || type.includes('tool') ? 'warning' : type.includes('completed') ? 'success' : 'primary'
-const eventLabel = event => ({ 'run.started': '开始运行', 'assistant.delta': '生成回答', 'skill.loaded': '加载 Skill', 'tool.started': '调用 Tool', 'tool.completed': 'Tool 返回', 'approval.required': '等待确认', 'task.created': '资源任务已创建', 'task.updated': '资源任务更新', 'task.completed': '资源已就绪', 'run.completed': '运行完成', 'run.failed': '运行失败', 'run.cancelled': '运行已取消' }[event.type] || event.type)
+const eventLabel = event => ({ 'run.started': '开始运行', 'assistant.delta': '生成回答', 'skill.loaded': '加载 Skill', 'tool.started': '调用 Tool', 'tool.completed': 'Tool 返回', 'tool.failed': 'Tool 失败', 'approval.required': '等待确认', 'task.created': '资源任务已创建', 'task.updated': '资源任务更新', 'task.completed': '资源已就绪', 'run.completed': '运行完成', 'run.failed': '运行失败', 'run.cancelled': '运行已取消' }[event.type] || event.type)
 const eventDescription = event => event.data?.tool || event.data?.skill || event.data?.message || `事件 #${event.id}`
 
 onMounted(async () => { await loadSessions(); if (sessions.value.length) await selectSession(sessions.value[0].ID) })

@@ -58,27 +58,32 @@ func (t *einoMCPTool) InvokableRun(ctx context.Context, arguments string, _ ...t
 	if err != nil {
 		return "", err
 	}
-	t.publish("tool.started", map[string]any{"runId": t.runID, "tool": t.definition.Name})
 	var input map[string]any
 	if err := json.Unmarshal([]byte(arguments), &input); err != nil {
 		if err := t.finishToolCall(ctx, call, "failed", "invalid_arguments", "工具参数无效"); err != nil {
 			return "", err
 		}
-		t.publish("tool.completed", map[string]any{"runId": t.runID, "tool": t.definition.Name, "status": "failed"})
+		t.publish("tool.failed", t.toolEvent(call, map[string]any{"error": map[string]any{"code": "invalid_arguments", "message": "工具参数无效"}}))
 		return toolFailure("invalid_arguments", "工具参数无效"), nil
 	}
+	if t.definition.Name == "resource_acquire" {
+		delete(input, "task_id")
+		delete(input, "idempotency_key")
+		delete(input, "delivery_token")
+	}
+	t.publish("tool.started", t.toolEvent(call, map[string]any{"arguments": input}))
 	if err := t.harness.BeforeToolCall(t.definition); err != nil {
 		if err := t.finishToolCall(ctx, call, "failed", "budget_exceeded", "工具调用次数已达到限制"); err != nil {
 			return "", err
 		}
-		t.publish("tool.completed", map[string]any{"runId": t.runID, "tool": t.definition.Name, "status": "failed"})
+		t.publish("tool.failed", t.toolEvent(call, map[string]any{"error": map[string]any{"code": "budget_exceeded", "message": "工具调用次数已达到限制"}}))
 		return toolFailure("budget_exceeded", "本轮工具调用次数已达到限制"), nil
 	}
 	if toolRequiresApproval(t.definition) {
 		if err := t.queueApproval(ctx, call, input); err != nil {
 			return "", err
 		}
-		t.publish("approval.required", map[string]any{"runId": t.runID, "tool": t.definition.Name})
+		t.publish("approval.required", t.toolEvent(call, map[string]any{"arguments": input}))
 		return toolFailure("approval_required", "此操作需要用户确认后执行"), nil
 	}
 	if err := t.saveToolArguments(ctx, call, input); err != nil {
@@ -90,6 +95,7 @@ func (t *einoMCPTool) InvokableRun(ctx context.Context, arguments string, _ ...t
 		if finishErr := t.finishToolCall(ctx, call, "failed", "capability_unavailable", "等待工具执行超时"); finishErr != nil {
 			return "", errors.Join(err, finishErr)
 		}
+		t.publish("tool.failed", t.toolEvent(call, map[string]any{"error": map[string]any{"code": "capability_unavailable", "message": "等待工具执行超时"}}))
 		return toolFailure("capability_unavailable", "MCP 能力暂不可用"), nil
 	}
 	defer t.harness.ReleaseToolSlot()
@@ -100,14 +106,14 @@ func (t *einoMCPTool) InvokableRun(ctx context.Context, arguments string, _ ...t
 		if err := t.finishToolCall(ctx, call, "failed", "capability_unavailable", "MCP 能力暂不可用"); err != nil {
 			return "", err
 		}
-		t.publish("tool.completed", map[string]any{"runId": t.runID, "tool": t.definition.Name, "status": "failed"})
+		t.publish("tool.failed", t.toolEvent(call, map[string]any{"error": map[string]any{"code": "capability_unavailable", "message": "MCP 能力暂不可用"}}))
 		return toolFailure("capability_unavailable", "MCP 能力暂不可用"), nil
 	}
 	if err := t.persistResourceCandidates(ctx, input, result); err != nil {
 		if finishErr := t.finishToolCall(ctx, call, "failed", "metadata_persistence_failed", "保存资源候选失败"); finishErr != nil {
 			return "", errors.Join(err, finishErr)
 		}
-		t.publish("tool.completed", map[string]any{"runId": t.runID, "tool": t.definition.Name, "status": "failed"})
+		t.publish("tool.failed", t.toolEvent(call, map[string]any{"error": map[string]any{"code": "metadata_persistence_failed", "message": "保存资源候选失败"}}))
 		return toolFailure("metadata_persistence_failed", "资源候选暂时无法保存"), nil
 	}
 	payload, err := json.Marshal(result)
@@ -122,13 +128,21 @@ func (t *einoMCPTool) InvokableRun(ctx context.Context, arguments string, _ ...t
 		status, errorCode = "failed", "mcp_error"
 	}
 	trace := compactToolTrace(mcpToolResultValue(result))
-	if err := t.saveToolResult(ctx, call, trace); err != nil {
+	if err := t.saveToolResult(ctx, call, json.RawMessage(payload)); err != nil {
 		return "", err
 	}
 	if err := t.finishToolCall(ctx, call, status, errorCode, ""); err != nil {
 		return "", err
 	}
-	t.publish("tool.completed", map[string]any{"runId": t.runID, "tool": t.definition.Name, "status": status, "trace": trace})
+	eventData := map[string]any{
+		"status": status, "trace": trace, "resultRef": map[string]any{"type": "agent_run_tool", "id": toolCallRecordID(call)},
+	}
+	if status == "failed" {
+		eventData["error"] = map[string]any{"code": errorCode, "message": "MCP 工具返回错误"}
+		t.publish("tool.failed", t.toolEvent(call, eventData))
+	} else {
+		t.publish("tool.completed", t.toolEvent(call, eventData))
+	}
 	return string(payload), nil
 }
 
@@ -346,6 +360,31 @@ func (t *einoMCPTool) publish(eventType string, data any) {
 			global.GVA_LOG.Error("保存 Agent 工具事件失败", zap.Uint("sessionID", t.sessionID), zap.String("eventType", eventType), zap.Error(err))
 		}
 	}
+}
+
+func (t *einoMCPTool) toolEvent(call *model.AgentRunTool, data map[string]any) map[string]any {
+	data["runId"] = t.runID
+	data["callId"] = toolCallID(call)
+	data["server"] = t.connection.Server.Code
+	data["tool"] = t.definition.Name
+	if call != nil {
+		data["durationMillis"] = time.Since(call.StartedAt).Milliseconds()
+	}
+	return data
+}
+
+func toolCallID(call *model.AgentRunTool) string {
+	if call == nil {
+		return ""
+	}
+	return call.CallID
+}
+
+func toolCallRecordID(call *model.AgentRunTool) uint {
+	if call == nil {
+		return 0
+	}
+	return call.ID
 }
 
 func agentVisibleToolSchema(definition mcp.Tool) (*jsonschema.Schema, error) {

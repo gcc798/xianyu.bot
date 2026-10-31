@@ -17,7 +17,7 @@ func TestAgentRunnerApprovesResourceAcquisitionWithoutPersistingDeliveryToken(t 
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
 	require.NoError(t, db.AutoMigrate(
-		&model.MCPServer{}, &model.AgentRun{}, &model.AgentRunTool{}, &model.ResourceSearch{},
+		&model.MCPServer{}, &model.AgentSession{}, &model.AgentRun{}, &model.AgentRunTool{}, &model.AgentEvent{}, &model.ResourceSearch{},
 		&model.ResourceCandidate{}, &model.ResourceTask{},
 	))
 	oldDB := global.GVA_DB
@@ -29,7 +29,9 @@ func TestAgentRunnerApprovesResourceAcquisitionWithoutPersistingDeliveryToken(t 
 	require.NoError(t, db.Create(&search).Error)
 	candidate := model.ResourceCandidate{SearchID: search.ID, MCPServerCode: server.Code, ExternalID: "signed-candidate", Name: "Go.pdf", Source: `{}`, License: "unknown"}
 	require.NoError(t, db.Create(&candidate).Error)
-	run := model.AgentRun{OwnerID: 11, SessionID: 7, ModelID: 1, ModelName: "test", Status: "completed", ConfigSnapshot: `{}`, StartedAt: time.Now()}
+	session := model.AgentSession{OwnerID: 11, Title: "审批轨迹"}
+	require.NoError(t, db.Create(&session).Error)
+	run := model.AgentRun{OwnerID: 11, SessionID: session.ID, ModelID: 1, ModelName: "test", Status: "completed", ConfigSnapshot: `{}`, StartedAt: time.Now()}
 	require.NoError(t, db.Create(&run).Error)
 	call := model.AgentRunTool{
 		RunID: run.ID, CallID: "call-approve", MCPServerCode: server.Code, ToolName: "resource_acquire",
@@ -42,7 +44,7 @@ func TestAgentRunnerApprovesResourceAcquisitionWithoutPersistingDeliveryToken(t 
 	registry := &mcpRegistry{connect: func(context.Context, model.MCPServer) (*mcpConnection, error) {
 		return &mcpConnection{Server: server, Client: client, Tools: []mcp.Tool{{Name: "resource_acquire"}}}, nil
 	}}
-	runner := &agentRunner{registry: registry, events: newAgentEventHub()}
+	runner := &agentRunner{registry: registry, events: newAgentEventHub(db)}
 
 	_, err = runner.Approve(t.Context(), 22, run.ID)
 	require.Error(t, err)
@@ -58,6 +60,10 @@ func TestAgentRunnerApprovesResourceAcquisitionWithoutPersistingDeliveryToken(t 
 	require.NoError(t, db.First(&storedCall, call.ID).Error)
 	require.Equal(t, `{"candidate_id":"signed-candidate"}`, storedCall.Arguments)
 	require.NotContains(t, storedCall.Arguments, "delivery_token")
+	require.Contains(t, storedCall.Result, "resource_acquire:42")
+	var completedEvent model.AgentEvent
+	require.NoError(t, db.Where("session_id = ? AND event_type = ?", session.ID, "tool.completed").First(&completedEvent).Error)
+	require.Equal(t, call.CallID, completedEvent.CallID)
 	var task model.ResourceTask
 	require.NoError(t, db.First(&task).Error)
 	require.EqualValues(t, 11, task.OwnerID)

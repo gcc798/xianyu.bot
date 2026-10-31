@@ -40,13 +40,20 @@ func (s *agentRunner) Approve(ctx context.Context, ownerID, runID uint) (model.A
 
 	if err := s.executeApproval(ctx, run, &call); err != nil {
 		finishErr := s.finishApproval(ctx, &call, "failed", "approval_execution_failed", "确认后的操作执行失败")
-		s.publish(run.SessionID, "tool.completed", map[string]any{"runId": run.ID, "tool": call.ToolName, "status": "failed"})
+		s.publish(run.SessionID, "tool.failed", map[string]any{
+			"runId": run.ID, "callId": call.CallID, "server": call.MCPServerCode, "tool": call.ToolName,
+			"error": map[string]any{"code": "approval_execution_failed", "message": "确认后的操作执行失败"},
+		})
 		return call, errors.Join(err, finishErr)
 	}
 	if err := s.finishApproval(ctx, &call, "completed", "", ""); err != nil {
 		return call, err
 	}
-	s.publish(run.SessionID, "tool.completed", map[string]any{"runId": run.ID, "tool": call.ToolName, "status": "completed"})
+	s.publish(run.SessionID, "tool.completed", map[string]any{
+		"runId": run.ID, "callId": call.CallID, "server": call.MCPServerCode, "tool": call.ToolName,
+		"status": "completed", "durationMillis": time.Since(call.StartedAt).Milliseconds(),
+		"resultRef": map[string]any{"type": "agent_run_tool", "id": call.ID},
+	})
 	return call, nil
 }
 
@@ -77,6 +84,13 @@ func (s *agentRunner) executeApproval(ctx context.Context, run model.AgentRun, c
 	if err != nil {
 		failApprovedResourceTask(ctx, task)
 		return errors.New("MCP 能力暂不可用")
+	}
+	payload, err := json.Marshal(result)
+	if err != nil {
+		return errors.New("MCP 工具结果无效")
+	}
+	if err := global.GVA_DB.WithContext(ctx).Model(call).Update("result", string(payload)).Error; err != nil {
+		return err
 	}
 	resultValue := mcpToolResultValue(result)
 	if result.IsError || !approvedResultSucceeded(resultValue) {
