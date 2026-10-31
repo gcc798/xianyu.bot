@@ -7,3 +7,4 @@ export type Approval = { runId: number; toolName: string; createdAt: string }
 export type SessionDetail = Session & { messages: ChatMessage[]; toolTraces: ToolTrace[]; pendingApprovals: Approval[]; tasks: unknown[] }
 export type AgentEvent = { id: number; type: string; data: Record<string, unknown>; createdAt?: string; callId?: string; runId?: number; stepNo?: number }
 export type Operation = { callId: string; runId: number; tool: string; server?: string; status: string; durationMillis?: number; summary?: string }
+export type ToolCallDetail = { id: number; runId: number; callId: string; mcpServerCode: string; toolName: string; arguments: unknown; result: unknown; status: string; durationMillis: number; errorCode?: string; errorMessage?: string; startedAt: string; completedAt?: string }

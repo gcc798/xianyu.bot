@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { approveRun, cancelRun, createSession, deleteSession, getSession, getTrajectory, listSessions, sendMessage, streamEvents } from './api'
 import type { AgentEvent, Approval, ChatMessage, Directive, Operation, Session } from './types'
+import TrajectoryPanel from './TrajectoryPanel'
 
 const capabilities = [
   ['skill', 'resource-discovery', '理解目标并编排资源检索'], ['skill', 'telegram-resource', '使用当前 MCP 的资源能力'],
@@ -25,6 +26,7 @@ export default function App() {
   const [error, setError] = useState('')
   const [slashOpen, setSlashOpen] = useState(false)
   const [operationsOpen, setOperationsOpen] = useState(false)
+	const [trajectoryOpen, setTrajectoryOpen] = useState(false)
   const streamRef = useRef<AbortController | null>(null)
   const viewportRef = useRef<HTMLDivElement>(null)
 
@@ -162,7 +164,7 @@ export default function App() {
       <section className="chat-stage">
         <header className="chat-header">
           <div><strong>{activeSession?.title || '新对话'}</strong><small>{running ? 'Agent 正在思考与调用能力' : '所有执行过程均可审计'}</small></div>
-          <div className="header-actions">{running && <button className="stop-button" onClick={() => void cancelRun(sessionId, runId)}>停止</button>}<button className="trace-button" disabled={!sessionId}>轨迹 <span>⌘</span></button></div>
+          <div className="header-actions">{running && <button className="stop-button" onClick={() => void cancelRun(sessionId, runId)}>停止</button>}<button className="trace-button" disabled={!sessionId} onClick={() => setTrajectoryOpen(true)}>轨迹 <span>⌘</span></button></div>
         </header>
         <div className="message-scroll" ref={viewportRef} aria-live="polite">
           {!messages.length && <section className="welcome"><span className="eyebrow">XYAGENT / WORKSPACE</span><h1>今天想完成什么？</h1>
@@ -191,6 +193,7 @@ export default function App() {
           <p className="disclaimer">AI 生成内容可能有误，重要操作请核实。完整调用记录保存在审计轨迹中。</p>
         </footer>
       </section>
+	  {trajectoryOpen && sessionId > 0 && <TrajectoryPanel sessionId={sessionId} onClose={() => setTrajectoryOpen(false)} />}
     </main>
   )
 }

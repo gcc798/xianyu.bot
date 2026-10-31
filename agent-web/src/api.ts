@@ -1,4 +1,4 @@
-import type { AgentEvent, Directive, Session, SessionDetail } from './types'
+import type { AgentEvent, Directive, Session, SessionDetail, ToolCallDetail } from './types'
 
 const baseURL = (import.meta.env.VITE_BASE_API || '/api').replace(/\/$/, '')
 type Envelope<T> = { code: number; data: T; msg: string }
@@ -23,6 +23,7 @@ export const createSession = () => request<{ session: Session }>('/xy/ai/agent/s
 export const deleteSession = (id: number) => request<Record<string, never>>(`/xy/ai/agent/sessions/${id}`, { method: 'DELETE' })
 export const getSession = (id: number) => request<{ session: SessionDetail }>(`/xy/ai/agent/sessions/${id}`)
 export const getTrajectory = (id: number, afterId = 0) => request<{ events: AgentEvent[]; nextAfterId: number; hasMore: boolean }>(`/xy/ai/agent/sessions/${id}/trajectory?afterId=${afterId}&limit=500`)
+export const getToolCall = (id: number, callId: string) => request<{ toolCall: ToolCallDetail }>(`/xy/ai/agent/sessions/${id}/tool-calls/${encodeURIComponent(callId)}`)
 
 export function sendMessage(sessionId: number, message: string, directives: Directive[]) {
   const idempotencyKey = crypto.randomUUID()
