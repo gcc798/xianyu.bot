@@ -47,8 +47,12 @@
 - 已完成数据库驱动的模型、MCP 服务和 Agent 运行限制配置，以及 AI 菜单和基础配置页面。
 - Telegram 已通过 Streamable HTTP 实现固定的 9 个 MCP 工具，搜索只返回签名候选，检查会重新读取原消息，获取按精确候选异步执行。
 - 已完成独立资源表、`owner_id` 查询隔离、一次性 RustFS 上传授权、对象大小校验和事务落库；资源不进入商品表。
-- 已完成 Agent 会话、消息、运行和工具运行表；工具运行表不保存原始参数，避免交付令牌进入运行记录。
+- 已完成 Agent 会话、消息、运行和工具运行表；MCP 原始结果保存在工具运行表，轨迹事件只引用 `callId`，认证信息仍不得进入轨迹和浏览器。
 - 已完成 Eino Agent Loop、MCP Client Registry、Skill 指令、运行 Harness、SSE、资源下载签名和基础对话页。
-- 当前 SSE 事件仍为内存最近 200 条，缺少 Turn/Step、模型 Attempt、请求快照和持久化事件日志，不能满足完整审计与服务重启后的回放。
-- 当前开发目标：先实现 `xy_agent_events` 持久化事件底座与可重放 SSE，再补模型/MCP 轨迹，最后建设独立 React Conversation 与 Trajectory 前端。
+- 已完成 `xy_agent_events` 追加式持久化事件、按事件 ID 恢复的 SSE，以及 Turn、Step、系统提示词、模型请求快照、模型 Attempt、Tool Schema、MCP 调用、审批、错误和结果引用记录。
+- 已提供会话轨迹分页查询和按 `callId` 查询完整工具调用的审计 API，并验证 `owner_id` 隔离与 API Key 不进入事件。
+- 已完成独立 React Conversation 与 Trajectory 前端：对话、`/skill`/`/tool`、折叠工具组、Run/Step 时间线、事件筛选搜索和 Overview/Input/Output/Prompt/Schema/Time/Token/Raw Inspector。
+- Vue Agent 入口同源跳转 `/agent/`，复用现有登录态；Docker 镜像同时构建 Vue 管理端与 React Agent，并通过 Nginx 独立回退路由提供服务。
+- 2026-10-31 已部署最新 server/web 容器；`/agent/`、静态资源和 `/api/health` 验证通过，并在已有登录态的 Chrome 中验证跳转、会话加载和轨迹面板。
+- 后续增强项：模型首 Token 延迟的精确采集，以及超过事件大小上限的 Prompt/Schema/原始结果统一转存 RustFS；当前不伪造无法观测的指标。
 - 轨迹系统开发设计：`requirements/xy-agent-harness-trajectory-development.md`（本地需求目录不纳入 Git）。
