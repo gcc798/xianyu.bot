@@ -10,6 +10,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	openai "github.com/cloudwego/eino-ext/components/model/openai"
@@ -183,6 +184,7 @@ func (s *agentRunner) execute(ctx context.Context, prepared preparedAgentRun) (a
 	run, aiModel, config := prepared.run, prepared.aiModel, prepared.config
 	started := time.Now()
 	harness := newAgentHarness(config)
+	s.publish(run.SessionID, "turn.started", map[string]any{"runId": run.ID, "turnNo": 1})
 	runContext, cancel := harness.Context(ctx)
 	defer cancel()
 	connections, discoveryErr := s.mcpRegistryOrDefault().Discover(runContext)
@@ -213,7 +215,11 @@ func (s *agentRunner) execute(ctx context.Context, prepared preparedAgentRun) (a
 			instruction += "\n本轮优先使用工具 " + directive.Name + "；仅在确有必要时调用，写操作仍需确认。"
 		}
 	}
-	middleware := &agentHarnessMiddleware{BaseChatModelAgentMiddleware: new(adk.BaseChatModelAgentMiddleware), harness: harness}
+	s.publish(run.SessionID, "system.prompt", map[string]any{"runId": run.ID, "turnNo": 1, "content": instruction})
+	middleware := &agentHarnessMiddleware{
+		BaseChatModelAgentMiddleware: new(adk.BaseChatModelAgentMiddleware), harness: harness,
+		events: s.events, sessionID: run.SessionID, runID: run.ID, provider: aiModel.Provider, model: aiModel.Model,
+	}
 	agent, err := adk.NewChatModelAgent(runContext, &adk.ChatModelAgentConfig{
 		Name: "XyAgent", Instruction: instruction, Model: chatModel,
 		ToolsConfig:   adk.ToolsConfig{ToolsNodeConfig: compose.ToolsNodeConfig{Tools: tools}},
@@ -231,6 +237,7 @@ func (s *agentRunner) execute(ctx context.Context, prepared preparedAgentRun) (a
 	inputTokens, outputTokens := 0, 0
 	for event, ok := iterator.Next(); ok; event, ok = iterator.Next() {
 		if event.Err != nil {
+			middleware.fail(event.Err)
 			return s.failRun(ctx, run, harness, started, agentEndReason(runContext, event.Err), event.Err)
 		}
 		if event.Output == nil || event.Output.MessageOutput == nil {
@@ -238,6 +245,7 @@ func (s *agentRunner) execute(ctx context.Context, prepared preparedAgentRun) (a
 		}
 		message, err := s.agentEventMessage(run.SessionID, run.ID, event.Output.MessageOutput)
 		if err != nil {
+			middleware.fail(err)
 			return s.failRun(ctx, run, harness, started, "stream_failed", err)
 		}
 		if message == nil || message.Role != schema.Assistant {
@@ -258,6 +266,10 @@ func (s *agentRunner) execute(ctx context.Context, prepared preparedAgentRun) (a
 	if err != nil {
 		return agentRunResult{}, err
 	}
+	s.publish(run.SessionID, "assistant.message", map[string]any{
+		"runId": run.ID, "turnNo": 1, "messageId": result.Assistant.ID, "content": result.Assistant.Content,
+	})
+	s.publish(run.SessionID, "turn.completed", map[string]any{"runId": run.ID, "turnNo": 1})
 	s.publish(run.SessionID, "run.completed", map[string]any{
 		"runId": run.ID, "messageId": result.Assistant.ID, "iterations": result.Run.Iterations,
 		"modelCalls": result.Run.ModelCalls, "toolCalls": result.Run.ToolCalls,
@@ -296,7 +308,13 @@ func (s *agentRunner) agentEventMessage(sessionID, runID uint, output *adk.Messa
 
 type agentHarnessMiddleware struct {
 	*adk.BaseChatModelAgentMiddleware
-	harness *agentHarness
+	harness    *agentHarness
+	events     *agentEventHub
+	sessionID  uint
+	runID      uint
+	provider   string
+	model      string
+	activeStep atomic.Int64
 }
 
 func (m *agentHarnessMiddleware) BeforeModelRewriteState(ctx context.Context, state *adk.ChatModelAgentState, _ *adk.ModelContext) (context.Context, *adk.ChatModelAgentState, error) {
@@ -306,7 +324,58 @@ func (m *agentHarnessMiddleware) BeforeModelRewriteState(ctx context.Context, st
 	if err := m.harness.BeforeModelCall(); err != nil {
 		return ctx, state, err
 	}
+	stepNo := m.harness.Usage().ModelCalls
+	m.activeStep.Store(int64(stepNo))
+	m.publish("step.started", map[string]any{"runId": m.runID, "turnNo": 1, "stepNo": stepNo})
+	m.publish("request.snapshot", map[string]any{
+		"runId": m.runID, "turnNo": 1, "stepNo": stepNo, "provider": m.provider, "model": m.model,
+		"messages": state.Messages, "tools": state.ToolInfos, "deferredTools": state.DeferredToolInfos,
+	})
+	m.publish("model.attempt.started", map[string]any{"runId": m.runID, "turnNo": 1, "stepNo": stepNo, "attemptNo": 1})
 	return ctx, state, nil
+}
+
+func (m *agentHarnessMiddleware) AfterModelRewriteState(ctx context.Context, state *adk.ChatModelAgentState, _ *adk.ModelContext) (context.Context, *adk.ChatModelAgentState, error) {
+	stepNo := int(m.activeStep.Swap(0))
+	var response *schema.Message
+	if len(state.Messages) > 0 {
+		response = state.Messages[len(state.Messages)-1]
+	}
+	payload := map[string]any{"runId": m.runID, "turnNo": 1, "stepNo": stepNo, "attemptNo": 1, "response": response}
+	if response != nil && response.ResponseMeta != nil {
+		payload["responseMeta"] = response.ResponseMeta
+	}
+	m.publish("model.attempt.completed", payload)
+	outcome := "final"
+	if response != nil && len(response.ToolCalls) > 0 {
+		outcome = "tool_calls"
+	}
+	m.publish("step.completed", map[string]any{"runId": m.runID, "turnNo": 1, "stepNo": stepNo, "outcome": outcome})
+	return ctx, state, nil
+}
+
+func (m *agentHarnessMiddleware) fail(cause error) {
+	stepNo := int(m.activeStep.Swap(0))
+	if stepNo == 0 {
+		return
+	}
+	message := cause.Error()
+	if len(message) > 2000 {
+		message = message[:2000]
+	}
+	m.publish("model.attempt.failed", map[string]any{
+		"runId": m.runID, "turnNo": 1, "stepNo": stepNo, "attemptNo": 1, "message": message,
+	})
+	m.publish("step.failed", map[string]any{"runId": m.runID, "turnNo": 1, "stepNo": stepNo, "message": message})
+}
+
+func (m *agentHarnessMiddleware) publish(eventType string, data any) {
+	if m.events == nil {
+		return
+	}
+	if _, err := m.events.Publish(m.sessionID, eventType, data); err != nil && global.GVA_LOG != nil {
+		global.GVA_LOG.Error("保存 Agent 模型事件失败", zap.Uint("sessionID", m.sessionID), zap.String("eventType", eventType), zap.Error(err))
+	}
 }
 
 func newConfiguredAgentModel(ctx context.Context, aiModel model.AIModel, config model.AgentConfig) (einomodel.BaseChatModel, error) {
@@ -574,9 +643,11 @@ func (s *agentRunner) failRun(ctx context.Context, run model.AgentRun, harness *
 	run.CompletedAt = &completedAt
 	run.ErrorMessage = message
 	if updateErr != nil {
+		s.publish(run.SessionID, "turn.failed", map[string]any{"runId": run.ID, "turnNo": 1, "reason": reason, "message": eventMessage})
 		s.publish(run.SessionID, eventType, map[string]any{"runId": run.ID, "reason": reason, "message": eventMessage})
 		return agentRunResult{Run: run}, errors.Join(cause, fmt.Errorf("保存 Agent 失败状态: %w", updateErr))
 	}
+	s.publish(run.SessionID, "turn.failed", map[string]any{"runId": run.ID, "turnNo": 1, "reason": reason, "message": eventMessage})
 	s.publish(run.SessionID, eventType, map[string]any{"runId": run.ID, "reason": reason, "message": eventMessage})
 	return agentRunResult{Run: run}, cause
 }

@@ -55,7 +55,7 @@ func TestAgentRunnerRecordsModelFailure(t *testing.T) {
 	db := agentRunnerTestDB(t)
 	session := model.AgentSession{OwnerID: 11, Title: "失败会话"}
 	require.NoError(t, db.Create(&session).Error)
-	runner := &agentRunner{newModel: func(context.Context, model.AIModel, model.AgentConfig) (einomodel.BaseChatModel, error) {
+	runner := &agentRunner{events: newAgentEventHub(), newModel: func(context.Context, model.AIModel, model.AgentConfig) (einomodel.BaseChatModel, error) {
 		return &stubAgentModel{err: errors.New("upstream unavailable")}, nil
 	}}
 
@@ -67,6 +67,9 @@ func TestAgentRunnerRecordsModelFailure(t *testing.T) {
 	require.Equal(t, "failed", stored.Status)
 	require.Equal(t, "failed", stored.EndReason)
 	require.Equal(t, 1, stored.ModelCalls)
+	var failedEvents int64
+	require.NoError(t, db.Model(&model.AgentEvent{}).Where("session_id = ? AND event_type = ?", session.ID, "model.attempt.failed").Count(&failedEvents).Error)
+	require.EqualValues(t, 1, failedEvents)
 }
 
 func TestAgentRunnerSubmitPublishesStreamingEvents(t *testing.T) {
@@ -85,20 +88,51 @@ func TestAgentRunnerSubmitPublishesStreamingEvents(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "running", accepted.Run.Status)
 
-	types := make([]string, 0, 3)
+	types := make([]string, 0, 12)
 	deadline := time.After(3 * time.Second)
-	for len(types) < 3 {
+	for {
 		select {
 		case event := <-stream:
 			types = append(types, event.Type)
+			if event.Type == "run.completed" {
+				require.Contains(t, types, "request.snapshot")
+				require.Contains(t, types, "model.attempt.completed")
+				require.Contains(t, types, "assistant.delta")
+				require.Contains(t, types, "assistant.message")
+				var stored model.AgentRun
+				require.NoError(t, db.First(&stored, accepted.Run.ID).Error)
+				require.Equal(t, "completed", stored.Status)
+				return
+			}
 		case <-deadline:
 			t.Fatalf("timed out waiting for events: %v", types)
 		}
 	}
-	require.Equal(t, []string{"run.started", "assistant.delta", "run.completed"}, types)
-	var stored model.AgentRun
-	require.NoError(t, db.First(&stored, accepted.Run.ID).Error)
-	require.Equal(t, "completed", stored.Status)
+}
+
+func TestAgentRunnerPersistsAuditableModelSnapshot(t *testing.T) {
+	db := agentRunnerTestDB(t)
+	session := model.AgentSession{OwnerID: 11, Title: "模型轨迹"}
+	require.NoError(t, db.Create(&session).Error)
+	runner := &agentRunner{events: newAgentEventHub(), newModel: func(context.Context, model.AIModel, model.AgentConfig) (einomodel.BaseChatModel, error) {
+		return &stubAgentModel{answer: "轨迹回答"}, nil
+	}}
+
+	result, err := runner.Run(t.Context(), 11, session.ID, "记录实际模型输入", "request-trace")
+	require.NoError(t, err)
+	var events []model.AgentEvent
+	require.NoError(t, db.Where("session_id = ?", session.ID).Order("id").Find(&events).Error)
+	types := make([]string, 0, len(events))
+	for _, event := range events {
+		types = append(types, event.EventType)
+		require.NotContains(t, event.Payload, "secret-key")
+	}
+	require.Contains(t, types, "system.prompt")
+	require.Contains(t, types, "request.snapshot")
+	require.Contains(t, types, "model.attempt.completed")
+	require.Contains(t, types, "assistant.message")
+	require.Contains(t, types, "turn.completed")
+	require.Equal(t, result.Run.ID, *events[len(events)-1].RunID)
 }
 
 func TestAgentRunnerCancelsOwnedRun(t *testing.T) {

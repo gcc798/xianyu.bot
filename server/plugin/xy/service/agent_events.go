@@ -13,7 +13,7 @@ import (
 	"gorm.io/gorm"
 )
 
-const agentEventMaxBytes = 64 << 10
+const agentEventMaxBytes = 1 << 20
 
 type agentEvent struct {
 	ID        uint64          `json:"id"`
