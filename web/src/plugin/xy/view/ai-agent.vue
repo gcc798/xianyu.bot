@@ -387,7 +387,7 @@ const eventColor = type => type.includes('failed') ? 'danger' : type.includes('c
 const eventLabel = event => ({ 'run.started': '开始运行', 'assistant.delta': '生成回答', 'skill.loaded': '加载 Skill', 'tool.started': '调用 Tool', 'tool.completed': 'Tool 返回', 'tool.failed': 'Tool 失败', 'approval.required': '等待确认', 'task.created': '资源任务已创建', 'task.updated': '资源任务更新', 'task.completed': '资源已就绪', 'run.completed': '运行完成', 'run.failed': '运行失败', 'run.cancelled': '运行已取消' }[event.type] || event.type)
 const eventDescription = event => event.data?.tool || event.data?.skill || event.data?.message || `事件 #${event.id}`
 
-onMounted(async () => { await loadSessions(); if (sessions.value.length) await selectSession(sessions.value[0].ID) })
+onMounted(() => window.location.assign('/agent/'))
 onBeforeUnmount(stopStream)
 </script>
 

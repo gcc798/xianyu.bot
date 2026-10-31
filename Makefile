@@ -31,7 +31,7 @@ build-server:
 
 #构建web镜像
 build-image-web:
-	@cd web/ && docker build -t ${REPOSITORY}/web:${TAGS_OPT} .
+	@docker build -t ${REPOSITORY}/web:${TAGS_OPT} -f web/Dockerfile .
 
 #构建server镜像
 build-image-server:
@@ -47,6 +47,8 @@ build-local:
 build-web-local:
 	@cd web/ && if [ -d "dist" ];then rm -rf dist; else echo "OK!"; fi \
 	&& yarn config set registry http://mirrors.cloud.tencent.com/npm/ && yarn install && yarn build
+	@cd agent-web/ && npm ci --prefer-offline --no-audit --no-fund && npm run build
+	@mkdir -p web/dist/agent && cp -R agent-web/dist/. web/dist/agent/
 
 #本地环境打包后端
 build-server-local:

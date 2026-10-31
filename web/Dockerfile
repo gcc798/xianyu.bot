@@ -1,25 +1,23 @@
-# 如果需要用 cicd ，请设置环境变量：
-# variables:
-#     DOCKER_BUILDKIT: 1
-
-FROM node:20-slim AS base
+FROM node:20-slim AS web-build
 ENV PNPM_HOME="/pnpm"
 ENV PATH="$PNPM_HOME:$PATH"
 RUN corepack enable && corepack prepare pnpm@10.33.2 --activate
-COPY . /app
-WORKDIR /app
+WORKDIR /app/web
+COPY web/package.json ./
+RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm install --frozen-lockfile=false
+COPY web/ ./
+RUN pnpm run build
 
-
-FROM base AS prod-deps
-RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm install --prod
-
-FROM base AS build
-COPY --from=prod-deps /app/node_modules /app/node_modules
-RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm install && pnpm run build
-
+FROM node:20-slim AS agent-build
+WORKDIR /app/agent-web
+COPY agent-web/package.json agent-web/package-lock.json ./
+RUN --mount=type=cache,target=/root/.npm npm ci --prefer-offline --no-audit --no-fund
+COPY agent-web/ ./
+RUN npm run build
 
 FROM nginx:alpine
 LABEL MAINTAINER="bypanghu@163.com"
-COPY --from=base  /app/.docker-compose/nginx/conf.d/my.conf /etc/nginx/conf.d/my.conf
-COPY --from=build  /app/dist /usr/share/nginx/html
-RUN ls -al /usr/share/nginx/html
+COPY web/.docker-compose/nginx/conf.d/my.conf /etc/nginx/conf.d/my.conf
+COPY --from=web-build /app/web/dist /usr/share/nginx/html
+COPY --from=agent-build /app/agent-web/dist /usr/share/nginx/html/agent
+RUN ls -al /usr/share/nginx/html /usr/share/nginx/html/agent
