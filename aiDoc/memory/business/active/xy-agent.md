@@ -26,6 +26,10 @@
 - 不实现配置修改日志。
 - 用户会话、任务和资源使用 `owner_id` 隔离；资源元数据不写商品表。
 - 渠道负责获取文件，GVA 负责一次性上传授权、RustFS 控制和最终业务落库。
+- Agent 前端改为独立 React 应用，从 Vue 的 Agent 菜单跳转进入；与现有后台同源部署并复用登录态。
+- 不引入 DeepSeek Harness 运行时，但 Conversation、Trajectory、Tool Inspector、Timeline 和事件回放能力需要高保真实现。
+- Agent 轨迹必须持久化且可重放，记录 Turn、Step、模型请求与尝试、系统提示词、Tool Schema、MCP 输入输出、Token、耗时、错误、审批和任务，避免黑盒执行。
+- 轨迹协议使用通用 Agent/MCP 语义，不写死 Telegram；API Key、认证 Token 和交付凭证不得进入轨迹、SSE 或浏览器。
 
 ## 影响范围
 
@@ -44,4 +48,7 @@
 - Telegram 已通过 Streamable HTTP 实现固定的 9 个 MCP 工具，搜索只返回签名候选，检查会重新读取原消息，获取按精确候选异步执行。
 - 已完成独立资源表、`owner_id` 查询隔离、一次性 RustFS 上传授权、对象大小校验和事务落库；资源不进入商品表。
 - 已完成 Agent 会话、消息、运行和工具运行表；工具运行表不保存原始参数，避免交付令牌进入运行记录。
-- 待完成：Eino Agent Loop、MCP Client Registry、Skill、Harness、SSE、资源下载签名和完整对话页。
+- 已完成 Eino Agent Loop、MCP Client Registry、Skill 指令、运行 Harness、SSE、资源下载签名和基础对话页。
+- 当前 SSE 事件仍为内存最近 200 条，缺少 Turn/Step、模型 Attempt、请求快照和持久化事件日志，不能满足完整审计与服务重启后的回放。
+- 当前开发目标：先实现 `xy_agent_events` 持久化事件底座与可重放 SSE，再补模型/MCP 轨迹，最后建设独立 React Conversation 与 Trajectory 前端。
+- 轨迹系统开发设计：`requirements/xy-agent-harness-trajectory-development.md`（本地需求目录不纳入 Git）。
