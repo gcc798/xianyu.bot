@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"strings"
 
@@ -78,6 +79,74 @@ func (s *agentSession) Get(ctx context.Context, ownerID, sessionID uint) (xyResp
 		return xyResponse.AgentSessionDetail{}, err
 	}
 	return xyResponse.AgentSessionDetail{AgentSession: session, Messages: messages, ToolTraces: toolTraces, PendingApprovals: approvals, Tasks: tasks}, nil
+}
+
+func (s *agentSession) Trajectory(ctx context.Context, ownerID, sessionID uint, input xyRequest.AgentTrajectorySearch) (xyResponse.AgentTrajectoryPage, error) {
+	if ownerID == 0 || sessionID == 0 {
+		return xyResponse.AgentTrajectoryPage{}, errors.New("会话 ID 不能为空")
+	}
+	var exists int64
+	if err := global.GVA_DB.WithContext(ctx).Model(&model.AgentSession{}).Where("id = ? AND owner_id = ?", sessionID, ownerID).Count(&exists).Error; err != nil {
+		return xyResponse.AgentTrajectoryPage{}, err
+	}
+	if exists == 0 {
+		return xyResponse.AgentTrajectoryPage{}, gorm.ErrRecordNotFound
+	}
+	limit := input.Limit
+	if limit == 0 {
+		limit = 200
+	}
+	events := make([]model.AgentEvent, 0, limit+1)
+	query := global.GVA_DB.WithContext(ctx).Where("owner_id = ? AND session_id = ? AND id > ?", ownerID, sessionID, input.AfterID)
+	if input.RunID > 0 {
+		query = query.Where("run_id = ?", input.RunID)
+	}
+	if eventType := strings.TrimSpace(input.Type); eventType != "" {
+		query = query.Where("event_type = ?", eventType)
+	}
+	if err := query.Order("id").Limit(limit + 1).Find(&events).Error; err != nil {
+		return xyResponse.AgentTrajectoryPage{}, err
+	}
+	hasMore := len(events) > limit
+	if hasMore {
+		events = events[:limit]
+	}
+	items := make([]xyResponse.AgentTrajectoryEvent, 0, len(events))
+	var nextAfterID uint64
+	for _, event := range events {
+		items = append(items, xyResponse.AgentTrajectoryEvent{
+			ID: event.ID, RunID: event.RunID, TurnNo: event.TurnNo, StepNo: event.StepNo, Type: event.EventType,
+			CallID: event.CallID, ParentCallID: event.ParentCallID, Data: json.RawMessage(event.Payload), CreatedAt: event.CreatedAt,
+		})
+		nextAfterID = event.ID
+	}
+	return xyResponse.AgentTrajectoryPage{Events: items, NextAfterID: nextAfterID, HasMore: hasMore}, nil
+}
+
+func (s *agentSession) ToolCall(ctx context.Context, ownerID, sessionID uint, callID string) (xyResponse.AgentToolCallDetail, error) {
+	callID = strings.TrimSpace(callID)
+	if ownerID == 0 || sessionID == 0 || callID == "" || len(callID) > 200 {
+		return xyResponse.AgentToolCallDetail{}, errors.New("工具调用标识无效")
+	}
+	var call model.AgentRunTool
+	if err := global.GVA_DB.WithContext(ctx).Table("xy_agent_run_tools AS t").Select("t.*").
+		Joins("JOIN xy_agent_runs AS r ON r.id = t.run_id AND r.deleted_at IS NULL").
+		Where("r.owner_id = ? AND r.session_id = ? AND t.call_id = ? AND t.deleted_at IS NULL", ownerID, sessionID, callID).
+		First(&call).Error; err != nil {
+		return xyResponse.AgentToolCallDetail{}, err
+	}
+	return xyResponse.AgentToolCallDetail{
+		ID: call.ID, RunID: call.RunID, CallID: call.CallID, MCPServerCode: call.MCPServerCode, ToolName: call.ToolName,
+		Arguments: rawJSON(call.Arguments), Result: rawJSON(call.Result), Status: call.Status, DurationMillis: call.DurationMillis,
+		ErrorCode: call.ErrorCode, ErrorMessage: call.ErrorMessage, StartedAt: call.StartedAt, CompletedAt: call.CompletedAt,
+	}, nil
+}
+
+func rawJSON(value string) json.RawMessage {
+	if json.Valid([]byte(value)) {
+		return json.RawMessage(value)
+	}
+	return json.RawMessage("null")
 }
 
 func (s *agentSession) Delete(ctx context.Context, ownerID, sessionID uint) error {

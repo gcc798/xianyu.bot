@@ -13,6 +13,14 @@ export const getAgentSession = (id) => service({
   url: `/xy/ai/agent/sessions/${id}`, method: 'get', donNotShowLoading: true
 })
 
+export const getAgentTrajectory = (id, params = {}) => service({
+  url: `/xy/ai/agent/sessions/${id}/trajectory`, method: 'get', params, donNotShowLoading: true
+})
+
+export const getAgentToolCall = (id, callId) => service({
+  url: `/xy/ai/agent/sessions/${id}/tool-calls/${encodeURIComponent(callId)}`, method: 'get', donNotShowLoading: true
+})
+
 export const deleteAgentSession = (id) => service({
   url: `/xy/ai/agent/sessions/${id}`, method: 'delete', donNotShowLoading: true
 })

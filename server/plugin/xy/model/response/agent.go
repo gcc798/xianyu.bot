@@ -1,6 +1,7 @@
 package response
 
 import (
+	"encoding/json"
 	"time"
 
 	"github.com/flipped-aurora/gin-vue-admin/server/plugin/xy/model"
@@ -48,4 +49,38 @@ type AgentRunAccepted struct {
 	Status    string              `json:"status"`
 	StartedAt time.Time           `json:"startedAt"`
 	Assistant *model.AgentMessage `json:"assistant,omitempty"`
+}
+
+type AgentTrajectoryEvent struct {
+	ID           uint64          `json:"id"`
+	RunID        *uint           `json:"runId,omitempty"`
+	TurnNo       *int            `json:"turnNo,omitempty"`
+	StepNo       *int            `json:"stepNo,omitempty"`
+	Type         string          `json:"type"`
+	CallID       string          `json:"callId,omitempty"`
+	ParentCallID string          `json:"parentCallId,omitempty"`
+	Data         json.RawMessage `json:"data"`
+	CreatedAt    time.Time       `json:"createdAt"`
+}
+
+type AgentTrajectoryPage struct {
+	Events      []AgentTrajectoryEvent `json:"events"`
+	NextAfterID uint64                 `json:"nextAfterId"`
+	HasMore     bool                   `json:"hasMore"`
+}
+
+type AgentToolCallDetail struct {
+	ID             uint            `json:"id"`
+	RunID          uint            `json:"runId"`
+	CallID         string          `json:"callId"`
+	MCPServerCode  string          `json:"mcpServerCode"`
+	ToolName       string          `json:"toolName"`
+	Arguments      json.RawMessage `json:"arguments"`
+	Result         json.RawMessage `json:"result"`
+	Status         string          `json:"status"`
+	DurationMillis int64           `json:"durationMillis"`
+	ErrorCode      string          `json:"errorCode"`
+	ErrorMessage   string          `json:"errorMessage"`
+	StartedAt      time.Time       `json:"startedAt"`
+	CompletedAt    *time.Time      `json:"completedAt,omitempty"`
 }

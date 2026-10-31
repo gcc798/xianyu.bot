@@ -58,6 +58,37 @@ func (a *agentSession) Get(c *gin.Context) {
 	response.OkWithData(gin.H{"session": session}, c)
 }
 
+func (a *agentSession) Trajectory(c *gin.Context) {
+	sessionID, ok := pathID(c)
+	if !ok {
+		return
+	}
+	var input xyRequest.AgentTrajectorySearch
+	if err := c.ShouldBindQuery(&input); err != nil {
+		response.FailWithMessage(err.Error(), c)
+		return
+	}
+	page, err := agentSessionService.Trajectory(c.Request.Context(), utils.GetUserID(c), sessionID, input)
+	if err != nil {
+		failAccount("获取 Agent 轨迹失败", err, c)
+		return
+	}
+	response.OkWithData(page, c)
+}
+
+func (a *agentSession) ToolCall(c *gin.Context) {
+	sessionID, ok := pathID(c)
+	if !ok {
+		return
+	}
+	call, err := agentSessionService.ToolCall(c.Request.Context(), utils.GetUserID(c), sessionID, c.Param("callId"))
+	if err != nil {
+		failAccount("获取工具调用详情失败", err, c)
+		return
+	}
+	response.OkWithData(gin.H{"toolCall": call}, c)
+}
+
 func (a *agentSession) Delete(c *gin.Context) {
 	sessionID, ok := pathID(c)
 	if !ok {

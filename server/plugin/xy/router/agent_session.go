@@ -10,6 +10,8 @@ func (r *agentSession) Init(private *gin.RouterGroup) {
 	group.POST("", agentSessionAPI.Create)
 	group.GET("", agentSessionAPI.List)
 	group.GET(":id", agentSessionAPI.Get)
+	group.GET(":id/trajectory", agentSessionAPI.Trajectory)
+	group.GET(":id/tool-calls/:callId", agentSessionAPI.ToolCall)
 	group.DELETE(":id", agentSessionAPI.Delete)
 	group.POST(":id/messages", agentSessionAPI.SendMessage)
 	group.DELETE(":id/runs/:runId", agentSessionAPI.CancelRun)
