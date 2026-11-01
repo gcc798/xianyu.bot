@@ -1,16 +1,19 @@
 import type { AgentEvent, Directive, Session, SessionDetail, ToolCallDetail } from './types'
 
-const baseURL = (import.meta.env.VITE_BASE_API || '/api').replace(/\/$/, '')
-type Envelope<T> = { code: number; data: T; msg: string }
+export const baseURL = (import.meta.env.VITE_BASE_API || '/api').replace(/\/$/, '')
+export type Envelope<T> = { code: number; data: T; msg: string }
 
-function token() {
+export function token() {
   const cookie = document.cookie.split('; ').find((item) => item.startsWith('x-token='))?.split('=')[1]
   return localStorage.getItem('token') || (cookie ? decodeURIComponent(cookie) : '')
 }
 
-async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
-  const response = await fetch(`${baseURL}${path}`, { ...init, headers: { 'Content-Type': 'application/json', 'x-token': token(), ...init.headers } })
-  if (response.status === 401) { window.location.assign('/'); throw new Error('登录已失效') }
+export async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
+	const user = JSON.parse(localStorage.getItem('xy-user') || '{}') as { ID?: number }
+	const response = await fetch(`${baseURL}${path}`, { ...init, headers: { 'Content-Type': 'application/json', 'x-token': token(), 'x-user-id': String(user.ID || ''), ...init.headers } })
+	const nextToken = response.headers.get('new-token')
+	if (nextToken) localStorage.setItem('token', nextToken)
+	if (response.status === 401) { localStorage.removeItem('token'); window.location.assign('/agent/'); throw new Error('登录已失效') }
   const payload = await response.text()
   let body: Envelope<T>
   try { body = JSON.parse(payload) as Envelope<T> } catch { throw new Error('Agent 服务暂不可用') }
