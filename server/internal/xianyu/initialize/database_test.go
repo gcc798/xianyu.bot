@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/flipped-aurora/gin-vue-admin/server/global"
+	"github.com/flipped-aurora/gin-vue-admin/server/internal/xianyu/model"
 	"github.com/glebarez/sqlite"
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
@@ -12,6 +13,7 @@ import (
 func TestDatabaseConfiguresSQLite(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
+	require.NoError(t, db.AutoMigrate(&model.AgentConfig{}))
 
 	oldDB := global.GVA_DB
 	oldType := global.GVA_CONFIG.System.DbType
@@ -27,17 +29,14 @@ func TestDatabaseConfiguresSQLite(t *testing.T) {
 	var foreignKeys int
 	require.NoError(t, db.Raw("PRAGMA foreign_keys").Scan(&foreignKeys).Error)
 	require.Equal(t, 1, foreignKeys)
-	for _, table := range []string{"xy_resource_searches", "xy_resource_candidates", "xy_resource_tasks", "xy_resources", "xy_resource_sources"} {
-		require.Truef(t, db.Migrator().HasTable(table), "expected resource table %s", table)
-	}
-	for _, table := range []string{"xy_agent_sessions", "xy_agent_messages", "xy_agent_runs", "xy_agent_run_tools", "xy_agent_events"} {
-		require.Truef(t, db.Migrator().HasTable(table), "expected agent table %s", table)
-	}
+	var config model.AgentConfig
+	require.NoError(t, db.First(&config, 1).Error)
 }
 
 func TestDatabaseSkipsSQLitePragmasForPostgres(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
+	require.NoError(t, db.AutoMigrate(&model.AgentConfig{}))
 
 	oldDB := global.GVA_DB
 	oldType := global.GVA_CONFIG.System.DbType

@@ -7683,10 +7683,6 @@ const docTemplate = `{
                     "description": "数据库类型:mysql(默认)|sqlite|sqlserver|postgresql",
                     "type": "string"
                 },
-                "disable-auto-migrate": {
-                    "description": "自动迁移数据库表结构，生产环境建议设为false，手动迁移",
-                    "type": "boolean"
-                },
                 "iplimit-count": {
                     "type": "integer"
                 },

@@ -89,8 +89,6 @@ system:
     router-prefix: ""
     #  严格角色模式 打开后权限将会存在上下级关系
     use-strict-auth: false
-    #  禁用自动迁移数据库表结构，生产环境建议设为true，手动迁移
-    disable-auto-migrate: false
 
 # captcha configuration
 captcha:
@@ -121,7 +119,7 @@ pgsql:
     path: 127.0.0.1
     port: "15432"
     config: "sslmode=disable TimeZone=Asia/Shanghai"
-    db-name: xianyu_assistant
+    db-name: xianyu_assistant_v2
     username: xianyu
     password: xianyu_assistant
     max-idle-conns: 10

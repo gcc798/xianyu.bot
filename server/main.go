@@ -1,9 +1,13 @@
 package main
 
 import (
+	"context"
+	"os"
+
 	"github.com/flipped-aurora/gin-vue-admin/server/core"
 	"github.com/flipped-aurora/gin-vue-admin/server/global"
 	"github.com/flipped-aurora/gin-vue-admin/server/initialize"
+	"github.com/flipped-aurora/gin-vue-admin/server/internal/database"
 	_ "go.uber.org/automaxprocs"
 	"go.uber.org/zap"
 )
@@ -42,10 +46,11 @@ func initializeSystem() {
 	global.GVA_LOG = core.Zap() // 初始化zap日志库
 	zap.ReplaceGlobals(global.GVA_LOG)
 	global.GVA_DB = initialize.Gorm() // gorm连接数据库
+	if err := database.Migrate(context.Background(), global.GVA_DB, global.GVA_CONFIG.System.DbType); err != nil {
+		global.GVA_LOG.Error("数据库迁移失败", zap.Error(err))
+		os.Exit(1)
+	}
 	initialize.Timer()
 	initialize.DBList()
 	initialize.SetupHandlers() // 注册全局函数
-	if global.GVA_DB != nil {
-		initialize.RegisterTables() // 初始化表
-	}
 }

@@ -1,7 +1,10 @@
 package initialize
 
 import (
+	"context"
+
 	"github.com/flipped-aurora/gin-vue-admin/server/global"
+	"github.com/flipped-aurora/gin-vue-admin/server/internal/database"
 	"go.uber.org/zap"
 )
 
@@ -32,9 +35,9 @@ func Reload() error {
 	OtherInit()
 	DBList()
 
-	if global.GVA_DB != nil {
-		// 确保数据库表结构是最新的
-		RegisterTables()
+	if err := database.Migrate(context.Background(), global.GVA_DB, global.GVA_CONFIG.System.DbType); err != nil {
+		global.GVA_LOG.Error("数据库迁移失败", zap.Error(err))
+		return err
 	}
 
 	// 重新初始化定时任务

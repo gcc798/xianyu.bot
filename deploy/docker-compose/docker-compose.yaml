@@ -52,12 +52,12 @@ services:
     ports:
       - '${PGSQL_HOST_PORT:-15432}:5432'
     environment:
-      POSTGRES_DB: xianyu_assistant
+      POSTGRES_DB: xianyu_assistant_v2
       POSTGRES_USER: xianyu
       POSTGRES_PASSWORD: ${PGSQL_PASSWORD:-xianyu_assistant}
       TZ: Asia/Shanghai
     healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -U xianyu -d xianyu_assistant']
+      test: ['CMD-SHELL', 'pg_isready -U xianyu -d xianyu_assistant_v2']
       interval: 5s
       timeout: 5s
       retries: 20
@@ -105,7 +105,7 @@ services:
       - path: ../../script/tel-bot/.env
         required: false
     environment:
-      DATABASE_URL: postgresql://xianyu:xianyu_assistant@postgres:5432/xianyu_assistant
+      DATABASE_URL: postgresql://xianyu:xianyu_assistant@postgres:5432/xianyu_assistant_v2
       TELEGRAM_INTERNAL_TOKEN: ${TELEGRAM_INTERNAL_TOKEN:-}
       GVA_INTERNAL_URL: http://server:8888
       TG_RESOURCE_CONCURRENCY: ${TG_RESOURCE_CONCURRENCY:-1}
