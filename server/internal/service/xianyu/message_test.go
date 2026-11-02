@@ -34,7 +34,7 @@ func TestMessageHandleIsIdempotentAndOwnerIsolated(t *testing.T) {
 	raw, err := os.ReadFile("../../xianyu/protocol/testdata/sync_message.json")
 	require.NoError(t, err)
 
-	service := new(message)
+	service := &message{db: infra.DB, events: &businessEvent{db: infra.DB}}
 	var workers sync.WaitGroup
 	errorsCh := make(chan error, 8)
 	for range 8 {
@@ -77,7 +77,8 @@ func TestMessageListFiltersByExplicitFields(t *testing.T) {
 	} {
 		require.NoError(t, db.Create(&item).Error)
 	}
-	list, total, err := new(message).List(t.Context(), 10, xyRequest.MessageSearch{
+	service := &message{db: db, events: &businessEvent{db: db}}
+	list, total, err := service.List(t.Context(), 10, xyRequest.MessageSearch{
 		AccountID: account.ID, Direction: "inbound", ExternalProductID: "item-1",
 		BuyerName: "甲", Content: "价格", StartTime: 1000, EndTime: 1000,
 	})
@@ -85,9 +86,9 @@ func TestMessageListFiltersByExplicitFields(t *testing.T) {
 	require.EqualValues(t, 1, total)
 	require.Len(t, list, 1)
 	require.Equal(t, "in-1", list[0].PNMID)
-	_, _, err = new(message).List(t.Context(), 10, xyRequest.MessageSearch{Direction: "invalid"})
+	_, _, err = service.List(t.Context(), 10, xyRequest.MessageSearch{Direction: "invalid"})
 	require.ErrorContains(t, err, "消息方向无效")
-	_, _, err = new(message).List(t.Context(), 10, xyRequest.MessageSearch{StartTime: 2, EndTime: 1})
+	_, _, err = service.List(t.Context(), 10, xyRequest.MessageSearch{StartTime: 2, EndTime: 1})
 	require.ErrorContains(t, err, "结束时间不能早于开始时间")
 }
 
@@ -115,7 +116,8 @@ func TestMessageHandleMarksOwnRemoteMessageOutbound(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	require.NoError(t, new(message).Handle(t.Context(), account.ID, raw))
+	service := &message{db: db, events: &businessEvent{db: db}}
+	require.NoError(t, service.Handle(t.Context(), account.ID, raw))
 	var saved model.Message
 	require.NoError(t, db.First(&saved).Error)
 	require.Equal(t, "outbound", saved.Direction)
@@ -137,7 +139,7 @@ func TestManualReplyTakesOverAndRecordsConfirmedMessage(t *testing.T) {
 	}
 	require.NoError(t, db.Create(&incoming).Error)
 	sender := new(fakeTextSender)
-	service := &message{sender: sender}
+	service := &message{db: infra.DB, events: &businessEvent{db: infra.DB}, sender: sender}
 
 	require.Error(t, service.Reply(t.Context(), 11, xyRequest.SendMessage{MessageID: incoming.ID, Text: "您好"}))
 	require.NoError(t, service.Reply(t.Context(), 10, xyRequest.SendMessage{MessageID: incoming.ID, Text: "您好"}))
@@ -187,7 +189,7 @@ func TestAutoReplyMergesMessagesAndSendsOnlyLatest(t *testing.T) {
 		ProductID: product.ID, Type: model.ReplyRuleFuzzy, Keyword: "你好", Content: "自动回复内容", Enabled: true,
 	}))
 	sent := make(chan string, 2)
-	service := &message{sender: channelTextSender(sent), rules: rules, pending: make(map[string]pendingReply)}
+	service := &message{db: infra.DB, events: &businessEvent{db: infra.DB}, sender: channelTextSender(sent), rules: rules, pending: make(map[string]pendingReply)}
 	first := model.Message{OwnerID: 10, AccountID: account.ID, PNMID: "one", SessionID: "session-1", ContentType: 1, Content: "你好", SenderUserID: "buyer-1", ExternalProductID: "item-1", Direction: "inbound", Source: "remote"}
 	second := first
 	second.PNMID = "two"
@@ -235,7 +237,7 @@ func TestVirtualProductUsesDefaultFallbackReply(t *testing.T) {
 	}
 	require.NoError(t, db.Create(&incoming).Error)
 	sent := make(chan string, 1)
-	service := &message{sender: channelTextSender(sent), rules: &replyRule{db: infra.DB}, pending: make(map[string]pendingReply)}
+	service := &message{db: infra.DB, events: &businessEvent{db: infra.DB}, sender: channelTextSender(sent), rules: &replyRule{db: infra.DB}, pending: make(map[string]pendingReply)}
 
 	require.NoError(t, service.scheduleAutoReply(t.Context(), account, incoming))
 	select {
@@ -266,7 +268,7 @@ func TestHandleHistoryRepliesOnlyToLatestRecentMessage(t *testing.T) {
 		ProductID: product.ID, Type: model.ReplyRuleFuzzy, Keyword: "价格是什么", Content: "十元", Enabled: true,
 	}))
 	sent := make(chan string, 2)
-	service := &message{sender: channelTextSender(sent), rules: rules, pending: make(map[string]pendingReply)}
+	service := &message{db: infra.DB, events: &businessEvent{db: infra.DB}, sender: channelTextSender(sent), rules: rules, pending: make(map[string]pendingReply)}
 	now := time.Now().UnixMilli()
 	raw := historyResponse(t, []map[string]any{
 		historyMessage(t, "old", "buyer", "价格是什么", "item-1", now-1000),
@@ -303,7 +305,8 @@ func TestHandleHistoryMergesConfirmedOutboundEcho(t *testing.T) {
 	}).Error)
 	raw := historyResponse(t, []map[string]any{historyMessage(t, "remote-1", "seller@goofish", "已回复", "item-1", now)})
 
-	require.NoError(t, new(message).HandleHistory(t.Context(), account.ID, "session@goofish", raw))
+	service := &message{db: db, events: &businessEvent{db: db}}
+	require.NoError(t, service.HandleHistory(t.Context(), account.ID, "session@goofish", raw))
 	var saved []model.Message
 	require.NoError(t, db.Find(&saved).Error)
 	require.Len(t, saved, 1)

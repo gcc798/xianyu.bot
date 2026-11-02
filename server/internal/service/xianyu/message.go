@@ -8,7 +8,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gcc798/xianyu.bot/internal/infra"
 	"github.com/gcc798/xianyu.bot/internal/model/xianyu"
 	xyRequest "github.com/gcc798/xianyu.bot/internal/model/xianyu/request"
 	xyResponse "github.com/gcc798/xianyu.bot/internal/model/xianyu/response"
@@ -42,6 +41,8 @@ type pendingReply struct {
 }
 
 type message struct {
+	db       *gorm.DB
+	events   *businessEvent
 	sender   textSender
 	rules    replyResolver
 	orders   orderRecorder
@@ -52,7 +53,7 @@ type message struct {
 
 func (s *message) StartAccount(accountID uint) {
 	var tasks []model.ReplyTask
-	db := infra.DB
+	db := s.db
 	if db == nil {
 		return
 	}
@@ -95,7 +96,7 @@ func (s *message) HandleHistory(ctx context.Context, accountID uint, sessionID s
 
 func (s *message) handleParsed(ctx context.Context, accountID uint, messages []protocol.ChatMessage, history bool) error {
 	var account model.Account
-	if err := infra.DB.WithContext(ctx).Select("id", "owner_id", "external_user_id").First(&account, accountID).Error; err != nil {
+	if err := s.db.WithContext(ctx).Select("id", "owner_id", "external_user_id").First(&account, accountID).Error; err != nil {
 		return err
 	}
 	latestHistory := make(map[string]string)
@@ -121,12 +122,12 @@ func (s *message) handleParsed(ctx context.Context, accountID uint, messages []p
 			ExternalProductID: item.ProductID, ExternalOrderID: item.OrderID, MessageTime: item.MessageTime,
 			Direction: direction, Source: "remote",
 		}
-		result := infra.DB.WithContext(ctx).Clauses(clause.OnConflict{DoNothing: true}).Create(&record)
+		result := s.db.WithContext(ctx).Clauses(clause.OnConflict{DoNothing: true}).Create(&record)
 		if result.Error != nil {
 			return result.Error
 		}
 		if result.RowsAffected == 1 {
-			recordBusinessEvent(ctx, model.BusinessEvent{OwnerID: account.OwnerID, AccountID: account.ID, Type: "message", Status: "success", Summary: "收到并保存闲鱼消息"})
+			s.events.Record(ctx, model.BusinessEvent{OwnerID: account.OwnerID, AccountID: account.ID, Type: "message", Status: "success", Summary: "收到并保存闲鱼消息"})
 			if direction == "outbound" {
 				s.mergeLocalOutbound(ctx, record)
 				continue
@@ -157,7 +158,7 @@ func (s *message) mergeLocalOutbound(ctx context.Context, remote model.Message) 
 	if strings.TrimSpace(remote.Content) == "" {
 		return
 	}
-	db := infra.DB.WithContext(ctx)
+	db := s.db.WithContext(ctx)
 	var local model.Message
 	err := db.Where("account_id = ? AND session_id = ? AND direction = ? AND source <> ? AND content = ? AND message_time BETWEEN ? AND ?",
 		remote.AccountID, remote.SessionID, "outbound", "remote", remote.Content, remote.MessageTime-int64((2*time.Minute)/time.Millisecond), remote.MessageTime+int64((2*time.Minute)/time.Millisecond)).
@@ -188,7 +189,7 @@ func (s *message) List(ctx context.Context, ownerID uint, input xyRequest.Messag
 	if ownerID == 0 {
 		return nil, 0, errors.New("用户未登录")
 	}
-	db := infra.DB.WithContext(ctx).Table("xy_messages AS m").Where("m.owner_id = ? AND m.deleted_at IS NULL", ownerID)
+	db := s.db.WithContext(ctx).Table("xy_messages AS m").Where("m.owner_id = ? AND m.deleted_at IS NULL", ownerID)
 	if input.AccountID != 0 {
 		db = db.Where("m.account_id = ?", input.AccountID)
 	}
@@ -245,7 +246,7 @@ func (s *message) UpdateTakeover(ctx context.Context, ownerID uint, input xyRequ
 	takeover := model.ConversationTakeover{
 		OwnerID: ownerID, AccountID: item.AccountID, SessionID: item.SessionID, Active: input.Active,
 	}
-	return infra.DB.WithContext(ctx).Clauses(clause.OnConflict{
+	return s.db.WithContext(ctx).Clauses(clause.OnConflict{
 		Columns:   []clause.Column{{Name: "account_id"}, {Name: "session_id"}},
 		DoUpdates: clause.Assignments(map[string]any{"active": input.Active, "updated_at": time.Now()}),
 	}).Create(&takeover).Error
@@ -277,7 +278,7 @@ func (s *message) Reply(ctx context.Context, ownerID uint, input xyRequest.SendM
 		ContentType: 1, Content: text, SenderUserName: "我", ExternalProductID: item.ExternalProductID,
 		ExternalOrderID: item.ExternalOrderID, MessageTime: time.Now().UnixMilli(), Direction: "outbound", Source: "manual",
 	}
-	if err := infra.DB.WithContext(ctx).Create(&outgoing).Error; err != nil {
+	if err := s.db.WithContext(ctx).Create(&outgoing).Error; err != nil {
 		return errors.New("消息已发送，但本地记录保存失败")
 	}
 	return nil
@@ -288,7 +289,7 @@ func (s *message) ownedMessage(ctx context.Context, ownerID, messageID uint) (mo
 		return model.Message{}, errors.New("消息 ID 不能为空")
 	}
 	var item model.Message
-	err := infra.DB.WithContext(ctx).Where("id = ? AND owner_id = ?", messageID, ownerID).First(&item).Error
+	err := s.db.WithContext(ctx).Where("id = ? AND owner_id = ?", messageID, ownerID).First(&item).Error
 	return item, err
 }
 
@@ -304,7 +305,7 @@ func (s *message) scheduleAutoReply(ctx context.Context, account model.Account, 
 		AutoReplyEnabled  bool
 		ReplyDelaySeconds int
 	}
-	err := infra.DB.WithContext(ctx).Table("xy_products AS p").
+	err := s.db.WithContext(ctx).Table("xy_products AS p").
 		Select("p.id AS product_id, s.virtual_product, s.auto_reply_enabled, s.reply_delay_seconds").
 		Joins("JOIN xy_product_settings AS s ON s.product_id = p.id AND s.deleted_at IS NULL").
 		Where("p.owner_id = ? AND p.account_id = ? AND p.external_product_id = ? AND p.deleted_at IS NULL",
@@ -317,7 +318,7 @@ func (s *message) scheduleAutoReply(ctx context.Context, account model.Account, 
 		return err
 	}
 	var takeoverCount int64
-	if err := infra.DB.WithContext(ctx).Model(&model.ConversationTakeover{}).
+	if err := s.db.WithContext(ctx).Model(&model.ConversationTakeover{}).
 		Where("owner_id = ? AND account_id = ? AND session_id = ? AND active = ?", account.OwnerID, account.ID, item.SessionID, true).
 		Count(&takeoverCount).Error; err != nil || takeoverCount > 0 {
 		return err
@@ -339,7 +340,7 @@ func (s *message) scheduleAutoReply(ctx context.Context, account model.Account, 
 		RuleID:            rule.ID, SessionID: item.SessionID, RecipientID: item.SenderUserID, ReplyText: rule.Content,
 		Status: model.ReplyTaskScheduled, ScheduledAt: now.Add(time.Duration(setting.ReplyDelaySeconds) * time.Second),
 	}
-	err = infra.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		completedAt := now
 		if err := tx.Model(&model.ReplyTask{}).
 			Where("account_id = ? AND session_id = ? AND status = ?", account.ID, item.SessionID, model.ReplyTaskScheduled).
@@ -396,7 +397,7 @@ func (s *message) launchReply(task model.ReplyTask) {
 }
 
 func (s *message) runReplyTask(ctx context.Context, task model.ReplyTask) {
-	db := infra.DB.WithContext(ctx)
+	db := s.db.WithContext(ctx)
 	result := db.Model(&model.ReplyTask{}).Where("id = ? AND status = ?", task.ID, model.ReplyTaskScheduled).
 		Update("status", model.ReplyTaskSending)
 	if result.Error != nil || result.RowsAffected != 1 {
@@ -448,6 +449,6 @@ func (s *message) runReplyTask(ctx context.Context, task model.ReplyTask) {
 
 func (s *message) finishReplyTask(id uint, status, message string) error {
 	now := time.Now()
-	return infra.DB.Model(&model.ReplyTask{}).Where("id = ?", id).
+	return s.db.Model(&model.ReplyTask{}).Where("id = ?", id).
 		Updates(map[string]any{"status": status, "completed_at": now, "error": message}).Error
 }

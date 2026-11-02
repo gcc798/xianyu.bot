@@ -19,7 +19,7 @@ func New(deps Dependencies) *Services {
 	relists := &relist{db: deps.DB, events: events, mtop: &mtopClient{db: deps.DB}, products: products}
 	deliveries := &delivery{db: deps.DB, events: events, consigner: orders, rules: deliveryRules, relist: relists, workers: make(map[uint]context.CancelFunc)}
 	orders.planner = deliveries
-	messages := &message{rules: rules, orders: orders, delivery: deliveries, pending: make(map[string]pendingReply)}
+	messages := &message{db: deps.DB, events: events, rules: rules, orders: orders, delivery: deliveries, pending: make(map[string]pendingReply)}
 	webSocket := newWebSocketService(messages, deps.SendNotificationEmail)
 	webSocket.accounts = accounts
 	accounts.webSocket = webSocket

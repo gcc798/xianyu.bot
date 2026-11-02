@@ -172,7 +172,7 @@ func TestWebSocketStatusIsOwnerIsolated(t *testing.T) {
 	created, err := (&account{db: infra.DB}).Create(t.Context(), 10, xyRequest.CreateAccount{Label: "隔离账号"})
 	require.NoError(t, err)
 
-	service := newWebSocketService(new(message), nil)
+	service := newWebSocketService(&message{db: infra.DB, events: &businessEvent{db: infra.DB}}, nil)
 	status, err := service.Status(t.Context(), 10, created.ID)
 	require.NoError(t, err)
 	require.False(t, status.Running)
