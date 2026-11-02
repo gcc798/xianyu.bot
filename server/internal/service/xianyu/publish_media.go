@@ -18,15 +18,15 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gcc798/xianyu.bot/internal/infra"
 	"github.com/gcc798/xianyu.bot/internal/model/xianyu"
 	_ "golang.org/x/image/webp"
+	"gorm.io/gorm"
 )
 
 const publishImageUploadURL = "https://stream-upload.goofish.com/api/upload.api?floderId=0&appkey=fleamarket&_input_charset=utf-8"
 
-func reuploadPublishImages(ctx context.Context, ownerID, accountID uint, payload map[string]any) error {
-	if _, err := ownedAccount(ctx, infra.DB, ownerID, accountID); err != nil {
+func reuploadPublishImages(ctx context.Context, db *gorm.DB, ownerID, accountID uint, payload map[string]any) error {
+	if _, err := ownedAccount(ctx, db, ownerID, accountID); err != nil {
 		return err
 	}
 	images, ok := payload["imageInfoDOList"].([]any)
@@ -34,7 +34,7 @@ func reuploadPublishImages(ctx context.Context, ownerID, accountID uint, payload
 		return errors.New("续售发布快照缺少图片")
 	}
 	var credential model.Credential
-	if err := infra.DB.WithContext(ctx).Where("account_id = ?", accountID).First(&credential).Error; err != nil {
+	if err := db.WithContext(ctx).Where("account_id = ?", accountID).First(&credential).Error; err != nil {
 		return err
 	}
 	cookie, err := decryptCredential(credential.CookieCiphertext, credentialAAD(accountID, "cookie"))

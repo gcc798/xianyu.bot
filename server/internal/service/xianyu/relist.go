@@ -109,7 +109,9 @@ func (s *relist) ProcessTask(ctx context.Context, ownerID, taskID uint) error {
 	snapshot.Payload["uniqueCode"] = strconv.FormatInt(time.Now().UnixMilli(), 10) + strconv.FormatUint(uint64(task.AccountID), 10)
 	uploadImages := s.media
 	if uploadImages == nil {
-		uploadImages = reuploadPublishImages
+		uploadImages = func(ctx context.Context, ownerID, accountID uint, payload map[string]any) error {
+			return reuploadPublishImages(ctx, s.db, ownerID, accountID, payload)
+		}
 	}
 	if err := uploadImages(ctx, ownerID, task.AccountID, snapshot.Payload); err != nil {
 		return s.failTask(db, task, err)

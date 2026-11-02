@@ -20,7 +20,7 @@ func New(deps Dependencies) *Services {
 	deliveries := &delivery{db: deps.DB, events: events, consigner: orders, rules: deliveryRules, relist: relists, workers: make(map[uint]context.CancelFunc)}
 	orders.planner = deliveries
 	messages := &message{db: deps.DB, events: events, rules: rules, orders: orders, delivery: deliveries, pending: make(map[string]pendingReply)}
-	webSocket := newWebSocketService(messages, deps.SendNotificationEmail)
+	webSocket := newWebSocketService(deps.DB, events, messages, deps.SendNotificationEmail)
 	webSocket.accounts = accounts
 	accounts.webSocket = webSocket
 	messages.sender = webSocket

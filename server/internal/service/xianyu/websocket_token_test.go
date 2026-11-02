@@ -53,7 +53,7 @@ func TestWebSocketTokenIsEncryptedAndCached(t *testing.T) {
 		ID: created.ID, Cookie: "unb=user-demo; _m_h5_tk=old-token_expiry; cookie2=session",
 	}))
 
-	tokenService := newWebSocketToken()
+	tokenService := newWebSocketToken(db, &businessEvent{db: db})
 	tokenService.endpoint = server.URL
 	tokenService.deviceCookieEndpoint = server.URL + "/device"
 	token, deviceID, err := tokenService.Get(t.Context(), 10, created.ID)
@@ -103,7 +103,7 @@ func TestWebSocketTokenMarksAccountWhenVerificationIsRequired(t *testing.T) {
 		ID: created.ID, Cookie: "unb=user-demo; cna=device-cookie; _m_h5_tk=old-token_expiry; cookie2=session",
 	}))
 
-	tokenService := newWebSocketToken()
+	tokenService := newWebSocketToken(db, &businessEvent{db: db})
 	tokenService.endpoint = server.URL
 	_, _, err = tokenService.Get(t.Context(), 10, created.ID)
 	verification, ok := errors.AsType[*verificationRequiredError](err)

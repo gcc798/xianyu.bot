@@ -16,7 +16,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gcc798/xianyu.bot/internal/infra"
 	"github.com/gcc798/xianyu.bot/internal/model/xianyu"
 	xyRequest "github.com/gcc798/xianyu.bot/internal/model/xianyu/request"
 	xyResponse "github.com/gcc798/xianyu.bot/internal/model/xianyu/response"
@@ -113,7 +112,7 @@ func (s *qrLogin) Start(ctx context.Context, ownerID, accountID uint) (xyRespons
 		return xyResponse.QRLogin{}, errors.New("账号 ID 不能为空")
 	}
 	var account model.Account
-	if err := infra.DB.WithContext(ctx).Where("id = ? AND owner_id = ?", accountID, ownerID).First(&account).Error; err != nil {
+	if err := s.manager.accounts.db.WithContext(ctx).Where("id = ? AND owner_id = ?", accountID, ownerID).First(&account).Error; err != nil {
 		return xyResponse.QRLogin{}, err
 	}
 	manager := s.manager
@@ -490,7 +489,7 @@ func (m *qrLoginManager) saveCredential(ctx context.Context, session *qrSession)
 	if err := m.accounts.SaveCredential(ctx, session.ownerID, xyRequest.SaveCredential{ID: session.accountID, Cookie: cookie}); err != nil {
 		return err
 	}
-	return infra.DB.WithContext(ctx).Model(&model.Account{}).
+	return m.accounts.db.WithContext(ctx).Model(&model.Account{}).
 		Where("id = ? AND owner_id = ?", session.accountID, session.ownerID).
 		Update("external_user_id", unb).Error
 }

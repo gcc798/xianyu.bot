@@ -35,6 +35,8 @@ type webSocketTokenGetter interface {
 }
 
 type webSocketService struct {
+	db          *gorm.DB
+	events      *businessEvent
 	manager     *connection.Manager
 	accounts    *account
 	messages    *message
@@ -61,6 +63,7 @@ type connectionAlertWindow struct {
 }
 
 type xyDialer struct {
+	db       *gorm.DB
 	token    webSocketTokenGetter
 	endpoint string
 }
@@ -79,10 +82,12 @@ type webSocketResponse struct {
 	raw  []byte
 }
 
-func newWebSocketService(messages *message, sendNotificationEmail func(string, string, string) error) *webSocketService {
-	token := newWebSocketToken()
-	dialer := &xyDialer{token: &token, endpoint: webSocketEndpoint}
+func newWebSocketService(db *gorm.DB, events *businessEvent, messages *message, sendNotificationEmail func(string, string, string) error) *webSocketService {
+	token := newWebSocketToken(db, events)
+	dialer := &xyDialer{db: db, token: &token, endpoint: webSocketEndpoint}
 	service := &webSocketService{
+		db:                    db,
+		events:                events,
 		messages:              messages,
 		alertWindows:          make(map[uint]*connectionAlertWindow),
 		alertWindowDuration:   time.Hour,
@@ -184,13 +189,13 @@ func (s *webSocketService) finishConnectionAlertWindow(accountID uint, target *c
 
 func (s *webSocketService) recordSuppressedConnectionAlert(accountID uint, window *connectionAlertWindow) {
 	var account model.Account
-	if err := infra.DB.Where("id = ?", accountID).First(&account).Error; err != nil {
+	if err := s.db.Where("id = ?", accountID).First(&account).Error; err != nil {
 		if infra.Log != nil {
 			infra.Log.Error("记录闲鱼消息连接抖动失败", zap.Uint("accountID", accountID), zap.Error(err))
 		}
 		return
 	}
-	recordBusinessEvent(context.Background(), model.BusinessEvent{
+	s.events.Record(context.Background(), model.BusinessEvent{
 		OwnerID: account.OwnerID, AccountID: account.ID, Type: "websocket_alert", Status: "success",
 		Summary: fmt.Sprintf("一小时连接抖动窗口结束，当前连接正常（不可用 %d 次，未发送告警）", window.unavailableCount),
 		Error:   window.lastFailure.LastError,
@@ -205,7 +210,7 @@ func (s *webSocketService) cancelConnectionAlertWindow(accountID uint) {
 
 func (s *webSocketService) sendConnectionNotification(snapshot connection.Snapshot, recovered bool, startedAt time.Time, unavailableCount uint) {
 	var account model.Account
-	if err := infra.DB.Where("id = ?", snapshot.AccountID).First(&account).Error; err != nil {
+	if err := s.db.Where("id = ?", snapshot.AccountID).First(&account).Error; err != nil {
 		if infra.Log != nil {
 			infra.Log.Error("读取闲鱼消息告警账号失败", zap.Uint("accountID", snapshot.AccountID), zap.Error(err))
 		}
@@ -229,7 +234,7 @@ func (s *webSocketService) sendConnectionNotification(snapshot connection.Snapsh
 		return
 	}
 	if err := sender("force_gc@163.com", subject, body); err != nil {
-		recordBusinessEvent(context.Background(), model.BusinessEvent{
+		s.events.Record(context.Background(), model.BusinessEvent{
 			OwnerID: account.OwnerID, AccountID: account.ID, Type: "websocket_alert", Status: "failed",
 			Summary: summary + "失败", Error: err.Error(),
 		})
@@ -245,7 +250,7 @@ func (s *webSocketService) sendConnectionNotification(snapshot connection.Snapsh
 	if !recovered {
 		event.Error = snapshot.LastError
 	}
-	recordBusinessEvent(context.Background(), event)
+	s.events.Record(context.Background(), event)
 	if infra.Log != nil {
 		infra.Log.Info(summary, zap.Uint("accountID", snapshot.AccountID), zap.String("recipient", "force_gc@163.com"))
 	}
@@ -272,7 +277,7 @@ func isSyncChangeSignal(raw []byte) bool {
 }
 
 func (s *webSocketService) Start(ctx context.Context, ownerID, accountID uint) error {
-	account, err := ownedAccount(ctx, infra.DB, ownerID, accountID)
+	account, err := ownedAccount(ctx, s.db, ownerID, accountID)
 	if err != nil {
 		return err
 	}
@@ -301,7 +306,7 @@ func (s *webSocketService) Start(ctx context.Context, ownerID, accountID uint) e
 
 func (s *webSocketService) StartEnabledAccounts(ctx context.Context) {
 	var accounts []model.Account
-	if err := infra.DB.WithContext(ctx).Where("enabled = ? AND status = ?", true, "ready").Find(&accounts).Error; err != nil {
+	if err := s.db.WithContext(ctx).Where("enabled = ? AND status = ?", true, "ready").Find(&accounts).Error; err != nil {
 		infra.Log.Error("加载需自动连接的闲鱼账号失败", zap.Error(err))
 		return
 	}
@@ -313,7 +318,7 @@ func (s *webSocketService) StartEnabledAccounts(ctx context.Context) {
 }
 
 func (s *webSocketService) Stop(ctx context.Context, ownerID, accountID uint) error {
-	if _, err := ownedAccount(ctx, infra.DB, ownerID, accountID); err != nil {
+	if _, err := ownedAccount(ctx, s.db, ownerID, accountID); err != nil {
 		return err
 	}
 	if !s.stopRuntime(accountID) {
@@ -461,7 +466,7 @@ func (s *webSocketService) stopKeepalive(accountID uint) {
 }
 
 func (s *webSocketService) Status(ctx context.Context, ownerID, accountID uint) (xyResponse.WebSocketStatus, error) {
-	account, err := ownedAccount(ctx, infra.DB, ownerID, accountID)
+	account, err := ownedAccount(ctx, s.db, ownerID, accountID)
 	if err != nil {
 		return xyResponse.WebSocketStatus{}, err
 	}
@@ -474,7 +479,7 @@ func (s *webSocketService) Status(ctx context.Context, ownerID, accountID uint) 
 }
 
 func (s *webSocketService) SendText(ctx context.Context, ownerID, accountID uint, sessionID, toUserID, text string) error {
-	account, err := ownedAccount(ctx, infra.DB, ownerID, accountID)
+	account, err := ownedAccount(ctx, s.db, ownerID, accountID)
 	if err != nil {
 		return err
 	}
@@ -541,7 +546,7 @@ func ownedAccount(ctx context.Context, db *gorm.DB, ownerID, accountID uint) (mo
 
 func (d *xyDialer) Dial(ctx context.Context, accountID uint) (connection.Connection, error) {
 	var account model.Account
-	if err := infra.DB.WithContext(ctx).Where("id = ?", accountID).First(&account).Error; err != nil {
+	if err := d.db.WithContext(ctx).Where("id = ?", accountID).First(&account).Error; err != nil {
 		return nil, err
 	}
 	token, deviceID, err := d.token.Get(ctx, account.OwnerID, accountID)
@@ -549,7 +554,7 @@ func (d *xyDialer) Dial(ctx context.Context, accountID uint) (connection.Connect
 		return nil, err
 	}
 	var credential model.Credential
-	if err := infra.DB.WithContext(ctx).Where("account_id = ?", accountID).First(&credential).Error; err != nil {
+	if err := d.db.WithContext(ctx).Where("account_id = ?", accountID).First(&credential).Error; err != nil {
 		return nil, err
 	}
 	cookie, err := decryptCredential(credential.CookieCiphertext, credentialAAD(accountID, "cookie"))

@@ -130,7 +130,7 @@ func TestXyDialerRegistersAndRoutesSyncMessages(t *testing.T) {
 		ID: created.ID, Cookie: "unb=user-demo; cookie2=do-not-send-in-register",
 	}))
 
-	dialer := &xyDialer{token: fixedWebSocketToken{}, endpoint: "ws" + strings.TrimPrefix(server.URL, "http")}
+	dialer := &xyDialer{db: infra.DB, token: fixedWebSocketToken{}, endpoint: "ws" + strings.TrimPrefix(server.URL, "http")}
 	connection, err := dialer.Dial(t.Context(), created.ID)
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = connection.Close() })
@@ -172,7 +172,7 @@ func TestWebSocketStatusIsOwnerIsolated(t *testing.T) {
 	created, err := (&account{db: infra.DB}).Create(t.Context(), 10, xyRequest.CreateAccount{Label: "隔离账号"})
 	require.NoError(t, err)
 
-	service := newWebSocketService(&message{db: infra.DB, events: &businessEvent{db: infra.DB}}, nil)
+	service := newWebSocketService(infra.DB, &businessEvent{db: infra.DB}, &message{db: infra.DB, events: &businessEvent{db: infra.DB}}, nil)
 	status, err := service.Status(t.Context(), 10, created.ID)
 	require.NoError(t, err)
 	require.False(t, status.Running)
@@ -195,6 +195,8 @@ func TestConnectionStateChangedAlertsOnlyWhenUnavailableAtWindowEnd(t *testing.T
 
 	subjects := make(chan string, 3)
 	service := &webSocketService{
+		db:                  db,
+		events:              &businessEvent{db: db},
 		alertWindows:        make(map[uint]*connectionAlertWindow),
 		alertWindowDuration: 100 * time.Millisecond,
 		sendNotificationEmail: func(_ string, subject string, _ string) error {
@@ -223,7 +225,7 @@ func TestConnectionStateChangedAlertsOnlyWhenUnavailableAtWindowEnd(t *testing.T
 	require.NoError(t, db.Where("account_id = ? AND type = ?", account.ID, "websocket_alert").Find(&sentEvents).Error)
 	require.Contains(t, sentEvents[0].Summary, "不可用 2 次")
 
-	failedService := &webSocketService{sendNotificationEmail: func(string, string, string) error {
+	failedService := &webSocketService{db: db, events: &businessEvent{db: db}, sendNotificationEmail: func(string, string, string) error {
 		return errors.New("SMTP 不可用")
 	}}
 	failedService.sendConnectionNotification(failure, false, time.Now().Add(-time.Hour), 3)
@@ -247,6 +249,8 @@ func TestConnectionStateChangedSuppressesAlertWhenConnectedAtWindowEnd(t *testin
 
 	subjects := make(chan string, 1)
 	service := &webSocketService{
+		db:                  db,
+		events:              &businessEvent{db: db},
 		alertWindows:        make(map[uint]*connectionAlertWindow),
 		alertWindowDuration: 30 * time.Millisecond,
 		sendNotificationEmail: func(_ string, subject string, _ string) error {

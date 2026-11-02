@@ -14,7 +14,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gcc798/xianyu.bot/internal/infra"
 	"github.com/gcc798/xianyu.bot/internal/model/xianyu"
 	"github.com/google/uuid"
 	"gorm.io/gorm"
@@ -39,13 +38,17 @@ func (e *verificationRequiredError) NonRetryable() bool { return true }
 func (e *verificationRequiredError) ActionURL() string  { return e.URL }
 
 type webSocketToken struct {
+	db                   *gorm.DB
+	events               *businessEvent
 	client               *http.Client
 	endpoint             string
 	deviceCookieEndpoint string
 }
 
-func newWebSocketToken() webSocketToken {
+func newWebSocketToken(db *gorm.DB, events *businessEvent) webSocketToken {
 	return webSocketToken{
+		db:                   db,
+		events:               events,
 		client:               &http.Client{Timeout: 30 * time.Second},
 		endpoint:             webSocketTokenEndpoint,
 		deviceCookieEndpoint: deviceCookieEndpoint,
@@ -61,7 +64,7 @@ func (s *webSocketToken) Get(ctx context.Context, ownerID, accountID uint) (stri
 	lock.Lock()
 	defer lock.Unlock()
 
-	db := infra.DB.WithContext(ctx)
+	db := s.db.WithContext(ctx)
 	var account model.Account
 	if err := db.Where("id = ? AND owner_id = ?", accountID, ownerID).First(&account).Error; err != nil {
 		return "", "", err
@@ -116,7 +119,7 @@ func (s *webSocketToken) Get(ctx context.Context, ownerID, accountID uint) (stri
 				return tx.Model(&model.Account{}).Where("id = ? AND owner_id = ?", accountID, ownerID).
 					Updates(map[string]any{"device_id": deviceID, "status": "verification_required"}).Error
 			})
-			recordBusinessEvent(ctx, model.BusinessEvent{
+			s.events.Record(ctx, model.BusinessEvent{
 				OwnerID: ownerID, AccountID: accountID, Type: "websocket", Status: "failed",
 				Summary: "闲鱼消息连接需要安全验证", Error: verification.Error(),
 			})
