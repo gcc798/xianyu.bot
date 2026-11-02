@@ -52,7 +52,7 @@ router -> api -> service -> model
 - `{ code, data, msg }` 统一响应；
 - 从登录用户获得 owner 身份。
 
-通用后台只承担基础设施，闲鱼业务规则和 Agent 执行必须留在 `server/internal/xianyu/`。
+通用后台只承担基础设施；闲鱼业务规则和 Agent 执行留在 `server/internal/service/xianyu/`，`server/internal/xianyu/` 只负责模块装配、通信协议和连接运行时。
 
 ## 前端
 
