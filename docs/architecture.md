@@ -9,8 +9,12 @@
 | 路径 | 职责 | 状态 |
 | --- | --- | --- |
 | `server/` | Go HTTP 服务和通用后台基础能力 | 主动维护 |
+| `server/internal/app/` | HTTP 路由组合根 | 主动维护 |
 | `server/internal/database/` | PostgreSQL 启动迁移与 Goose 迁移文件 | 主动维护 |
-| `server/internal/xianyu/` | 闲鱼、Agent、MCP 和资源业务 | 主动维护 |
+| `server/internal/api/{router/,}xianyu/` | 闲鱼、Agent、MCP 和资源 HTTP 适配层 | 主动维护 |
+| `server/internal/service/xianyu/` | 闲鱼、Agent、MCP 和资源业务服务 | 主动维护 |
+| `server/internal/model/xianyu/` | 闲鱼、Agent、MCP 和资源持久化与 API 契约 | 主动维护 |
+| `server/internal/xianyu/` | 闲鱼模块装配、通信协议与连接运行时 | 主动维护 |
 | `agent-web/` | React 18 + TypeScript 后台与 Agent 前端 | 主动维护 |
 | `script/tel-bot/` | Telegram 资源渠道和 MCP 支撑服务 | 辅助服务 |
 | `web/` | Vue 旧后台，只用于迁移对照和回滚 | 已废弃 |
@@ -18,7 +22,7 @@
 
 ## 后端边界
 
-`server/internal/xianyu/` 是正式业务模块：
+闲鱼能力是正式业务模块，按 HTTP、业务、模型和通信边界分包：
 
 ```text
 router -> api -> service -> model
@@ -32,6 +36,9 @@ router -> api -> service -> model
 - Model 定义持久化结构及请求/响应契约。
 - Protocol 和 Connection 隔离闲鱼通信细节。
 - Initialize 只负责数据库连接、稳定路由和必要的 Agent 默认配置，不是插件入口。
+- `cmd/server` 创建进程信号上下文并持有数据库、日志和 HTTP 生命周期；业务 worker 从同一个根上下文派生。
+- 数据库通过组合根显式注入，不使用包级数据库或日志变量；日志使用 Zap 的标准全局入口。
+- Go module 路径固定为 `github.com/gcc798/xianyu.bot`。
 
 不得把闲鱼业务放回 `server/plugin/`，也不得重新设计插件框架。
 
