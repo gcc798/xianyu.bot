@@ -10,7 +10,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gcc798/go.xianyu.assistant/server/internal/infra"
 	"github.com/gcc798/go.xianyu.assistant/server/internal/model/xianyu"
 	xyRequest "github.com/gcc798/go.xianyu.assistant/server/internal/model/xianyu/request"
 	xyResponse "github.com/gcc798/go.xianyu.assistant/server/internal/model/xianyu/response"
@@ -19,6 +18,8 @@ import (
 )
 
 type delivery struct {
+	db        *gorm.DB
+	events    *businessEvent
 	consigner interface {
 		Consign(context.Context, uint, model.Order, string) error
 	}
@@ -33,7 +34,7 @@ func (s *delivery) ImportResources(ctx context.Context, ownerID uint, input xyRe
 		return 0, errors.New("规则和 1 到 1000 条卡密不能为空")
 	}
 	var rule model.DeliveryRule
-	if err := infra.DB.WithContext(ctx).Where("id = ? AND owner_id = ? AND mode = ?", input.RuleID, ownerID, model.DeliveryModeCard).First(&rule).Error; err != nil {
+	if err := s.db.WithContext(ctx).Where("id = ? AND owner_id = ? AND mode = ?", input.RuleID, ownerID, model.DeliveryModeCard).First(&rule).Error; err != nil {
 		return 0, err
 	}
 	resources := make([]model.DeliveryResource, 0, len(input.Values))
@@ -57,7 +58,7 @@ func (s *delivery) ImportResources(ctx context.Context, ownerID uint, input xyRe
 			OwnerID: ownerID, RuleID: rule.ID, ValueHash: hash, ValueCiphertext: ciphertext, Status: model.DeliveryResourceAvailable,
 		})
 	}
-	result := infra.DB.WithContext(ctx).Clauses(clause.OnConflict{DoNothing: true}).Create(&resources)
+	result := s.db.WithContext(ctx).Clauses(clause.OnConflict{DoNothing: true}).Create(&resources)
 	return int(result.RowsAffected), result.Error
 }
 
@@ -66,14 +67,14 @@ func (s *delivery) Inventory(ctx context.Context, ownerID, ruleID uint) (xyRespo
 		return xyResponse.DeliveryInventory{}, errors.New("规则 ID 不能为空")
 	}
 	var owned int64
-	if err := infra.DB.WithContext(ctx).Model(&model.DeliveryRule{}).Where("id = ? AND owner_id = ?", ruleID, ownerID).Count(&owned).Error; err != nil || owned != 1 {
+	if err := s.db.WithContext(ctx).Model(&model.DeliveryRule{}).Where("id = ? AND owner_id = ?", ruleID, ownerID).Count(&owned).Error; err != nil || owned != 1 {
 		if err != nil {
 			return xyResponse.DeliveryInventory{}, err
 		}
 		return xyResponse.DeliveryInventory{}, gorm.ErrRecordNotFound
 	}
 	result := xyResponse.DeliveryInventory{RuleID: ruleID}
-	rows, err := infra.DB.WithContext(ctx).Model(&model.DeliveryResource{}).
+	rows, err := s.db.WithContext(ctx).Model(&model.DeliveryResource{}).
 		Select("status, COUNT(*) AS count").Where("owner_id = ? AND rule_id = ?", ownerID, ruleID).Group("status").Rows()
 	if err != nil {
 		return result, err
@@ -101,7 +102,7 @@ func (s *delivery) ListTasks(ctx context.Context, ownerID uint, input xyRequest.
 	if ownerID == 0 {
 		return nil, 0, errors.New("用户未登录")
 	}
-	db := infra.DB.WithContext(ctx).Table("xy_delivery_tasks AS t").
+	db := s.db.WithContext(ctx).Table("xy_delivery_tasks AS t").
 		Joins("JOIN xy_orders AS o ON o.id = t.order_id AND o.deleted_at IS NULL").
 		Where("t.owner_id = ? AND t.deleted_at IS NULL", ownerID)
 	if input.AccountID != 0 {
@@ -133,7 +134,7 @@ func (s *delivery) Plan(ctx context.Context, order model.Order) error {
 		return nil
 	}
 	var setting model.ProductSetting
-	if err := infra.DB.WithContext(ctx).Where("product_id = ? AND auto_delivery_enabled = ?", order.ProductID, true).First(&setting).Error; err != nil {
+	if err := s.db.WithContext(ctx).Where("product_id = ? AND auto_delivery_enabled = ?", order.ProductID, true).First(&setting).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil
 		}
@@ -148,7 +149,7 @@ func (s *delivery) Plan(ctx context.Context, order model.Order) error {
 		OwnerID: order.OwnerID, AccountID: order.AccountID, OrderID: order.ID, RuleID: rule.ID,
 		Status: model.DeliveryTaskPending, NextAttemptAt: now,
 	}
-	err = infra.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&task).Error; err != nil {
 			return err
 		}
@@ -202,7 +203,7 @@ func (s *delivery) ProcessTask(ctx context.Context, ownerID, taskID uint) error 
 	if s.consigner == nil {
 		return errors.New("闲鱼发货服务不可用")
 	}
-	db := infra.DB.WithContext(ctx)
+	db := s.db.WithContext(ctx)
 	claim := db.Model(&model.DeliveryTask{}).
 		Where("id = ? AND owner_id = ? AND status IN ? AND next_attempt_at <= ?", taskID, ownerID,
 			[]string{model.DeliveryTaskPending, model.DeliveryTaskFailed}, time.Now()).
@@ -227,7 +228,7 @@ func (s *delivery) ProcessTask(ctx context.Context, ownerID, taskID uint) error 
 	}
 	if err := s.consigner.Consign(ctx, ownerID, order, payload); err != nil {
 		if errors.Is(err, errMTopTransport) {
-			recordBusinessEvent(ctx, model.BusinessEvent{OwnerID: ownerID, AccountID: task.AccountID, OrderID: task.OrderID, Type: "delivery", Status: "unknown", Summary: "自动发货结果未知", Error: err.Error()})
+			s.events.Record(ctx, model.BusinessEvent{OwnerID: ownerID, AccountID: task.AccountID, OrderID: task.OrderID, Type: "delivery", Status: "unknown", Summary: "自动发货结果未知", Error: err.Error()})
 			return db.Model(&task).Updates(map[string]any{"status": model.DeliveryTaskUnknown, "last_error": err.Error()}).Error
 		}
 		return s.failTask(db, task, err)
@@ -249,11 +250,11 @@ func (s *delivery) ProcessTask(ctx context.Context, ownerID, taskID uint) error 
 		return nil
 	})
 	if txErr == nil {
-		recordBusinessEvent(ctx, model.BusinessEvent{OwnerID: ownerID, AccountID: task.AccountID, ProductID: order.ProductID, OrderID: order.ID, Type: "delivery", Status: "success", Summary: "闲鱼虚拟发货成功"})
+		s.events.Record(ctx, model.BusinessEvent{OwnerID: ownerID, AccountID: task.AccountID, ProductID: order.ProductID, OrderID: order.ID, Type: "delivery", Status: "success", Summary: "闲鱼虚拟发货成功"})
 		if s.relist != nil {
 			order.Status = model.OrderStatusShipped
 			if err := s.relist.Plan(ctx, order); err != nil {
-				recordBusinessEvent(ctx, model.BusinessEvent{OwnerID: ownerID, AccountID: task.AccountID, ProductID: order.ProductID, OrderID: order.ID, Type: "relist", Status: "failed", Summary: "创建自动续售任务失败", Error: err.Error()})
+				s.events.Record(ctx, model.BusinessEvent{OwnerID: ownerID, AccountID: task.AccountID, ProductID: order.ProductID, OrderID: order.ID, Type: "relist", Status: "failed", Summary: "创建自动续售任务失败", Error: err.Error()})
 			}
 		}
 	}
@@ -261,7 +262,7 @@ func (s *delivery) ProcessTask(ctx context.Context, ownerID, taskID uint) error 
 }
 
 func (s *delivery) Retry(ctx context.Context, ownerID, taskID uint) error {
-	result := infra.DB.WithContext(ctx).Model(&model.DeliveryTask{}).
+	result := s.db.WithContext(ctx).Model(&model.DeliveryTask{}).
 		Where("id = ? AND owner_id = ? AND status = ?", taskID, ownerID, model.DeliveryTaskFailed).
 		Updates(map[string]any{"status": model.DeliveryTaskPending, "next_attempt_at": time.Now(), "last_error": ""})
 	if result.Error != nil {
@@ -311,7 +312,7 @@ func (s *delivery) StopAccount(accountID uint) {
 
 func (s *delivery) processDue(ctx context.Context, accountID uint) {
 	var tasks []model.DeliveryTask
-	if err := infra.DB.WithContext(ctx).Where("account_id = ? AND status IN ? AND next_attempt_at <= ?", accountID,
+	if err := s.db.WithContext(ctx).Where("account_id = ? AND status IN ? AND next_attempt_at <= ?", accountID,
 		[]string{model.DeliveryTaskPending, model.DeliveryTaskFailed}, time.Now()).Order("id").Limit(10).Find(&tasks).Error; err != nil {
 		return
 	}
@@ -331,7 +332,7 @@ func (s *delivery) failTask(db *gorm.DB, task model.DeliveryTask, err error) err
 	updateErr := db.Model(&task).Updates(map[string]any{
 		"status": model.DeliveryTaskFailed, "last_error": err.Error(), "next_attempt_at": time.Now().Add(delay),
 	}).Error
-	recordBusinessEvent(db.Statement.Context, model.BusinessEvent{OwnerID: task.OwnerID, AccountID: task.AccountID, OrderID: task.OrderID, Type: "delivery", Status: "failed", Summary: "自动发货失败", Error: err.Error()})
+	s.events.Record(db.Statement.Context, model.BusinessEvent{OwnerID: task.OwnerID, AccountID: task.AccountID, OrderID: task.OrderID, Type: "delivery", Status: "failed", Summary: "自动发货失败", Error: err.Error()})
 	return errors.Join(err, updateErr)
 }
 

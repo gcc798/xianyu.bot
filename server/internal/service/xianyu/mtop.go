@@ -26,6 +26,7 @@ type mtopCaller interface {
 }
 
 type mtopClient struct {
+	db       *gorm.DB
 	client   *http.Client
 	endpoint string
 }
@@ -58,8 +59,8 @@ func (m *mtopClient) Call(ctx context.Context, ownerID, accountID uint, api stri
 	lock.Lock()
 	defer lock.Unlock()
 
-	db := infra.DB.WithContext(ctx)
-	if _, err := ownedAccount(ctx, ownerID, accountID); err != nil {
+	db := m.db.WithContext(ctx)
+	if _, err := ownedAccount(ctx, m.db, ownerID, accountID); err != nil {
 		return nil, err
 	}
 	var credential model.Credential

@@ -11,12 +11,13 @@ type Dependencies struct {
 
 func New(deps Dependencies) *Services {
 	accounts := &account{db: deps.DB}
+	events := &businessEvent{db: deps.DB}
 	rules := &replyRule{db: deps.DB}
 	deliveryRules := &deliveryRule{db: deps.DB}
-	orders := &order{mtop: new(mtopClient)}
-	products := new(product)
-	relists := &relist{mtop: new(mtopClient), products: products}
-	deliveries := &delivery{consigner: orders, rules: deliveryRules, relist: relists, workers: make(map[uint]context.CancelFunc)}
+	orders := &order{db: deps.DB, events: events, mtop: &mtopClient{db: deps.DB}}
+	products := &product{db: deps.DB, events: events}
+	relists := &relist{db: deps.DB, events: events, mtop: &mtopClient{db: deps.DB}, products: products}
+	deliveries := &delivery{db: deps.DB, events: events, consigner: orders, rules: deliveryRules, relist: relists, workers: make(map[uint]context.CancelFunc)}
 	orders.planner = deliveries
 	messages := &message{rules: rules, orders: orders, delivery: deliveries, pending: make(map[string]pendingReply)}
 	webSocket := newWebSocketService(messages, deps.SendNotificationEmail)
@@ -27,7 +28,7 @@ func New(deps Dependencies) *Services {
 	webSocket.delivery = deliveries
 	agentEvents := newAgentEventHub()
 	agentRunner := &agentRunner{events: agentEvents, workers: make(map[uint]context.CancelFunc)}
-	return &Services{Status: status{db: deps.DB}, Account: *accounts, Product: *products, Message: messages, ReplyRule: *rules, DeliveryRule: *deliveryRules, Delivery: deliveries, Relist: relists, Order: orders, QRLogin: newQRLogin(accounts), WebSocket: webSocket, BusinessEvent: businessEvent{db: deps.DB}, AIConfig: aiConfig{db: deps.DB}, Resource: resourceCatalog{events: agentEvents}, AgentSession: agentSession{db: deps.DB}, AgentRunner: agentRunner, AgentEvents: agentEvents}
+	return &Services{Status: status{db: deps.DB}, Account: *accounts, Product: *products, Message: messages, ReplyRule: *rules, DeliveryRule: *deliveryRules, Delivery: deliveries, Relist: relists, Order: orders, QRLogin: newQRLogin(accounts), WebSocket: webSocket, BusinessEvent: *events, AIConfig: aiConfig{db: deps.DB}, Resource: resourceCatalog{events: agentEvents}, AgentSession: agentSession{db: deps.DB}, AgentRunner: agentRunner, AgentEvents: agentEvents}
 }
 
 type Services struct {

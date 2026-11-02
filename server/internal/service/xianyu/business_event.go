@@ -18,6 +18,10 @@ type businessEvent struct {
 }
 
 func recordBusinessEvent(ctx context.Context, event model.BusinessEvent) {
+	(&businessEvent{db: infra.DB}).Record(ctx, event)
+}
+
+func (s *businessEvent) Record(ctx context.Context, event model.BusinessEvent) {
 	fields := []zap.Field{
 		zap.Uint("ownerID", event.OwnerID), zap.Uint("accountID", event.AccountID),
 		zap.Uint("productID", event.ProductID), zap.Uint("orderID", event.OrderID),
@@ -35,7 +39,7 @@ func recordBusinessEvent(ctx context.Context, event model.BusinessEvent) {
 		}
 	}
 	if event.OwnerID != 0 {
-		if err := infra.DB.WithContext(ctx).Create(&event).Error; err != nil && infra.Log != nil {
+		if err := s.db.WithContext(ctx).Create(&event).Error; err != nil && infra.Log != nil {
 			infra.Log.Error("保存闲鱼业务日志失败", zap.Error(err), zap.String("type", event.Type), zap.Uint("accountID", event.AccountID))
 		}
 	}

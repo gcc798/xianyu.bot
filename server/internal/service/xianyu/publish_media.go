@@ -26,7 +26,7 @@ import (
 const publishImageUploadURL = "https://stream-upload.goofish.com/api/upload.api?floderId=0&appkey=fleamarket&_input_charset=utf-8"
 
 func reuploadPublishImages(ctx context.Context, ownerID, accountID uint, payload map[string]any) error {
-	if _, err := ownedAccount(ctx, ownerID, accountID); err != nil {
+	if _, err := ownedAccount(ctx, infra.DB, ownerID, accountID); err != nil {
 		return err
 	}
 	images, ok := payload["imageInfoDOList"].([]any)

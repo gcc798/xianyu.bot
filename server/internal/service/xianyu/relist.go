@@ -9,7 +9,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gcc798/go.xianyu.assistant/server/internal/infra"
 	"github.com/gcc798/go.xianyu.assistant/server/internal/model/xianyu"
 	xyRequest "github.com/gcc798/go.xianyu.assistant/server/internal/model/xianyu/request"
 	"gorm.io/gorm"
@@ -17,6 +16,8 @@ import (
 )
 
 type relist struct {
+	db       *gorm.DB
+	events   *businessEvent
 	mtop     mtopCaller
 	products *product
 	media    func(context.Context, uint, uint, map[string]any) error
@@ -26,7 +27,7 @@ func (s *relist) caller() mtopCaller {
 	if s.mtop != nil {
 		return s.mtop
 	}
-	return new(mtopClient)
+	return &mtopClient{db: s.db}
 }
 
 func (s *relist) Plan(ctx context.Context, order model.Order) error {
@@ -34,14 +35,14 @@ func (s *relist) Plan(ctx context.Context, order model.Order) error {
 		return nil
 	}
 	var setting model.ProductSetting
-	if err := infra.DB.WithContext(ctx).Where("product_id = ? AND auto_relist_enabled = ?", order.ProductID, true).First(&setting).Error; err != nil {
+	if err := s.db.WithContext(ctx).Where("product_id = ? AND auto_relist_enabled = ?", order.ProductID, true).First(&setting).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil
 		}
 		return err
 	}
 	var item model.Product
-	if err := infra.DB.WithContext(ctx).Where("id = ? AND owner_id = ?", order.ProductID, order.OwnerID).First(&item).Error; err != nil {
+	if err := s.db.WithContext(ctx).Where("id = ? AND owner_id = ?", order.ProductID, order.OwnerID).First(&item).Error; err != nil {
 		return err
 	}
 	if s.products != nil {
@@ -53,7 +54,7 @@ func (s *relist) Plan(ctx context.Context, order model.Order) error {
 			return fmt.Errorf("刷新续售发布快照: %w", err)
 		}
 		item.PublishSnapshot = snapshot
-		if err := infra.DB.WithContext(ctx).Model(&item).Update("publish_snapshot", snapshot).Error; err != nil {
+		if err := s.db.WithContext(ctx).Model(&item).Update("publish_snapshot", snapshot).Error; err != nil {
 			return err
 		}
 	}
@@ -64,11 +65,11 @@ func (s *relist) Plan(ctx context.Context, order model.Order) error {
 		OwnerID: order.OwnerID, AccountID: order.AccountID, OrderID: order.ID, ProductID: order.ProductID,
 		Status: model.RelistTaskPending, NextAttemptAt: time.Now().Add(time.Duration(setting.RelistDelaySeconds) * time.Second),
 	}
-	return infra.DB.WithContext(ctx).Clauses(clause.OnConflict{DoNothing: true}).Create(&task).Error
+	return s.db.WithContext(ctx).Clauses(clause.OnConflict{DoNothing: true}).Create(&task).Error
 }
 
 func (s *relist) ProcessTask(ctx context.Context, ownerID, taskID uint) error {
-	db := infra.DB.WithContext(ctx)
+	db := s.db.WithContext(ctx)
 	claim := db.Model(&model.RelistTask{}).
 		Where("id = ? AND owner_id = ? AND status IN ? AND next_attempt_at <= ?", taskID, ownerID,
 			[]string{model.RelistTaskPending, model.RelistTaskFailed}, time.Now()).
@@ -116,7 +117,7 @@ func (s *relist) ProcessTask(ctx context.Context, ownerID, taskID uint) error {
 	data, err := s.caller().Call(ctx, ownerID, task.AccountID, snapshot.API, snapshot.Payload, snapshot.Seller)
 	if err != nil {
 		if errors.Is(err, errMTopTransport) {
-			recordBusinessEvent(ctx, model.BusinessEvent{OwnerID: ownerID, AccountID: task.AccountID, ProductID: task.ProductID, OrderID: task.OrderID, Type: "relist", Status: "unknown", Summary: "自动续售结果未知", Error: err.Error()})
+			s.events.Record(ctx, model.BusinessEvent{OwnerID: ownerID, AccountID: task.AccountID, ProductID: task.ProductID, OrderID: task.OrderID, Type: "relist", Status: "unknown", Summary: "自动续售结果未知", Error: err.Error()})
 			return db.Model(&task).Updates(map[string]any{"status": model.RelistTaskUnknown, "last_error": err.Error()}).Error
 		}
 		return s.failTask(db, task, err)
@@ -124,7 +125,7 @@ func (s *relist) ProcessTask(ctx context.Context, ownerID, taskID uint) error {
 	newItemID := findPublishedItemID(data)
 	if newItemID == "" {
 		err := errors.New("闲鱼已接收发布请求但未返回新商品 ID")
-		recordBusinessEvent(ctx, model.BusinessEvent{OwnerID: ownerID, AccountID: task.AccountID, ProductID: task.ProductID, OrderID: task.OrderID, Type: "relist", Status: "unknown", Summary: "自动续售结果未知", Error: err.Error()})
+		s.events.Record(ctx, model.BusinessEvent{OwnerID: ownerID, AccountID: task.AccountID, ProductID: task.ProductID, OrderID: task.OrderID, Type: "relist", Status: "unknown", Summary: "自动续售结果未知", Error: err.Error()})
 		return db.Model(&task).Updates(map[string]any{"status": model.RelistTaskUnknown, "last_error": err.Error()}).Error
 	}
 	var newProductID uint
@@ -148,7 +149,7 @@ func (s *relist) ProcessTask(ctx context.Context, ownerID, taskID uint) error {
 		return nil
 	})
 	if txErr == nil {
-		recordBusinessEvent(ctx, model.BusinessEvent{OwnerID: ownerID, AccountID: task.AccountID, ProductID: newProductID, OrderID: task.OrderID, Type: "relist", Status: "success", Summary: "商品自动续售成功"})
+		s.events.Record(ctx, model.BusinessEvent{OwnerID: ownerID, AccountID: task.AccountID, ProductID: newProductID, OrderID: task.OrderID, Type: "relist", Status: "success", Summary: "商品自动续售成功"})
 	}
 	return txErr
 }
@@ -245,7 +246,7 @@ func firstNonEmpty(values ...any) string {
 
 func (s *relist) processDue(ctx context.Context, accountID uint) {
 	var tasks []model.RelistTask
-	if err := infra.DB.WithContext(ctx).Where("account_id = ? AND status IN ? AND next_attempt_at <= ?", accountID,
+	if err := s.db.WithContext(ctx).Where("account_id = ? AND status IN ? AND next_attempt_at <= ?", accountID,
 		[]string{model.RelistTaskPending, model.RelistTaskFailed}, time.Now()).Order("id").Limit(10).Find(&tasks).Error; err != nil {
 		return
 	}
@@ -260,7 +261,7 @@ func (s *relist) processDue(ctx context.Context, accountID uint) {
 func (s *relist) failTask(db *gorm.DB, task model.RelistTask, err error) error {
 	delay := time.Duration(1<<min(task.Attempts, 6)) * time.Second
 	updateErr := db.Model(&task).Updates(map[string]any{"status": model.RelistTaskFailed, "last_error": err.Error(), "next_attempt_at": time.Now().Add(delay)}).Error
-	recordBusinessEvent(db.Statement.Context, model.BusinessEvent{OwnerID: task.OwnerID, AccountID: task.AccountID, ProductID: task.ProductID, OrderID: task.OrderID, Type: "relist", Status: "failed", Summary: "自动续售失败", Error: err.Error()})
+	s.events.Record(db.Statement.Context, model.BusinessEvent{OwnerID: task.OwnerID, AccountID: task.AccountID, ProductID: task.ProductID, OrderID: task.OrderID, Type: "relist", Status: "failed", Summary: "自动续售失败", Error: err.Error()})
 	return errors.Join(err, updateErr)
 }
 

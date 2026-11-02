@@ -9,7 +9,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/gcc798/go.xianyu.assistant/server/internal/infra"
 	"github.com/gcc798/go.xianyu.assistant/server/internal/model/xianyu"
 	xyRequest "github.com/gcc798/go.xianyu.assistant/server/internal/model/xianyu/request"
 	xyResponse "github.com/gcc798/go.xianyu.assistant/server/internal/model/xianyu/response"
@@ -18,6 +17,8 @@ import (
 )
 
 type order struct {
+	db      *gorm.DB
+	events  *businessEvent
 	mtop    mtopCaller
 	planner deliveryPlanner
 	sender  textSender
@@ -51,11 +52,11 @@ func (s *order) caller() mtopCaller {
 	if s.mtop != nil {
 		return s.mtop
 	}
-	return new(mtopClient)
+	return &mtopClient{db: s.db}
 }
 
 func (s *order) SyncPending(ctx context.Context, ownerID, accountID uint) (int, error) {
-	if _, err := ownedAccount(ctx, ownerID, accountID); err != nil {
+	if _, err := ownedAccount(ctx, s.db, ownerID, accountID); err != nil {
 		return 0, err
 	}
 	data, err := s.caller().Call(ctx, ownerID, accountID, "mtop.taobao.idle.trade.merchant.sold.get", map[string]any{
@@ -68,7 +69,7 @@ func (s *order) SyncPending(ctx context.Context, ownerID, accountID uint) (int, 
 	if err := json.Unmarshal(data, &page); err != nil {
 		return 0, errors.New("闲鱼订单响应格式无法识别")
 	}
-	db := infra.DB.WithContext(ctx)
+	db := s.db.WithContext(ctx)
 	count := 0
 	for _, source := range page.Module.Items {
 		if strings.TrimSpace(source.CommonData.OrderID) == "" {
@@ -102,7 +103,7 @@ func (s *order) SyncPending(ctx context.Context, ownerID, accountID uint) (int, 
 		}
 		count++
 	}
-	recordBusinessEvent(ctx, model.BusinessEvent{OwnerID: ownerID, AccountID: accountID, Type: "order_sync", Status: "success", Summary: fmt.Sprintf("同步 %d 条待发货订单", count)})
+	s.events.Record(ctx, model.BusinessEvent{OwnerID: ownerID, AccountID: accountID, Type: "order_sync", Status: "success", Summary: fmt.Sprintf("同步 %d 条待发货订单", count)})
 	return count, nil
 }
 
@@ -129,7 +130,7 @@ func (s *order) List(ctx context.Context, ownerID uint, input xyRequest.OrderSea
 	if ownerID == 0 {
 		return nil, 0, errors.New("用户未登录")
 	}
-	db := infra.DB.WithContext(ctx).Table("xy_orders AS o").Where("o.owner_id = ? AND o.deleted_at IS NULL", ownerID)
+	db := s.db.WithContext(ctx).Table("xy_orders AS o").Where("o.owner_id = ? AND o.deleted_at IS NULL", ownerID)
 	if input.AccountID != 0 {
 		db = db.Where("o.account_id = ?", input.AccountID)
 	}
@@ -164,7 +165,7 @@ func (s *order) UpsertFromMessage(ctx context.Context, account model.Account, it
 		eventType = model.OrderStatusPendingDelivery
 	}
 	var saved model.Order
-	err := infra.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var product model.Product
 		if err := tx.Where("owner_id = ? AND account_id = ? AND external_product_id = ?", account.OwnerID, account.ID, item.ExternalProductID).
 			First(&product).Error; err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {

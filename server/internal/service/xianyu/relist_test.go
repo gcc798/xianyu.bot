@@ -42,9 +42,9 @@ func TestRelistPublishesOnceAndMovesProductRules(t *testing.T) {
 	require.NoError(t, db.Create(&order).Error)
 	publisher := &recordingMTopCaller{}
 	publisher.calls = nil
-	service := &relist{
+	service := &relist{db: infra.DB, events: &businessEvent{db: infra.DB},
 		mtop:     mtopResultCaller{recordingMTopCaller: publisher, data: json.RawMessage(`{"itemId":"new-item"}`)},
-		products: &product{mtop: fakeMTopCaller{data: json.RawMessage(`{"itemDO":{"imageInfos":[{"url":"https://img.example/new.jpg"}]}}`)}},
+		products: &product{db: infra.DB, events: &businessEvent{db: infra.DB}, mtop: fakeMTopCaller{data: json.RawMessage(`{"itemDO":{"imageInfos":[{"url":"https://img.example/new.jpg"}]}}`)}},
 		media:    func(context.Context, uint, uint, map[string]any) error { return nil },
 	}
 

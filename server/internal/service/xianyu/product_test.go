@@ -52,7 +52,7 @@ func TestProductSyncUsesRemoteDataAndIsOwnerScoped(t *testing.T) {
 	}))
 	t.Cleanup(server.Close)
 
-	service := &product{client: server.Client(), endpoint: server.URL}
+	service := &product{db: infra.DB, events: &businessEvent{db: infra.DB}, client: server.Client(), endpoint: server.URL}
 	input := xyRequest.ProductSync{AccountID: account.ID}
 	_, err = service.Sync(t.Context(), 11, input)
 	require.Error(t, err)
@@ -98,20 +98,21 @@ func TestProductListFiltersByTitleOrIDAndStatus(t *testing.T) {
 	} {
 		require.NoError(t, db.Create(&item).Error)
 	}
-	list, total, err := new(product).List(t.Context(), 10, xyRequest.ProductSearch{})
+	service := &product{db: infra.DB, events: &businessEvent{db: infra.DB}}
+	list, total, err := service.List(t.Context(), 10, xyRequest.ProductSearch{})
 	require.NoError(t, err)
 	require.EqualValues(t, 3, total)
 	require.Equal(t, []string{"item-1", "item-3", "item-2"}, []string{list[0].ExternalProductID, list[1].ExternalProductID, list[2].ExternalProductID})
 	require.Equal(t, []string{"https://img.example/1.jpg", "https://img.example/2.jpg"}, list[0].ImageURLs)
-	list, total, err = new(product).List(t.Context(), 10, xyRequest.ProductSearch{TitleOrID: "天涯", Status: "sold"})
+	list, total, err = service.List(t.Context(), 10, xyRequest.ProductSearch{TitleOrID: "天涯", Status: "sold"})
 	require.NoError(t, err)
 	require.EqualValues(t, 1, total)
 	require.Equal(t, "item-2", list[0].ExternalProductID)
-	list, total, err = new(product).List(t.Context(), 10, xyRequest.ProductSearch{TitleOrID: "item-3"})
+	list, total, err = service.List(t.Context(), 10, xyRequest.ProductSearch{TitleOrID: "item-3"})
 	require.NoError(t, err)
 	require.EqualValues(t, 1, total)
 	require.Equal(t, "item-3", list[0].ExternalProductID)
-	_, _, err = new(product).List(t.Context(), 10, xyRequest.ProductSearch{Status: "deleted"})
+	_, _, err = service.List(t.Context(), 10, xyRequest.ProductSearch{Status: "deleted"})
 	require.ErrorContains(t, err, "商品状态无效")
 }
 
@@ -179,7 +180,7 @@ func TestCapturePublishSnapshotAdaptsDetailResponseAndUsesLatestImages(t *testin
 		SourceJSON:      `{"categoryId":50023914,"detailParams":{"imageInfos":"[{\"url\":\"https://img.example/old.jpg\"}]"}}`,
 		PublishSnapshot: `{"api":"mtop.idle.pc.idleitem.publish","payload":{"itemAddrDTO":{"divisionId":"330106","gps":"30.25961,120.13026","poiId":"poi-1","poiName":"西湖区"}}}`,
 	}
-	service := &product{mtop: fakeMTopCaller{data: json.RawMessage(`{"itemDO":{"imageInfos":[{"url":"https://img.example/new.jpg"}]},"picDetailDO":{}}`)}}
+	service := &product{db: infra.DB, events: &businessEvent{db: infra.DB}, mtop: fakeMTopCaller{data: json.RawMessage(`{"itemDO":{"imageInfos":[{"url":"https://img.example/new.jpg"}]},"picDetailDO":{}}`)}}
 	snapshotJSON, err := service.capturePublishSnapshot(t.Context(), 10, item, xyRequest.UpdateProductSetting{RelistDescription: "新描述"})
 	require.NoError(t, err)
 	var snapshot publishSnapshot
@@ -203,7 +204,7 @@ func TestUpdateSettingUsesOriginalDescriptionUnlessCustomized(t *testing.T) {
 		"itemPriceDTO":{},"imageInfoDOList":[],"itemCatDTO":{},"itemPostFeeDTO":{},
 		"itemAddrDTO":{"divisionId":"330106","gps":"30.25961,120.13026","poiId":"poi-1","poiName":"西湖区"}
 	}`)
-	service := &product{mtop: fakeMTopCaller{data: detail}}
+	service := &product{db: infra.DB, events: &businessEvent{db: infra.DB}, mtop: fakeMTopCaller{data: detail}}
 
 	require.NoError(t, service.UpdateSetting(t.Context(), 10, xyRequest.UpdateProductSetting{
 		ProductID: item.ID, AutoRelistEnabled: true, RelistDescription: item.Title,

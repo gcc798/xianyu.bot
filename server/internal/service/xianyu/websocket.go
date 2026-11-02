@@ -21,6 +21,7 @@ import (
 	"github.com/gcc798/go.xianyu.assistant/server/internal/xianyu/protocol"
 	"go.uber.org/zap"
 	"golang.org/x/net/websocket"
+	"gorm.io/gorm"
 )
 
 const (
@@ -271,7 +272,7 @@ func isSyncChangeSignal(raw []byte) bool {
 }
 
 func (s *webSocketService) Start(ctx context.Context, ownerID, accountID uint) error {
-	account, err := ownedAccount(ctx, ownerID, accountID)
+	account, err := ownedAccount(ctx, infra.DB, ownerID, accountID)
 	if err != nil {
 		return err
 	}
@@ -312,7 +313,7 @@ func (s *webSocketService) StartEnabledAccounts(ctx context.Context) {
 }
 
 func (s *webSocketService) Stop(ctx context.Context, ownerID, accountID uint) error {
-	if _, err := ownedAccount(ctx, ownerID, accountID); err != nil {
+	if _, err := ownedAccount(ctx, infra.DB, ownerID, accountID); err != nil {
 		return err
 	}
 	if !s.stopRuntime(accountID) {
@@ -460,7 +461,7 @@ func (s *webSocketService) stopKeepalive(accountID uint) {
 }
 
 func (s *webSocketService) Status(ctx context.Context, ownerID, accountID uint) (xyResponse.WebSocketStatus, error) {
-	account, err := ownedAccount(ctx, ownerID, accountID)
+	account, err := ownedAccount(ctx, infra.DB, ownerID, accountID)
 	if err != nil {
 		return xyResponse.WebSocketStatus{}, err
 	}
@@ -473,7 +474,7 @@ func (s *webSocketService) Status(ctx context.Context, ownerID, accountID uint) 
 }
 
 func (s *webSocketService) SendText(ctx context.Context, ownerID, accountID uint, sessionID, toUserID, text string) error {
-	account, err := ownedAccount(ctx, ownerID, accountID)
+	account, err := ownedAccount(ctx, infra.DB, ownerID, accountID)
 	if err != nil {
 		return err
 	}
@@ -527,12 +528,12 @@ func buildTextMessage(sessionID, toUserID, fromUserID, text string) ([]byte, err
 	return json.Marshal(message)
 }
 
-func ownedAccount(ctx context.Context, ownerID, accountID uint) (model.Account, error) {
+func ownedAccount(ctx context.Context, db *gorm.DB, ownerID, accountID uint) (model.Account, error) {
 	if ownerID == 0 || accountID == 0 {
 		return model.Account{}, errors.New("账号 ID 不能为空")
 	}
 	var account model.Account
-	if err := infra.DB.WithContext(ctx).Where("id = ? AND owner_id = ?", accountID, ownerID).First(&account).Error; err != nil {
+	if err := db.WithContext(ctx).Where("id = ? AND owner_id = ?", accountID, ownerID).First(&account).Error; err != nil {
 		return model.Account{}, err
 	}
 	return account, nil

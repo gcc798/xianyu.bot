@@ -17,7 +17,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gcc798/go.xianyu.assistant/server/internal/infra"
 	"github.com/gcc798/go.xianyu.assistant/server/internal/model/xianyu"
 	xyRequest "github.com/gcc798/go.xianyu.assistant/server/internal/model/xianyu/request"
 	xyResponse "github.com/gcc798/go.xianyu.assistant/server/internal/model/xianyu/response"
@@ -28,6 +27,8 @@ import (
 const productListEndpoint = "https://h5api.m.goofish.com/h5/mtop.idle.web.xyh.item.list/1.0/"
 
 type product struct {
+	db       *gorm.DB
+	events   *businessEvent
 	client   *http.Client
 	endpoint string
 	mtop     mtopCaller
@@ -78,7 +79,7 @@ func (s *product) List(ctx context.Context, ownerID uint, input xyRequest.Produc
 	if ownerID == 0 {
 		return nil, 0, errors.New("用户未登录")
 	}
-	db := infra.DB.WithContext(ctx).Table("xy_products AS p").Where("p.owner_id = ? AND p.deleted_at IS NULL", ownerID)
+	db := s.db.WithContext(ctx).Table("xy_products AS p").Where("p.owner_id = ? AND p.deleted_at IS NULL", ownerID)
 	if input.AccountID != 0 {
 		db = db.Where("p.account_id = ?", input.AccountID)
 	}
@@ -168,7 +169,7 @@ func (s *product) Sync(ctx context.Context, ownerID uint, input xyRequest.Produc
 	lock.Lock()
 	defer lock.Unlock()
 
-	db := infra.DB.WithContext(ctx)
+	db := s.db.WithContext(ctx)
 	var account model.Account
 	if err := db.Where("id = ? AND owner_id = ?", input.AccountID, ownerID).First(&account).Error; err != nil {
 		return 0, err
@@ -252,7 +253,7 @@ func (s *product) Sync(ctx context.Context, ownerID uint, input xyRequest.Produc
 		return offline.Update("status", "offline").Error
 	})
 	if err == nil {
-		recordBusinessEvent(ctx, model.BusinessEvent{OwnerID: ownerID, AccountID: input.AccountID, Type: "product_sync", Status: "success", Summary: fmt.Sprintf("同步 %d 个在售商品", len(all))})
+		s.events.Record(ctx, model.BusinessEvent{OwnerID: ownerID, AccountID: input.AccountID, Type: "product_sync", Status: "success", Summary: fmt.Sprintf("同步 %d 个在售商品", len(all))})
 	}
 	return len(all), err
 }
@@ -393,7 +394,7 @@ func (s *product) UpdateSetting(ctx context.Context, ownerID uint, input xyReque
 	if input.RelistDelaySeconds < 0 || input.RelistDelaySeconds > 86400 {
 		return errors.New("自动续售延迟必须在 0 到 86400 秒之间")
 	}
-	db := infra.DB.WithContext(ctx)
+	db := s.db.WithContext(ctx)
 	var item model.Product
 	if err := db.Where("id = ? AND owner_id = ?", input.ProductID, ownerID).First(&item).Error; err != nil {
 		return err
@@ -437,7 +438,7 @@ func (s *product) UpdateSetting(ctx context.Context, ownerID uint, input xyReque
 func (s *product) capturePublishSnapshot(ctx context.Context, ownerID uint, item model.Product, input xyRequest.UpdateProductSetting) (string, error) {
 	caller := s.mtop
 	if caller == nil {
-		caller = new(mtopClient)
+		caller = &mtopClient{db: s.db}
 	}
 	data, err := caller.Call(ctx, ownerID, item.AccountID, "mtop.idle.pc.backend.idleitem.editdetail", map[string]any{"itemId": item.ExternalProductID}, true)
 	if err != nil {
