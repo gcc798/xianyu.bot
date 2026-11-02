@@ -7,13 +7,12 @@ import (
 
 	"github.com/flipped-aurora/gin-vue-admin/server/core/internal"
 	"github.com/flipped-aurora/gin-vue-admin/server/global"
-	"github.com/fsnotify/fsnotify"
 	"github.com/gin-gonic/gin"
 	"github.com/spf13/viper"
 )
 
 // Viper 配置
-func Viper() *viper.Viper {
+func Viper() {
 	config := getConfigPath()
 
 	v := viper.New()
@@ -23,19 +22,9 @@ func Viper() *viper.Viper {
 	if err != nil {
 		panic(fmt.Errorf("fatal error config file: %w", err))
 	}
-	v.WatchConfig()
-
-	v.OnConfigChange(func(e fsnotify.Event) {
-		fmt.Println("config file changed:", e.Name)
-		if err = v.Unmarshal(&global.GVA_CONFIG); err != nil {
-			fmt.Println(err)
-		}
-	})
 	if err = v.Unmarshal(&global.GVA_CONFIG); err != nil {
 		panic(fmt.Errorf("fatal error unmarshal config: %w", err))
 	}
-
-	return v
 }
 
 // getConfigPath 获取配置文件路径, 优先级: 命令行 > 环境变量 > 默认值

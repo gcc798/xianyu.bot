@@ -20,8 +20,8 @@ func (b *BaseApi) Login(c *gin.Context) {
 		response.FailWithMessage(err.Error(), c)
 		return
 	}
-	if err := utils.Verify(input, utils.LoginVerify); err != nil {
-		response.FailWithMessage(err.Error(), c)
+	if input.Username == "" || input.Password == "" {
+		response.FailWithMessage("用户名和密码不能为空", c)
 		return
 	}
 	user, err := userService.Login(&system.SysUser{Username: input.Username, Password: input.Password})
@@ -67,8 +67,8 @@ func (b *BaseApi) Register(c *gin.Context) {
 		response.FailWithMessage(err.Error(), c)
 		return
 	}
-	if err := utils.Verify(input, utils.RegisterVerify); err != nil {
-		response.FailWithMessage(err.Error(), c)
+	if input.Username == "" || input.Password == "" || input.NickName == "" || input.AuthorityId == 0 {
+		response.FailWithMessage("用户名、密码、昵称和角色不能为空", c)
 		return
 	}
 	user, err := userService.Register(system.SysUser{
@@ -89,8 +89,8 @@ func (b *BaseApi) ChangePassword(c *gin.Context) {
 		response.FailWithMessage(err.Error(), c)
 		return
 	}
-	if err := utils.Verify(input, utils.ChangePasswordVerify); err != nil {
-		response.FailWithMessage(err.Error(), c)
+	if input.Password == "" || input.NewPassword == "" {
+		response.FailWithMessage("原密码和新密码不能为空", c)
 		return
 	}
 	err := userService.ChangePassword(&system.SysUser{
@@ -109,8 +109,8 @@ func (b *BaseApi) GetUserList(c *gin.Context) {
 		response.FailWithMessage(err.Error(), c)
 		return
 	}
-	if err := utils.Verify(page, utils.PageInfoVerify); err != nil {
-		response.FailWithMessage(err.Error(), c)
+	if page.Page == 0 || page.PageSize == 0 {
+		response.FailWithMessage("页码和每页数量不能为空", c)
 		return
 	}
 	list, total, err := userService.GetUserInfoList(page)
@@ -127,8 +127,8 @@ func (b *BaseApi) DeleteUser(c *gin.Context) {
 		response.FailWithMessage(err.Error(), c)
 		return
 	}
-	if err := utils.Verify(input, utils.IdVerify); err != nil {
-		response.FailWithMessage(err.Error(), c)
+	if input.ID == 0 {
+		response.FailWithMessage("用户 ID 不能为空", c)
 		return
 	}
 	if utils.GetUserID(c) == uint(input.ID) {
@@ -148,8 +148,8 @@ func (b *BaseApi) SetUserInfo(c *gin.Context) {
 		response.FailWithMessage(err.Error(), c)
 		return
 	}
-	if err := utils.Verify(input, utils.IdVerify); err != nil {
-		response.FailWithMessage(err.Error(), c)
+	if input.ID == 0 {
+		response.FailWithMessage("用户 ID 不能为空", c)
 		return
 	}
 	if err := userService.SetUserInfo(system.SysUser{

@@ -12,8 +12,5 @@ func (s *DictionaryRouter) InitSysDictionaryRouter(router *gin.RouterGroup) {
 	dictionary.POST("createSysDictionary", dictionaryApi.CreateSysDictionary)
 	dictionary.DELETE("deleteSysDictionary", dictionaryApi.DeleteSysDictionary)
 	dictionary.PUT("updateSysDictionary", dictionaryApi.UpdateSysDictionary)
-	dictionary.POST("importSysDictionary", dictionaryApi.ImportSysDictionary)
-	dictionary.GET("exportSysDictionary", dictionaryApi.ExportSysDictionary)
-	dictionary.GET("findSysDictionary", dictionaryApi.FindSysDictionary)
 	dictionary.GET("getSysDictionaryList", dictionaryApi.GetSysDictionaryList)
 }

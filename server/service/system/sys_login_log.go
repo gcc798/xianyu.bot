@@ -2,7 +2,6 @@ package system
 
 import (
 	"github.com/flipped-aurora/gin-vue-admin/server/global"
-	"github.com/flipped-aurora/gin-vue-admin/server/model/common/request"
 	"github.com/flipped-aurora/gin-vue-admin/server/model/system"
 	systemReq "github.com/flipped-aurora/gin-vue-admin/server/model/system/request"
 )
@@ -16,19 +15,9 @@ func (loginLogService *LoginLogService) CreateLoginLog(loginLog system.SysLoginL
 	return err
 }
 
-func (loginLogService *LoginLogService) DeleteLoginLogByIds(ids request.IdsReq) (err error) {
-	err = global.GVA_DB.Delete(&[]system.SysLoginLog{}, "id in (?)", ids.Ids).Error
-	return err
-}
-
 func (loginLogService *LoginLogService) DeleteLoginLog(loginLog system.SysLoginLog) (err error) {
 	err = global.GVA_DB.Delete(&loginLog).Error
 	return err
-}
-
-func (loginLogService *LoginLogService) GetLoginLog(id uint) (loginLog system.SysLoginLog, err error) {
-	err = global.GVA_DB.Where("id = ?", id).First(&loginLog).Error
-	return
 }
 
 func (loginLogService *LoginLogService) GetLoginLogInfoList(info systemReq.SysLoginLogSearch) (list interface{}, total int64, err error) {

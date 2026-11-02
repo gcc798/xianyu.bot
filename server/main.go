@@ -18,7 +18,7 @@ func main() {
 }
 
 func initializeSystem() {
-	global.GVA_VP = core.Viper()
+	core.Viper()
 	initialize.OtherInit()
 	global.GVA_LOG = core.Zap()
 	zap.ReplaceGlobals(global.GVA_LOG)

@@ -6,7 +6,6 @@ import (
 
 	"github.com/flipped-aurora/gin-vue-admin/server/core/internal"
 	"github.com/flipped-aurora/gin-vue-admin/server/global"
-	"github.com/flipped-aurora/gin-vue-admin/server/utils"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
@@ -14,9 +13,8 @@ import (
 // Zap 获取 zap.Logger
 // Author [SliverHorn](https://github.com/SliverHorn)
 func Zap() (logger *zap.Logger) {
-	if ok, _ := utils.PathExists(global.GVA_CONFIG.Zap.Director); !ok { // 判断是否有Director文件夹
-		fmt.Printf("create %v directory\n", global.GVA_CONFIG.Zap.Director)
-		_ = os.Mkdir(global.GVA_CONFIG.Zap.Director, os.ModePerm)
+	if err := os.MkdirAll(global.GVA_CONFIG.Zap.Director, 0o755); err != nil {
+		fmt.Printf("create log directory: %v\n", err)
 	}
 	levels := global.GVA_CONFIG.Zap.Levels()
 	length := len(levels)

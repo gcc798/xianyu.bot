@@ -56,7 +56,3 @@ func NoAuth(message string, c *gin.Context) {
 		message,
 	})
 }
-
-func FailWithDetailed(data interface{}, message string, c *gin.Context) {
-	Result(ERROR, data, message, c)
-}
