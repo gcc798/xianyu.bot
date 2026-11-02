@@ -6,13 +6,13 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/gcc798/go.xianyu.assistant/server/internal/infra"
 	"github.com/gcc798/go.xianyu.assistant/server/internal/model/xianyu"
 	xyRequest "github.com/gcc798/go.xianyu.assistant/server/internal/model/xianyu/request"
 	"gorm.io/gorm"
 )
 
 type account struct {
+	db           *gorm.DB
 	loginChecker loginChecker
 	webSocket    *webSocketService
 }
@@ -23,7 +23,7 @@ func (s *account) Create(ctx context.Context, ownerID uint, input xyRequest.Crea
 		return model.Account{}, err
 	}
 	item := model.Account{OwnerID: ownerID, Label: label, Note: strings.TrimSpace(input.Note), Status: "unconfigured", Enabled: true}
-	return item, infra.DB.WithContext(ctx).Create(&item).Error
+	return item, s.db.WithContext(ctx).Create(&item).Error
 }
 
 func (s *account) Update(ctx context.Context, ownerID uint, input xyRequest.UpdateAccount) error {
@@ -34,7 +34,7 @@ func (s *account) Update(ctx context.Context, ownerID uint, input xyRequest.Upda
 	if err := validateAccount(ownerID, label, input.Note); err != nil {
 		return err
 	}
-	result := infra.DB.WithContext(ctx).Model(&model.Account{}).
+	result := s.db.WithContext(ctx).Model(&model.Account{}).
 		Where("id = ? AND owner_id = ?", input.ID, ownerID).
 		Updates(map[string]any{"label": label, "note": strings.TrimSpace(input.Note), "enabled": input.Enabled})
 	if err := affected(result); err != nil {
@@ -51,13 +51,13 @@ func (s *account) Delete(ctx context.Context, ownerID, id uint) error {
 		return errors.New("账号 ID 不能为空")
 	}
 	var item model.Account
-	if err := infra.DB.WithContext(ctx).Where("id = ? AND owner_id = ?", id, ownerID).First(&item).Error; err != nil {
+	if err := s.db.WithContext(ctx).Where("id = ? AND owner_id = ?", id, ownerID).First(&item).Error; err != nil {
 		return err
 	}
 	if s.webSocket != nil {
 		s.webSocket.stopRuntime(id)
 	}
-	return infra.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := tx.Where("account_id = ?", id).Delete(&model.Credential{}).Error; err != nil {
 			return err
 		}
@@ -69,7 +69,7 @@ func (s *account) List(ctx context.Context, ownerID uint, input xyRequest.Accoun
 	if ownerID == 0 {
 		return nil, 0, errors.New("用户未登录")
 	}
-	db := infra.DB.WithContext(ctx).Model(&model.Account{}).Where("owner_id = ?", ownerID)
+	db := s.db.WithContext(ctx).Model(&model.Account{}).Where("owner_id = ?", ownerID)
 	if keyword := strings.TrimSpace(input.Keyword); keyword != "" {
 		like := "%" + keyword + "%"
 		db = db.Where("label LIKE ? OR note LIKE ? OR external_user_id LIKE ?", like, like, like)
@@ -102,7 +102,7 @@ func (s *account) SaveCredential(ctx context.Context, ownerID uint, input xyRequ
 		return errors.New("凭证长度超出限制")
 	}
 	var item model.Account
-	if err := infra.DB.WithContext(ctx).Where("id = ? AND owner_id = ?", input.ID, ownerID).First(&item).Error; err != nil {
+	if err := s.db.WithContext(ctx).Where("id = ? AND owner_id = ?", input.ID, ownerID).First(&item).Error; err != nil {
 		return err
 	}
 	cipherCookie, err := encryptCredential(cookie, credentialAAD(input.ID, "cookie"))
@@ -116,7 +116,7 @@ func (s *account) SaveCredential(ctx context.Context, ownerID uint, input xyRequ
 			return err
 		}
 	}
-	return infra.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var credential model.Credential
 		err := tx.Where("account_id = ?", input.ID).First(&credential).Error
 		switch {

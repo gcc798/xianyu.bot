@@ -50,7 +50,7 @@ func run() error {
 	systemServices.JWT.LoadRevokedTokens()
 	systemRoutes := systemRouter.New(systemAPI.New(systemServices, jwt))
 	mailSender := mail.NewSender(settings.Email)
-	xianyuDeps := xianyuService.Dependencies{SendNotificationEmail: mailSender.Send}
+	xianyuDeps := xianyuService.Dependencies{DB: infra.DB, SendNotificationEmail: mailSender.Send}
 	infra.RunServer(app.Routers(systemRoutes, jwt, xianyuDeps), settings.HTTP.Port)
 	return nil
 }

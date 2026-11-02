@@ -52,7 +52,7 @@ func TestDeliveryReservesEncryptedCardOnce(t *testing.T) {
 	rule := model.DeliveryRule{OwnerID: 10, ProductID: product.ID, Mode: model.DeliveryModeCard, Template: "卡密：{card}", Enabled: true}
 	require.NoError(t, db.Create(&rule).Error)
 	sender := &blockingDeliverySender{payload: make(chan string, 1), release: make(chan struct{})}
-	service := &delivery{consigner: sender, rules: new(deliveryRule), workers: make(map[uint]context.CancelFunc)}
+	service := &delivery{consigner: sender, rules: &deliveryRule{db: infra.DB}, workers: make(map[uint]context.CancelFunc)}
 	count, err := service.ImportResources(t.Context(), 10, xyRequest.ImportDeliveryResources{RuleID: rule.ID, Values: []string{"SECRET-CARD"}})
 	require.NoError(t, err)
 	require.Equal(t, 1, count)

@@ -2,14 +2,17 @@ package service
 
 import "context"
 
+import "gorm.io/gorm"
+
 type Dependencies struct {
+	DB                    *gorm.DB
 	SendNotificationEmail func(string, string, string) error
 }
 
 func New(deps Dependencies) *Services {
-	accounts := new(account)
-	rules := new(replyRule)
-	deliveryRules := new(deliveryRule)
+	accounts := &account{db: deps.DB}
+	rules := &replyRule{db: deps.DB}
+	deliveryRules := &deliveryRule{db: deps.DB}
 	orders := &order{mtop: new(mtopClient)}
 	products := new(product)
 	relists := &relist{mtop: new(mtopClient), products: products}
@@ -24,7 +27,7 @@ func New(deps Dependencies) *Services {
 	webSocket.delivery = deliveries
 	agentEvents := newAgentEventHub()
 	agentRunner := &agentRunner{events: agentEvents, workers: make(map[uint]context.CancelFunc)}
-	return &Services{Account: *accounts, Product: *products, Message: messages, ReplyRule: *rules, DeliveryRule: *deliveryRules, Delivery: deliveries, Relist: relists, Order: orders, QRLogin: newQRLogin(), WebSocket: webSocket, Resource: resourceCatalog{events: agentEvents}, AgentRunner: agentRunner, AgentEvents: agentEvents}
+	return &Services{Status: status{db: deps.DB}, Account: *accounts, Product: *products, Message: messages, ReplyRule: *rules, DeliveryRule: *deliveryRules, Delivery: deliveries, Relist: relists, Order: orders, QRLogin: newQRLogin(accounts), WebSocket: webSocket, Resource: resourceCatalog{events: agentEvents}, AgentRunner: agentRunner, AgentEvents: agentEvents}
 }
 
 type Services struct {

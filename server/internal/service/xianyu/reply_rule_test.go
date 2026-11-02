@@ -3,7 +3,6 @@ package service
 import (
 	"testing"
 
-	"github.com/gcc798/go.xianyu.assistant/server/internal/infra"
 	"github.com/gcc798/go.xianyu.assistant/server/internal/model/xianyu"
 	xyRequest "github.com/gcc798/go.xianyu.assistant/server/internal/model/xianyu/request"
 	"github.com/glebarez/sqlite"
@@ -16,15 +15,12 @@ func TestReplyRuleResolveOrderAndOwnerIsolation(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, db.AutoMigrate(&model.Account{}, &model.Product{}, &model.ReplyRule{}, &model.ReplyContent{}))
 
-	oldDB := infra.DB
-	t.Cleanup(func() { infra.DB = oldDB })
-	infra.DB = db
 	account := model.Account{OwnerID: 10, Label: "测试账号", Status: "configured", Enabled: true}
 	require.NoError(t, db.Create(&account).Error)
 	product := model.Product{OwnerID: 10, AccountID: account.ID, ExternalProductID: "item-1", Title: "测试商品"}
 	require.NoError(t, db.Create(&product).Error)
 
-	service := new(replyRule)
+	service := &replyRule{db: db}
 	for _, rule := range []xyRequest.SaveReplyRule{
 		{ProductID: product.ID, Type: model.ReplyRuleFuzzy, Keyword: "怎么", Priority: 100, Enabled: true, Content: "模糊回复"},
 		{ProductID: product.ID, Type: model.ReplyRuleFuzzy, Keyword: "卖", Priority: 200, Enabled: true, Content: "高优先级回复"},

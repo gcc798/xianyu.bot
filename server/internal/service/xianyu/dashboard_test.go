@@ -60,7 +60,7 @@ func TestDashboardOverviewIsOwnerAndAccountScoped(t *testing.T) {
 		Type: "delivery", Status: "failed", Summary: "自动发货失败",
 	}).Error)
 
-	overview, err := new(status).Overview(t.Context(), 10, xyRequest.DashboardOverview{
+	overview, err := (&status{db: infra.DB}).Overview(t.Context(), 10, xyRequest.DashboardOverview{
 		AccountID: account.ID, StartTime: start.UnixMilli(), EndTime: end.UnixMilli(),
 	})
 	require.NoError(t, err)
@@ -83,7 +83,7 @@ func TestDashboardOverviewIsOwnerAndAccountScoped(t *testing.T) {
 
 func TestDashboardOverviewRejectsMoreThanNinetyDays(t *testing.T) {
 	start := time.Now()
-	_, err := new(status).Overview(t.Context(), 1, xyRequest.DashboardOverview{
+	_, err := (&status{db: infra.DB}).Overview(t.Context(), 1, xyRequest.DashboardOverview{
 		StartTime: start.UnixMilli(), EndTime: start.Add(91 * 24 * time.Hour).UnixMilli(),
 	})
 	require.ErrorContains(t, err, "最多查询 90 天")

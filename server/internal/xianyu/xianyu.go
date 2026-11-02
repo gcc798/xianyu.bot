@@ -7,16 +7,16 @@ import (
 	"github.com/gcc798/go.xianyu.assistant/server/internal/api/middleware"
 	xianyuRouter "github.com/gcc798/go.xianyu.assistant/server/internal/api/router/xianyu"
 	"github.com/gcc798/go.xianyu.assistant/server/internal/api/xianyu"
-	"github.com/gcc798/go.xianyu.assistant/server/internal/infra"
 	"github.com/gcc798/go.xianyu.assistant/server/internal/model/xianyu"
 	"github.com/gcc798/go.xianyu.assistant/server/internal/security"
 	"github.com/gcc798/go.xianyu.assistant/server/internal/service/xianyu"
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
 
 func Initialize(engine *gin.Engine, jwt *security.JWT, deps service.Dependencies) error {
 	ctx := context.Background()
-	if err := initializeDatabase(ctx); err != nil {
+	if err := initializeDatabase(ctx, deps.DB); err != nil {
 		return err
 	}
 	if err := service.ValidateCredentialKey(); err != nil {
@@ -47,10 +47,10 @@ func Initialize(engine *gin.Engine, jwt *security.JWT, deps service.Dependencies
 	return nil
 }
 
-func initializeDatabase(ctx context.Context) error {
-	if infra.DB == nil {
+func initializeDatabase(ctx context.Context, db *gorm.DB) error {
+	if db == nil {
 		return errors.New("database is not initialized")
 	}
 	config := model.DefaultAgentConfig()
-	return infra.DB.WithContext(ctx).FirstOrCreate(&config, model.AgentConfig{ID: 1}).Error
+	return db.WithContext(ctx).FirstOrCreate(&config, model.AgentConfig{ID: 1}).Error
 }

@@ -123,7 +123,7 @@ func TestXyDialerRegistersAndRoutesSyncMessages(t *testing.T) {
 	t.Cleanup(func() { infra.DB = oldDB })
 	infra.DB = db
 	t.Setenv(credentialKeyEnvironment, base64.StdEncoding.EncodeToString([]byte("0123456789abcdef0123456789abcdef")))
-	accountService := new(account)
+	accountService := &account{db: infra.DB}
 	created, err := accountService.Create(t.Context(), 10, xyRequest.CreateAccount{Label: "连接账号"})
 	require.NoError(t, err)
 	require.NoError(t, accountService.SaveCredential(t.Context(), 10, xyRequest.SaveCredential{
@@ -169,7 +169,7 @@ func TestWebSocketStatusIsOwnerIsolated(t *testing.T) {
 	oldDB := infra.DB
 	t.Cleanup(func() { infra.DB = oldDB })
 	infra.DB = db
-	created, err := new(account).Create(t.Context(), 10, xyRequest.CreateAccount{Label: "隔离账号"})
+	created, err := (&account{db: infra.DB}).Create(t.Context(), 10, xyRequest.CreateAccount{Label: "隔离账号"})
 	require.NoError(t, err)
 
 	service := newWebSocketService(new(message), nil)

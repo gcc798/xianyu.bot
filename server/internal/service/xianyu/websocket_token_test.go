@@ -46,7 +46,7 @@ func TestWebSocketTokenIsEncryptedAndCached(t *testing.T) {
 	t.Cleanup(func() { infra.DB = oldDB })
 	infra.DB = db
 	t.Setenv(credentialKeyEnvironment, base64.StdEncoding.EncodeToString([]byte("0123456789abcdef0123456789abcdef")))
-	accountService := new(account)
+	accountService := &account{db: infra.DB}
 	created, err := accountService.Create(t.Context(), 10, xyRequest.CreateAccount{Label: "Token 账号"})
 	require.NoError(t, err)
 	require.NoError(t, accountService.SaveCredential(t.Context(), 10, xyRequest.SaveCredential{
@@ -96,7 +96,7 @@ func TestWebSocketTokenMarksAccountWhenVerificationIsRequired(t *testing.T) {
 	t.Cleanup(func() { infra.DB = oldDB })
 	infra.DB = db
 	t.Setenv(credentialKeyEnvironment, base64.StdEncoding.EncodeToString([]byte("0123456789abcdef0123456789abcdef")))
-	accountService := new(account)
+	accountService := &account{db: infra.DB}
 	created, err := accountService.Create(t.Context(), 10, xyRequest.CreateAccount{Label: "需验证账号"})
 	require.NoError(t, err)
 	require.NoError(t, accountService.SaveCredential(t.Context(), 10, xyRequest.SaveCredential{

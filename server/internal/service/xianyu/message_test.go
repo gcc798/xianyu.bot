@@ -182,7 +182,7 @@ func TestAutoReplyMergesMessagesAndSendsOnlyLatest(t *testing.T) {
 	product := model.Product{OwnerID: 10, AccountID: account.ID, ExternalProductID: "item-1", Title: "商品", Status: "on_sale"}
 	require.NoError(t, db.Create(&product).Error)
 	require.NoError(t, db.Create(&model.ProductSetting{ProductID: product.ID, AutoReplyEnabled: true, ReplyDelaySeconds: 1}).Error)
-	rules := new(replyRule)
+	rules := &replyRule{db: infra.DB}
 	require.NoError(t, rules.Save(t.Context(), 10, xyRequest.SaveReplyRule{
 		ProductID: product.ID, Type: model.ReplyRuleFuzzy, Keyword: "你好", Content: "自动回复内容", Enabled: true,
 	}))
@@ -235,7 +235,7 @@ func TestVirtualProductUsesDefaultFallbackReply(t *testing.T) {
 	}
 	require.NoError(t, db.Create(&incoming).Error)
 	sent := make(chan string, 1)
-	service := &message{sender: channelTextSender(sent), rules: new(replyRule), pending: make(map[string]pendingReply)}
+	service := &message{sender: channelTextSender(sent), rules: &replyRule{db: infra.DB}, pending: make(map[string]pendingReply)}
 
 	require.NoError(t, service.scheduleAutoReply(t.Context(), account, incoming))
 	select {
@@ -261,7 +261,7 @@ func TestHandleHistoryRepliesOnlyToLatestRecentMessage(t *testing.T) {
 	product := model.Product{OwnerID: 10, AccountID: account.ID, ExternalProductID: "item-1", Title: "商品", Status: "on_sale"}
 	require.NoError(t, db.Create(&product).Error)
 	require.NoError(t, db.Create(&model.ProductSetting{ProductID: product.ID, AutoReplyEnabled: true}).Error)
-	rules := new(replyRule)
+	rules := &replyRule{db: infra.DB}
 	require.NoError(t, rules.Save(t.Context(), 10, xyRequest.SaveReplyRule{
 		ProductID: product.ID, Type: model.ReplyRuleFuzzy, Keyword: "价格是什么", Content: "十元", Enabled: true,
 	}))

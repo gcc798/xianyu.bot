@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/gcc798/go.xianyu.assistant/server/internal/infra"
 	"github.com/gcc798/go.xianyu.assistant/server/internal/model/xianyu"
 	xyRequest "github.com/gcc798/go.xianyu.assistant/server/internal/model/xianyu/request"
 	xyResponse "github.com/gcc798/go.xianyu.assistant/server/internal/model/xianyu/response"
@@ -28,7 +27,7 @@ func (s *status) Overview(ctx context.Context, ownerID uint, input xyRequest.Das
 	if input.EndTime-input.StartTime > int64(90*24*time.Hour/time.Millisecond) {
 		return xyResponse.DashboardOverview{}, errors.New("工作台单次最多查询 90 天")
 	}
-	if infra.DB == nil {
+	if s.db == nil {
 		return xyResponse.DashboardOverview{}, errors.New("数据库未初始化")
 	}
 
@@ -42,7 +41,7 @@ func (s *status) Overview(ctx context.Context, ownerID uint, input xyRequest.Das
 		OrderTrend:   makeOrderTrend(input.StartTime, input.EndTime, bucketMillis),
 		RecentEvents: make([]xyResponse.BusinessEvent, 0),
 	}
-	db := infra.DB.WithContext(ctx)
+	db := s.db.WithContext(ctx)
 	if err := loadDashboardMetrics(db, ownerID, input, &overview); err != nil {
 		return xyResponse.DashboardOverview{}, err
 	}

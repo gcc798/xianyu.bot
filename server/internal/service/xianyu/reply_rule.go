@@ -5,20 +5,21 @@ import (
 	"errors"
 	"strings"
 
-	"github.com/gcc798/go.xianyu.assistant/server/internal/infra"
 	"github.com/gcc798/go.xianyu.assistant/server/internal/model/xianyu"
 	xyRequest "github.com/gcc798/go.xianyu.assistant/server/internal/model/xianyu/request"
 	xyResponse "github.com/gcc798/go.xianyu.assistant/server/internal/model/xianyu/response"
 	"gorm.io/gorm"
 )
 
-type replyRule struct{}
+type replyRule struct {
+	db *gorm.DB
+}
 
 func (s *replyRule) List(ctx context.Context, ownerID uint, input xyRequest.ReplyRuleSearch) ([]xyResponse.ReplyRule, int64, error) {
 	if ownerID == 0 {
 		return nil, 0, errors.New("用户未登录")
 	}
-	db := infra.DB.WithContext(ctx).Table("xy_reply_rules AS r").
+	db := s.db.WithContext(ctx).Table("xy_reply_rules AS r").
 		Joins("JOIN xy_reply_contents AS c ON c.rule_id = r.id AND c.deleted_at IS NULL").
 		Where("r.owner_id = ? AND r.deleted_at IS NULL", ownerID)
 	if input.ProductID != 0 {
@@ -57,7 +58,7 @@ func (s *replyRule) Save(ctx context.Context, ownerID uint, input xyRequest.Save
 	if err := validateReplyRule(ownerID, input); err != nil {
 		return err
 	}
-	db := infra.DB.WithContext(ctx)
+	db := s.db.WithContext(ctx)
 	var product model.Product
 	if err := db.Where("id = ? AND owner_id = ?", input.ProductID, ownerID).First(&product).Error; err != nil {
 		return err
@@ -103,7 +104,7 @@ func (s *replyRule) Delete(ctx context.Context, ownerID, id uint) error {
 	if ownerID == 0 || id == 0 {
 		return errors.New("规则 ID 不能为空")
 	}
-	return infra.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var rule model.ReplyRule
 		if err := tx.Where("id = ? AND owner_id = ?", id, ownerID).First(&rule).Error; err != nil {
 			return err
@@ -117,7 +118,7 @@ func (s *replyRule) Delete(ctx context.Context, ownerID, id uint) error {
 
 func (s *replyRule) Resolve(ctx context.Context, ownerID, productID uint, message string) (*xyResponse.ReplyRule, error) {
 	rules := make([]xyResponse.ReplyRule, 0)
-	err := infra.DB.WithContext(ctx).Table("xy_reply_rules AS r").
+	err := s.db.WithContext(ctx).Table("xy_reply_rules AS r").
 		Select("r.id, r.product_id, r.type, r.keyword, r.priority, r.enabled, c.text AS content").
 		Joins("JOIN xy_reply_contents AS c ON c.rule_id = r.id AND c.deleted_at IS NULL").
 		Where("r.owner_id = ? AND r.product_id = ? AND r.enabled = ? AND r.deleted_at IS NULL", ownerID, productID, true).

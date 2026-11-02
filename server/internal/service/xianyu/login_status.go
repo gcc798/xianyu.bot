@@ -14,7 +14,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gcc798/go.xianyu.assistant/server/internal/infra"
 	"github.com/gcc798/go.xianyu.assistant/server/internal/model/xianyu"
 	xyResponse "github.com/gcc798/go.xianyu.assistant/server/internal/model/xianyu/response"
 	"gorm.io/gorm"
@@ -56,7 +55,7 @@ func (s *account) CheckLogin(ctx context.Context, ownerID, accountID uint) (xyRe
 	lock.Lock()
 	defer lock.Unlock()
 
-	db := infra.DB.WithContext(ctx)
+	db := s.db.WithContext(ctx)
 	var account model.Account
 	if err := db.Where("id = ? AND owner_id = ?", accountID, ownerID).First(&account).Error; err != nil {
 		return xyResponse.LoginStatus{}, err

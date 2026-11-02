@@ -5,20 +5,21 @@ import (
 	"errors"
 	"strings"
 
-	"github.com/gcc798/go.xianyu.assistant/server/internal/infra"
 	"github.com/gcc798/go.xianyu.assistant/server/internal/model/xianyu"
 	xyRequest "github.com/gcc798/go.xianyu.assistant/server/internal/model/xianyu/request"
 	xyResponse "github.com/gcc798/go.xianyu.assistant/server/internal/model/xianyu/response"
 	"gorm.io/gorm"
 )
 
-type deliveryRule struct{}
+type deliveryRule struct {
+	db *gorm.DB
+}
 
 func (s *deliveryRule) List(ctx context.Context, ownerID uint, input xyRequest.DeliveryRuleSearch) ([]xyResponse.DeliveryRule, int64, error) {
 	if ownerID == 0 {
 		return nil, 0, errors.New("用户未登录")
 	}
-	db := infra.DB.WithContext(ctx).Table("xy_delivery_rules AS r").Where("r.owner_id = ? AND r.deleted_at IS NULL", ownerID)
+	db := s.db.WithContext(ctx).Table("xy_delivery_rules AS r").Where("r.owner_id = ? AND r.deleted_at IS NULL", ownerID)
 	if input.ProductID != 0 {
 		db = db.Where("r.product_id = ?", input.ProductID)
 	}
@@ -49,7 +50,7 @@ func (s *deliveryRule) Save(ctx context.Context, ownerID uint, input xyRequest.S
 	if err := validateDeliveryRule(ownerID, input); err != nil {
 		return err
 	}
-	db := infra.DB.WithContext(ctx)
+	db := s.db.WithContext(ctx)
 	var product model.Product
 	if err := db.Where("id = ? AND owner_id = ?", input.ProductID, ownerID).First(&product).Error; err != nil {
 		return err
@@ -77,14 +78,14 @@ func (s *deliveryRule) Delete(ctx context.Context, ownerID, id uint) error {
 	if ownerID == 0 || id == 0 {
 		return errors.New("发货规则 ID 不能为空")
 	}
-	result := infra.DB.WithContext(ctx).Unscoped().Where("id = ? AND owner_id = ?", id, ownerID).Delete(&model.DeliveryRule{})
+	result := s.db.WithContext(ctx).Unscoped().Where("id = ? AND owner_id = ?", id, ownerID).Delete(&model.DeliveryRule{})
 	return affected(result)
 }
 
 func (s *deliveryRule) Resolve(ctx context.Context, ownerID, productID uint, skuKey string) (*xyResponse.DeliveryRule, error) {
 	skuKey = strings.TrimSpace(skuKey)
 	var rule xyResponse.DeliveryRule
-	db := infra.DB.WithContext(ctx).Table("xy_delivery_rules AS r").
+	db := s.db.WithContext(ctx).Table("xy_delivery_rules AS r").
 		Select("r.id, r.product_id, r.sku_key, r.sku_name, r.mode, r.template, r.enabled").
 		Where("r.owner_id = ? AND r.product_id = ? AND r.enabled = ? AND r.deleted_at IS NULL", ownerID, productID, true)
 	if skuKey == "" {

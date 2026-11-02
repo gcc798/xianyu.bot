@@ -3,7 +3,6 @@ package service
 import (
 	"testing"
 
-	"github.com/gcc798/go.xianyu.assistant/server/internal/infra"
 	"github.com/gcc798/go.xianyu.assistant/server/internal/model/xianyu"
 	xyRequest "github.com/gcc798/go.xianyu.assistant/server/internal/model/xianyu/request"
 	"github.com/glebarez/sqlite"
@@ -16,15 +15,12 @@ func TestDeliveryRulePrefersSKUAndChecksOwner(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, db.AutoMigrate(&model.Account{}, &model.Product{}, &model.DeliveryRule{}))
 
-	oldDB := infra.DB
-	t.Cleanup(func() { infra.DB = oldDB })
-	infra.DB = db
 	account := model.Account{OwnerID: 10, Label: "测试账号", Status: "configured", Enabled: true}
 	require.NoError(t, db.Create(&account).Error)
 	product := model.Product{OwnerID: 10, AccountID: account.ID, ExternalProductID: "item-1", Title: "测试商品"}
 	require.NoError(t, db.Create(&product).Error)
 
-	service := new(deliveryRule)
+	service := &deliveryRule{db: db}
 	require.NoError(t, service.Save(t.Context(), 10, xyRequest.SaveDeliveryRule{
 		ProductID: product.ID, Mode: model.DeliveryModeText, Template: "商品通用内容", Enabled: true,
 	}))

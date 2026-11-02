@@ -48,6 +48,7 @@ type qrLogin struct {
 
 type qrLoginManager struct {
 	mu        sync.Mutex
+	accounts  *account
 	sessions  map[string]*qrSession
 	byAccount map[[2]uint]string
 	endpoints qrEndpoints
@@ -90,8 +91,9 @@ func (value *stringOrNumber) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-func newQRLogin() qrLogin {
+func newQRLogin(accounts *account) qrLogin {
 	return qrLogin{manager: &qrLoginManager{
+		accounts:  accounts,
 		sessions:  make(map[string]*qrSession),
 		byAccount: make(map[[2]uint]string),
 		endpoints: qrEndpoints{
@@ -485,7 +487,7 @@ func (m *qrLoginManager) saveCredential(ctx context.Context, session *qrSession)
 	if cookie == "" || unb == "" {
 		return errors.New("扫码响应缺少账号 Cookie")
 	}
-	if err := new(account).SaveCredential(ctx, session.ownerID, xyRequest.SaveCredential{ID: session.accountID, Cookie: cookie}); err != nil {
+	if err := m.accounts.SaveCredential(ctx, session.ownerID, xyRequest.SaveCredential{ID: session.accountID, Cookie: cookie}); err != nil {
 		return err
 	}
 	return infra.DB.WithContext(ctx).Model(&model.Account{}).

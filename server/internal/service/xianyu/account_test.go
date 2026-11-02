@@ -4,7 +4,6 @@ import (
 	"encoding/base64"
 	"testing"
 
-	"github.com/gcc798/go.xianyu.assistant/server/internal/infra"
 	"github.com/gcc798/go.xianyu.assistant/server/internal/model/xianyu"
 	xyRequest "github.com/gcc798/go.xianyu.assistant/server/internal/model/xianyu/request"
 	"github.com/glebarez/sqlite"
@@ -17,12 +16,9 @@ func TestAccountOwnerIsolationAndCredentialEncryption(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, db.AutoMigrate(&model.Account{}, &model.Credential{}))
 
-	oldDB := infra.DB
-	t.Cleanup(func() { infra.DB = oldDB })
-	infra.DB = db
 	t.Setenv(credentialKeyEnvironment, base64.StdEncoding.EncodeToString([]byte("0123456789abcdef0123456789abcdef")))
 
-	service := new(account)
+	service := &account{db: db}
 	created, err := service.Create(t.Context(), 10, xyRequest.CreateAccount{Label: "主账号"})
 	require.NoError(t, err)
 
