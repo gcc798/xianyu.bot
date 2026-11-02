@@ -51,7 +51,7 @@ func run() error {
 	}
 
 	systemServices := systemService.New(db)
-	systemServices.JWT.LoadRevokedTokens()
+	systemServices.RevokedTokens.Load()
 	systemRoutes := systemRouter.New(systemAPI.New(systemServices, jwt))
 	mailSender := mail.NewSender(settings.Email)
 	xianyuDeps := xianyuService.Dependencies{DB: db, SendNotificationEmail: mailSender.Send}

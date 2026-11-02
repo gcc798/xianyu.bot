@@ -17,7 +17,7 @@ type telegramProxy struct{}
 
 var telegramHTTPClient = &http.Client{Timeout: 15 * time.Minute}
 
-// Proxy preserves the gva-telegram method, path, query, status, headers and body behind GVA authentication.
+// Proxy preserves the Telegram service method, path, query, status, headers, and body behind system authentication.
 func (a *telegramProxy) Proxy(c *gin.Context) {
 	upstream, err := telegramRequest(c)
 	if err != nil {

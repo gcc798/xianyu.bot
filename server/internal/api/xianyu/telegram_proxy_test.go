@@ -29,7 +29,7 @@ func TestTelegramRequestPreservesUpstreamPath(t *testing.T) {
 	require.Equal(t, http.StatusOK, result.StatusCode)
 }
 
-func TestTelegramRequestDoesNotForwardGVACredentials(t *testing.T) {
+func TestTelegramRequestDoesNotForwardSystemCredentials(t *testing.T) {
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		require.Empty(t, r.Header.Get("X-Token"))
 		require.Empty(t, r.Header.Get("X-User-Id"))
@@ -41,7 +41,7 @@ func TestTelegramRequestDoesNotForwardGVACredentials(t *testing.T) {
 	context, _ := gin.CreateTestContext(httptest.NewRecorder())
 	context.Params = gin.Params{{Key: "path", Value: "/healthz"}}
 	context.Request = httptest.NewRequest(http.MethodGet, "/api/xy/proxy/telegram/healthz", nil)
-	context.Request.Header.Set("X-Token", "gva-token")
+	context.Request.Header.Set("X-Token", "session-token")
 	context.Request.Header.Set("X-User-Id", "1")
 	result, err := telegramRequest(context)
 	require.NoError(t, err)

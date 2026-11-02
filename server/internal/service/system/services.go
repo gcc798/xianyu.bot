@@ -3,7 +3,7 @@ package system
 import "gorm.io/gorm"
 
 type Services struct {
-	JWT              JwtService
+	RevokedTokens    RevokedTokenService
 	User             UserService
 	Dictionary       DictionaryService
 	DictionaryDetail DictionaryDetailService
@@ -12,7 +12,7 @@ type Services struct {
 
 func New(db *gorm.DB) *Services {
 	return &Services{
-		JWT: JwtService{db: db}, User: UserService{db: db},
+		RevokedTokens: RevokedTokenService{db: db}, User: UserService{db: db},
 		Dictionary: DictionaryService{db: db}, DictionaryDetail: DictionaryDetailService{db: db},
 		LoginLog: LoginLogService{db: db},
 	}

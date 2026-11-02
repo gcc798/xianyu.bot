@@ -20,7 +20,7 @@ type JWTAPI struct{ *dependencies }
 // @Router    /jwt/jsonInBlacklist [post]
 func (j *JWTAPI) Revoke(c *gin.Context) {
 	token := security.GetToken(c)
-	err := j.services.JWT.Revoke(system.RevokedToken{Token: token})
+	err := j.services.RevokedTokens.Revoke(system.RevokedToken{Token: token})
 	if err != nil {
 		zap.L().Error("jwt作废失败!", zap.Error(err))
 		response.FailWithMessage("jwt作废失败", c)

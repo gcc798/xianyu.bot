@@ -46,7 +46,7 @@ func (j *JWT) CreateClaims(baseClaims request.BaseClaims) request.CustomClaims {
 		BaseClaims: baseClaims,
 		BufferTime: int64(j.buffer / time.Second), // 缓冲时间内刷新令牌；前端只保留新令牌。
 		RegisteredClaims: jwt.RegisteredClaims{
-			Audience:  jwt.ClaimStrings{"GVA"},                   // 受众
+			Audience:  jwt.ClaimStrings{"xianyu.bot"},            // 受众
 			NotBefore: jwt.NewNumericDate(time.Now().Add(-1000)), // 签名生效时间
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(j.expires)),
 			Issuer:    j.issuer,
