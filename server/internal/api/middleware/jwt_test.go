@@ -23,7 +23,7 @@ func TestAdminOnly(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			router := gin.New()
 			router.Use(func(c *gin.Context) {
-				c.Set("claims", &systemReq.CustomClaims{BaseClaims: systemReq.BaseClaims{AuthorityId: test.authorityID}})
+				c.Set("claims", &systemReq.CustomClaims{BaseClaims: systemReq.BaseClaims{AuthorityID: test.authorityID}})
 			})
 			router.Use(AdminOnly())
 			router.GET("/", func(c *gin.Context) { c.Status(http.StatusNoContent) })

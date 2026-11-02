@@ -23,7 +23,7 @@ func (userService *UserService) Register(user system.User) (system.User, error) 
 	if !errors.Is(err, gorm.ErrRecordNotFound) {
 		return system.User{}, err
 	}
-	user.AuthorityId = normalizeAuthorityID(user.AuthorityId)
+	user.AuthorityID = normalizeAuthorityID(user.AuthorityID)
 	if user.Enable == 0 {
 		user.Enable = 1
 	}
@@ -90,10 +90,10 @@ func (userService *UserService) DeleteUser(id int) error {
 }
 
 func (userService *UserService) SetUserInfo(user system.User) error {
-	user.AuthorityId = normalizeAuthorityID(user.AuthorityId)
+	user.AuthorityID = normalizeAuthorityID(user.AuthorityID)
 	return userService.db.Model(&system.User{}).Where("id = ?", user.ID).Updates(map[string]any{
-		"updated_at": time.Now(), "nick_name": user.NickName, "header_img": user.HeaderImg,
-		"phone": user.Phone, "email": user.Email, "enable": user.Enable, "authority_id": user.AuthorityId,
+		"updated_at": time.Now(), "nick_name": user.NickName, "header_img": user.HeaderImage,
+		"phone": user.Phone, "email": user.Email, "enable": user.Enable, "authority_id": user.AuthorityID,
 	}).Error
 }
 
@@ -106,7 +106,7 @@ func normalizeAuthorityID(authorityID uint) uint {
 
 func (userService *UserService) SetSelfInfo(user system.User) error {
 	return userService.db.Model(&system.User{}).Where("id = ?", user.ID).Updates(map[string]any{
-		"updated_at": time.Now(), "nick_name": user.NickName, "header_img": user.HeaderImg,
+		"updated_at": time.Now(), "nick_name": user.NickName, "header_img": user.HeaderImage,
 		"phone": user.Phone, "email": user.Email,
 	}).Error
 }

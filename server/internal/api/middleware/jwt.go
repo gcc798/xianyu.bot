@@ -67,7 +67,7 @@ func JWTAuth(jwtManager *security.JWT) gin.HandlerFunc {
 
 func AdminOnly() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		if security.GetUserAuthorityId(c) != system.AdministratorAuthorityID {
+		if security.GetUserAuthorityID(c) != system.AdministratorAuthorityID {
 			c.JSON(403, response.Response{Code: response.ERROR, Msg: "仅管理员可操作"})
 			c.Abort()
 			return

@@ -10,7 +10,7 @@ import (
 
 type JWTAPI struct{ *dependencies }
 
-// JsonInBlacklist
+// Revoke
 // @Tags      Jwt
 // @Summary   jwt加入黑名单
 // @Security  ApiKeyAuth
@@ -18,10 +18,9 @@ type JWTAPI struct{ *dependencies }
 // @Produce   application/json
 // @Success   200  {object}  response.Response{msg=string}  "jwt加入黑名单"
 // @Router    /jwt/jsonInBlacklist [post]
-func (j *JWTAPI) JsonInBlacklist(c *gin.Context) {
+func (j *JWTAPI) Revoke(c *gin.Context) {
 	token := security.GetToken(c)
-	jwt := system.JwtBlacklist{Jwt: token}
-	err := j.services.JWT.JsonInBlacklist(jwt)
+	err := j.services.JWT.Revoke(system.RevokedToken{Token: token})
 	if err != nil {
 		zap.L().Error("jwt作废失败!", zap.Error(err))
 		response.FailWithMessage("jwt作废失败", c)

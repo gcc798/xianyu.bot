@@ -10,24 +10,17 @@ import (
 
 type JwtService struct{ db *gorm.DB }
 
-//@author: [piexlmax](https://github.com/piexlmax)
-//@function: JsonInBlacklist
-//@description: 拉黑jwt
-//@param: jwtList model.JwtBlacklist
-//@return: err error
-
-func (jwtService *JwtService) JsonInBlacklist(jwtList system.JwtBlacklist) (err error) {
-	err = jwtService.db.Create(&jwtList).Error
-	if err != nil {
-		return
+func (jwtService *JwtService) Revoke(token system.RevokedToken) error {
+	if err := jwtService.db.Create(&token).Error; err != nil {
+		return err
 	}
-	auth.RevokeToken(jwtList.Jwt)
-	return
+	auth.RevokeToken(token.Token)
+	return nil
 }
 
 func (jwtService *JwtService) LoadRevokedTokens() {
 	var data []string
-	err := jwtService.db.Model(&system.JwtBlacklist{}).Select("jwt").Find(&data).Error
+	err := jwtService.db.Model(&system.RevokedToken{}).Select("jwt").Find(&data).Error
 	if err != nil {
 		zap.L().Error("加载数据库jwt黑名单失败!", zap.Error(err))
 		return

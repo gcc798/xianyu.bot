@@ -105,7 +105,7 @@ func (j *JWT) ExpiresIn() time.Duration { return j.expires }
 func (j *JWT) LoginToken(user *system.User) (string, request.CustomClaims, error) {
 	claims := j.CreateClaims(request.BaseClaims{
 		UUID: user.UUID, ID: user.ID, NickName: user.NickName,
-		Username: user.Username, AuthorityId: user.AuthorityId,
+		Username: user.Username, AuthorityID: user.AuthorityID,
 	})
 	token, err := j.CreateToken(claims)
 	return token, claims, err

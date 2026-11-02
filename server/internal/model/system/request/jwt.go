@@ -17,5 +17,5 @@ type BaseClaims struct {
 	ID          uint
 	Username    string
 	NickName    string
-	AuthorityId uint
+	AuthorityID uint `json:"AuthorityId"`
 }

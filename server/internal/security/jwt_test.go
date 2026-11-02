@@ -1,6 +1,7 @@
 package security
 
 import (
+	"encoding/json"
 	"testing"
 	"time"
 
@@ -25,4 +26,11 @@ func TestJWTUsesValidatedConfiguration(t *testing.T) {
 	require.Equal(t, "xianyu-test", claims.Issuer)
 	require.EqualValues(t, (15 * time.Minute).Seconds(), claims.BufferTime)
 	require.WithinDuration(t, time.Now().Add(2*time.Hour), claims.ExpiresAt.Time, time.Second)
+}
+
+func TestJWTKeepsAuthorityClaimName(t *testing.T) {
+	payload, err := json.Marshal(request.CustomClaims{BaseClaims: request.BaseClaims{AuthorityID: 888}})
+	require.NoError(t, err)
+	require.Contains(t, string(payload), `"AuthorityId":888`)
+	require.NotContains(t, string(payload), `"AuthorityID"`)
 }

@@ -27,7 +27,7 @@ func (r *aiConfig) Init(private *gin.RouterGroup) {
 
 func adminOnly() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		if security.GetUserAuthorityId(c) != administratorAuthorityID {
+		if security.GetUserAuthorityID(c) != administratorAuthorityID {
 			response.NoAuth("仅管理员可管理 AI 基础配置", c)
 			c.Abort()
 			return

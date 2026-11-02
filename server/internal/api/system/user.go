@@ -54,7 +54,7 @@ func (b *UserAPI) TokenNext(c *gin.Context, user system.User) {
 
 func (b *UserAPI) recordLogin(c *gin.Context, username string, userID uint, status bool, message string) {
 	if err := b.services.LoginLog.Create(system.LoginLog{
-		Username: username, Ip: c.ClientIP(), Agent: c.Request.UserAgent(), Status: status,
+		Username: username, IP: c.ClientIP(), Agent: c.Request.UserAgent(), Status: status,
 		ErrorMessage: message, UserID: userID,
 	}); err != nil {
 		zap.L().Warn("记录登录日志失败", zap.Error(err))
@@ -67,13 +67,13 @@ func (b *UserAPI) Register(c *gin.Context) {
 		response.FailWithMessage(err.Error(), c)
 		return
 	}
-	if input.Username == "" || input.Password == "" || input.NickName == "" || input.AuthorityId == 0 {
+	if input.Username == "" || input.Password == "" || input.NickName == "" || input.AuthorityID == 0 {
 		response.FailWithMessage("用户名、密码、昵称和角色不能为空", c)
 		return
 	}
 	user, err := b.services.User.Register(system.User{
 		Username: input.Username, Password: input.Password, NickName: input.NickName,
-		HeaderImg: input.HeaderImg, AuthorityId: input.AuthorityId, Enable: input.Enable,
+		HeaderImage: input.HeaderImage, AuthorityID: input.AuthorityID, Enable: input.Enable,
 		Phone: input.Phone, Email: input.Email,
 	})
 	if err != nil {
@@ -153,8 +153,8 @@ func (b *UserAPI) SetUserInfo(c *gin.Context) {
 		return
 	}
 	if err := b.services.User.SetUserInfo(system.User{
-		Timestamps: common.Timestamps{ID: input.ID}, NickName: input.NickName, HeaderImg: input.HeaderImg,
-		Phone: input.Phone, Email: input.Email, Enable: input.Enable, AuthorityId: input.AuthorityId,
+		Timestamps: common.Timestamps{ID: input.ID}, NickName: input.NickName, HeaderImage: input.HeaderImage,
+		Phone: input.Phone, Email: input.Email, Enable: input.Enable, AuthorityID: input.AuthorityID,
 	}); err != nil {
 		response.FailWithMessage("设置失败", c)
 		return
@@ -170,7 +170,7 @@ func (b *UserAPI) SetSelfInfo(c *gin.Context) {
 	}
 	if err := b.services.User.SetSelfInfo(system.User{
 		Timestamps: common.Timestamps{ID: security.GetUserID(c)}, NickName: input.NickName,
-		HeaderImg: input.HeaderImg, Phone: input.Phone, Email: input.Email,
+		HeaderImage: input.HeaderImage, Phone: input.Phone, Email: input.Email,
 	}); err != nil {
 		response.FailWithMessage("设置失败", c)
 		return

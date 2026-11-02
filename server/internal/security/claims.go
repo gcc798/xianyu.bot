@@ -69,10 +69,10 @@ func GetUserUuid(c *gin.Context) uuid.UUID {
 	return uuid.UUID{}
 }
 
-// GetUserAuthorityId 从Gin的Context中获取从jwt解析出来的用户角色id
-func GetUserAuthorityId(c *gin.Context) uint {
+// GetUserAuthorityID 从Gin的Context中获取从jwt解析出来的用户角色id
+func GetUserAuthorityID(c *gin.Context) uint {
 	if claims := claims(c); claims != nil {
-		return claims.AuthorityId
+		return claims.AuthorityID
 	}
 	return 0
 }
