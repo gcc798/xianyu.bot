@@ -68,6 +68,15 @@ router -> api -> service -> model
 - 只有系统、闲鱼和 Agent 代表表都存在时，已有数据库才能认领基线。
 - 新变化新增前向迁移，基线不可修改。
 - GORM `AutoMigrate` 只允许用于测试自己拥有的临时数据库。
+- 数据库配置只表达 PostgreSQL，不再保留数据库类型、表名前缀和复数命名等脚手架开关。
+
+## 运行配置
+
+- `server/config.yaml` 和 `server/config.docker.yaml` 使用 `postgres`、`log`、`jwt`、`email` 和 `http` 五个配置段。
+- 日志只写入 stdout/stderr，由 Docker 或宿主机负责收集、轮转和保留。
+- 配置通过 `-c <path>`、`XIANYU_CONFIG` 或默认 `config.yaml` 选择；启动后不做部分生效的热更新。
+- HTTP 路径固定，不提供全局路由前缀开关。
+- JWT 撤销记录持久化到 PostgreSQL，并在进程内使用标准库缓存到 Token 过期；不依赖通用缓存服务。
 
 ## 安全边界
 

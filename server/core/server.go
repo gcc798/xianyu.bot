@@ -11,10 +11,10 @@ import (
 )
 
 func RunServer() {
-	system.LoadAll()
+	system.LoadRevokedTokens()
 
 	router := initialize.Routers()
-	address := fmt.Sprintf(":%d", global.GVA_CONFIG.System.Addr)
+	address := fmt.Sprintf(":%d", global.GVA_CONFIG.HTTP.Port)
 	global.GVA_LOG.Info("闲鱼 Harness Agent 启动", zap.String("address", address))
 	initServer(address, router, 10*time.Minute, 10*time.Minute)
 }

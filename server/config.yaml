@@ -4,16 +4,10 @@ jwt:
   buffer-time: 1d
   issuer: xianyu-assistant
 
-zap:
+log:
   level: info
   format: console
-  prefix: "[xianyu-assistant]"
-  director: log
   show-line: true
-  encode-level: LowercaseColorLevelEncoder
-  stacktrace-key: stacktrace
-  log-in-console: true
-  retention-day: -1
 
 email:
   to: xxx@qq.com
@@ -24,20 +18,17 @@ email:
   secret: xxx
   nickname: xianyu-assistant
 
-system:
-  addr: 8888
-  db-type: pgsql
-  router-prefix: ""
+http:
+  port: 8888
 
-pgsql:
-  path: 127.0.0.1
+postgres:
+  host: 127.0.0.1
   port: "15432"
-  config: "sslmode=disable TimeZone=Asia/Shanghai"
-  db-name: xianyu_assistant_v2
+  parameters: "sslmode=disable TimeZone=Asia/Shanghai"
+  database: xianyu_assistant_v2
   username: xianyu
   password: xianyu_assistant
   max-idle-conns: 10
   max-open-conns: 100
   conn-max-lifetime: 0
-  log-mode: ""
-  log-zap: false
+  log-level: info

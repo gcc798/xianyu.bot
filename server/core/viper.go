@@ -5,11 +5,11 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/flipped-aurora/gin-vue-admin/server/core/internal"
 	"github.com/flipped-aurora/gin-vue-admin/server/global"
-	"github.com/gin-gonic/gin"
 	"github.com/spf13/viper"
 )
+
+const defaultConfigFile = "config.yaml"
 
 // Viper 配置
 func Viper() {
@@ -27,36 +27,15 @@ func Viper() {
 	}
 }
 
-// getConfigPath 获取配置文件路径, 优先级: 命令行 > 环境变量 > 默认值
-func getConfigPath() (config string) {
-	// `-c` flag parse
+func getConfigPath() string {
+	var config string
 	flag.StringVar(&config, "c", "", "choose config file.")
 	flag.Parse()
-	if config != "" { // 命令行参数不为空 将值赋值于config
-		fmt.Printf("您正在使用命令行的 '-c' 参数传递的值, config 的路径为 %s\n", config)
-		return
+	if config != "" {
+		return config
 	}
-	if env := os.Getenv(internal.ConfigEnv); env != "" { // 判断环境变量 GVA_CONFIG
-		config = env
-		fmt.Printf("您正在使用 %s 环境变量, config 的路径为 %s\n", internal.ConfigEnv, config)
-		return
+	if config = os.Getenv("XIANYU_CONFIG"); config != "" {
+		return config
 	}
-
-	switch gin.Mode() { // 根据 gin 模式文件名
-	case gin.DebugMode:
-		config = internal.ConfigDebugFile
-	case gin.ReleaseMode:
-		config = internal.ConfigReleaseFile
-	case gin.TestMode:
-		config = internal.ConfigTestFile
-	}
-	fmt.Printf("您正在使用 gin 的 %s 模式运行, config 的路径为 %s\n", gin.Mode(), config)
-
-	_, err := os.Stat(config)
-	if err != nil || os.IsNotExist(err) {
-		config = internal.ConfigDefaultFile
-		fmt.Printf("配置文件路径不存在, 使用默认配置文件路径: %s\n", config)
-	}
-
-	return
+	return defaultConfigFile
 }

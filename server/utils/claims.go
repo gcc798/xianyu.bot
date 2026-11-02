@@ -106,42 +106,14 @@ func GetUserAuthorityId(c *gin.Context) uint {
 	}
 }
 
-// GetUserInfo 从Gin的Context中获取从jwt解析出来的用户角色id
-func GetUserInfo(c *gin.Context) *systemReq.CustomClaims {
-	if claims, exists := c.Get("claims"); !exists {
-		if cl, err := GetClaims(c); err != nil {
-			return nil
-		} else {
-			return cl
-		}
-	} else {
-		waitUse := claims.(*systemReq.CustomClaims)
-		return waitUse
-	}
-}
-
-// GetUserName 从Gin的Context中获取从jwt解析出来的用户名
-func GetUserName(c *gin.Context) string {
-	if claims, exists := c.Get("claims"); !exists {
-		if cl, err := GetClaims(c); err != nil {
-			return ""
-		} else {
-			return cl.Username
-		}
-	} else {
-		waitUse := claims.(*systemReq.CustomClaims)
-		return waitUse.Username
-	}
-}
-
-func LoginToken(user system.Login) (token string, claims systemReq.CustomClaims, err error) {
+func LoginToken(user *system.SysUser) (token string, claims systemReq.CustomClaims, err error) {
 	j := NewJWT()
 	claims = j.CreateClaims(systemReq.BaseClaims{
-		UUID:        user.GetUUID(),
-		ID:          user.GetUserId(),
-		NickName:    user.GetNickname(),
-		Username:    user.GetUsername(),
-		AuthorityId: user.GetAuthorityId(),
+		UUID:        user.UUID,
+		ID:          user.ID,
+		NickName:    user.NickName,
+		Username:    user.Username,
+		AuthorityId: user.AuthorityId,
 	})
 	token, err = j.CreateToken(claims)
 	return

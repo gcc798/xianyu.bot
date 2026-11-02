@@ -15,7 +15,6 @@ require (
 	github.com/minio/minio-go/v7 v7.0.84
 	github.com/pressly/goose/v3 v3.24.3
 	github.com/skip2/go-qrcode v0.0.0-20200617195104-da1b6568686e
-	github.com/songzhibin97/gkit v1.5.0
 	github.com/spf13/viper v1.19.0
 	github.com/stretchr/testify v1.11.1
 	github.com/ugorji/go/codec v1.2.12

@@ -7,6 +7,7 @@ import (
 	"github.com/flipped-aurora/gin-vue-admin/server/global"
 	"github.com/flipped-aurora/gin-vue-admin/server/model/system/request"
 	jwt "github.com/golang-jwt/jwt/v5"
+	"golang.org/x/sync/singleflight"
 )
 
 type JWT struct {
@@ -20,6 +21,7 @@ var (
 	TokenMalformed        = errors.New("这不是一个token")
 	TokenSignatureInvalid = errors.New("无效签名")
 	TokenInvalid          = errors.New("无法处理此token")
+	tokenRefresh          singleflight.Group
 )
 
 func NewJWT() *JWT {
@@ -52,10 +54,13 @@ func (j *JWT) CreateToken(claims request.CustomClaims) (string, error) {
 
 // CreateTokenByOldToken 旧token 换新token 使用归并回源避免并发问题
 func (j *JWT) CreateTokenByOldToken(oldToken string, claims request.CustomClaims) (string, error) {
-	v, err, _ := global.GVA_Concurrency_Control.Do("JWT:"+oldToken, func() (interface{}, error) {
+	value, err, _ := tokenRefresh.Do("JWT:"+oldToken, func() (any, error) {
 		return j.CreateToken(claims)
 	})
-	return v.(string), err
+	if err != nil {
+		return "", err
+	}
+	return value.(string), nil
 }
 
 // ParseToken 解析 token

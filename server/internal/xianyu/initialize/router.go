@@ -1,16 +1,15 @@
 package initialize
 
 import (
-	"github.com/flipped-aurora/gin-vue-admin/server/global"
 	"github.com/flipped-aurora/gin-vue-admin/server/internal/xianyu/router"
 	"github.com/flipped-aurora/gin-vue-admin/server/middleware"
 	"github.com/gin-gonic/gin"
 )
 
 func Router(engine *gin.Engine) {
-	private := engine.Group(global.GVA_CONFIG.System.RouterPrefix)
+	private := engine.Group("")
 	private.Use(middleware.JWTAuth())
-	internal := engine.Group(global.GVA_CONFIG.System.RouterPrefix + "/xy/internal")
+	internal := engine.Group("/xy/internal")
 	router.Router.Status.Init(private)
 	router.Router.Account.Init(private)
 	router.Router.Product.Init(private)

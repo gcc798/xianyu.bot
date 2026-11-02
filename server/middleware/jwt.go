@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/flipped-aurora/gin-vue-admin/server/global"
+	"github.com/flipped-aurora/gin-vue-admin/server/internal/auth"
 	"github.com/flipped-aurora/gin-vue-admin/server/model/system"
 	"github.com/flipped-aurora/gin-vue-admin/server/utils"
 	"github.com/golang-jwt/jwt/v5"
@@ -23,7 +24,7 @@ func JWTAuth() gin.HandlerFunc {
 			c.Abort()
 			return
 		}
-		if isBlacklist(token) {
+		if auth.IsTokenRevoked(token) {
 			response.NoAuth("您的帐户异地登陆或令牌失效", c)
 			utils.ClearToken(c)
 			c.Abort()
@@ -45,13 +46,6 @@ func JWTAuth() gin.HandlerFunc {
 			return
 		}
 
-		// 已登录用户被管理员禁用 需要使该用户的jwt失效 此处比较消耗性能 如果需要 请自行打开
-		// 用户被删除的逻辑 需要优化 此处比较消耗性能 如果需要 请自行打开
-
-		//if user, err := userService.FindUserByUuid(claims.UUID.String()); err != nil || user.Enable == 2 {
-		//	_ = jwtService.JsonInBlacklist(system.JwtBlacklist{Jwt: token})
-		//	c.Abort()
-		//}
 		c.Set("claims", claims)
 		if claims.ExpiresAt.Unix()-time.Now().Unix() < claims.BufferTime {
 			dr, _ := utils.ParseDuration(global.GVA_CONFIG.JWT.ExpiresTime)
@@ -82,15 +76,4 @@ func AdminOnly() gin.HandlerFunc {
 		}
 		c.Next()
 	}
-}
-
-//@author: [piexlmax](https://github.com/piexlmax)
-//@function: IsBlacklist
-//@description: 判断JWT是否在黑名单内部
-//@param: jwt string
-//@return: bool
-
-func isBlacklist(jwt string) bool {
-	_, ok := global.BlackCache.Get(jwt)
-	return ok
 }

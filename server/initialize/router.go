@@ -16,9 +16,8 @@ func Routers() *gin.Engine {
 		engine.Use(gin.Logger())
 	}
 
-	prefix := global.GVA_CONFIG.System.RouterPrefix
-	public := engine.Group(prefix)
-	private := engine.Group(prefix)
+	public := engine.Group("")
+	private := engine.Group("")
 	private.Use(middleware.JWTAuth())
 
 	public.GET("/health", func(c *gin.Context) {

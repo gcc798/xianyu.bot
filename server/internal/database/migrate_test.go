@@ -1,7 +1,6 @@
 package database
 
 import (
-	"context"
 	"os"
 	"testing"
 
@@ -18,7 +17,7 @@ func TestMigratePostgres(t *testing.T) {
 
 	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
 	require.NoError(t, err)
-	require.NoError(t, Migrate(t.Context(), db, "pgsql"))
+	require.NoError(t, Migrate(t.Context(), db))
 
 	var removed, retained *string
 	require.NoError(t, db.Raw("SELECT to_regclass('public.sys_apis')::text").Scan(&removed).Error)
@@ -30,7 +29,7 @@ func TestMigratePostgres(t *testing.T) {
 	require.Zero(t, userSettingColumns)
 }
 
-func TestMigrateRejectsUnsupportedDatabase(t *testing.T) {
-	err := Migrate(context.Background(), &gorm.DB{}, "sqlite")
-	require.ErrorContains(t, err, `unsupported database type "sqlite"`)
+func TestMigrateRejectsUninitializedDatabase(t *testing.T) {
+	err := Migrate(t.Context(), nil)
+	require.ErrorContains(t, err, "database is not initialized")
 }

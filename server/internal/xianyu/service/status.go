@@ -18,7 +18,7 @@ func (s *status) Get(ctx context.Context, ownerID uint) (xyResponse.Status, erro
 	if err := global.GVA_DB.WithContext(ctx).Exec("SELECT 1").Error; err != nil {
 		return xyResponse.Status{}, err
 	}
-	result := xyResponse.Status{Plugin: "ready", Database: global.GVA_CONFIG.System.DbType}
+	result := xyResponse.Status{Database: "postgresql"}
 	db := global.GVA_DB.WithContext(ctx)
 	for _, count := range []struct {
 		model any

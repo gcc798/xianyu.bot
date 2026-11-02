@@ -4,6 +4,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/flipped-aurora/gin-vue-admin/server/global"
+	"github.com/flipped-aurora/gin-vue-admin/server/internal/auth"
 	"github.com/flipped-aurora/gin-vue-admin/server/model/system"
 )
 
@@ -22,18 +23,18 @@ func (jwtService *JwtService) JsonInBlacklist(jwtList system.JwtBlacklist) (err 
 	if err != nil {
 		return
 	}
-	global.BlackCache.SetDefault(jwtList.Jwt, struct{}{})
+	auth.RevokeToken(jwtList.Jwt)
 	return
 }
 
-func LoadAll() {
+func LoadRevokedTokens() {
 	var data []string
 	err := global.GVA_DB.Model(&system.JwtBlacklist{}).Select("jwt").Find(&data).Error
 	if err != nil {
 		global.GVA_LOG.Error("加载数据库jwt黑名单失败!", zap.Error(err))
 		return
 	}
-	for i := 0; i < len(data); i++ {
-		global.BlackCache.SetDefault(data[i], struct{}{})
-	} // jwt黑名单 加入 BlackCache 中
+	for _, token := range data {
+		auth.RevokeToken(token)
+	}
 }

@@ -119,20 +119,6 @@ func (userService *UserService) GetUserInfo(userUUID uuid.UUID) (user system.Sys
 	return user, err
 }
 
-func (userService *UserService) FindUserById(id int) (user *system.SysUser, err error) {
-	user = new(system.SysUser)
-	err = global.GVA_DB.Where("id = ?", id).First(user).Error
-	return user, err
-}
-
-func (userService *UserService) FindUserByUuid(userUUID string) (user *system.SysUser, err error) {
-	user = new(system.SysUser)
-	if err = global.GVA_DB.Where("uuid = ?", userUUID).First(user).Error; err != nil {
-		return user, errors.New("用户不存在")
-	}
-	return user, nil
-}
-
 func (userService *UserService) ResetPassword(id uint, password string) error {
 	return global.GVA_DB.Model(&system.SysUser{}).Where("id = ?", id).Update("password", utils.BcryptHash(password)).Error
 }

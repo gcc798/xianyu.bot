@@ -17,14 +17,10 @@ const baselineVersion int64 = 202611010001
 var migrationFiles embed.FS
 
 // Migrate applies all pending PostgreSQL schema migrations.
-func Migrate(ctx context.Context, db *gorm.DB, dbType string) error {
+func Migrate(ctx context.Context, db *gorm.DB) error {
 	if db == nil {
 		return fmt.Errorf("migrate database: database is not initialized")
 	}
-	if dbType != "pgsql" {
-		return fmt.Errorf("migrate database: unsupported database type %q", dbType)
-	}
-
 	sqlDB, err := db.DB()
 	if err != nil {
 		return fmt.Errorf("migrate database: get sql database: %w", err)

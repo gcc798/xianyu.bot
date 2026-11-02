@@ -1,7 +1,6 @@
 package response
 
 type Status struct {
-	Plugin           string `json:"plugin"`
 	Database         string `json:"database"`
 	Accounts         int64  `json:"accounts"`
 	ReadyAccounts    int64  `json:"readyAccounts"`
