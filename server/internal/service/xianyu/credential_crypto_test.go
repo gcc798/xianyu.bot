@@ -3,7 +3,6 @@ package service
 import (
 	"testing"
 
-	"github.com/gcc798/xianyu.bot/internal/infra"
 	"github.com/gcc798/xianyu.bot/internal/model/xianyu"
 	"github.com/stretchr/testify/require"
 	"gorm.io/driver/sqlite"
@@ -12,11 +11,7 @@ import (
 
 func TestCredentialKeyFailsWithoutEnvironmentOrDatabase(t *testing.T) {
 	t.Setenv(credentialKeyEnvironment, "")
-	oldDB := infra.DB
-	t.Cleanup(func() { infra.DB = oldDB })
-	infra.DB = nil
-
-	_, err := credentialKey(infra.DB)
+	_, err := credentialKey(nil)
 	require.Error(t, err)
 }
 
@@ -26,17 +21,13 @@ func TestValidateCredentialKeyInitializesEmptyDatabase(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, db.AutoMigrate(&model.Setting{}))
 
-	oldDB := infra.DB
-	t.Cleanup(func() { infra.DB = oldDB })
-	infra.DB = db
-
-	require.NoError(t, ValidateCredentialKey(infra.DB))
-	first, err := credentialKey(infra.DB)
+	require.NoError(t, ValidateCredentialKey(db))
+	first, err := credentialKey(db)
 	require.NoError(t, err)
 	require.Len(t, first, 32)
 
-	require.NoError(t, ValidateCredentialKey(infra.DB))
-	second, err := credentialKey(infra.DB)
+	require.NoError(t, ValidateCredentialKey(db))
+	second, err := credentialKey(db)
 	require.NoError(t, err)
 	require.Equal(t, first, second)
 }

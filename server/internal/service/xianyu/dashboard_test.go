@@ -4,7 +4,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gcc798/xianyu.bot/internal/infra"
 	"github.com/gcc798/xianyu.bot/internal/model/common"
 	"github.com/gcc798/xianyu.bot/internal/model/xianyu"
 	xyRequest "github.com/gcc798/xianyu.bot/internal/model/xianyu/request"
@@ -20,9 +19,6 @@ func TestDashboardOverviewIsOwnerAndAccountScoped(t *testing.T) {
 		&model.Account{}, &model.Product{}, &model.Message{}, &model.ReplyTask{},
 		&model.Order{}, &model.DeliveryTask{}, &model.RelistTask{}, &model.BusinessEvent{},
 	))
-	oldDB := infra.DB
-	t.Cleanup(func() { infra.DB = oldDB })
-	infra.DB = db
 
 	start := time.Date(2026, time.October, 28, 0, 0, 0, 0, time.Local)
 	end := start.Add(24 * time.Hour)
@@ -60,7 +56,7 @@ func TestDashboardOverviewIsOwnerAndAccountScoped(t *testing.T) {
 		Type: "delivery", Status: "failed", Summary: "自动发货失败",
 	}).Error)
 
-	overview, err := (&status{db: infra.DB}).Overview(t.Context(), 10, xyRequest.DashboardOverview{
+	overview, err := (&status{db: db}).Overview(t.Context(), 10, xyRequest.DashboardOverview{
 		AccountID: account.ID, StartTime: start.UnixMilli(), EndTime: end.UnixMilli(),
 	})
 	require.NoError(t, err)
@@ -83,7 +79,7 @@ func TestDashboardOverviewIsOwnerAndAccountScoped(t *testing.T) {
 
 func TestDashboardOverviewRejectsMoreThanNinetyDays(t *testing.T) {
 	start := time.Now()
-	_, err := (&status{db: infra.DB}).Overview(t.Context(), 1, xyRequest.DashboardOverview{
+	_, err := new(status).Overview(t.Context(), 1, xyRequest.DashboardOverview{
 		StartTime: start.UnixMilli(), EndTime: start.Add(91 * 24 * time.Hour).UnixMilli(),
 	})
 	require.ErrorContains(t, err, "最多查询 90 天")

@@ -5,7 +5,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gcc798/xianyu.bot/internal/infra"
 	"github.com/gcc798/xianyu.bot/internal/model/xianyu"
 	xyRequest "github.com/gcc798/xianyu.bot/internal/model/xianyu/request"
 	"github.com/glebarez/sqlite"
@@ -17,11 +16,8 @@ func TestAgentSessionScopesConversationByOwner(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
 	require.NoError(t, db.AutoMigrate(&model.AgentSession{}, &model.AgentMessage{}, &model.AgentRun{}, &model.AgentRunTool{}, &model.AgentEvent{}, &model.ResourceTask{}))
-	oldDB := infra.DB
-	infra.DB = db
-	t.Cleanup(func() { infra.DB = oldDB })
 
-	sessions := &agentSession{db: infra.DB}
+	sessions := &agentSession{db: db}
 	owned, err := sessions.Create(t.Context(), 11, xyRequest.CreateAgentSession{})
 	require.NoError(t, err)
 	require.Equal(t, "新对话", owned.Title)
@@ -89,9 +85,6 @@ func TestAgentSessionDeleteRejectsRunningAndRemovesConversation(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
 	require.NoError(t, db.AutoMigrate(&model.AgentSession{}, &model.AgentMessage{}, &model.AgentRun{}, &model.AgentRunTool{}, &model.AgentEvent{}, &model.ResourceTask{}))
-	oldDB := infra.DB
-	infra.DB = db
-	t.Cleanup(func() { infra.DB = oldDB })
 
 	session := model.AgentSession{OwnerID: 11, Title: "待删除"}
 	require.NoError(t, db.Create(&session).Error)
@@ -100,7 +93,7 @@ func TestAgentSessionDeleteRejectsRunningAndRemovesConversation(t *testing.T) {
 	require.NoError(t, db.Create(&model.AgentMessage{OwnerID: 11, SessionID: session.ID, RunID: &run.ID, Sequence: 1, Role: "user", Content: "内容"}).Error)
 	require.NoError(t, db.Create(&model.AgentRunTool{RunID: run.ID, CallID: "call-1", ToolName: "resource_search", Status: "completed", StartedAt: time.Now()}).Error)
 
-	sessions := &agentSession{db: infra.DB}
+	sessions := &agentSession{db: db}
 	require.ErrorContains(t, sessions.Delete(t.Context(), 11, session.ID), "正在运行")
 	require.NoError(t, db.Model(&run).Update("status", "completed").Error)
 	require.NoError(t, sessions.Delete(t.Context(), 11, session.ID))

@@ -9,7 +9,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gcc798/xianyu.bot/internal/infra"
 	"github.com/gcc798/xianyu.bot/internal/model/common"
 	"github.com/gcc798/xianyu.bot/internal/model/xianyu"
 	xyRequest "github.com/gcc798/xianyu.bot/internal/model/xianyu/request"
@@ -24,9 +23,6 @@ func TestProductSyncUsesRemoteDataAndIsOwnerScoped(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, db.AutoMigrate(&model.Account{}, &model.Credential{}, &model.Product{}, &model.ProductSetting{}))
 
-	oldDB := infra.DB
-	t.Cleanup(func() { infra.DB = oldDB })
-	infra.DB = db
 	account := model.Account{OwnerID: 10, Label: "测试账号", Status: "ready", Enabled: true}
 	require.NoError(t, db.Create(&account).Error)
 	ciphertext, err := encryptCredential(db, "_m_h5_tk=oldtoken_1; unb=12345", credentialAAD(account.ID, "cookie"))
@@ -52,7 +48,7 @@ func TestProductSyncUsesRemoteDataAndIsOwnerScoped(t *testing.T) {
 	}))
 	t.Cleanup(server.Close)
 
-	service := &product{db: infra.DB, events: &businessEvent{db: infra.DB}, client: server.Client(), endpoint: server.URL}
+	service := &product{db: db, events: &businessEvent{db: db}, client: server.Client(), endpoint: server.URL}
 	input := xyRequest.ProductSync{AccountID: account.ID}
 	_, err = service.Sync(t.Context(), 11, input)
 	require.Error(t, err)
@@ -85,9 +81,6 @@ func TestProductListFiltersByTitleOrIDAndStatus(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
 	require.NoError(t, db.AutoMigrate(&model.Account{}, &model.Product{}, &model.ProductSetting{}))
-	oldDB := infra.DB
-	t.Cleanup(func() { infra.DB = oldDB })
-	infra.DB = db
 	account := model.Account{OwnerID: 10, Label: "商品账号", Status: "ready", Enabled: true}
 	require.NoError(t, db.Create(&account).Error)
 	updatedAt := func(day int) time.Time { return time.Date(2026, time.January, day, 0, 0, 0, 0, time.UTC) }
@@ -98,7 +91,7 @@ func TestProductListFiltersByTitleOrIDAndStatus(t *testing.T) {
 	} {
 		require.NoError(t, db.Create(&item).Error)
 	}
-	service := &product{db: infra.DB, events: &businessEvent{db: infra.DB}}
+	service := &product{db: db, events: &businessEvent{db: db}}
 	list, total, err := service.List(t.Context(), 10, xyRequest.ProductSearch{})
 	require.NoError(t, err)
 	require.EqualValues(t, 3, total)
@@ -180,7 +173,7 @@ func TestCapturePublishSnapshotAdaptsDetailResponseAndUsesLatestImages(t *testin
 		SourceJSON:      `{"categoryId":50023914,"detailParams":{"imageInfos":"[{\"url\":\"https://img.example/old.jpg\"}]"}}`,
 		PublishSnapshot: `{"api":"mtop.idle.pc.idleitem.publish","payload":{"itemAddrDTO":{"divisionId":"330106","gps":"30.25961,120.13026","poiId":"poi-1","poiName":"西湖区"}}}`,
 	}
-	service := &product{db: infra.DB, events: &businessEvent{db: infra.DB}, mtop: fakeMTopCaller{data: json.RawMessage(`{"itemDO":{"imageInfos":[{"url":"https://img.example/new.jpg"}]},"picDetailDO":{}}`)}}
+	service := &product{mtop: fakeMTopCaller{data: json.RawMessage(`{"itemDO":{"imageInfos":[{"url":"https://img.example/new.jpg"}]},"picDetailDO":{}}`)}}
 	snapshotJSON, err := service.capturePublishSnapshot(t.Context(), 10, item, xyRequest.UpdateProductSetting{RelistDescription: "新描述"})
 	require.NoError(t, err)
 	var snapshot publishSnapshot
@@ -194,9 +187,6 @@ func TestUpdateSettingUsesOriginalDescriptionUnlessCustomized(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
 	require.NoError(t, db.AutoMigrate(&model.Product{}, &model.ProductSetting{}))
-	oldDB := infra.DB
-	t.Cleanup(func() { infra.DB = oldDB })
-	infra.DB = db
 	item := model.Product{OwnerID: 10, AccountID: 20, ExternalProductID: "item-1", Title: "商品标题", Status: "on_sale"}
 	require.NoError(t, db.Create(&item).Error)
 	detail := json.RawMessage(`{
@@ -204,7 +194,7 @@ func TestUpdateSettingUsesOriginalDescriptionUnlessCustomized(t *testing.T) {
 		"itemPriceDTO":{},"imageInfoDOList":[],"itemCatDTO":{},"itemPostFeeDTO":{},
 		"itemAddrDTO":{"divisionId":"330106","gps":"30.25961,120.13026","poiId":"poi-1","poiName":"西湖区"}
 	}`)
-	service := &product{db: infra.DB, events: &businessEvent{db: infra.DB}, mtop: fakeMTopCaller{data: detail}}
+	service := &product{db: db, events: &businessEvent{db: db}, mtop: fakeMTopCaller{data: detail}}
 
 	require.NoError(t, service.UpdateSetting(t.Context(), 10, xyRequest.UpdateProductSetting{
 		ProductID: item.ID, AutoRelistEnabled: true, RelistDescription: item.Title,

@@ -1,11 +1,5 @@
 package infra
 
-import (
-	"go.uber.org/zap"
-	"gorm.io/gorm"
-)
+import "go.uber.org/zap"
 
-var (
-	DB  *gorm.DB
-	Log *zap.Logger
-)
+var Log *zap.Logger

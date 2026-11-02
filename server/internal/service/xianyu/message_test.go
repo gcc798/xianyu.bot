@@ -9,7 +9,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gcc798/xianyu.bot/internal/infra"
 	"github.com/gcc798/xianyu.bot/internal/model/xianyu"
 	xyRequest "github.com/gcc798/xianyu.bot/internal/model/xianyu/request"
 	"github.com/gcc798/xianyu.bot/internal/xianyu/protocol"
@@ -26,15 +25,12 @@ func TestMessageHandleIsIdempotentAndOwnerIsolated(t *testing.T) {
 	require.NoError(t, err)
 	sqlDB.SetMaxOpenConns(1)
 	require.NoError(t, db.AutoMigrate(&model.Account{}, &model.Message{}, &model.ConversationTakeover{}))
-	oldDB := infra.DB
-	t.Cleanup(func() { infra.DB = oldDB })
-	infra.DB = db
 	account := model.Account{OwnerID: 10, Label: "消息账号", Status: "ready", Enabled: true}
 	require.NoError(t, db.Create(&account).Error)
 	raw, err := os.ReadFile("../../xianyu/protocol/testdata/sync_message.json")
 	require.NoError(t, err)
 
-	service := &message{db: infra.DB, events: &businessEvent{db: infra.DB}}
+	service := &message{db: db, events: &businessEvent{db: db}}
 	var workers sync.WaitGroup
 	errorsCh := make(chan error, 8)
 	for range 8 {
@@ -65,9 +61,6 @@ func TestMessageListFiltersByExplicitFields(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
 	require.NoError(t, db.AutoMigrate(&model.Account{}, &model.Message{}, &model.ConversationTakeover{}))
-	oldDB := infra.DB
-	t.Cleanup(func() { infra.DB = oldDB })
-	infra.DB = db
 	account := model.Account{OwnerID: 10, Label: "消息账号", Status: "ready", Enabled: true}
 	require.NoError(t, db.Create(&account).Error)
 	for _, item := range []model.Message{
@@ -96,9 +89,6 @@ func TestMessageHandleMarksOwnRemoteMessageOutbound(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
 	require.NoError(t, db.AutoMigrate(&model.Account{}, &model.Message{}, &model.ConversationTakeover{}))
-	oldDB := infra.DB
-	t.Cleanup(func() { infra.DB = oldDB })
-	infra.DB = db
 	account := model.Account{OwnerID: 10, ExternalUserID: "seller-1", Label: "消息账号", Status: "ready", Enabled: true}
 	require.NoError(t, db.Create(&account).Error)
 	payload := map[string]any{"1": map[string]any{
@@ -127,9 +117,6 @@ func TestManualReplyTakesOverAndRecordsConfirmedMessage(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
 	require.NoError(t, db.AutoMigrate(&model.Account{}, &model.Message{}, &model.ConversationTakeover{}))
-	oldDB := infra.DB
-	t.Cleanup(func() { infra.DB = oldDB })
-	infra.DB = db
 	account := model.Account{OwnerID: 10, Label: "消息账号", Status: "ready", Enabled: true}
 	require.NoError(t, db.Create(&account).Error)
 	incoming := model.Message{
@@ -139,7 +126,7 @@ func TestManualReplyTakesOverAndRecordsConfirmedMessage(t *testing.T) {
 	}
 	require.NoError(t, db.Create(&incoming).Error)
 	sender := new(fakeTextSender)
-	service := &message{db: infra.DB, events: &businessEvent{db: infra.DB}, sender: sender}
+	service := &message{db: db, events: &businessEvent{db: db}, sender: sender}
 
 	require.Error(t, service.Reply(t.Context(), 11, xyRequest.SendMessage{MessageID: incoming.ID, Text: "您好"}))
 	require.NoError(t, service.Reply(t.Context(), 10, xyRequest.SendMessage{MessageID: incoming.ID, Text: "您好"}))
@@ -176,20 +163,17 @@ func TestAutoReplyMergesMessagesAndSendsOnlyLatest(t *testing.T) {
 		&model.Account{}, &model.Product{}, &model.ProductSetting{}, &model.ReplyRule{}, &model.ReplyContent{},
 		&model.Message{}, &model.ConversationTakeover{}, &model.ReplyTask{},
 	))
-	oldDB := infra.DB
-	t.Cleanup(func() { infra.DB = oldDB })
-	infra.DB = db
 	account := model.Account{OwnerID: 10, ExternalUserID: "seller-1", Label: "消息账号", Status: "ready", Enabled: true}
 	require.NoError(t, db.Create(&account).Error)
 	product := model.Product{OwnerID: 10, AccountID: account.ID, ExternalProductID: "item-1", Title: "商品", Status: "on_sale"}
 	require.NoError(t, db.Create(&product).Error)
 	require.NoError(t, db.Create(&model.ProductSetting{ProductID: product.ID, AutoReplyEnabled: true, ReplyDelaySeconds: 1}).Error)
-	rules := &replyRule{db: infra.DB}
+	rules := &replyRule{db: db}
 	require.NoError(t, rules.Save(t.Context(), 10, xyRequest.SaveReplyRule{
 		ProductID: product.ID, Type: model.ReplyRuleFuzzy, Keyword: "你好", Content: "自动回复内容", Enabled: true,
 	}))
 	sent := make(chan string, 2)
-	service := &message{db: infra.DB, events: &businessEvent{db: infra.DB}, sender: channelTextSender(sent), rules: rules, pending: make(map[string]pendingReply)}
+	service := &message{db: db, events: &businessEvent{db: db}, sender: channelTextSender(sent), rules: rules, pending: make(map[string]pendingReply)}
 	first := model.Message{OwnerID: 10, AccountID: account.ID, PNMID: "one", SessionID: "session-1", ContentType: 1, Content: "你好", SenderUserID: "buyer-1", ExternalProductID: "item-1", Direction: "inbound", Source: "remote"}
 	second := first
 	second.PNMID = "two"
@@ -223,9 +207,6 @@ func TestVirtualProductUsesDefaultFallbackReply(t *testing.T) {
 		&model.Account{}, &model.Product{}, &model.ProductSetting{}, &model.ReplyRule{}, &model.ReplyContent{},
 		&model.Message{}, &model.ConversationTakeover{}, &model.ReplyTask{},
 	))
-	oldDB := infra.DB
-	t.Cleanup(func() { infra.DB = oldDB })
-	infra.DB = db
 	account := model.Account{OwnerID: 10, ExternalUserID: "seller-1", Label: "消息账号", Status: "ready", Enabled: true}
 	require.NoError(t, db.Create(&account).Error)
 	product := model.Product{OwnerID: 10, AccountID: account.ID, ExternalProductID: "item-1", Title: "虚拟商品", Status: "on_sale"}
@@ -237,7 +218,7 @@ func TestVirtualProductUsesDefaultFallbackReply(t *testing.T) {
 	}
 	require.NoError(t, db.Create(&incoming).Error)
 	sent := make(chan string, 1)
-	service := &message{db: infra.DB, events: &businessEvent{db: infra.DB}, sender: channelTextSender(sent), rules: &replyRule{db: infra.DB}, pending: make(map[string]pendingReply)}
+	service := &message{db: db, events: &businessEvent{db: db}, sender: channelTextSender(sent), rules: &replyRule{db: db}, pending: make(map[string]pendingReply)}
 
 	require.NoError(t, service.scheduleAutoReply(t.Context(), account, incoming))
 	select {
@@ -255,20 +236,17 @@ func TestHandleHistoryRepliesOnlyToLatestRecentMessage(t *testing.T) {
 		&model.Account{}, &model.Product{}, &model.ProductSetting{}, &model.ReplyRule{}, &model.ReplyContent{},
 		&model.Message{}, &model.ConversationTakeover{}, &model.ReplyTask{},
 	))
-	oldDB := infra.DB
-	t.Cleanup(func() { infra.DB = oldDB })
-	infra.DB = db
 	account := model.Account{OwnerID: 10, ExternalUserID: "seller", Label: "账号", Status: "ready", Enabled: true}
 	require.NoError(t, db.Create(&account).Error)
 	product := model.Product{OwnerID: 10, AccountID: account.ID, ExternalProductID: "item-1", Title: "商品", Status: "on_sale"}
 	require.NoError(t, db.Create(&product).Error)
 	require.NoError(t, db.Create(&model.ProductSetting{ProductID: product.ID, AutoReplyEnabled: true}).Error)
-	rules := &replyRule{db: infra.DB}
+	rules := &replyRule{db: db}
 	require.NoError(t, rules.Save(t.Context(), 10, xyRequest.SaveReplyRule{
 		ProductID: product.ID, Type: model.ReplyRuleFuzzy, Keyword: "价格是什么", Content: "十元", Enabled: true,
 	}))
 	sent := make(chan string, 2)
-	service := &message{db: infra.DB, events: &businessEvent{db: infra.DB}, sender: channelTextSender(sent), rules: rules, pending: make(map[string]pendingReply)}
+	service := &message{db: db, events: &businessEvent{db: db}, sender: channelTextSender(sent), rules: rules, pending: make(map[string]pendingReply)}
 	now := time.Now().UnixMilli()
 	raw := historyResponse(t, []map[string]any{
 		historyMessage(t, "old", "buyer", "价格是什么", "item-1", now-1000),
@@ -293,9 +271,6 @@ func TestHandleHistoryMergesConfirmedOutboundEcho(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
 	require.NoError(t, db.AutoMigrate(&model.Account{}, &model.Message{}, &model.ConversationTakeover{}))
-	oldDB := infra.DB
-	t.Cleanup(func() { infra.DB = oldDB })
-	infra.DB = db
 	account := model.Account{OwnerID: 10, ExternalUserID: "seller", Label: "账号", Status: "ready", Enabled: true}
 	require.NoError(t, db.Create(&account).Error)
 	now := time.Now().UnixMilli()

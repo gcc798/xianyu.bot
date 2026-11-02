@@ -7,7 +7,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gcc798/xianyu.bot/internal/infra"
 	"github.com/gcc798/xianyu.bot/internal/model/xianyu"
 	"github.com/glebarez/sqlite"
 	"github.com/stretchr/testify/require"
@@ -18,9 +17,6 @@ func TestRelistPublishesOnceAndMovesProductRules(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
 	require.NoError(t, db.AutoMigrate(&model.Account{}, &model.Product{}, &model.ProductSetting{}, &model.DeliveryRule{}, &model.ReplyRule{}, &model.Order{}, &model.RelistTask{}, &model.BusinessEvent{}))
-	oldDB := infra.DB
-	t.Cleanup(func() { infra.DB = oldDB })
-	infra.DB = db
 
 	account := model.Account{OwnerID: 10, Label: "续售账号", Status: "ready", Enabled: true}
 	require.NoError(t, db.Create(&account).Error)
@@ -42,9 +38,9 @@ func TestRelistPublishesOnceAndMovesProductRules(t *testing.T) {
 	require.NoError(t, db.Create(&order).Error)
 	publisher := &recordingMTopCaller{}
 	publisher.calls = nil
-	service := &relist{db: infra.DB, events: &businessEvent{db: infra.DB},
+	service := &relist{db: db, events: &businessEvent{db: db},
 		mtop:     mtopResultCaller{recordingMTopCaller: publisher, data: json.RawMessage(`{"itemId":"new-item"}`)},
-		products: &product{db: infra.DB, events: &businessEvent{db: infra.DB}, mtop: fakeMTopCaller{data: json.RawMessage(`{"itemDO":{"imageInfos":[{"url":"https://img.example/new.jpg"}]}}`)}},
+		products: &product{db: db, events: &businessEvent{db: db}, mtop: fakeMTopCaller{data: json.RawMessage(`{"itemDO":{"imageInfos":[{"url":"https://img.example/new.jpg"}]}}`)}},
 		media:    func(context.Context, uint, uint, map[string]any) error { return nil },
 	}
 

@@ -6,7 +6,6 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/gcc798/xianyu.bot/internal/infra"
 	"github.com/gcc798/xianyu.bot/internal/model/xianyu"
 	xyRequest "github.com/gcc798/xianyu.bot/internal/model/xianyu/request"
 	"github.com/glebarez/sqlite"
@@ -50,9 +49,6 @@ func TestOrderEventsAreIdempotentAndOwnerScoped(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
 	require.NoError(t, db.AutoMigrate(&model.Account{}, &model.Product{}, &model.Order{}, &model.OrderEvent{}))
-	oldDB := infra.DB
-	t.Cleanup(func() { infra.DB = oldDB })
-	infra.DB = db
 	account := model.Account{OwnerID: 10, Label: "订单账号", Status: "ready", Enabled: true}
 	require.NoError(t, db.Create(&account).Error)
 	product := model.Product{OwnerID: 10, AccountID: account.ID, ExternalProductID: "item-1", Title: "商品", Status: "on_sale"}
@@ -62,7 +58,7 @@ func TestOrderEventsAreIdempotentAndOwnerScoped(t *testing.T) {
 		SenderUserID: "buyer-1", SenderUserName: "买家", ExternalProductID: "item-1", ExternalOrderID: "order-1",
 		MessageTime: 100,
 	}
-	service := &order{db: infra.DB, events: &businessEvent{db: infra.DB}}
+	service := &order{db: db, events: &businessEvent{db: db}}
 	_, err = service.UpsertFromMessage(t.Context(), account, message)
 	require.NoError(t, err)
 	_, err = service.UpsertFromMessage(t.Context(), account, message)
@@ -86,15 +82,12 @@ func TestSyncPendingOrdersUpsertsRemoteData(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
 	require.NoError(t, db.AutoMigrate(&model.Account{}, &model.Product{}, &model.Order{}))
-	oldDB := infra.DB
-	t.Cleanup(func() { infra.DB = oldDB })
-	infra.DB = db
 	account := model.Account{OwnerID: 10, Label: "订单账号", Status: "ready", Enabled: true}
 	require.NoError(t, db.Create(&account).Error)
 	product := model.Product{OwnerID: 10, AccountID: account.ID, ExternalProductID: "item-1", Title: "本地标题"}
 	require.NoError(t, db.Create(&product).Error)
 	remote := json.RawMessage(`{"module":{"items":[{"commonData":{"orderId":"order-1","itemId":"item-1","orderStatus":"待发货"},"buyerInfoVO":{"userNick":"买家","userId":"buyer-1"},"itemVO":{"title":"远端标题"},"priceVO":{"totalPrice":"12.34"}}]}}`)
-	service := &order{db: infra.DB, events: &businessEvent{db: infra.DB}, mtop: fakeMTopCaller{data: remote}}
+	service := &order{db: db, events: &businessEvent{db: db}, mtop: fakeMTopCaller{data: remote}}
 	count, err := service.SyncPending(t.Context(), 10, account.ID)
 	require.NoError(t, err)
 	require.Equal(t, 1, count)
@@ -112,7 +105,7 @@ func TestSyncPendingOrdersUpsertsRemoteData(t *testing.T) {
 func TestConsignSendsMessageThenConfirmsPlatformDelivery(t *testing.T) {
 	mtop := new(recordingMTopCaller)
 	sender := new(recordingTextSender)
-	service := &order{db: infra.DB, events: &businessEvent{db: infra.DB}, mtop: mtop, sender: sender}
+	service := &order{mtop: mtop, sender: sender}
 	item := model.Order{AccountID: 2, ExternalOrderID: "order-1", SessionID: "session-1", BuyerUserID: "buyer-1"}
 
 	require.NoError(t, service.Consign(t.Context(), 10, item, "网盘：https://example.test/share"))

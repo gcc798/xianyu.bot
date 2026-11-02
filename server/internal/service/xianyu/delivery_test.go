@@ -9,7 +9,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gcc798/xianyu.bot/internal/infra"
 	"github.com/gcc798/xianyu.bot/internal/model/xianyu"
 	xyRequest "github.com/gcc798/xianyu.bot/internal/model/xianyu/request"
 	"github.com/glebarez/sqlite"
@@ -40,9 +39,6 @@ func TestDeliveryReservesEncryptedCardOnce(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open(filepath.Join(t.TempDir(), "delivery.db")), &gorm.Config{})
 	require.NoError(t, err)
 	require.NoError(t, db.AutoMigrate(&model.Account{}, &model.Product{}, &model.ProductSetting{}, &model.DeliveryRule{}, &model.DeliveryResource{}, &model.Order{}, &model.DeliveryTask{}))
-	oldDB := infra.DB
-	t.Cleanup(func() { infra.DB = oldDB })
-	infra.DB = db
 
 	account := model.Account{OwnerID: 10, Label: "发货账号", Status: "ready", Enabled: true}
 	require.NoError(t, db.Create(&account).Error)
@@ -52,7 +48,7 @@ func TestDeliveryReservesEncryptedCardOnce(t *testing.T) {
 	rule := model.DeliveryRule{OwnerID: 10, ProductID: product.ID, Mode: model.DeliveryModeCard, Template: "卡密：{card}", Enabled: true}
 	require.NoError(t, db.Create(&rule).Error)
 	sender := &blockingDeliverySender{payload: make(chan string, 1), release: make(chan struct{})}
-	service := &delivery{db: infra.DB, events: &businessEvent{db: infra.DB}, consigner: sender, rules: &deliveryRule{db: infra.DB}, workers: make(map[uint]context.CancelFunc)}
+	service := &delivery{db: db, events: &businessEvent{db: db}, consigner: sender, rules: &deliveryRule{db: db}, workers: make(map[uint]context.CancelFunc)}
 	count, err := service.ImportResources(t.Context(), 10, xyRequest.ImportDeliveryResources{RuleID: rule.ID, Values: []string{"SECRET-CARD"}})
 	require.NoError(t, err)
 	require.Equal(t, 1, count)

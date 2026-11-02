@@ -5,7 +5,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gcc798/xianyu.bot/internal/infra"
 	"github.com/gcc798/xianyu.bot/internal/model/xianyu"
 	xyRequest "github.com/gcc798/xianyu.bot/internal/model/xianyu/request"
 	"github.com/glebarez/sqlite"
@@ -17,11 +16,8 @@ func TestAIConfigUpdatePreservesSecrets(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
 	require.NoError(t, db.AutoMigrate(&model.AIModel{}, &model.MCPServer{}, &model.AgentConfig{}))
-	oldDB := infra.DB
-	infra.DB = db
-	t.Cleanup(func() { infra.DB = oldDB })
 
-	service := &aiConfig{db: infra.DB}
+	service := &aiConfig{db: db}
 	modelInput := validModelInput()
 	modelInput.APIKey = "secret-model-key"
 	createdModel, err := service.CreateModel(t.Context(), modelInput)

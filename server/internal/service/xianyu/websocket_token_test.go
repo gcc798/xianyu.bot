@@ -10,7 +10,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gcc798/xianyu.bot/internal/infra"
 	"github.com/gcc798/xianyu.bot/internal/model/xianyu"
 	xyRequest "github.com/gcc798/xianyu.bot/internal/model/xianyu/request"
 	"github.com/glebarez/sqlite"
@@ -42,11 +41,8 @@ func TestWebSocketTokenIsEncryptedAndCached(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
 	require.NoError(t, db.AutoMigrate(&model.Account{}, &model.Credential{}))
-	oldDB := infra.DB
-	t.Cleanup(func() { infra.DB = oldDB })
-	infra.DB = db
 	t.Setenv(credentialKeyEnvironment, base64.StdEncoding.EncodeToString([]byte("0123456789abcdef0123456789abcdef")))
-	accountService := &account{db: infra.DB}
+	accountService := &account{db: db}
 	created, err := accountService.Create(t.Context(), 10, xyRequest.CreateAccount{Label: "Token 账号"})
 	require.NoError(t, err)
 	require.NoError(t, accountService.SaveCredential(t.Context(), 10, xyRequest.SaveCredential{
@@ -92,11 +88,8 @@ func TestWebSocketTokenMarksAccountWhenVerificationIsRequired(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
 	require.NoError(t, db.AutoMigrate(&model.Account{}, &model.Credential{}, &model.BusinessEvent{}))
-	oldDB := infra.DB
-	t.Cleanup(func() { infra.DB = oldDB })
-	infra.DB = db
 	t.Setenv(credentialKeyEnvironment, base64.StdEncoding.EncodeToString([]byte("0123456789abcdef0123456789abcdef")))
-	accountService := &account{db: infra.DB}
+	accountService := &account{db: db}
 	created, err := accountService.Create(t.Context(), 10, xyRequest.CreateAccount{Label: "需验证账号"})
 	require.NoError(t, err)
 	require.NoError(t, accountService.SaveCredential(t.Context(), 10, xyRequest.SaveCredential{
