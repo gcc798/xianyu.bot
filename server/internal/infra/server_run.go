@@ -16,13 +16,14 @@ type server interface {
 	Shutdown(context.Context) error
 }
 
-// initServer 启动服务并实现优雅关闭
-func initServer(ctx context.Context, address string, router *gin.Engine, readTimeout, writeTimeout time.Duration) error {
+func RunServer(ctx context.Context, router *gin.Engine, port int) error {
+	address := fmt.Sprintf(":%d", port)
+	zap.L().Info("闲鱼 Harness Agent 启动", zap.String("address", address))
 	srv := &http.Server{
 		Addr:           address,
 		Handler:        router,
-		ReadTimeout:    readTimeout,
-		WriteTimeout:   writeTimeout,
+		ReadTimeout:    10 * time.Minute,
+		WriteTimeout:   10 * time.Minute,
 		MaxHeaderBytes: 1 << 20,
 	}
 	return runServer(ctx, srv)

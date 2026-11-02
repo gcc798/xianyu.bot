@@ -8,6 +8,7 @@ import (
 	systemRouter "github.com/gcc798/xianyu.bot/internal/api/router/system"
 	"github.com/gcc798/xianyu.bot/internal/security"
 	xianyuService "github.com/gcc798/xianyu.bot/internal/service/xianyu"
+	"github.com/gcc798/xianyu.bot/internal/xianyu"
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 )
@@ -33,7 +34,10 @@ func Routers(ctx context.Context, systemRoutes *systemRouter.RouterGroup, jwt *s
 	systemRoutes.InitSysDictionaryRouter(private)
 	systemRoutes.InitSysDictionaryDetailRouter(private)
 	systemRoutes.InitLoginLogRouter(private)
-	initializeXianyu(ctx, engine, jwt, xianyuDeps)
+	if err := xianyu.Initialize(ctx, engine, jwt, xianyuDeps); err != nil {
+		zap.L().Error("初始化闲鱼业务失败", zap.Error(err))
+		panic(err)
+	}
 
 	zap.L().Info("router register success")
 	return engine
