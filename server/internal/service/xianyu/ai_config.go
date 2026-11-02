@@ -8,7 +8,6 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/gcc798/go.xianyu.assistant/server/internal/infra"
 	"github.com/gcc798/go.xianyu.assistant/server/internal/model/xianyu"
 	xyRequest "github.com/gcc798/go.xianyu.assistant/server/internal/model/xianyu/request"
 	"gorm.io/gorm"
@@ -16,11 +15,13 @@ import (
 
 var mcpCodePattern = regexp.MustCompile(`^[a-z][a-z0-9_-]{1,63}$`)
 
-type aiConfig struct{}
+type aiConfig struct {
+	db *gorm.DB
+}
 
 func (s *aiConfig) ListModels(ctx context.Context) ([]model.AIModel, error) {
 	items := make([]model.AIModel, 0)
-	err := infra.DB.WithContext(ctx).Order("is_default DESC, id DESC").Find(&items).Error
+	err := s.db.WithContext(ctx).Order("is_default DESC, id DESC").Find(&items).Error
 	for i := range items {
 		items[i].HasAPIKey = items[i].APIKey != ""
 	}
@@ -32,7 +33,7 @@ func (s *aiConfig) CreateModel(ctx context.Context, input xyRequest.SaveAIModel)
 	if err != nil {
 		return model.AIModel{}, err
 	}
-	err = infra.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if item.IsDefault {
 			if err := tx.Model(&model.AIModel{}).Where("is_default = ?", true).Update("is_default", false).Error; err != nil {
 				return err
@@ -52,7 +53,7 @@ func (s *aiConfig) UpdateModel(ctx context.Context, id uint, input xyRequest.Sav
 	if err != nil {
 		return err
 	}
-	return infra.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var current model.AIModel
 		if err := tx.First(&current, id).Error; err != nil {
 			return err
@@ -80,7 +81,7 @@ func (s *aiConfig) DeleteModel(ctx context.Context, id uint) error {
 	if id == 0 {
 		return errors.New("模型 ID 不能为空")
 	}
-	result := infra.DB.WithContext(ctx).Where("id = ?", id).Delete(&model.AIModel{})
+	result := s.db.WithContext(ctx).Where("id = ?", id).Delete(&model.AIModel{})
 	return affected(result)
 }
 
@@ -88,7 +89,7 @@ func (s *aiConfig) SetDefaultModel(ctx context.Context, id uint) error {
 	if id == 0 {
 		return errors.New("模型 ID 不能为空")
 	}
-	return infra.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var item model.AIModel
 		if err := tx.First(&item, id).Error; err != nil {
 			return err
@@ -105,7 +106,7 @@ func (s *aiConfig) SetDefaultModel(ctx context.Context, id uint) error {
 
 func (s *aiConfig) ListMCPServers(ctx context.Context) ([]model.MCPServer, error) {
 	items := make([]model.MCPServer, 0)
-	err := infra.DB.WithContext(ctx).Order("id DESC").Find(&items).Error
+	err := s.db.WithContext(ctx).Order("id DESC").Find(&items).Error
 	for i := range items {
 		items[i].HasAuthToken = items[i].AuthToken != ""
 	}
@@ -117,7 +118,7 @@ func (s *aiConfig) CreateMCPServer(ctx context.Context, input xyRequest.SaveMCPS
 	if err != nil {
 		return model.MCPServer{}, err
 	}
-	err = infra.DB.WithContext(ctx).Create(&item).Error
+	err = s.db.WithContext(ctx).Create(&item).Error
 	item.HasAuthToken = item.AuthToken != ""
 	return item, err
 }
@@ -138,19 +139,19 @@ func (s *aiConfig) UpdateMCPServer(ctx context.Context, id uint, input xyRequest
 	if strings.TrimSpace(input.AuthToken) != "" {
 		updates["auth_token"] = strings.TrimSpace(input.AuthToken)
 	}
-	return affected(infra.DB.WithContext(ctx).Model(&model.MCPServer{}).Where("id = ?", id).Updates(updates))
+	return affected(s.db.WithContext(ctx).Model(&model.MCPServer{}).Where("id = ?", id).Updates(updates))
 }
 
 func (s *aiConfig) DeleteMCPServer(ctx context.Context, id uint) error {
 	if id == 0 {
 		return errors.New("MCP 服务 ID 不能为空")
 	}
-	return affected(infra.DB.WithContext(ctx).Where("id = ?", id).Delete(&model.MCPServer{}))
+	return affected(s.db.WithContext(ctx).Where("id = ?", id).Delete(&model.MCPServer{}))
 }
 
 func (s *aiConfig) GetAgentConfig(ctx context.Context) (model.AgentConfig, error) {
 	item := model.DefaultAgentConfig()
-	err := infra.DB.WithContext(ctx).FirstOrCreate(&item, model.AgentConfig{ID: 1}).Error
+	err := s.db.WithContext(ctx).FirstOrCreate(&item, model.AgentConfig{ID: 1}).Error
 	return item, err
 }
 
@@ -159,7 +160,7 @@ func (s *aiConfig) UpdateAgentConfig(ctx context.Context, item model.AgentConfig
 	if err := validateAgentConfig(item); err != nil {
 		return err
 	}
-	return infra.DB.WithContext(ctx).Save(&item).Error
+	return s.db.WithContext(ctx).Save(&item).Error
 }
 
 func buildAIModel(input xyRequest.SaveAIModel) (model.AIModel, error) {

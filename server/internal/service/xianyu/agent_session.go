@@ -6,14 +6,15 @@ import (
 	"errors"
 	"strings"
 
-	"github.com/gcc798/go.xianyu.assistant/server/internal/infra"
 	"github.com/gcc798/go.xianyu.assistant/server/internal/model/xianyu"
 	xyRequest "github.com/gcc798/go.xianyu.assistant/server/internal/model/xianyu/request"
 	xyResponse "github.com/gcc798/go.xianyu.assistant/server/internal/model/xianyu/response"
 	"gorm.io/gorm"
 )
 
-type agentSession struct{}
+type agentSession struct {
+	db *gorm.DB
+}
 
 func (s *agentSession) Create(ctx context.Context, ownerID uint, input xyRequest.CreateAgentSession) (model.AgentSession, error) {
 	if ownerID == 0 {
@@ -24,7 +25,7 @@ func (s *agentSession) Create(ctx context.Context, ownerID uint, input xyRequest
 		title = "新对话"
 	}
 	session := model.AgentSession{OwnerID: ownerID, Title: title}
-	err := infra.DB.WithContext(ctx).Create(&session).Error
+	err := s.db.WithContext(ctx).Create(&session).Error
 	return session, err
 }
 
@@ -32,7 +33,7 @@ func (s *agentSession) List(ctx context.Context, ownerID uint, input xyRequest.A
 	if ownerID == 0 {
 		return nil, 0, errors.New("用户未登录")
 	}
-	db := infra.DB.WithContext(ctx).Model(&model.AgentSession{}).Where("owner_id = ?", ownerID)
+	db := s.db.WithContext(ctx).Model(&model.AgentSession{}).Where("owner_id = ?", ownerID)
 	var total int64
 	if err := db.Count(&total).Error; err != nil {
 		return nil, 0, err
@@ -47,15 +48,15 @@ func (s *agentSession) Get(ctx context.Context, ownerID, sessionID uint) (xyResp
 		return xyResponse.AgentSessionDetail{}, errors.New("会话 ID 不能为空")
 	}
 	var session model.AgentSession
-	if err := infra.DB.WithContext(ctx).Where("id = ? AND owner_id = ?", sessionID, ownerID).First(&session).Error; err != nil {
+	if err := s.db.WithContext(ctx).Where("id = ? AND owner_id = ?", sessionID, ownerID).First(&session).Error; err != nil {
 		return xyResponse.AgentSessionDetail{}, err
 	}
 	messages := make([]model.AgentMessage, 0)
-	if err := infra.DB.WithContext(ctx).Where("session_id = ? AND owner_id = ?", sessionID, ownerID).Order("sequence").Find(&messages).Error; err != nil {
+	if err := s.db.WithContext(ctx).Where("session_id = ? AND owner_id = ?", sessionID, ownerID).Order("sequence").Find(&messages).Error; err != nil {
 		return xyResponse.AgentSessionDetail{}, err
 	}
 	toolTraces := make([]xyResponse.AgentToolTrace, 0)
-	if err := infra.DB.WithContext(ctx).Table("xy_agent_run_tools AS t").
+	if err := s.db.WithContext(ctx).Table("xy_agent_run_tools AS t").
 		Select("t.id, t.run_id, t.call_id, t.tool_name, t.arguments, t.result, t.status, t.duration_millis, t.created_at").
 		Joins("JOIN xy_agent_runs AS r ON r.id = t.run_id AND r.deleted_at IS NULL").
 		Where("r.session_id = ? AND r.owner_id = ? AND t.deleted_at IS NULL", sessionID, ownerID).
@@ -63,7 +64,7 @@ func (s *agentSession) Get(ctx context.Context, ownerID, sessionID uint) (xyResp
 		return xyResponse.AgentSessionDetail{}, err
 	}
 	approvals := make([]xyResponse.AgentApproval, 0)
-	if err := infra.DB.WithContext(ctx).Table("xy_agent_run_tools AS t").
+	if err := s.db.WithContext(ctx).Table("xy_agent_run_tools AS t").
 		Select("t.run_id, t.tool_name, t.created_at").
 		Joins("JOIN xy_agent_runs AS r ON r.id = t.run_id AND r.deleted_at IS NULL").
 		Where("r.session_id = ? AND r.owner_id = ? AND t.status = ? AND t.deleted_at IS NULL", sessionID, ownerID, "waiting_approval").
@@ -71,7 +72,7 @@ func (s *agentSession) Get(ctx context.Context, ownerID, sessionID uint) (xyResp
 		return xyResponse.AgentSessionDetail{}, err
 	}
 	tasks := make([]xyResponse.AgentTask, 0)
-	if err := infra.DB.WithContext(ctx).Table("xy_resource_tasks AS t").
+	if err := s.db.WithContext(ctx).Table("xy_resource_tasks AS t").
 		Select("t.id, t.agent_run_id AS run_id, t.state, t.stage, t.progress_percent, t.progress_done, t.progress_total, t.progress_unit").
 		Joins("JOIN xy_agent_runs AS r ON r.id = t.agent_run_id AND r.deleted_at IS NULL").
 		Where("r.session_id = ? AND r.owner_id = ? AND t.deleted_at IS NULL", sessionID, ownerID).
@@ -86,7 +87,7 @@ func (s *agentSession) Trajectory(ctx context.Context, ownerID, sessionID uint, 
 		return xyResponse.AgentTrajectoryPage{}, errors.New("会话 ID 不能为空")
 	}
 	var exists int64
-	if err := infra.DB.WithContext(ctx).Model(&model.AgentSession{}).Where("id = ? AND owner_id = ?", sessionID, ownerID).Count(&exists).Error; err != nil {
+	if err := s.db.WithContext(ctx).Model(&model.AgentSession{}).Where("id = ? AND owner_id = ?", sessionID, ownerID).Count(&exists).Error; err != nil {
 		return xyResponse.AgentTrajectoryPage{}, err
 	}
 	if exists == 0 {
@@ -97,7 +98,7 @@ func (s *agentSession) Trajectory(ctx context.Context, ownerID, sessionID uint, 
 		limit = 200
 	}
 	events := make([]model.AgentEvent, 0, limit+1)
-	query := infra.DB.WithContext(ctx).Where("owner_id = ? AND session_id = ? AND id > ?", ownerID, sessionID, input.AfterID)
+	query := s.db.WithContext(ctx).Where("owner_id = ? AND session_id = ? AND id > ?", ownerID, sessionID, input.AfterID)
 	if input.RunID > 0 {
 		query = query.Where("run_id = ?", input.RunID)
 	}
@@ -129,7 +130,7 @@ func (s *agentSession) ToolCall(ctx context.Context, ownerID, sessionID uint, ca
 		return xyResponse.AgentToolCallDetail{}, errors.New("工具调用标识无效")
 	}
 	var call model.AgentRunTool
-	if err := infra.DB.WithContext(ctx).Table("xy_agent_run_tools AS t").Select("t.*").
+	if err := s.db.WithContext(ctx).Table("xy_agent_run_tools AS t").Select("t.*").
 		Joins("JOIN xy_agent_runs AS r ON r.id = t.run_id AND r.deleted_at IS NULL").
 		Where("r.owner_id = ? AND r.session_id = ? AND t.call_id = ? AND t.deleted_at IS NULL", ownerID, sessionID, callID).
 		First(&call).Error; err != nil {
@@ -153,7 +154,7 @@ func (s *agentSession) Delete(ctx context.Context, ownerID, sessionID uint) erro
 	if ownerID == 0 || sessionID == 0 {
 		return errors.New("会话 ID 不能为空")
 	}
-	return infra.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var session model.AgentSession
 		if err := tx.Where("id = ? AND owner_id = ?", sessionID, ownerID).First(&session).Error; err != nil {
 			return err

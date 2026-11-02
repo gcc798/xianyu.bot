@@ -10,9 +10,12 @@ import (
 	xyRequest "github.com/gcc798/go.xianyu.assistant/server/internal/model/xianyu/request"
 	xyResponse "github.com/gcc798/go.xianyu.assistant/server/internal/model/xianyu/response"
 	"go.uber.org/zap"
+	"gorm.io/gorm"
 )
 
-type businessEvent struct{}
+type businessEvent struct {
+	db *gorm.DB
+}
 
 func recordBusinessEvent(ctx context.Context, event model.BusinessEvent) {
 	fields := []zap.Field{
@@ -42,7 +45,7 @@ func (s *businessEvent) List(ctx context.Context, ownerID uint, input xyRequest.
 	if ownerID == 0 {
 		return nil, 0, errors.New("用户未登录")
 	}
-	db := infra.DB.WithContext(ctx).Table("xy_business_events AS e").Where("e.owner_id = ? AND e.deleted_at IS NULL", ownerID)
+	db := s.db.WithContext(ctx).Table("xy_business_events AS e").Where("e.owner_id = ? AND e.deleted_at IS NULL", ownerID)
 	if input.AccountID != 0 {
 		db = db.Where("e.account_id = ?", input.AccountID)
 	}

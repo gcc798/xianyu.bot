@@ -27,7 +27,7 @@ func New(deps Dependencies) *Services {
 	webSocket.delivery = deliveries
 	agentEvents := newAgentEventHub()
 	agentRunner := &agentRunner{events: agentEvents, workers: make(map[uint]context.CancelFunc)}
-	return &Services{Status: status{db: deps.DB}, Account: *accounts, Product: *products, Message: messages, ReplyRule: *rules, DeliveryRule: *deliveryRules, Delivery: deliveries, Relist: relists, Order: orders, QRLogin: newQRLogin(accounts), WebSocket: webSocket, Resource: resourceCatalog{events: agentEvents}, AgentRunner: agentRunner, AgentEvents: agentEvents}
+	return &Services{Status: status{db: deps.DB}, Account: *accounts, Product: *products, Message: messages, ReplyRule: *rules, DeliveryRule: *deliveryRules, Delivery: deliveries, Relist: relists, Order: orders, QRLogin: newQRLogin(accounts), WebSocket: webSocket, BusinessEvent: businessEvent{db: deps.DB}, AIConfig: aiConfig{db: deps.DB}, Resource: resourceCatalog{events: agentEvents}, AgentSession: agentSession{db: deps.DB}, AgentRunner: agentRunner, AgentEvents: agentEvents}
 }
 
 type Services struct {

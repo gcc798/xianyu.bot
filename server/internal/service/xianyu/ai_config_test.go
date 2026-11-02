@@ -21,7 +21,7 @@ func TestAIConfigUpdatePreservesSecrets(t *testing.T) {
 	infra.DB = db
 	t.Cleanup(func() { infra.DB = oldDB })
 
-	service := new(aiConfig)
+	service := &aiConfig{db: infra.DB}
 	modelInput := validModelInput()
 	modelInput.APIKey = "secret-model-key"
 	createdModel, err := service.CreateModel(t.Context(), modelInput)
