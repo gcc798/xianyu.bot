@@ -1,4 +1,4 @@
-package service
+package agent
 
 import (
 	"context"
@@ -55,7 +55,7 @@ func TestResourceCatalogScopesQueriesByOwner(t *testing.T) {
 	require.NoError(t, db.Create(&model.ResourceTask{OwnerID: 11, CandidateID: 1, MCPServerCode: "telegram", IdempotencyKey: "task-owner", State: "queued"}).Error)
 	require.NoError(t, db.Create(&model.ResourceTask{OwnerID: 22, CandidateID: 2, MCPServerCode: "telegram", IdempotencyKey: "task-other", State: "queued"}).Error)
 
-	catalog := &resourceCatalog{db: db}
+	catalog := &ResourceCatalog{db: db}
 	resources, total, err := catalog.List(t.Context(), 11, xyRequest.ResourceSearch{})
 	require.NoError(t, err)
 	require.EqualValues(t, 1, total)
@@ -95,8 +95,8 @@ func TestResourceDeliveryGrantAndCompletion(t *testing.T) {
 	}
 	require.NoError(t, db.Create(&candidate).Error)
 	store := &fakeResourceObjectStore{size: candidate.Size}
-	events := newAgentEventHub(db)
-	catalog := &resourceCatalog{db: db, objectStore: store, bucket: "resources", events: events}
+	events := NewEventHub(db)
+	catalog := &ResourceCatalog{db: db, objectStore: store, bucket: "resources", events: events}
 	session := model.AgentSession{OwnerID: 11, Title: "资源交付"}
 	require.NoError(t, db.Create(&session).Error)
 	run := model.AgentRun{OwnerID: 11, SessionID: session.ID, ModelID: 1, ModelName: "test", Status: "completed", ConfigSnapshot: `{}`, StartedAt: time.Now()}
@@ -168,10 +168,10 @@ func TestResourceCatalogCancelsTaskThroughOwningMCPServer(t *testing.T) {
 	}
 	require.NoError(t, db.Create(&task).Error)
 	client := &recordingMCPClient{result: map[string]any{"status": "success", "data": map[string]any{}}}
-	registry := &mcpRegistry{db: db, connect: func(context.Context, model.MCPServer) (*mcpConnection, error) {
+	registry := &MCPRegistry{db: db, connect: func(context.Context, model.MCPServer) (*mcpConnection, error) {
 		return &mcpConnection{Server: server, Client: client, Tools: []mcp.Tool{{Name: "task_cancel"}}}, nil
 	}}
-	catalog := &resourceCatalog{db: db, registry: registry}
+	catalog := &ResourceCatalog{db: db, registry: registry}
 
 	_, err = catalog.CancelTask(t.Context(), 22, task.ID)
 	require.True(t, errors.Is(err, gorm.ErrRecordNotFound))

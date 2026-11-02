@@ -15,6 +15,5 @@ func TestServicesShareRootContext(t *testing.T) {
 	require.Equal(t, ctx, services.Delivery.root)
 	require.Equal(t, ctx, services.Message.root)
 	require.Equal(t, ctx, services.WebSocket.root)
-	require.Equal(t, ctx, services.AgentRunner.root)
 	require.Equal(t, ctx, services.QRLogin.manager.root)
 }

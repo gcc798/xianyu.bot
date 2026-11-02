@@ -1,4 +1,4 @@
-package service
+package agent
 
 import (
 	"context"
@@ -16,10 +16,10 @@ import (
 	"gorm.io/gorm"
 )
 
-func (s *agentRunner) Run(ctx context.Context, ownerID, sessionID uint, content, idempotencyKey string, directives ...xyRequest.AgentDirective) (agentRunResult, error) {
+func (s *Runner) Run(ctx context.Context, ownerID, sessionID uint, content, idempotencyKey string, directives ...xyRequest.AgentDirective) (RunResult, error) {
 	prepared, existing, err := s.prepare(ctx, ownerID, sessionID, content, idempotencyKey, directives)
 	if err != nil {
-		return agentRunResult{}, err
+		return RunResult{}, err
 	}
 	if existing != nil {
 		return *existing, nil
@@ -33,7 +33,7 @@ func TestAgentRunnerPersistsConversationAndDeduplicatesRequest(t *testing.T) {
 	session := model.AgentSession{OwnerID: 11, Title: "测试会话"}
 	require.NoError(t, db.Create(&session).Error)
 	chatModel := &stubAgentModel{answer: "这是最终回答"}
-	runner := &agentRunner{db: db, registry: &mcpRegistry{db: db}, newModel: func(context.Context, model.AIModel, model.AgentConfig) (einomodel.BaseChatModel, error) {
+	runner := &Runner{db: db, registry: &MCPRegistry{db: db}, newModel: func(context.Context, model.AIModel, model.AgentConfig) (einomodel.BaseChatModel, error) {
 		return chatModel, nil
 	}}
 
@@ -66,7 +66,7 @@ func TestAgentRunnerRecordsModelFailure(t *testing.T) {
 	db := agentRunnerTestDB(t)
 	session := model.AgentSession{OwnerID: 11, Title: "失败会话"}
 	require.NoError(t, db.Create(&session).Error)
-	runner := &agentRunner{db: db, registry: &mcpRegistry{db: db}, events: newAgentEventHub(db), newModel: func(context.Context, model.AIModel, model.AgentConfig) (einomodel.BaseChatModel, error) {
+	runner := &Runner{db: db, registry: &MCPRegistry{db: db}, events: NewEventHub(db), newModel: func(context.Context, model.AIModel, model.AgentConfig) (einomodel.BaseChatModel, error) {
 		return &stubAgentModel{err: errors.New("upstream unavailable")}, nil
 	}}
 
@@ -87,8 +87,8 @@ func TestAgentRunnerSubmitPublishesStreamingEvents(t *testing.T) {
 	db := agentRunnerTestDB(t)
 	session := model.AgentSession{OwnerID: 11, Title: "异步会话"}
 	require.NoError(t, db.Create(&session).Error)
-	events := newAgentEventHub(db)
-	runner := &agentRunner{db: db, registry: &mcpRegistry{db: db}, events: events, newModel: func(context.Context, model.AIModel, model.AgentConfig) (einomodel.BaseChatModel, error) {
+	events := NewEventHub(db)
+	runner := &Runner{db: db, registry: &MCPRegistry{db: db}, events: events, newModel: func(context.Context, model.AIModel, model.AgentConfig) (einomodel.BaseChatModel, error) {
 		return &stubAgentModel{answer: "流式回答"}, nil
 	}}
 	_, stream, cancel, err := events.Subscribe(t.Context(), session.ID, 0)
@@ -125,7 +125,7 @@ func TestAgentRunnerPersistsAuditableModelSnapshot(t *testing.T) {
 	db := agentRunnerTestDB(t)
 	session := model.AgentSession{OwnerID: 11, Title: "模型轨迹"}
 	require.NoError(t, db.Create(&session).Error)
-	runner := &agentRunner{db: db, registry: &mcpRegistry{db: db}, events: newAgentEventHub(db), newModel: func(context.Context, model.AIModel, model.AgentConfig) (einomodel.BaseChatModel, error) {
+	runner := &Runner{db: db, registry: &MCPRegistry{db: db}, events: NewEventHub(db), newModel: func(context.Context, model.AIModel, model.AgentConfig) (einomodel.BaseChatModel, error) {
 		return &stubAgentModel{answer: "轨迹回答"}, nil
 	}}
 
@@ -150,8 +150,8 @@ func TestAgentRunnerCancelsOwnedRun(t *testing.T) {
 	db := agentRunnerTestDB(t)
 	session := model.AgentSession{OwnerID: 11, Title: "取消会话"}
 	require.NoError(t, db.Create(&session).Error)
-	events := newAgentEventHub(db)
-	runner := &agentRunner{db: db, registry: &mcpRegistry{db: db}, events: events, newModel: func(context.Context, model.AIModel, model.AgentConfig) (einomodel.BaseChatModel, error) {
+	events := NewEventHub(db)
+	runner := &Runner{db: db, registry: &MCPRegistry{db: db}, events: events, newModel: func(context.Context, model.AIModel, model.AgentConfig) (einomodel.BaseChatModel, error) {
 		return cancelAwareAgentModel{}, nil
 	}}
 	_, stream, unsubscribe, err := events.Subscribe(t.Context(), session.ID, 0)

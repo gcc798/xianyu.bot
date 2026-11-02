@@ -1,4 +1,4 @@
-package service
+package agent
 
 import (
 	"context"
@@ -24,7 +24,7 @@ func TestMCPRegistryDiscoversEnabledServersAndKeepsAvailableOnes(t *testing.T) {
 	require.NoError(t, db.Model(&model.MCPServer{}).Where("code = ?", "disabled").Update("enabled", false).Error)
 
 	discovered := make([]string, 0)
-	registry := &mcpRegistry{db: db, connect: func(_ context.Context, server model.MCPServer) (*mcpConnection, error) {
+	registry := &MCPRegistry{db: db, connect: func(_ context.Context, server model.MCPServer) (*mcpConnection, error) {
 		discovered = append(discovered, server.Code)
 		if server.Code == "broken" {
 			return nil, errors.New("connection refused")
@@ -51,7 +51,7 @@ func TestMCPRegistryFailsWhenNoEnabledServerIsAvailable(t *testing.T) {
 	require.NoError(t, db.AutoMigrate(&model.MCPServer{}))
 	require.NoError(t, db.Create(&model.MCPServer{Name: "故障", Code: "broken", BaseURL: "http://broken/mcp", Enabled: true, RequestTimeoutSeconds: 15}).Error)
 
-	registry := &mcpRegistry{db: db, connect: func(context.Context, model.MCPServer) (*mcpConnection, error) {
+	registry := &MCPRegistry{db: db, connect: func(context.Context, model.MCPServer) (*mcpConnection, error) {
 		return nil, errors.New("connection refused")
 	}}
 	connections, err := registry.Discover(t.Context())

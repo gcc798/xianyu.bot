@@ -1,4 +1,4 @@
-package service
+package agent
 
 import (
 	"encoding/json"
@@ -17,7 +17,7 @@ func TestAIConfigUpdatePreservesSecrets(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, db.AutoMigrate(&model.AIModel{}, &model.MCPServer{}, &model.AgentConfig{}))
 
-	service := &aiConfig{db: db}
+	service := &AIConfig{db: db}
 	modelInput := validModelInput()
 	modelInput.APIKey = "secret-model-key"
 	createdModel, err := service.CreateModel(t.Context(), modelInput)

@@ -1,4 +1,4 @@
-package service
+package agent
 
 import (
 	"testing"
@@ -10,7 +10,7 @@ import (
 )
 
 func TestAgentEventHubReplaysAfterLastEventID(t *testing.T) {
-	hub := newAgentEventHub()
+	hub := NewEventHub()
 	first, err := hub.Publish(11, "run.started", map[string]any{"runId": 1})
 	require.NoError(t, err)
 	second, err := hub.Publish(11, "assistant.delta", map[string]any{"content": "你好"})
@@ -33,7 +33,7 @@ func TestAgentEventHubReplaysAfterLastEventID(t *testing.T) {
 }
 
 func TestAgentEventHubSeparatesSessionsAndRejectsOversizedData(t *testing.T) {
-	hub := newAgentEventHub()
+	hub := NewEventHub()
 	_, stream, cancel, err := hub.Subscribe(t.Context(), 22, 0)
 	require.NoError(t, err)
 	defer cancel()
@@ -55,12 +55,12 @@ func TestAgentEventHubPersistsAndReplaysAfterRestart(t *testing.T) {
 	session := model.AgentSession{OwnerID: 7, Title: "审计会话"}
 	require.NoError(t, db.Create(&session).Error)
 
-	firstHub := newAgentEventHub(db)
+	firstHub := NewEventHub(db)
 	stored, err := firstHub.Publish(session.ID, "run.started", map[string]any{"runId": 9, "turnNo": 1})
 	require.NoError(t, err)
 	require.NotZero(t, stored.ID)
 
-	restartedHub := newAgentEventHub(db)
+	restartedHub := NewEventHub(db)
 	replay, _, cancel, err := restartedHub.Subscribe(t.Context(), session.ID, 0)
 	require.NoError(t, err)
 	defer cancel()
@@ -82,7 +82,7 @@ func TestAgentEventHubDoesNotPersistStreamingDelta(t *testing.T) {
 	session := model.AgentSession{OwnerID: 7, Title: "流式会话"}
 	require.NoError(t, db.Create(&session).Error)
 
-	hub := newAgentEventHub(db)
+	hub := NewEventHub(db)
 	_, stream, cancel, err := hub.Subscribe(t.Context(), session.ID, 0)
 	require.NoError(t, err)
 	defer cancel()

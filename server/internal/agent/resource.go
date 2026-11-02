@@ -1,4 +1,4 @@
-package service
+package agent
 
 import (
 	"context"
@@ -39,12 +39,12 @@ type resourceObjectStore interface {
 	MakeBucket(ctx context.Context, bucket string, opts minio.MakeBucketOptions) error
 }
 
-type resourceCatalog struct {
+type ResourceCatalog struct {
 	db          *gorm.DB
 	objectStore resourceObjectStore
 	bucket      string
-	events      *agentEventHub
-	registry    *mcpRegistry
+	events      *EventHub
+	registry    *MCPRegistry
 }
 
 type ResourceDeliveryGrant struct {
@@ -53,7 +53,7 @@ type ResourceDeliveryGrant struct {
 	ExpiresAt time.Time
 }
 
-func (s *resourceCatalog) List(ctx context.Context, ownerID uint, input xyRequest.ResourceSearch) ([]model.Resource, int64, error) {
+func (s *ResourceCatalog) List(ctx context.Context, ownerID uint, input xyRequest.ResourceSearch) ([]model.Resource, int64, error) {
 	if ownerID == 0 {
 		return nil, 0, errors.New("用户未登录")
 	}
@@ -76,7 +76,7 @@ func (s *resourceCatalog) List(ctx context.Context, ownerID uint, input xyReques
 	return resources, total, err
 }
 
-func (s *resourceCatalog) Get(ctx context.Context, ownerID, resourceID uint) (xyResponse.ResourceDetail, error) {
+func (s *ResourceCatalog) Get(ctx context.Context, ownerID, resourceID uint) (xyResponse.ResourceDetail, error) {
 	if ownerID == 0 || resourceID == 0 {
 		return xyResponse.ResourceDetail{}, errors.New("资源 ID 不能为空")
 	}
@@ -91,7 +91,7 @@ func (s *resourceCatalog) Get(ctx context.Context, ownerID, resourceID uint) (xy
 	return xyResponse.ResourceDetail{Resource: resource, Sources: sources}, nil
 }
 
-func (s *resourceCatalog) GetTask(ctx context.Context, ownerID, taskID uint) (model.ResourceTask, error) {
+func (s *ResourceCatalog) GetTask(ctx context.Context, ownerID, taskID uint) (model.ResourceTask, error) {
 	if ownerID == 0 || taskID == 0 {
 		return model.ResourceTask{}, errors.New("任务 ID 不能为空")
 	}
@@ -100,7 +100,7 @@ func (s *resourceCatalog) GetTask(ctx context.Context, ownerID, taskID uint) (mo
 	return task, err
 }
 
-func (s *resourceCatalog) CancelTask(ctx context.Context, ownerID, taskID uint) (model.ResourceTask, error) {
+func (s *ResourceCatalog) CancelTask(ctx context.Context, ownerID, taskID uint) (model.ResourceTask, error) {
 	task, err := s.GetTask(ctx, ownerID, taskID)
 	if err != nil {
 		return model.ResourceTask{}, err
@@ -113,7 +113,7 @@ func (s *resourceCatalog) CancelTask(ctx context.Context, ownerID, taskID uint) 
 	}
 	registry := s.registry
 	if registry == nil {
-		registry = &mcpRegistry{db: s.db}
+		registry = &MCPRegistry{db: s.db}
 	}
 	connections, err := registry.Discover(ctx)
 	if err != nil {
@@ -143,7 +143,7 @@ func (s *resourceCatalog) CancelTask(ctx context.Context, ownerID, taskID uint) 
 	return task, nil
 }
 
-func (s *resourceCatalog) Download(ctx context.Context, ownerID, resourceID uint) (string, time.Time, error) {
+func (s *ResourceCatalog) Download(ctx context.Context, ownerID, resourceID uint) (string, time.Time, error) {
 	if ownerID == 0 || resourceID == 0 {
 		return "", time.Time{}, errors.New("资源 ID 不能为空")
 	}
@@ -165,7 +165,7 @@ func (s *resourceCatalog) Download(ctx context.Context, ownerID, resourceID uint
 	return downloadURL.String(), expiresAt, nil
 }
 
-func (s *resourceCatalog) CreateDeliveryTask(ctx context.Context, ownerID, candidateID uint, idempotencyKey string) (ResourceDeliveryGrant, error) {
+func (s *ResourceCatalog) CreateDeliveryTask(ctx context.Context, ownerID, candidateID uint, idempotencyKey string) (ResourceDeliveryGrant, error) {
 	idempotencyKey = strings.TrimSpace(idempotencyKey)
 	if ownerID == 0 || candidateID == 0 || idempotencyKey == "" || len(idempotencyKey) > 100 {
 		return ResourceDeliveryGrant{}, errors.New("资源候选和幂等键不能为空")
@@ -220,7 +220,7 @@ func (s *resourceCatalog) CreateDeliveryTask(ctx context.Context, ownerID, candi
 	return ResourceDeliveryGrant{Task: task, Token: token, ExpiresAt: expiresAt}, nil
 }
 
-func (s *resourceCatalog) PresignDelivery(ctx context.Context, taskID uint, token string) (string, time.Time, error) {
+func (s *ResourceCatalog) PresignDelivery(ctx context.Context, taskID uint, token string) (string, time.Time, error) {
 	task, err := s.deliveryTask(ctx, taskID, token)
 	if err != nil {
 		return "", time.Time{}, err
@@ -249,7 +249,7 @@ func (s *resourceCatalog) PresignDelivery(ctx context.Context, taskID uint, toke
 	return uploadURL.String(), expiresAt, nil
 }
 
-func (s *resourceCatalog) CompleteDelivery(ctx context.Context, taskID uint, token string, size int64, checksum string) (model.Resource, error) {
+func (s *ResourceCatalog) CompleteDelivery(ctx context.Context, taskID uint, token string, size int64, checksum string) (model.Resource, error) {
 	task, err := s.deliveryTask(ctx, taskID, token)
 	if err != nil {
 		return model.Resource{}, err
@@ -326,7 +326,7 @@ func (s *resourceCatalog) CompleteDelivery(ctx context.Context, taskID uint, tok
 	return resource, err
 }
 
-func (s *resourceCatalog) UpdateDelivery(ctx context.Context, taskID uint, token string, input xyRequest.UpdateResourceDelivery) (model.ResourceTask, error) {
+func (s *ResourceCatalog) UpdateDelivery(ctx context.Context, taskID uint, token string, input xyRequest.UpdateResourceDelivery) (model.ResourceTask, error) {
 	task, err := s.deliveryTask(ctx, taskID, token)
 	if err != nil {
 		return model.ResourceTask{}, err
@@ -351,7 +351,7 @@ func (s *resourceCatalog) UpdateDelivery(ctx context.Context, taskID uint, token
 	return task, nil
 }
 
-func (s *resourceCatalog) FailDelivery(ctx context.Context, taskID uint, token string, input xyRequest.FailResourceDelivery) (model.ResourceTask, error) {
+func (s *ResourceCatalog) FailDelivery(ctx context.Context, taskID uint, token string, input xyRequest.FailResourceDelivery) (model.ResourceTask, error) {
 	task, err := s.deliveryTask(ctx, taskID, token)
 	if err != nil {
 		return model.ResourceTask{}, err
@@ -371,7 +371,7 @@ func (s *resourceCatalog) FailDelivery(ctx context.Context, taskID uint, token s
 	return task, nil
 }
 
-func (s *resourceCatalog) publishResourceTaskEvent(ctx context.Context, task model.ResourceTask, eventType string, extra map[string]any) {
+func (s *ResourceCatalog) publishResourceTaskEvent(ctx context.Context, task model.ResourceTask, eventType string, extra map[string]any) {
 	if task.AgentRunID == nil || s.events == nil {
 		return
 	}
@@ -390,7 +390,7 @@ func (s *resourceCatalog) publishResourceTaskEvent(ctx context.Context, task mod
 	_, _ = s.events.Publish(run.SessionID, eventType, data)
 }
 
-func (s *resourceCatalog) deliveryTask(ctx context.Context, taskID uint, token string) (model.ResourceTask, error) {
+func (s *ResourceCatalog) deliveryTask(ctx context.Context, taskID uint, token string) (model.ResourceTask, error) {
 	if taskID == 0 || token == "" {
 		return model.ResourceTask{}, errors.New("交付授权无效")
 	}
@@ -426,7 +426,7 @@ func ensureResourceBucket(ctx context.Context, store resourceObjectStore, bucket
 	return nil
 }
 
-func (s *resourceCatalog) storage() (resourceObjectStore, string, error) {
+func (s *ResourceCatalog) storage() (resourceObjectStore, string, error) {
 	if s.objectStore != nil {
 		return s.objectStore, s.bucket, nil
 	}

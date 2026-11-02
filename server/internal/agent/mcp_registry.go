@@ -1,4 +1,4 @@
-package service
+package agent
 
 import (
 	"context"
@@ -31,12 +31,12 @@ type mcpConnection struct {
 
 func (c *mcpConnection) Close() error { return c.Client.Close() }
 
-type mcpRegistry struct {
+type MCPRegistry struct {
 	db      *gorm.DB
 	connect func(context.Context, model.MCPServer) (*mcpConnection, error)
 }
 
-func (r *mcpRegistry) Discover(ctx context.Context) ([]*mcpConnection, error) {
+func (r *MCPRegistry) Discover(ctx context.Context) ([]*mcpConnection, error) {
 	servers := make([]model.MCPServer, 0)
 	if err := r.db.WithContext(ctx).Where("enabled = ?", true).Order("id").Find(&servers).Error; err != nil {
 		return nil, err
@@ -63,7 +63,7 @@ func (r *mcpRegistry) Discover(ctx context.Context) ([]*mcpConnection, error) {
 	return connections, nil
 }
 
-func (r *mcpRegistry) updateStatus(ctx context.Context, serverID uint, status string, cause error) {
+func (r *MCPRegistry) updateStatus(ctx context.Context, serverID uint, status string, cause error) {
 	now := time.Now()
 	message := ""
 	if cause != nil {

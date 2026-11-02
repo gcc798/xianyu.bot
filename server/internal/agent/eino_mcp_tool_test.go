@@ -1,4 +1,4 @@
-package service
+package agent
 
 import (
 	"context"
@@ -77,7 +77,7 @@ func TestEinoMCPToolCallsReadCapability(t *testing.T) {
 	require.NoError(t, db.Create(&session).Error)
 	target.runID = 9
 	target.sessionID = session.ID
-	target.events = newAgentEventHub(db)
+	target.events = NewEventHub(db)
 	result, err := target.InvokableRun(t.Context(), `{"query":"Go"}`)
 	require.NoError(t, err)
 	require.Contains(t, result, "structuredContent")

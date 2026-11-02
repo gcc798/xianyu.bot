@@ -1,4 +1,4 @@
-package service
+package agent
 
 import (
 	"context"
@@ -12,11 +12,11 @@ import (
 	"gorm.io/gorm"
 )
 
-type agentSession struct {
+type Session struct {
 	db *gorm.DB
 }
 
-func (s *agentSession) Create(ctx context.Context, ownerID uint, input xyRequest.CreateAgentSession) (model.AgentSession, error) {
+func (s *Session) Create(ctx context.Context, ownerID uint, input xyRequest.CreateAgentSession) (model.AgentSession, error) {
 	if ownerID == 0 {
 		return model.AgentSession{}, errors.New("用户未登录")
 	}
@@ -29,7 +29,7 @@ func (s *agentSession) Create(ctx context.Context, ownerID uint, input xyRequest
 	return session, err
 }
 
-func (s *agentSession) List(ctx context.Context, ownerID uint, input xyRequest.AgentSessionSearch) ([]model.AgentSession, int64, error) {
+func (s *Session) List(ctx context.Context, ownerID uint, input xyRequest.AgentSessionSearch) ([]model.AgentSession, int64, error) {
 	if ownerID == 0 {
 		return nil, 0, errors.New("用户未登录")
 	}
@@ -43,7 +43,7 @@ func (s *agentSession) List(ctx context.Context, ownerID uint, input xyRequest.A
 	return sessions, total, err
 }
 
-func (s *agentSession) Get(ctx context.Context, ownerID, sessionID uint) (xyResponse.AgentSessionDetail, error) {
+func (s *Session) Get(ctx context.Context, ownerID, sessionID uint) (xyResponse.AgentSessionDetail, error) {
 	if ownerID == 0 || sessionID == 0 {
 		return xyResponse.AgentSessionDetail{}, errors.New("会话 ID 不能为空")
 	}
@@ -82,7 +82,7 @@ func (s *agentSession) Get(ctx context.Context, ownerID, sessionID uint) (xyResp
 	return xyResponse.AgentSessionDetail{AgentSession: session, Messages: messages, ToolTraces: toolTraces, PendingApprovals: approvals, Tasks: tasks}, nil
 }
 
-func (s *agentSession) Trajectory(ctx context.Context, ownerID, sessionID uint, input xyRequest.AgentTrajectorySearch) (xyResponse.AgentTrajectoryPage, error) {
+func (s *Session) Trajectory(ctx context.Context, ownerID, sessionID uint, input xyRequest.AgentTrajectorySearch) (xyResponse.AgentTrajectoryPage, error) {
 	if ownerID == 0 || sessionID == 0 {
 		return xyResponse.AgentTrajectoryPage{}, errors.New("会话 ID 不能为空")
 	}
@@ -124,7 +124,7 @@ func (s *agentSession) Trajectory(ctx context.Context, ownerID, sessionID uint, 
 	return xyResponse.AgentTrajectoryPage{Events: items, NextAfterID: nextAfterID, HasMore: hasMore}, nil
 }
 
-func (s *agentSession) ToolCall(ctx context.Context, ownerID, sessionID uint, callID string) (xyResponse.AgentToolCallDetail, error) {
+func (s *Session) ToolCall(ctx context.Context, ownerID, sessionID uint, callID string) (xyResponse.AgentToolCallDetail, error) {
 	callID = strings.TrimSpace(callID)
 	if ownerID == 0 || sessionID == 0 || callID == "" || len(callID) > 200 {
 		return xyResponse.AgentToolCallDetail{}, errors.New("工具调用标识无效")
@@ -150,7 +150,7 @@ func rawJSON(value string) json.RawMessage {
 	return json.RawMessage("null")
 }
 
-func (s *agentSession) Delete(ctx context.Context, ownerID, sessionID uint) error {
+func (s *Session) Delete(ctx context.Context, ownerID, sessionID uint) error {
 	if ownerID == 0 || sessionID == 0 {
 		return errors.New("会话 ID 不能为空")
 	}

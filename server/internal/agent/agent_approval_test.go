@@ -1,4 +1,4 @@
-package service
+package agent
 
 import (
 	"context"
@@ -37,11 +37,11 @@ func TestAgentRunnerApprovesResourceAcquisitionWithoutPersistingDeliveryToken(t 
 	client := &recordingMCPClient{textResult: true, result: map[string]any{
 		"status": "success", "data": map[string]any{"task_id": "resource_acquire:42"},
 	}}
-	registry := &mcpRegistry{db: db, connect: func(context.Context, model.MCPServer) (*mcpConnection, error) {
+	registry := &MCPRegistry{db: db, connect: func(context.Context, model.MCPServer) (*mcpConnection, error) {
 		return &mcpConnection{Server: server, Client: client, Tools: []mcp.Tool{{Name: "resource_acquire"}}}, nil
 	}}
-	resources := &resourceCatalog{db: db, events: newAgentEventHub(db), registry: registry}
-	runner := &agentRunner{db: db, registry: registry, resources: resources, events: resources.events}
+	resources := &ResourceCatalog{db: db, events: NewEventHub(db), registry: registry}
+	runner := &Runner{db: db, registry: registry, resources: resources, events: resources.events}
 
 	_, err = runner.Approve(t.Context(), 22, run.ID)
 	require.Error(t, err)

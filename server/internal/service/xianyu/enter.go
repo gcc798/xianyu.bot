@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 
+	"github.com/gcc798/xianyu.bot/internal/agent"
 	"gorm.io/gorm"
 )
 
@@ -30,11 +31,11 @@ func New(deps Dependencies) *Services {
 	messages.sender = webSocket
 	orders.sender = webSocket
 	webSocket.delivery = deliveries
-	agentEvents := newAgentEventHub(deps.DB)
-	mcpRegistry := &mcpRegistry{db: deps.DB}
-	resources := resourceCatalog{db: deps.DB, events: agentEvents, registry: mcpRegistry}
-	agentRunner := &agentRunner{root: root, db: deps.DB, registry: mcpRegistry, resources: &resources, events: agentEvents, workers: make(map[uint]context.CancelFunc)}
-	return &Services{Status: status{db: deps.DB}, Account: *accounts, Product: *products, Message: messages, ReplyRule: *rules, DeliveryRule: *deliveryRules, Delivery: deliveries, Relist: relists, Order: orders, QRLogin: newQRLogin(root, accounts), WebSocket: webSocket, BusinessEvent: *events, AIConfig: aiConfig{db: deps.DB}, Resource: resources, AgentSession: agentSession{db: deps.DB}, AgentRunner: agentRunner, AgentEvents: agentEvents}
+	agentEvents := agent.NewEventHub(deps.DB)
+	mcpRegistry := agent.NewMCPRegistry(deps.DB)
+	resources := agent.NewResourceCatalog(deps.DB, agentEvents, mcpRegistry)
+	agentRunner := agent.NewRunner(root, deps.DB, mcpRegistry, resources, agentEvents)
+	return &Services{Status: status{db: deps.DB}, Account: *accounts, Product: *products, Message: messages, ReplyRule: *rules, DeliveryRule: *deliveryRules, Delivery: deliveries, Relist: relists, Order: orders, QRLogin: newQRLogin(root, accounts), WebSocket: webSocket, BusinessEvent: *events, AIConfig: agent.NewAIConfig(deps.DB), Resource: resources, AgentSession: agent.NewSession(deps.DB), AgentRunner: agentRunner, AgentEvents: agentEvents}
 }
 
 func contextOrBackground(ctx context.Context) context.Context {
@@ -57,9 +58,9 @@ type Services struct {
 	QRLogin       qrLogin
 	WebSocket     *webSocketService
 	BusinessEvent businessEvent
-	AIConfig      aiConfig
-	Resource      resourceCatalog
-	AgentSession  agentSession
-	AgentRunner   *agentRunner
-	AgentEvents   *agentEventHub
+	AIConfig      *agent.AIConfig
+	Resource      *agent.ResourceCatalog
+	AgentSession  *agent.Session
+	AgentRunner   *agent.Runner
+	AgentEvents   *agent.EventHub
 }

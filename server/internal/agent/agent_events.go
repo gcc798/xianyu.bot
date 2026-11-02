@@ -1,4 +1,4 @@
-package service
+package agent
 
 import (
 	"context"
@@ -14,7 +14,7 @@ import (
 
 const agentEventMaxBytes = 1 << 20
 
-type agentEvent struct {
+type Event struct {
 	ID        uint64          `json:"id"`
 	Type      string          `json:"type"`
 	Data      json.RawMessage `json:"data"`
@@ -23,30 +23,30 @@ type agentEvent struct {
 
 type agentEventSession struct {
 	nextID      uint64
-	history     []agentEvent
-	subscribers map[chan agentEvent]struct{}
+	history     []Event
+	subscribers map[chan Event]struct{}
 }
 
-// agentEventHub persists settled Agent facts and broadcasts both persisted and transient events.
+// EventHub persists settled Agent facts and broadcasts both persisted and transient events.
 // A nil database keeps events in memory for isolated unit tests.
-type agentEventHub struct {
+type EventHub struct {
 	mu       sync.Mutex
 	db       *gorm.DB
 	sessions map[uint]*agentEventSession
 }
 
-func newAgentEventHub(databases ...*gorm.DB) *agentEventHub {
+func NewEventHub(databases ...*gorm.DB) *EventHub {
 	var db *gorm.DB
 	if len(databases) > 0 {
 		db = databases[0]
 	}
-	return &agentEventHub{db: db, sessions: make(map[uint]*agentEventSession)}
+	return &EventHub{db: db, sessions: make(map[uint]*agentEventSession)}
 }
 
-func (h *agentEventHub) Publish(sessionID uint, eventType string, data any) (agentEvent, error) {
+func (h *EventHub) Publish(sessionID uint, eventType string, data any) (Event, error) {
 	payload, err := marshalAgentEvent(sessionID, eventType, data)
 	if err != nil {
-		return agentEvent{}, err
+		return Event{}, err
 	}
 	h.mu.Lock()
 	defer h.mu.Unlock()
@@ -56,22 +56,22 @@ func (h *agentEventHub) Publish(sessionID uint, eventType string, data any) (age
 
 	stored, err := h.persist(sessionID, eventType, payload)
 	if err != nil {
-		return agentEvent{}, err
+		return Event{}, err
 	}
-	event := agentEvent{ID: stored.ID, Type: stored.EventType, Data: json.RawMessage(stored.Payload), CreatedAt: stored.CreatedAt}
+	event := Event{ID: stored.ID, Type: stored.EventType, Data: json.RawMessage(stored.Payload), CreatedAt: stored.CreatedAt}
 	h.broadcast(sessionID, event)
 	return event, nil
 }
 
 // PublishTransient broadcasts data that has no standalone audit value, such as one streaming text delta.
-func (h *agentEventHub) PublishTransient(sessionID uint, eventType string, data any) (agentEvent, error) {
+func (h *EventHub) PublishTransient(sessionID uint, eventType string, data any) (Event, error) {
 	payload, err := marshalAgentEvent(sessionID, eventType, data)
 	if err != nil {
-		return agentEvent{}, err
+		return Event{}, err
 	}
 	h.mu.Lock()
 	defer h.mu.Unlock()
-	event := agentEvent{Type: eventType, Data: payload, CreatedAt: time.Now()}
+	event := Event{Type: eventType, Data: payload, CreatedAt: time.Now()}
 	for subscriber := range h.session(sessionID).subscribers {
 		if !sendAgentEvent(subscriber, event) {
 			delete(h.session(sessionID).subscribers, subscriber)
@@ -80,7 +80,7 @@ func (h *agentEventHub) PublishTransient(sessionID uint, eventType string, data 
 	return event, nil
 }
 
-func (h *agentEventHub) Subscribe(ctx context.Context, sessionID uint, afterID uint64) ([]agentEvent, <-chan agentEvent, func(), error) {
+func (h *EventHub) Subscribe(ctx context.Context, sessionID uint, afterID uint64) ([]Event, <-chan Event, func(), error) {
 	if sessionID == 0 {
 		return nil, nil, nil, errors.New("Agent 事件缺少会话")
 	}
@@ -92,7 +92,7 @@ func (h *agentEventHub) Subscribe(ctx context.Context, sessionID uint, afterID u
 		return nil, nil, nil, err
 	}
 	session := h.session(sessionID)
-	stream := make(chan agentEvent, 64)
+	stream := make(chan Event, 64)
 	session.subscribers[stream] = struct{}{}
 	cancel := sync.OnceFunc(func() {
 		h.mu.Lock()
@@ -105,7 +105,7 @@ func (h *agentEventHub) Subscribe(ctx context.Context, sessionID uint, afterID u
 	return replay, stream, cancel, nil
 }
 
-func (h *agentEventHub) Forget(sessionID uint) {
+func (h *EventHub) Forget(sessionID uint) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	if session := h.sessions[sessionID]; session != nil {
@@ -117,7 +117,7 @@ func (h *agentEventHub) Forget(sessionID uint) {
 	}
 }
 
-func (h *agentEventHub) persist(sessionID uint, eventType string, payload []byte) (model.AgentEvent, error) {
+func (h *EventHub) persist(sessionID uint, eventType string, payload []byte) (model.AgentEvent, error) {
 	db := h.database()
 	var session model.AgentSession
 	if err := db.Select("owner_id").First(&session, sessionID).Error; err != nil {
@@ -136,20 +136,20 @@ func (h *agentEventHub) persist(sessionID uint, eventType string, payload []byte
 	return stored, nil
 }
 
-func (h *agentEventHub) replay(ctx context.Context, sessionID uint, afterID uint64) ([]agentEvent, error) {
+func (h *EventHub) replay(ctx context.Context, sessionID uint, afterID uint64) ([]Event, error) {
 	if db := h.database(); db != nil {
 		stored := make([]model.AgentEvent, 0)
 		if err := db.WithContext(ctx).Where("session_id = ? AND id > ?", sessionID, afterID).Order("id").Find(&stored).Error; err != nil {
 			return nil, err
 		}
-		replay := make([]agentEvent, 0, len(stored))
+		replay := make([]Event, 0, len(stored))
 		for _, event := range stored {
-			replay = append(replay, agentEvent{ID: event.ID, Type: event.EventType, Data: json.RawMessage(event.Payload), CreatedAt: event.CreatedAt})
+			replay = append(replay, Event{ID: event.ID, Type: event.EventType, Data: json.RawMessage(event.Payload), CreatedAt: event.CreatedAt})
 		}
 		return replay, nil
 	}
 
-	replay := make([]agentEvent, 0)
+	replay := make([]Event, 0)
 	for _, event := range h.session(sessionID).history {
 		if event.ID > afterID {
 			replay = append(replay, event)
@@ -158,10 +158,10 @@ func (h *agentEventHub) replay(ctx context.Context, sessionID uint, afterID uint
 	return replay, nil
 }
 
-func (h *agentEventHub) publishInMemory(sessionID uint, eventType string, payload []byte) agentEvent {
+func (h *EventHub) publishInMemory(sessionID uint, eventType string, payload []byte) Event {
 	session := h.session(sessionID)
 	session.nextID++
-	event := agentEvent{ID: session.nextID, Type: eventType, Data: payload, CreatedAt: time.Now()}
+	event := Event{ID: session.nextID, Type: eventType, Data: payload, CreatedAt: time.Now()}
 	session.history = append(session.history, event)
 	for subscriber := range session.subscribers {
 		if !sendAgentEvent(subscriber, event) {
@@ -171,7 +171,7 @@ func (h *agentEventHub) publishInMemory(sessionID uint, eventType string, payloa
 	return event
 }
 
-func (h *agentEventHub) broadcast(sessionID uint, event agentEvent) {
+func (h *EventHub) broadcast(sessionID uint, event Event) {
 	session := h.session(sessionID)
 	for subscriber := range session.subscribers {
 		if !sendAgentEvent(subscriber, event) {
@@ -180,14 +180,14 @@ func (h *agentEventHub) broadcast(sessionID uint, event agentEvent) {
 	}
 }
 
-func (h *agentEventHub) database() *gorm.DB {
+func (h *EventHub) database() *gorm.DB {
 	return h.db
 }
 
-func (h *agentEventHub) session(sessionID uint) *agentEventSession {
+func (h *EventHub) session(sessionID uint) *agentEventSession {
 	session := h.sessions[sessionID]
 	if session == nil {
-		session = &agentEventSession{subscribers: make(map[chan agentEvent]struct{})}
+		session = &agentEventSession{subscribers: make(map[chan Event]struct{})}
 		h.sessions[sessionID] = session
 	}
 	return session
@@ -239,7 +239,7 @@ func eventReferences(payload []byte) agentEventReferences {
 	return references
 }
 
-func sendAgentEvent(subscriber chan agentEvent, event agentEvent) bool {
+func sendAgentEvent(subscriber chan Event, event Event) bool {
 	select {
 	case subscriber <- event:
 		return true

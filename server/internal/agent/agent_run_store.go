@@ -1,4 +1,4 @@
-package service
+package agent
 
 import (
 	"context"
@@ -119,16 +119,16 @@ func createAgentRun(ctx context.Context, db *gorm.DB, ownerID, sessionID uint, c
 	return run, existing, err
 }
 
-func existingAgentRunResult(ctx context.Context, db *gorm.DB, run model.AgentRun) (agentRunResult, error) {
+func existingAgentRunResult(ctx context.Context, db *gorm.DB, run model.AgentRun) (RunResult, error) {
 	var assistant model.AgentMessage
 	err := db.WithContext(ctx).Where("run_id = ? AND role = ?", run.ID, "assistant").First(&assistant).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
-		return agentRunResult{Run: run}, nil
+		return RunResult{Run: run}, nil
 	}
 	if err != nil {
-		return agentRunResult{}, err
+		return RunResult{}, err
 	}
-	return agentRunResult{Run: run, Assistant: &assistant}, nil
+	return RunResult{Run: run, Assistant: &assistant}, nil
 }
 
 func loadAgentHistory(ctx context.Context, db *gorm.DB, ownerID, sessionID uint, limit int) ([]*schema.Message, error) {
@@ -186,7 +186,7 @@ func nextAgentMessageSequence(tx *gorm.DB, sessionID uint) (int64, error) {
 	return sequence + 1, err
 }
 
-func completeAgentRun(ctx context.Context, db *gorm.DB, run model.AgentRun, harness *agentHarness, started time.Time, inputTokens, outputTokens int, content string) (agentRunResult, error) {
+func completeAgentRun(ctx context.Context, db *gorm.DB, run model.AgentRun, harness *agentHarness, started time.Time, inputTokens, outputTokens int, content string) (RunResult, error) {
 	usage := harness.Usage()
 	completedAt := time.Now()
 	var assistant model.AgentMessage
@@ -213,10 +213,10 @@ func completeAgentRun(ctx context.Context, db *gorm.DB, run model.AgentRun, harn
 		return tx.Model(&model.AgentSession{}).Where("id = ? AND owner_id = ?", run.SessionID, run.OwnerID).Update("last_message_at", completedAt).Error
 	})
 	if err != nil {
-		return agentRunResult{}, err
+		return RunResult{}, err
 	}
 	if err := db.WithContext(finishContext).First(&run, run.ID).Error; err != nil {
-		return agentRunResult{}, err
+		return RunResult{}, err
 	}
-	return agentRunResult{Run: run, Assistant: &assistant}, nil
+	return RunResult{Run: run, Assistant: &assistant}, nil
 }

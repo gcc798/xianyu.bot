@@ -1,4 +1,4 @@
-package service
+package agent
 
 import (
 	"context"
@@ -43,32 +43,32 @@ var (
 
 type agentModelFactory func(context.Context, model.AIModel, model.AgentConfig) (einomodel.BaseChatModel, error)
 
-type agentRunner struct {
+type Runner struct {
 	root      context.Context
 	db        *gorm.DB
-	registry  *mcpRegistry
-	resources *resourceCatalog
+	registry  *MCPRegistry
+	resources *ResourceCatalog
 	newModel  agentModelFactory
-	events    *agentEventHub
+	events    *EventHub
 	workerMu  sync.Mutex
 	workers   map[uint]context.CancelFunc
 }
 
-type agentRunResult struct {
+type RunResult struct {
 	Run       model.AgentRun      `json:"run"`
 	Assistant *model.AgentMessage `json:"assistant,omitempty"`
 }
 
-func (s *agentRunner) Submit(ctx context.Context, ownerID, sessionID uint, content, idempotencyKey string, directives ...xyRequest.AgentDirective) (agentRunResult, error) {
+func (s *Runner) Submit(ctx context.Context, ownerID, sessionID uint, content, idempotencyKey string, directives ...xyRequest.AgentDirective) (RunResult, error) {
 	prepared, existing, err := s.prepare(ctx, ownerID, sessionID, content, idempotencyKey, directives)
 	if err != nil {
-		return agentRunResult{}, err
+		return RunResult{}, err
 	}
 	if existing != nil {
 		return *existing, nil
 	}
 	s.publish(prepared.run.SessionID, "run.started", map[string]any{"runId": prepared.run.ID, "model": prepared.run.ModelName})
-	runContext, cancel := context.WithCancel(contextOrBackground(s.root))
+	runContext, cancel := context.WithCancel(rootContext(s.root))
 	s.setWorker(prepared.run.ID, cancel)
 	go func() {
 		defer cancel()
@@ -80,10 +80,10 @@ func (s *agentRunner) Submit(ctx context.Context, ownerID, sessionID uint, conte
 		}()
 		_, _ = s.execute(runContext, prepared)
 	}()
-	return agentRunResult{Run: prepared.run}, nil
+	return RunResult{Run: prepared.run}, nil
 }
 
-func (s *agentRunner) Cancel(ctx context.Context, ownerID, sessionID, runID uint) error {
+func (s *Runner) Cancel(ctx context.Context, ownerID, sessionID, runID uint) error {
 	if ownerID == 0 || sessionID == 0 || runID == 0 {
 		return errors.New("运行标识不能为空")
 	}
@@ -104,7 +104,7 @@ func (s *agentRunner) Cancel(ctx context.Context, ownerID, sessionID, runID uint
 	return nil
 }
 
-func (s *agentRunner) setWorker(runID uint, cancel context.CancelFunc) {
+func (s *Runner) setWorker(runID uint, cancel context.CancelFunc) {
 	s.workerMu.Lock()
 	defer s.workerMu.Unlock()
 	if s.workers == nil {
@@ -113,14 +113,14 @@ func (s *agentRunner) setWorker(runID uint, cancel context.CancelFunc) {
 	s.workers[runID] = cancel
 }
 
-func (s *agentRunner) clearWorker(runID uint) {
+func (s *Runner) clearWorker(runID uint) {
 	s.workerMu.Lock()
 	defer s.workerMu.Unlock()
 	delete(s.workers, runID)
 }
 
-func (s *agentRunner) failSubmittedRun(run model.AgentRun) {
-	ctx, cancel := context.WithTimeout(context.WithoutCancel(contextOrBackground(s.root)), 5*time.Second)
+func (s *Runner) failSubmittedRun(run model.AgentRun) {
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(rootContext(s.root)), 5*time.Second)
 	defer cancel()
 	completedAt := time.Now()
 	_ = s.db.WithContext(ctx).Model(&run).Updates(map[string]any{
@@ -137,7 +137,7 @@ type preparedAgentRun struct {
 	directives []xyRequest.AgentDirective
 }
 
-func (s *agentRunner) prepare(ctx context.Context, ownerID, sessionID uint, content, idempotencyKey string, directives []xyRequest.AgentDirective) (preparedAgentRun, *agentRunResult, error) {
+func (s *Runner) prepare(ctx context.Context, ownerID, sessionID uint, content, idempotencyKey string, directives []xyRequest.AgentDirective) (preparedAgentRun, *RunResult, error) {
 	content = strings.TrimSpace(content)
 	idempotencyKey = strings.TrimSpace(idempotencyKey)
 	if ownerID == 0 || sessionID == 0 || content == "" || idempotencyKey == "" || len(idempotencyKey) > 100 {
@@ -168,7 +168,7 @@ func (s *agentRunner) prepare(ctx context.Context, ownerID, sessionID uint, cont
 	return preparedAgentRun{run: run, aiModel: aiModel, config: config, directives: directives}, nil, nil
 }
 
-func (s *agentRunner) execute(ctx context.Context, prepared preparedAgentRun) (agentRunResult, error) {
+func (s *Runner) execute(ctx context.Context, prepared preparedAgentRun) (RunResult, error) {
 	run, aiModel, config := prepared.run, prepared.aiModel, prepared.config
 	started := time.Now()
 	harness := newAgentHarness(config)
@@ -252,7 +252,7 @@ func (s *agentRunner) execute(ctx context.Context, prepared preparedAgentRun) (a
 	}
 	result, err := completeAgentRun(ctx, s.db, run, harness, started, inputTokens, outputTokens, finalMessage.Content)
 	if err != nil {
-		return agentRunResult{}, err
+		return RunResult{}, err
 	}
 	s.publish(run.SessionID, "assistant.message", map[string]any{
 		"runId": run.ID, "turnNo": 1, "messageId": result.Assistant.ID, "content": result.Assistant.Content,
@@ -265,7 +265,7 @@ func (s *agentRunner) execute(ctx context.Context, prepared preparedAgentRun) (a
 	return result, nil
 }
 
-func (s *agentRunner) agentEventMessage(sessionID, runID uint, output *adk.MessageVariant) (*schema.Message, error) {
+func (s *Runner) agentEventMessage(sessionID, runID uint, output *adk.MessageVariant) (*schema.Message, error) {
 	if !output.IsStreaming {
 		message := output.Message
 		if message != nil && output.Role == schema.Assistant && message.Content != "" {
@@ -297,7 +297,7 @@ func (s *agentRunner) agentEventMessage(sessionID, runID uint, output *adk.Messa
 type agentHarnessMiddleware struct {
 	*adk.BaseChatModelAgentMiddleware
 	harness    *agentHarness
-	events     *agentEventHub
+	events     *EventHub
 	sessionID  uint
 	runID      uint
 	provider   string
@@ -377,7 +377,7 @@ func newConfiguredAgentModel(ctx context.Context, aiModel model.AIModel, config 
 	})
 }
 
-func buildEinoMCPTools(db *gorm.DB, connections []*mcpConnection, harness *agentHarness, events *agentEventHub, run model.AgentRun) ([]tool.BaseTool, error) {
+func buildEinoMCPTools(db *gorm.DB, connections []*mcpConnection, harness *agentHarness, events *EventHub, run model.AgentRun) ([]tool.BaseTool, error) {
 	tools := make([]tool.BaseTool, 0)
 	for _, connection := range connections {
 		for _, definition := range connection.Tools {
@@ -395,7 +395,7 @@ func buildEinoMCPTools(db *gorm.DB, connections []*mcpConnection, harness *agent
 	return tools, nil
 }
 
-func (s *agentRunner) failRun(ctx context.Context, run model.AgentRun, harness *agentHarness, started time.Time, reason string, cause error) (agentRunResult, error) {
+func (s *Runner) failRun(ctx context.Context, run model.AgentRun, harness *agentHarness, started time.Time, reason string, cause error) (RunResult, error) {
 	if contextReason := agentEndReason(ctx, cause); contextReason != "failed" {
 		reason = contextReason
 	}
@@ -428,11 +428,11 @@ func (s *agentRunner) failRun(ctx context.Context, run model.AgentRun, harness *
 	if updateErr != nil {
 		s.publish(run.SessionID, "turn.failed", map[string]any{"runId": run.ID, "turnNo": 1, "reason": reason, "message": eventMessage})
 		s.publish(run.SessionID, eventType, map[string]any{"runId": run.ID, "reason": reason, "message": eventMessage})
-		return agentRunResult{Run: run}, errors.Join(cause, fmt.Errorf("保存 Agent 失败状态: %w", updateErr))
+		return RunResult{Run: run}, errors.Join(cause, fmt.Errorf("保存 Agent 失败状态: %w", updateErr))
 	}
 	s.publish(run.SessionID, "turn.failed", map[string]any{"runId": run.ID, "turnNo": 1, "reason": reason, "message": eventMessage})
 	s.publish(run.SessionID, eventType, map[string]any{"runId": run.ID, "reason": reason, "message": eventMessage})
-	return agentRunResult{Run: run}, cause
+	return RunResult{Run: run}, cause
 }
 
 func agentFinishContext(ctx context.Context) (context.Context, context.CancelFunc) {
@@ -452,14 +452,14 @@ func agentEndReason(ctx context.Context, err error) string {
 	return "failed"
 }
 
-func (s *agentRunner) mcpRegistryOrDefault() *mcpRegistry {
+func (s *Runner) mcpRegistryOrDefault() *MCPRegistry {
 	if s.registry != nil {
 		return s.registry
 	}
-	return &mcpRegistry{db: s.db}
+	return &MCPRegistry{db: s.db}
 }
 
-func (s *agentRunner) publish(sessionID uint, eventType string, data any) {
+func (s *Runner) publish(sessionID uint, eventType string, data any) {
 	if s.events != nil {
 		if _, err := s.events.Publish(sessionID, eventType, data); err != nil {
 			zap.L().Error("保存 Agent 事件失败", zap.Uint("sessionID", sessionID), zap.String("eventType", eventType), zap.Error(err))
@@ -467,7 +467,7 @@ func (s *agentRunner) publish(sessionID uint, eventType string, data any) {
 	}
 }
 
-func (s *agentRunner) publishTransient(sessionID uint, eventType string, data any) {
+func (s *Runner) publishTransient(sessionID uint, eventType string, data any) {
 	if s.events != nil {
 		if _, err := s.events.PublishTransient(sessionID, eventType, data); err != nil {
 			zap.L().Error("广播 Agent 瞬时事件失败", zap.Uint("sessionID", sessionID), zap.String("eventType", eventType), zap.Error(err))

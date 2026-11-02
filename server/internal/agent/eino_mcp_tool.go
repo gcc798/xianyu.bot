@@ -1,4 +1,4 @@
-package service
+package agent
 
 import (
 	"context"
@@ -26,7 +26,7 @@ type einoMCPTool struct {
 	alias      string
 	harness    *agentHarness
 	parameters *jsonschema.Schema
-	events     *agentEventHub
+	events     *EventHub
 	ownerID    uint
 	sessionID  uint
 	runID      uint

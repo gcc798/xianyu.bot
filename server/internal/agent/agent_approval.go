@@ -1,4 +1,4 @@
-package service
+package agent
 
 import (
 	"context"
@@ -11,7 +11,7 @@ import (
 	"github.com/mark3labs/mcp-go/mcp"
 )
 
-func (s *agentRunner) Approve(ctx context.Context, ownerID, runID uint) (model.AgentRunTool, error) {
+func (s *Runner) Approve(ctx context.Context, ownerID, runID uint) (model.AgentRunTool, error) {
 	if ownerID == 0 || runID == 0 {
 		return model.AgentRunTool{}, errors.New("运行标识不能为空")
 	}
@@ -56,7 +56,7 @@ func (s *agentRunner) Approve(ctx context.Context, ownerID, runID uint) (model.A
 	return call, nil
 }
 
-func (s *agentRunner) executeApproval(ctx context.Context, run model.AgentRun, call *model.AgentRunTool) error {
+func (s *Runner) executeApproval(ctx context.Context, run model.AgentRun, call *model.AgentRunTool) error {
 	connections, err := s.mcpRegistryOrDefault().Discover(ctx)
 	if err != nil {
 		return err
@@ -122,7 +122,7 @@ func approvedResultSucceeded(value any) bool {
 	return result.Status == "" || result.Status == "success"
 }
 
-func (s *agentRunner) failApprovedResourceTask(ctx context.Context, task *model.ResourceTask) {
+func (s *Runner) failApprovedResourceTask(ctx context.Context, task *model.ResourceTask) {
 	if task == nil {
 		return
 	}
@@ -147,7 +147,7 @@ func approvedTool(connections []*mcpConnection, serverCode, toolName string) (*m
 	return nil, mcp.Tool{}
 }
 
-func (s *agentRunner) prepareResourceApproval(ctx context.Context, ownerID uint, call *model.AgentRunTool, input map[string]any) (*model.ResourceTask, error) {
+func (s *Runner) prepareResourceApproval(ctx context.Context, ownerID uint, call *model.AgentRunTool, input map[string]any) (*model.ResourceTask, error) {
 	externalID, _ := input["candidate_id"].(string)
 	if externalID == "" {
 		return nil, errors.New("资源候选无效")
@@ -185,7 +185,7 @@ func approvedExternalTaskID(value any) string {
 	return result.Data.TaskID
 }
 
-func (s *agentRunner) finishApproval(ctx context.Context, call *model.AgentRunTool, status, errorCode, errorMessage string) error {
+func (s *Runner) finishApproval(ctx context.Context, call *model.AgentRunTool, status, errorCode, errorMessage string) error {
 	completedAt := time.Now()
 	finishContext, cancel := agentFinishContext(ctx)
 	defer cancel()
