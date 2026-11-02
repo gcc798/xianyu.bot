@@ -33,7 +33,7 @@ func Routers(ctx context.Context, systemRoutes *systemRouter.RouterGroup, jwt *s
 	systemRoutes.InitUserRouter(private)
 	systemRoutes.DictionaryRouter.Init(private)
 	systemRoutes.DictionaryDetailRouter.Init(private)
-	systemRoutes.InitLoginLogRouter(private)
+	systemRoutes.LoginLogRouter.Init(private)
 	if err := xianyu.Initialize(ctx, engine, jwt, xianyuDeps); err != nil {
 		zap.L().Error("初始化闲鱼业务失败", zap.Error(err))
 		panic(err)

@@ -10,14 +10,14 @@ import (
 
 type LoginLogApi struct{ *dependencies }
 
-func (s *LoginLogApi) DeleteLoginLog(c *gin.Context) {
-	var loginLog system.SysLoginLog
+func (s *LoginLogApi) Delete(c *gin.Context) {
+	var loginLog system.LoginLog
 	err := c.ShouldBindJSON(&loginLog)
 	if err != nil {
 		response.FailWithMessage(err.Error(), c)
 		return
 	}
-	err = s.services.LoginLog.DeleteLoginLog(loginLog)
+	err = s.services.LoginLog.Delete(loginLog)
 	if err != nil {
 		zap.L().Error("删除失败!", zap.Error(err))
 		response.FailWithMessage("删除失败", c)
@@ -26,14 +26,14 @@ func (s *LoginLogApi) DeleteLoginLog(c *gin.Context) {
 	response.OkWithMessage("删除成功", c)
 }
 
-func (s *LoginLogApi) GetLoginLogList(c *gin.Context) {
-	var pageInfo systemReq.SysLoginLogSearch
+func (s *LoginLogApi) List(c *gin.Context) {
+	var pageInfo systemReq.LoginLogSearch
 	err := c.ShouldBindQuery(&pageInfo)
 	if err != nil {
 		response.FailWithMessage(err.Error(), c)
 		return
 	}
-	list, total, err := s.services.LoginLog.GetLoginLogInfoList(pageInfo)
+	list, total, err := s.services.LoginLog.List(pageInfo)
 	if err != nil {
 		zap.L().Error("获取失败!", zap.Error(err))
 		response.FailWithMessage("获取失败", c)

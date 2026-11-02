@@ -10,7 +10,7 @@ const (
 	UserAuthorityID          uint = 9528
 )
 
-type SysUser struct {
+type User struct {
 	common.Timestamps
 	UUID        uuid.UUID `json:"uuid" gorm:"index;comment:用户UUID"`
 	Username    string    `json:"userName" gorm:"index;comment:用户登录名"`
@@ -23,6 +23,6 @@ type SysUser struct {
 	Enable      int       `json:"enable" gorm:"default:1;comment:1正常 2冻结"`
 }
 
-func (SysUser) TableName() string {
+func (User) TableName() string {
 	return "sys_users"
 }

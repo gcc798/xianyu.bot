@@ -14,14 +14,14 @@ import (
 
 type UserService struct{ db *gorm.DB }
 
-func (userService *UserService) Register(user system.SysUser) (system.SysUser, error) {
-	var existing system.SysUser
+func (userService *UserService) Register(user system.User) (system.User, error) {
+	var existing system.User
 	err := userService.db.Where("username = ?", user.Username).First(&existing).Error
 	if err == nil {
-		return system.SysUser{}, errors.New("用户名已注册")
+		return system.User{}, errors.New("用户名已注册")
 	}
 	if !errors.Is(err, gorm.ErrRecordNotFound) {
-		return system.SysUser{}, err
+		return system.User{}, err
 	}
 	user.AuthorityId = normalizeAuthorityID(user.AuthorityId)
 	if user.Enable == 0 {
@@ -32,11 +32,11 @@ func (userService *UserService) Register(user system.SysUser) (system.SysUser, e
 	return user, userService.db.Create(&user).Error
 }
 
-func (userService *UserService) Login(input *system.SysUser) (*system.SysUser, error) {
+func (userService *UserService) Login(input *system.User) (*system.User, error) {
 	if userService.db == nil {
 		return nil, fmt.Errorf("db not init")
 	}
-	var user system.SysUser
+	var user system.User
 	if err := userService.db.Where("username = ?", input.Username).First(&user).Error; err != nil {
 		return nil, err
 	}
@@ -46,8 +46,8 @@ func (userService *UserService) Login(input *system.SysUser) (*system.SysUser, e
 	return &user, nil
 }
 
-func (userService *UserService) ChangePassword(user *system.SysUser, newPassword string) error {
-	var stored system.SysUser
+func (userService *UserService) ChangePassword(user *system.User, newPassword string) error {
+	var stored system.User
 	if err := userService.db.Select("id, password").Where("id = ?", user.ID).First(&stored).Error; err != nil {
 		return err
 	}
@@ -58,7 +58,7 @@ func (userService *UserService) ChangePassword(user *system.SysUser, newPassword
 }
 
 func (userService *UserService) GetUserInfoList(info systemReq.GetUserList) (list any, total int64, err error) {
-	db := userService.db.Model(&system.SysUser{})
+	db := userService.db.Model(&system.User{})
 	for column, value := range map[string]string{
 		"username":  info.Username,
 		"nick_name": info.NickName,
@@ -80,18 +80,18 @@ func (userService *UserService) GetUserInfoList(info systemReq.GetUserList) (lis
 			order += " desc"
 		}
 	}
-	var users []system.SysUser
+	var users []system.User
 	err = db.Limit(info.PageSize).Offset(info.PageSize * (info.Page - 1)).Order(order).Find(&users).Error
 	return users, total, err
 }
 
 func (userService *UserService) DeleteUser(id int) error {
-	return userService.db.Delete(&system.SysUser{}, id).Error
+	return userService.db.Delete(&system.User{}, id).Error
 }
 
-func (userService *UserService) SetUserInfo(user system.SysUser) error {
+func (userService *UserService) SetUserInfo(user system.User) error {
 	user.AuthorityId = normalizeAuthorityID(user.AuthorityId)
-	return userService.db.Model(&system.SysUser{}).Where("id = ?", user.ID).Updates(map[string]any{
+	return userService.db.Model(&system.User{}).Where("id = ?", user.ID).Updates(map[string]any{
 		"updated_at": time.Now(), "nick_name": user.NickName, "header_img": user.HeaderImg,
 		"phone": user.Phone, "email": user.Email, "enable": user.Enable, "authority_id": user.AuthorityId,
 	}).Error
@@ -104,18 +104,18 @@ func normalizeAuthorityID(authorityID uint) uint {
 	return system.UserAuthorityID
 }
 
-func (userService *UserService) SetSelfInfo(user system.SysUser) error {
-	return userService.db.Model(&system.SysUser{}).Where("id = ?", user.ID).Updates(map[string]any{
+func (userService *UserService) SetSelfInfo(user system.User) error {
+	return userService.db.Model(&system.User{}).Where("id = ?", user.ID).Updates(map[string]any{
 		"updated_at": time.Now(), "nick_name": user.NickName, "header_img": user.HeaderImg,
 		"phone": user.Phone, "email": user.Email,
 	}).Error
 }
 
-func (userService *UserService) GetUserInfo(userUUID uuid.UUID) (user system.SysUser, err error) {
+func (userService *UserService) GetUserInfo(userUUID uuid.UUID) (user system.User, err error) {
 	err = userService.db.First(&user, "uuid = ?", userUUID).Error
 	return user, err
 }
 
 func (userService *UserService) ResetPassword(id uint, password string) error {
-	return userService.db.Model(&system.SysUser{}).Where("id = ?", id).Update("password", security.BcryptHash(password)).Error
+	return userService.db.Model(&system.User{}).Where("id = ?", id).Update("password", security.BcryptHash(password)).Error
 }

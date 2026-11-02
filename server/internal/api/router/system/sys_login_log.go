@@ -7,8 +7,8 @@ import (
 
 type LoginLogRouter struct{ *dependencies }
 
-func (s *LoginLogRouter) InitLoginLogRouter(router *gin.RouterGroup) {
+func (s *LoginLogRouter) Init(router *gin.RouterGroup) {
 	loginLog := router.Group("sysLoginLog").Use(middleware.AdminOnly())
-	loginLog.DELETE("deleteLoginLog", s.handlers.LoginLog.DeleteLoginLog)
-	loginLog.GET("getLoginLogList", s.handlers.LoginLog.GetLoginLogList)
+	loginLog.DELETE("deleteLoginLog", s.handlers.LoginLog.Delete)
+	loginLog.GET("getLoginLogList", s.handlers.LoginLog.List)
 }

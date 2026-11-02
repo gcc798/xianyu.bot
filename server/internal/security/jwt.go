@@ -102,7 +102,7 @@ func (j *JWT) ParseToken(tokenString string) (*request.CustomClaims, error) {
 
 func (j *JWT) ExpiresIn() time.Duration { return j.expires }
 
-func (j *JWT) LoginToken(user *system.SysUser) (string, request.CustomClaims, error) {
+func (j *JWT) LoginToken(user *system.User) (string, request.CustomClaims, error) {
 	claims := j.CreateClaims(request.BaseClaims{
 		UUID: user.UUID, ID: user.ID, NickName: user.NickName,
 		Username: user.Username, AuthorityId: user.AuthorityId,

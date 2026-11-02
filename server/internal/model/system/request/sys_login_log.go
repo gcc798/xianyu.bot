@@ -5,7 +5,7 @@ import (
 	"github.com/gcc798/xianyu.bot/internal/model/system"
 )
 
-type SysLoginLogSearch struct {
-	system.SysLoginLog
+type LoginLogSearch struct {
+	system.LoginLog
 	request.PageInfo
 }

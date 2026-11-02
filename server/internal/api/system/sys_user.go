@@ -24,7 +24,7 @@ func (b *BaseApi) Login(c *gin.Context) {
 		response.FailWithMessage("用户名和密码不能为空", c)
 		return
 	}
-	user, err := b.services.User.Login(&system.SysUser{Username: input.Username, Password: input.Password})
+	user, err := b.services.User.Login(&system.User{Username: input.Username, Password: input.Password})
 	if err != nil {
 		b.recordLogin(c, input.Username, 0, false, "用户名不存在或者密码错误")
 		response.FailWithMessage("用户名不存在或者密码错误", c)
@@ -38,7 +38,7 @@ func (b *BaseApi) Login(c *gin.Context) {
 	b.TokenNext(c, *user)
 }
 
-func (b *BaseApi) TokenNext(c *gin.Context, user system.SysUser) {
+func (b *BaseApi) TokenNext(c *gin.Context, user system.User) {
 	token, claims, err := b.jwt.LoginToken(&user)
 	if err != nil {
 		zap.L().Error("获取 token 失败", zap.Error(err))
@@ -53,7 +53,7 @@ func (b *BaseApi) TokenNext(c *gin.Context, user system.SysUser) {
 }
 
 func (b *BaseApi) recordLogin(c *gin.Context, username string, userID uint, status bool, message string) {
-	if err := b.services.LoginLog.CreateLoginLog(system.SysLoginLog{
+	if err := b.services.LoginLog.Create(system.LoginLog{
 		Username: username, Ip: c.ClientIP(), Agent: c.Request.UserAgent(), Status: status,
 		ErrorMessage: message, UserID: userID,
 	}); err != nil {
@@ -71,7 +71,7 @@ func (b *BaseApi) Register(c *gin.Context) {
 		response.FailWithMessage("用户名、密码、昵称和角色不能为空", c)
 		return
 	}
-	user, err := b.services.User.Register(system.SysUser{
+	user, err := b.services.User.Register(system.User{
 		Username: input.Username, Password: input.Password, NickName: input.NickName,
 		HeaderImg: input.HeaderImg, AuthorityId: input.AuthorityId, Enable: input.Enable,
 		Phone: input.Phone, Email: input.Email,
@@ -80,7 +80,7 @@ func (b *BaseApi) Register(c *gin.Context) {
 		response.FailWithMessage("注册失败: "+err.Error(), c)
 		return
 	}
-	response.OkWithDetailed(systemRes.SysUserResponse{User: user}, "注册成功", c)
+	response.OkWithDetailed(systemRes.UserResponse{User: user}, "注册成功", c)
 }
 
 func (b *BaseApi) ChangePassword(c *gin.Context) {
@@ -93,7 +93,7 @@ func (b *BaseApi) ChangePassword(c *gin.Context) {
 		response.FailWithMessage("原密码和新密码不能为空", c)
 		return
 	}
-	err := b.services.User.ChangePassword(&system.SysUser{
+	err := b.services.User.ChangePassword(&system.User{
 		Timestamps: common.Timestamps{ID: security.GetUserID(c)}, Password: input.Password,
 	}, input.NewPassword)
 	if err != nil {
@@ -152,7 +152,7 @@ func (b *BaseApi) SetUserInfo(c *gin.Context) {
 		response.FailWithMessage("用户 ID 不能为空", c)
 		return
 	}
-	if err := b.services.User.SetUserInfo(system.SysUser{
+	if err := b.services.User.SetUserInfo(system.User{
 		Timestamps: common.Timestamps{ID: input.ID}, NickName: input.NickName, HeaderImg: input.HeaderImg,
 		Phone: input.Phone, Email: input.Email, Enable: input.Enable, AuthorityId: input.AuthorityId,
 	}); err != nil {
@@ -168,7 +168,7 @@ func (b *BaseApi) SetSelfInfo(c *gin.Context) {
 		response.FailWithMessage(err.Error(), c)
 		return
 	}
-	if err := b.services.User.SetSelfInfo(system.SysUser{
+	if err := b.services.User.SetSelfInfo(system.User{
 		Timestamps: common.Timestamps{ID: security.GetUserID(c)}, NickName: input.NickName,
 		HeaderImg: input.HeaderImg, Phone: input.Phone, Email: input.Email,
 	}); err != nil {

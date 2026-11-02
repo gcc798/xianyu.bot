@@ -8,33 +8,29 @@ import (
 
 type LoginLogService struct{ db *gorm.DB }
 
-func (loginLogService *LoginLogService) CreateLoginLog(loginLog system.SysLoginLog) (err error) {
-	err = loginLogService.db.Create(&loginLog).Error
-	return err
+func (loginLogService *LoginLogService) Create(loginLog system.LoginLog) error {
+	return loginLogService.db.Create(&loginLog).Error
 }
 
-func (loginLogService *LoginLogService) DeleteLoginLog(loginLog system.SysLoginLog) (err error) {
-	err = loginLogService.db.Delete(&loginLog).Error
-	return err
+func (loginLogService *LoginLogService) Delete(loginLog system.LoginLog) error {
+	return loginLogService.db.Delete(&loginLog).Error
 }
 
-func (loginLogService *LoginLogService) GetLoginLogInfoList(info systemReq.SysLoginLogSearch) (list interface{}, total int64, err error) {
+func (loginLogService *LoginLogService) List(info systemReq.LoginLogSearch) ([]system.LoginLog, int64, error) {
 	limit := info.PageSize
 	offset := info.PageSize * (info.Page - 1)
-	// 创建db
-	db := loginLogService.db.Model(&system.SysLoginLog{})
-	var loginLogs []system.SysLoginLog
-	// 如果有条件搜索 下方会自动创建搜索语句
+	db := loginLogService.db.Model(&system.LoginLog{})
+	var loginLogs []system.LoginLog
 	if info.Username != "" {
 		db = db.Where("username LIKE ?", "%"+info.Username+"%")
 	}
 	if info.Status != false {
 		db = db.Where("status = ?", info.Status)
 	}
-	err = db.Count(&total).Error
-	if err != nil {
-		return
+	var total int64
+	if err := db.Count(&total).Error; err != nil {
+		return nil, 0, err
 	}
-	err = db.Limit(limit).Offset(offset).Order("id desc").Preload("User").Find(&loginLogs).Error
+	err := db.Limit(limit).Offset(offset).Order("id desc").Preload("User").Find(&loginLogs).Error
 	return loginLogs, total, err
 }
