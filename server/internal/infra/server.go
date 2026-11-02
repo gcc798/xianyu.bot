@@ -1,6 +1,7 @@
 package infra
 
 import (
+	"context"
 	"fmt"
 	"time"
 
@@ -8,8 +9,8 @@ import (
 	"go.uber.org/zap"
 )
 
-func RunServer(router *gin.Engine, port int) {
+func RunServer(ctx context.Context, router *gin.Engine, port int) error {
 	address := fmt.Sprintf(":%d", port)
 	zap.L().Info("闲鱼 Harness Agent 启动", zap.String("address", address))
-	initServer(address, router, 10*time.Minute, 10*time.Minute)
+	return initServer(ctx, address, router, 10*time.Minute, 10*time.Minute)
 }

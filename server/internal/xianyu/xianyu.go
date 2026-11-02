@@ -14,8 +14,7 @@ import (
 	"gorm.io/gorm"
 )
 
-func Initialize(engine *gin.Engine, jwt *security.JWT, deps service.Dependencies) error {
-	ctx := context.Background()
+func Initialize(ctx context.Context, engine *gin.Engine, jwt *security.JWT, deps service.Dependencies) error {
 	if err := initializeDatabase(ctx, deps.DB); err != nil {
 		return err
 	}

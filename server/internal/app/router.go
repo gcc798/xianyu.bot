@@ -1,6 +1,7 @@
 package app
 
 import (
+	"context"
 	"net/http"
 
 	"github.com/gcc798/xianyu.bot/internal/api/middleware"
@@ -11,7 +12,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func Routers(systemRoutes *systemRouter.RouterGroup, jwt *security.JWT, xianyuDeps xianyuService.Dependencies) *gin.Engine {
+func Routers(ctx context.Context, systemRoutes *systemRouter.RouterGroup, jwt *security.JWT, xianyuDeps xianyuService.Dependencies) *gin.Engine {
 	engine := gin.New()
 	engine.Use(middleware.GinRecovery(true))
 	if gin.Mode() == gin.DebugMode {
@@ -32,7 +33,7 @@ func Routers(systemRoutes *systemRouter.RouterGroup, jwt *security.JWT, xianyuDe
 	systemRoutes.InitSysDictionaryRouter(private)
 	systemRoutes.InitSysDictionaryDetailRouter(private)
 	systemRoutes.InitLoginLogRouter(private)
-	initializeXianyu(engine, jwt, xianyuDeps)
+	initializeXianyu(ctx, engine, jwt, xianyuDeps)
 
 	zap.L().Info("router register success")
 	return engine

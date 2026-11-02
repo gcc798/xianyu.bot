@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"os/signal"
+	"syscall"
 
 	systemRouter "github.com/gcc798/xianyu.bot/internal/api/router/system"
 	systemAPI "github.com/gcc798/xianyu.bot/internal/api/system"
@@ -27,6 +29,9 @@ func main() {
 }
 
 func run() error {
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
 	settings, err := config.Load()
 	if err != nil {
 		return fmt.Errorf("load config: %w", err)
@@ -41,7 +46,7 @@ func run() error {
 	if db == nil {
 		return fmt.Errorf("PostgreSQL database name is required")
 	}
-	if err := database.Migrate(context.Background(), db); err != nil {
+	if err := database.Migrate(ctx, db); err != nil {
 		return fmt.Errorf("database migration: %w", err)
 	}
 
@@ -50,6 +55,5 @@ func run() error {
 	systemRoutes := systemRouter.New(systemAPI.New(systemServices, jwt))
 	mailSender := mail.NewSender(settings.Email)
 	xianyuDeps := xianyuService.Dependencies{DB: db, SendNotificationEmail: mailSender.Send}
-	infra.RunServer(app.Routers(systemRoutes, jwt, xianyuDeps), settings.HTTP.Port)
-	return nil
+	return infra.RunServer(ctx, app.Routers(ctx, systemRoutes, jwt, xianyuDeps), settings.HTTP.Port)
 }

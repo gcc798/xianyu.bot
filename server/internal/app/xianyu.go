@@ -1,6 +1,8 @@
 package app
 
 import (
+	"context"
+
 	"github.com/gcc798/xianyu.bot/internal/security"
 	xianyuService "github.com/gcc798/xianyu.bot/internal/service/xianyu"
 	"github.com/gcc798/xianyu.bot/internal/xianyu"
@@ -8,8 +10,8 @@ import (
 	"go.uber.org/zap"
 )
 
-func initializeXianyu(engine *gin.Engine, jwt *security.JWT, deps xianyuService.Dependencies) {
-	if err := xianyu.Initialize(engine, jwt, deps); err != nil {
+func initializeXianyu(ctx context.Context, engine *gin.Engine, jwt *security.JWT, deps xianyuService.Dependencies) {
+	if err := xianyu.Initialize(ctx, engine, jwt, deps); err != nil {
 		zap.L().Error("初始化闲鱼业务失败", zap.Error(err))
 		panic(err)
 	}
