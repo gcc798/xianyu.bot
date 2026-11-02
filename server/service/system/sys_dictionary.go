@@ -1,11 +1,11 @@
 package system
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 
 	"github.com/flipped-aurora/gin-vue-admin/server/model/system/request"
-	"github.com/gin-gonic/gin"
 
 	"github.com/flipped-aurora/gin-vue-admin/server/global"
 	"github.com/flipped-aurora/gin-vue-admin/server/model/system"
@@ -118,9 +118,9 @@ func (dictionaryService *DictionaryService) GetSysDictionary(Type string, Id uin
 //@param: info request.SysDictionarySearch
 //@return: err error, list interface{}, total int64
 
-func (dictionaryService *DictionaryService) GetSysDictionaryInfoList(c *gin.Context, req request.SysDictionarySearch) (list interface{}, err error) {
+func (dictionaryService *DictionaryService) GetSysDictionaryInfoList(ctx context.Context, req request.SysDictionarySearch) (list interface{}, err error) {
 	var sysDictionarys []system.SysDictionary
-	query := global.GVA_DB.WithContext(c)
+	query := global.GVA_DB.WithContext(ctx)
 	if req.Name != "" {
 		query = query.Where("name LIKE ? OR type LIKE ?", "%"+req.Name+"%", "%"+req.Name+"%")
 	}

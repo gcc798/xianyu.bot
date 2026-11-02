@@ -1,6 +1,6 @@
 # Xianyu Assistant
 
-Xianyu Assistant 是面向闲鱼自动化和可审计 Agent 工作流的 Go 模块化单体。项目保留 Gin-Vue-Admin 中已经验证的登录、权限、字典和审计能力，但不再沿用通用低代码平台和插件市场方向。
+Xianyu Assistant 是面向闲鱼自动化和可审计 Agent 工作流的 Go 模块化单体。通用后台只保留登录、管理员/普通用户、字典和登录审计，不再沿用通用权限脚手架、低代码平台和插件市场方向。
 
 ## 当前状态
 
@@ -10,13 +10,13 @@ Xianyu Assistant 是面向闲鱼自动化和可审计 Agent 工作流的 Go 模�
 - PostgreSQL 表结构由 Goose 管理。
 - `agent-web/` 是目标 React 18 + TypeScript 前端。
 - `web/` 是冻结的 Vue 旧前端，只暂时用于迁移对照和回滚。
-- React 已覆盖登录、核心后台和 Agent 对话/轨迹；完整权限配置和多数闲鱼业务页面仍待迁移。
+- React 已覆盖最小后台和 Agent 对话/轨迹；多数闲鱼业务页面仍待迁移。
 
 在[迁移矩阵](docs/migration/feature-matrix.md)中的保留能力全部获得 React 验收前，不得删除 Vue 前端。
 
 ## 核心能力
 
-- JWT 登录、用户、角色、菜单、API 权限、字典和审计日志；
+- JWT 登录、用户、固定管理员边界、字典和登录日志；
 - 闲鱼账号、加密凭据、扫码登录、商品、消息、回复规则、订单、发货和续售；
 - Agent 会话、流式输出、MCP 工具、审批、持久化轨迹和工具检查；
 - 资源搜索、候选检查、异步获取、来源追踪和交付元数据；
@@ -38,7 +38,7 @@ docs/                   架构、领域、范围和迁移状态
 
 ## 技术栈
 
-后端使用 Go、Gin、GORM、PostgreSQL、Goose、JWT、Casbin、Eino 和 MCP。前端使用 React 18、TypeScript、Vite、原生 Fetch 和流式响应。Ant Design 已确定为标准组件方向，但尚未安装。
+后端使用 Go、Gin、GORM、PostgreSQL、Goose、JWT、Eino 和 MCP。前端使用 React 18、TypeScript、Vite、原生 Fetch 和流式响应。Ant Design 已确定为标准组件方向，但尚未安装。
 
 ## 文档入口
 

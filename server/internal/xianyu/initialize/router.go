@@ -9,7 +9,7 @@ import (
 
 func Router(engine *gin.Engine) {
 	private := engine.Group(global.GVA_CONFIG.System.RouterPrefix)
-	private.Use(middleware.JWTAuth()).Use(middleware.CasbinHandler())
+	private.Use(middleware.JWTAuth())
 	internal := engine.Group(global.GVA_CONFIG.System.RouterPrefix + "/xy/internal")
 	router.Router.Status.Init(private)
 	router.Router.Account.Init(private)

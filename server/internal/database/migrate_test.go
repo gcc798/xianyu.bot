@@ -19,6 +19,15 @@ func TestMigratePostgres(t *testing.T) {
 	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
 	require.NoError(t, err)
 	require.NoError(t, Migrate(t.Context(), db, "pgsql"))
+
+	var removed, retained *string
+	require.NoError(t, db.Raw("SELECT to_regclass('public.sys_apis')::text").Scan(&removed).Error)
+	require.Nil(t, removed)
+	require.NoError(t, db.Raw("SELECT to_regclass('public.sys_users')::text").Scan(&retained).Error)
+	require.NotNil(t, retained)
+	var userSettingColumns int64
+	require.NoError(t, db.Raw(`SELECT count(*) FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'sys_users' AND column_name = 'origin_setting'`).Scan(&userSettingColumns).Error)
+	require.Zero(t, userSettingColumns)
 }
 
 func TestMigrateRejectsUnsupportedDatabase(t *testing.T) {

@@ -1,8 +1,6 @@
 package middleware
 
 import (
-	"context"
-	"fmt"
 	"net"
 	"net/http"
 	"net/http/httputil"
@@ -11,8 +9,6 @@ import (
 	"strings"
 
 	"github.com/flipped-aurora/gin-vue-admin/server/global"
-	"github.com/flipped-aurora/gin-vue-admin/server/model/system"
-	"github.com/flipped-aurora/gin-vue-admin/server/service"
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 )
@@ -46,27 +42,12 @@ func GinRecovery(stack bool) gin.HandlerFunc {
 				}
 
 				if stack {
-					form := "后端"
-					info := fmt.Sprintf("Panic: %v\nRequest: %s\nStack: %s", err, string(httpRequest), string(debug.Stack()))
-					level := "error"
-					_ = service.ServiceGroupApp.SystemServiceGroup.SysErrorService.CreateSysError(context.Background(), &system.SysError{
-						Form:  &form,
-						Info:  &info,
-						Level: level,
-					})
 					global.GVA_LOG.Error("[Recovery from panic]",
 						zap.Any("error", err),
 						zap.String("request", string(httpRequest)),
+						zap.ByteString("stack", debug.Stack()),
 					)
 				} else {
-					form := "后端"
-					info := fmt.Sprintf("Panic: %v\nRequest: %s", err, string(httpRequest))
-					level := "error"
-					_ = service.ServiceGroupApp.SystemServiceGroup.SysErrorService.CreateSysError(context.Background(), &system.SysError{
-						Form:  &form,
-						Info:  &info,
-						Level: level,
-					})
 					global.GVA_LOG.Error("[Recovery from panic]",
 						zap.Any("error", err),
 						zap.String("request", string(httpRequest)),

@@ -7,33 +7,29 @@ networks:
 volumes:
   postgres:
   rustfs:
-  redis:
 
 services:
   web:
     build:
-      context: .
-      dockerfile: ./web/Dockerfile
-    container_name: gva-web
+      context: ./agent-web
+      dockerfile: ./Dockerfile
+    container_name: xy-web
     restart: always
     ports:
       - '18080:8080'
     depends_on:
       - server
-    command: ['nginx-debug', '-g', 'daemon off;']
 
   server:
     build:
       context: ./server
       dockerfile: ./Dockerfile
-    container_name: gva-server
+    container_name: xy-server
     restart: always
     ports:
       - '18888:8888'
     depends_on:
       postgres:
-        condition: service_healthy
-      redis:
         condition: service_healthy
     environment:
       XY_CREDENTIAL_KEY: ${XY_CREDENTIAL_KEY:-}
@@ -47,7 +43,7 @@ services:
 
   postgres:
     image: postgres:17-alpine
-    container_name: gva-postgres
+    container_name: xy-postgres
     restart: always
     ports:
       - '${PGSQL_HOST_PORT:-15432}:5432'
@@ -66,7 +62,7 @@ services:
 
   rustfs:
     image: rustfs/rustfs:latest
-    container_name: gva-rustfs
+    container_name: xy-rustfs
     restart: always
     command: ['--address', ':9000', '--console-enable', '--console-address', ':9001', '/data']
     ports:
@@ -81,25 +77,11 @@ services:
     volumes:
       - rustfs:/data
 
-  redis:
-    image: redis:7-alpine
-    container_name: gva-redis
-    restart: always
-    ports:
-      - '16379:6379'
-    healthcheck:
-      test: ['CMD', 'redis-cli', 'ping']
-      interval: 10s
-      timeout: 5s
-      retries: 3
-    volumes:
-      - redis:/data
-
   telegram:
     build:
       context: ./script/tel-bot
       dockerfile: Dockerfile
-    container_name: gva-telegram
+    container_name: xy-telegram
     restart: unless-stopped
     env_file:
       - path: ./script/tel-bot/.env

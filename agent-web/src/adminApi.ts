@@ -24,13 +24,6 @@ function query(path: string, params: Record<string, unknown>) {
 }
 
 export const adminApi = {
-  captcha: () =>
-    request<{
-      captchaId: string;
-      picPath: string;
-      openCaptcha: boolean;
-      captchaLength: number;
-    }>("/base/captcha", { method: "POST" }),
   login: (data: DataRow) =>
     request<{ token: string; user: CurrentUser; expiresAt: number }>(
       "/base/login",
@@ -65,70 +58,6 @@ export const adminApi = {
       method: "POST",
       body: JSON.stringify({ ID, password }),
     }),
-
-  authorities: () =>
-    request<DataRow[]>("/authority/getAuthorityList", {
-      method: "POST",
-      body: "{}",
-    }),
-  createAuthority: (data: DataRow) =>
-    request<DataRow>("/authority/createAuthority", {
-      method: "POST",
-      body: JSON.stringify(data),
-    }),
-  updateAuthority: (data: DataRow) =>
-    request<DataRow>("/authority/updateAuthority", {
-      method: "PUT",
-      body: JSON.stringify(data),
-    }),
-  deleteAuthority: (authorityId: unknown) =>
-    request<DataRow>("/authority/deleteAuthority", {
-      method: "POST",
-      body: JSON.stringify({ authorityId }),
-    }),
-
-  menus: (data: DataRow) =>
-    request<PageData>("/menu/getMenuList", {
-      method: "POST",
-      body: JSON.stringify(data),
-    }),
-  createMenu: (data: DataRow) =>
-    request<DataRow>("/menu/addBaseMenu", {
-      method: "POST",
-      body: JSON.stringify(data),
-    }),
-  updateMenu: (data: DataRow) =>
-    request<DataRow>("/menu/updateBaseMenu", {
-      method: "POST",
-      body: JSON.stringify(data),
-    }),
-  deleteMenu: (ID: unknown) =>
-    request<DataRow>("/menu/deleteBaseMenu", {
-      method: "POST",
-      body: JSON.stringify({ ID }),
-    }),
-
-  apis: (data: DataRow) =>
-    request<PageData>("/api/getApiList", {
-      method: "POST",
-      body: JSON.stringify(data),
-    }),
-  createApi: (data: DataRow) =>
-    request<DataRow>("/api/createApi", {
-      method: "POST",
-      body: JSON.stringify(data),
-    }),
-  updateApi: (data: DataRow) =>
-    request<DataRow>("/api/updateApi", {
-      method: "POST",
-      body: JSON.stringify(data),
-    }),
-  deleteApi: (data: DataRow) =>
-    request<DataRow>("/api/deleteApi", {
-      method: "POST",
-      body: JSON.stringify(data),
-    }),
-  syncApis: () => request<DataRow>("/api/syncApi"),
 
   dictionaries: (params: DataRow) =>
     request<DataRow[]>(query("/sysDictionary/getSysDictionaryList", params)),
@@ -173,24 +102,9 @@ export const adminApi = {
 
   loginLogs: (params: DataRow) =>
     request<PageData>(query("/sysLoginLog/getLoginLogList", params)),
-  operationLogs: (params: DataRow) =>
-    request<PageData>(
-      query("/sysOperationRecord/getSysOperationRecordList", params)
-    ),
-  errorLogs: (params: DataRow) =>
-    request<PageData>(query("/sysError/getSysErrorList", params)),
   deleteLoginLog: (ID: unknown) =>
     request<DataRow>("/sysLoginLog/deleteLoginLog", {
       method: "DELETE",
       body: JSON.stringify({ ID }),
-    }),
-  deleteOperationLog: (ID: unknown) =>
-    request<DataRow>("/sysOperationRecord/deleteSysOperationRecord", {
-      method: "DELETE",
-      body: JSON.stringify({ ID }),
-    }),
-  deleteErrorLog: (ID: unknown) =>
-    request<DataRow>(query("/sysError/deleteSysError", { ID }), {
-      method: "DELETE",
     }),
 };

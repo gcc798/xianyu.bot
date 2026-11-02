@@ -127,7 +127,7 @@ func (s *DictionaryApi) GetSysDictionaryList(c *gin.Context) {
 		response.FailWithMessage(err.Error(), c)
 		return
 	}
-	list, err := dictionaryService.GetSysDictionaryInfoList(c, dictionary)
+	list, err := dictionaryService.GetSysDictionaryInfoList(c.Request.Context(), dictionary)
 	if err != nil {
 		global.GVA_LOG.Error("获取失败!", zap.Error(err))
 		response.FailWithMessage("获取失败", c)

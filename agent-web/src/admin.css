@@ -323,29 +323,11 @@ button {
   border-color: #17201d;
   box-shadow: inset 3px 0 var(--signal);
 }
-.captcha-row {
-  display: grid;
-  grid-template-columns: 1fr 126px;
-  gap: 8px;
-}
-.captcha-row button {
-  padding: 0;
-  border: 1px solid #cfcdc3;
-  background: white;
-  overflow: hidden;
-  cursor: pointer;
-}
-.captcha-row img {
-  width: 100%;
-  height: 43px;
-  display: block;
-  object-fit: cover;
-}
 .form-error {
   margin: -3px 0 15px;
   padding: 9px 11px;
   color: #9b351e;
-  border-left: 3px solid var(--orange);
+  border: 1px solid #e0a08f;
   background: #ffebe5;
   font-size: 12px;
 }
@@ -528,12 +510,6 @@ button {
 .danger-link {
   color: #b44b35 !important;
 }
-.truncate-cell {
-  display: block;
-  max-width: 290px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
 .status-pill {
   display: inline-flex;
   align-items: center;
@@ -552,25 +528,6 @@ button {
 }
 .status-pill.good i {
   background: #4ea77e;
-}
-.method {
-  padding: 4px 6px;
-  color: #715c24;
-  background: #f5e9bf;
-  font: 600 10px/1 var(--mono);
-}
-.method.get {
-  color: #31675a;
-  background: #dcefe7;
-}
-.method.delete {
-  color: #8f3f32;
-  background: #f5ded9;
-}
-.method.put,
-.method.patch {
-  color: #435b8f;
-  background: #e0e7f6;
 }
 .pagination {
   display: flex;

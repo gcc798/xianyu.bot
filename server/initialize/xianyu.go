@@ -8,16 +8,8 @@ import (
 )
 
 func initializeXianyu(engine *gin.Engine) {
-	start := func() {
-		if err := xianyu.Initialize(engine); err != nil {
-			global.GVA_LOG.Error("初始化闲鱼业务失败", zap.Error(err))
-			panic(err)
-		}
-		global.GVA_ROUTERS = engine.Routes()
+	if err := xianyu.Initialize(engine); err != nil {
+		global.GVA_LOG.Error("初始化闲鱼业务失败", zap.Error(err))
+		panic(err)
 	}
-	if global.GVA_DB == nil {
-		GetDatabaseReadyNotifier().Subscribe(start)
-		return
-	}
-	start()
 }

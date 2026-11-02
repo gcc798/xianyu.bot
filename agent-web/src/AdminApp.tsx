@@ -33,22 +33,15 @@ const sections = [
     ],
   },
   {
-    label: "权限与资源",
+    label: "系统",
     items: [
       ["users", "用户管理"],
-      ["roles", "角色管理"],
-      ["menus", "菜单管理"],
-      ["apis", "API 管理"],
       ["dictionaries", "字典管理"],
     ],
   },
   {
-    label: "审计",
-    items: [
-      ["operation-logs", "操作日志"],
-      ["login-logs", "登录日志"],
-      ["error-logs", "错误日志"],
-    ],
+    label: "安全",
+    items: [["login-logs", "登录日志"]],
   },
 ] as const;
 
@@ -104,6 +97,10 @@ export default function AdminApp() {
     setAuthenticated(false);
     setUser(null);
   };
+  const isAdmin = Number(user?.authorityId) === 888;
+  const visibleSections = isAdmin
+    ? sections
+    : sections.filter((section) => section.label === "工作台");
 
   return (
     <div className="admin-app">
@@ -116,7 +113,7 @@ export default function AdminApp() {
           </div>
         </a>
         <nav>
-          {sections.map((section) => (
+          {visibleSections.map((section) => (
             <section key={section.label}>
               <h2>{section.label}</h2>
               {section.items.map(([key, label]) => (
@@ -150,17 +147,14 @@ export default function AdminApp() {
               <div>
                 <strong>{user?.nickName || user?.userName || "管理员"}</strong>
                 <small>
-                  {String(
-                    (user?.authority as DataRow | undefined)?.authorityName ||
-                      "已登录"
-                  )}
+                  {Number(user?.authorityId) === 888 ? "管理员" : "普通用户"}
                 </small>
               </div>
               <button onClick={() => void logout()}>退出</button>
             </div>
           </header>
         )}
-        <div className="admin-view">{renderRoute(route)}</div>
+        <div className="admin-view">{renderRoute(route, isAdmin)}</div>
       </main>
     </div>
   );
@@ -170,29 +164,9 @@ function LoginPage({ onLogin }: { onLogin: (user: CurrentUser) => void }) {
   const [form, setForm] = useState({
     username: "admin",
     password: "",
-    captcha: "",
-    captchaId: "",
-    openCaptcha: false,
   });
-  const [picture, setPicture] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const refreshCaptcha = useCallback(async () => {
-    try {
-      const data = await adminApi.captcha();
-      setPicture(data.picPath);
-      setForm((value) => ({
-        ...value,
-        captchaId: data.captchaId,
-        openCaptcha: data.openCaptcha,
-      }));
-    } catch (cause) {
-      setError(messageOf(cause));
-    }
-  }, []);
-  useEffect(() => {
-    void refreshCaptcha();
-  }, [refreshCaptcha]);
   const submit = async (event: FormEvent) => {
     event.preventDefault();
     if (form.username.length < 5 || form.password.length < 6) {
@@ -208,7 +182,6 @@ function LoginPage({ onLogin }: { onLogin: (user: CurrentUser) => void }) {
       onLogin(data.user);
     } catch (cause) {
       setError(messageOf(cause));
-      await refreshCaptcha();
     } finally {
       setBusy(false);
     }
@@ -254,31 +227,6 @@ function LoginPage({ onLogin }: { onLogin: (user: CurrentUser) => void }) {
               }
             />
           </label>
-          {form.openCaptcha && (
-            <label>
-              验证码
-              <div className="captcha-row">
-                <input
-                  inputMode="numeric"
-                  autoComplete="off"
-                  value={form.captcha}
-                  onChange={(event) =>
-                    setForm({
-                      ...form,
-                      captcha: event.target.value.replace(/\s/g, ""),
-                    })
-                  }
-                />
-                <button
-                  aria-label="刷新验证码"
-                  type="button"
-                  onClick={() => void refreshCaptcha()}
-                >
-                  <img src={picture} alt="验证码" />
-                </button>
-              </div>
-            </label>
-          )}
           {error && (
             <div className="form-error" role="alert">
               {error}
@@ -294,17 +242,13 @@ function LoginPage({ onLogin }: { onLogin: (user: CurrentUser) => void }) {
   );
 }
 
-function renderRoute(route: string) {
+function renderRoute(route: string, isAdmin: boolean) {
   if (route === "agent") return <AgentApp />;
   if (route === "overview") return <Overview />;
+  if (!isAdmin) return <EmptyState title="仅管理员可访问此页面" />;
   if (route === "users") return <UsersPage />;
-  if (route === "roles") return <RolesPage />;
-  if (route === "menus") return <MenusPage />;
-  if (route === "apis") return <ApisPage />;
   if (route === "dictionaries") return <DictionariesPage />;
-  if (route === "operation-logs") return <LogsPage kind="operation" />;
-  if (route === "login-logs") return <LogsPage kind="login" />;
-  if (route === "error-logs") return <LogsPage kind="error" />;
+  if (route === "login-logs") return <LoginLogsPage />;
   return <EmptyState title="页面不存在" />;
 }
 
@@ -320,9 +264,9 @@ function Overview() {
       </div>
       <div className="overview-grid-admin">
         {[
-          ["权限边界", "用户 · 角色 · 菜单 · API", "#d8ff5f"],
+          ["访问边界", "管理员 · 普通用户", "#d8ff5f"],
           ["业务字典", "层级字典与值维护", "#82e7ff"],
-          ["运行审计", "操作 · 登录 · 错误", "#ffc56e"],
+          ["登录审计", "成功与失败登录", "#ffc56e"],
           ["数据库", "Goose 基线已接管", "#ff8a72"],
         ].map(([title, text, color]) => (
           <article key={title} style={{ "--accent": color } as CSSProperties}>
@@ -336,10 +280,10 @@ function Overview() {
       <section className="migration-note">
         <strong>迁移状态</strong>
         <div>
-          <h2>双前端并行验证</h2>
+          <h2>聚焦闲鱼自动化与 Agent</h2>
           <p>
-            Vue 后台暂时保留；React
-            页面逐项验收后再删除对应源码，避免一次性切换造成能力回退。
+            后台只保留登录、用户、字典与登录审计，业务能力统一由 React
+            工程承载。
           </p>
         </div>
       </section>
@@ -357,6 +301,12 @@ function UsersPage() {
         { key: "ID", label: "ID" },
         { key: "userName", label: "用户名" },
         { key: "nickName", label: "昵称" },
+        {
+          key: "authorityId",
+          label: "角色",
+          render: (row) =>
+            Number(row.authorityId) === 888 ? "管理员" : "普通用户",
+        },
         { key: "phone", label: "手机号" },
         { key: "email", label: "邮箱" },
         {
@@ -382,8 +332,12 @@ function UsersPage() {
         { key: "nickName", label: "昵称", required: true },
         {
           key: "authorityId",
-          label: "默认角色 ID",
-          type: "number",
+          label: "角色",
+          type: "select",
+          options: [
+            { label: "普通用户", value: 9528 },
+            { label: "管理员", value: 888 },
+          ],
           required: true,
         },
         { key: "phone", label: "手机号" },
@@ -408,13 +362,6 @@ function UsersPage() {
           desc: true,
         })
       }
-      mapSave={(row) => ({
-        ...row,
-        authorityIds:
-          Array.isArray(row.authorityIds) && row.authorityIds.length
-            ? row.authorityIds
-            : [Number(row.authorityId)],
-      })}
       create={adminApi.createUser}
       update={adminApi.updateUser}
       remove={(row) => adminApi.deleteUser(row.ID)}
@@ -431,148 +378,6 @@ function UsersPage() {
           重置密码
         </button>
       )}
-    />
-  );
-}
-
-function RolesPage() {
-  return (
-    <ResourcePage
-      title="角色管理"
-      description="角色是菜单、API 与数据权限的授权单位。"
-      rowKey="authorityId"
-      columns={[
-        { key: "authorityId", label: "角色 ID" },
-        { key: "authorityName", label: "角色名称" },
-        { key: "parentId", label: "父角色" },
-        { key: "defaultRouter", label: "默认入口" },
-      ]}
-      fields={[
-        {
-          key: "authorityId",
-          label: "角色 ID",
-          type: "number",
-          required: true,
-        },
-        { key: "authorityName", label: "角色名称", required: true },
-        { key: "parentId", label: "父角色 ID", type: "number" },
-        { key: "defaultRouter", label: "默认入口" },
-      ]}
-      load={async () => {
-        const rows = flatten(await adminApi.authorities());
-        return {
-          list: rows,
-          total: rows.length,
-          page: 1,
-          pageSize: rows.length,
-        };
-      }}
-      create={adminApi.createAuthority}
-      update={adminApi.updateAuthority}
-      remove={(row) => adminApi.deleteAuthority(row.authorityId)}
-    />
-  );
-}
-
-function MenusPage() {
-  return (
-    <ResourcePage
-      title="菜单管理"
-      description="维护后台路由与展示元数据。React 导航本身由代码定义，不依赖动态组件路径。"
-      rowKey="ID"
-      columns={[
-        { key: "ID", label: "ID" },
-        { key: "name", label: "路由名" },
-        { key: "title", label: "标题" },
-        { key: "path", label: "路径" },
-        { key: "component", label: "原组件" },
-        { key: "sort", label: "排序" },
-      ]}
-      fields={[
-        { key: "parentId", label: "父菜单 ID", type: "number" },
-        { key: "name", label: "路由名", required: true },
-        { key: "path", label: "路径", required: true },
-        { key: "component", label: "组件标识", required: true },
-        { key: "title", label: "标题", required: true },
-        { key: "icon", label: "图标" },
-        { key: "sort", label: "排序", type: "number" },
-        { key: "hidden", label: "隐藏", type: "boolean" },
-        { key: "keepAlive", label: "缓存", type: "boolean" },
-      ]}
-      load={async (page) => {
-        const data = await adminApi.menus({ page, pageSize: 1000 });
-        const rows = flatten(data.list).map((row) => ({
-          ...row,
-          ...((row.meta as DataRow) || {}),
-        }));
-        return { ...data, list: rows };
-      }}
-      mapSave={(row) => ({
-        ...row,
-        meta: {
-          title: row.title,
-          icon: row.icon,
-          keepAlive: row.keepAlive,
-          defaultMenu: row.defaultMenu,
-          closeTab: row.closeTab,
-        },
-      })}
-      create={adminApi.createMenu}
-      update={adminApi.updateMenu}
-      remove={(row) => adminApi.deleteMenu(row.ID)}
-    />
-  );
-}
-
-function ApisPage() {
-  return (
-    <ResourcePage
-      title="API 管理"
-      description="查看和维护进入 Casbin 权限域的后端接口。"
-      rowKey="ID"
-      extra={
-        <button
-          className="secondary"
-          onClick={() => void adminApi.syncApis().then(() => location.reload())}
-        >
-          同步路由
-        </button>
-      }
-      columns={[
-        { key: "ID", label: "ID" },
-        {
-          key: "method",
-          label: "方法",
-          render: (row) => (
-            <code className={`method ${String(row.method).toLowerCase()}`}>
-              {String(row.method)}
-            </code>
-          ),
-        },
-        { key: "path", label: "路径" },
-        { key: "apiGroup", label: "分组" },
-        { key: "description", label: "描述" },
-      ]}
-      fields={[
-        { key: "path", label: "路径", required: true },
-        {
-          key: "method",
-          label: "方法",
-          type: "select",
-          options: ["GET", "POST", "PUT", "PATCH", "DELETE"].map((value) => ({
-            label: value,
-            value,
-          })),
-        },
-        { key: "apiGroup", label: "分组", required: true },
-        { key: "description", label: "描述", required: true },
-      ]}
-      load={(page, search) =>
-        adminApi.apis({ page, pageSize: 20, path: search, description: search })
-      }
-      create={adminApi.createApi}
-      update={adminApi.updateApi}
-      remove={adminApi.deleteApi}
     />
   );
 }
@@ -763,76 +568,35 @@ function DictionariesPage() {
   );
 }
 
-function LogsPage({ kind }: { kind: "operation" | "login" | "error" }) {
-  const config =
-    kind === "operation"
-      ? {
-          title: "操作日志",
-          load: adminApi.operationLogs,
-          remove: adminApi.deleteOperationLog,
-          columns: [
-            { key: "ID", label: "ID" },
-            { key: "method", label: "方法" },
-            { key: "path", label: "路径" },
-            { key: "status", label: "状态" },
-            { key: "ip", label: "IP" },
-            { key: "CreatedAt", label: "时间", render: dateCell },
-          ],
-        }
-      : kind === "login"
-      ? {
-          title: "登录日志",
-          load: adminApi.loginLogs,
-          remove: adminApi.deleteLoginLog,
-          columns: [
-            { key: "ID", label: "ID" },
-            { key: "username", label: "用户" },
-            { key: "ip", label: "IP" },
-            {
-              key: "status",
-              label: "结果",
-              render: (row: DataRow) => (
-                <Status
-                  value={row.status ? "成功" : "失败"}
-                  good={Boolean(row.status)}
-                />
-              ),
-            },
-            { key: "errorMessage", label: "说明" },
-            { key: "CreatedAt", label: "时间", render: dateCell },
-          ],
-        }
-      : {
-          title: "错误日志",
-          load: adminApi.errorLogs,
-          remove: adminApi.deleteErrorLog,
-          columns: [
-            { key: "ID", label: "ID" },
-            { key: "form", label: "来源" },
-            { key: "level", label: "级别" },
-            { key: "status", label: "处理状态" },
-            {
-              key: "info",
-              label: "摘要",
-              render: (row: DataRow) => (
-                <span className="truncate-cell">{String(row.info || "")}</span>
-              ),
-            },
-            { key: "CreatedAt", label: "时间", render: dateCell },
-          ],
-        };
+function LoginLogsPage() {
   return (
     <ResourcePage
-      title={config.title}
-      description="保留运行证据，用于定位问题与追踪管理操作。"
+      title="登录日志"
+      description="记录内网后台的成功与失败登录，用于安全追踪。"
       rowKey="ID"
       readOnly
-      columns={config.columns}
+      columns={[
+        { key: "ID", label: "ID" },
+        { key: "username", label: "用户" },
+        { key: "ip", label: "IP" },
+        {
+          key: "status",
+          label: "结果",
+          render: (row: DataRow) => (
+            <Status
+              value={row.status ? "成功" : "失败"}
+              good={Boolean(row.status)}
+            />
+          ),
+        },
+        { key: "errorMessage", label: "说明" },
+        { key: "CreatedAt", label: "时间", render: dateCell },
+      ]}
       fields={[]}
       load={(page, search) =>
-        config.load({ page, pageSize: 20, keyword: search })
+        adminApi.loginLogs({ page, pageSize: 20, username: search })
       }
-      remove={(row) => config.remove(row.ID)}
+      remove={(row) => adminApi.deleteLoginLog(row.ID)}
     />
   );
 }

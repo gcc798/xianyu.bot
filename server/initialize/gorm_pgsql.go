@@ -18,11 +18,6 @@ func GormPgSql() *gorm.DB {
 	return initPgSqlDatabase(p)
 }
 
-// GormPgSqlByConfig 初始化 Postgresql 数据库 通过指定参数
-func GormPgSqlByConfig(p config.Pgsql) *gorm.DB {
-	return initPgSqlDatabase(p)
-}
-
 // initPgSqlDatabase 初始化 Postgresql 数据库的辅助函数
 func initPgSqlDatabase(p config.Pgsql) *gorm.DB {
 	if p.Dbname == "" {

@@ -7,18 +7,13 @@ import (
 
 type DictionaryRouter struct{}
 
-func (s *DictionaryRouter) InitSysDictionaryRouter(Router *gin.RouterGroup) {
-	sysDictionaryRouter := Router.Group("sysDictionary").Use(middleware.OperationRecord())
-	sysDictionaryRouterWithoutRecord := Router.Group("sysDictionary")
-	{
-		sysDictionaryRouter.POST("createSysDictionary", dictionaryApi.CreateSysDictionary)   // 新建SysDictionary
-		sysDictionaryRouter.DELETE("deleteSysDictionary", dictionaryApi.DeleteSysDictionary) // 删除SysDictionary
-		sysDictionaryRouter.PUT("updateSysDictionary", dictionaryApi.UpdateSysDictionary)    // 更新SysDictionary
-		sysDictionaryRouter.POST("importSysDictionary", dictionaryApi.ImportSysDictionary)   // 导入SysDictionary
-		sysDictionaryRouter.GET("exportSysDictionary", dictionaryApi.ExportSysDictionary)    // 导出SysDictionary
-	}
-	{
-		sysDictionaryRouterWithoutRecord.GET("findSysDictionary", dictionaryApi.FindSysDictionary)       // 根据ID获取SysDictionary
-		sysDictionaryRouterWithoutRecord.GET("getSysDictionaryList", dictionaryApi.GetSysDictionaryList) // 获取SysDictionary列表
-	}
+func (s *DictionaryRouter) InitSysDictionaryRouter(router *gin.RouterGroup) {
+	dictionary := router.Group("sysDictionary").Use(middleware.AdminOnly())
+	dictionary.POST("createSysDictionary", dictionaryApi.CreateSysDictionary)
+	dictionary.DELETE("deleteSysDictionary", dictionaryApi.DeleteSysDictionary)
+	dictionary.PUT("updateSysDictionary", dictionaryApi.UpdateSysDictionary)
+	dictionary.POST("importSysDictionary", dictionaryApi.ImportSysDictionary)
+	dictionary.GET("exportSysDictionary", dictionaryApi.ExportSysDictionary)
+	dictionary.GET("findSysDictionary", dictionaryApi.FindSysDictionary)
+	dictionary.GET("getSysDictionaryList", dictionaryApi.GetSysDictionaryList)
 }

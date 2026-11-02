@@ -2,7 +2,7 @@
 
 ## 目标
 
-本项目是服务闲鱼自动化和可审计 Agent 的模块化单体，保留可靠的登录、RBAC、字典、菜单和审计基础能力，删除演示、代码生成、插件市场及无关系统工具。它不是通用低代码平台。
+本项目是服务闲鱼自动化和可审计 Agent 的模块化单体，通用后台只保留登录、固定管理员边界、用户、字典和登录审计。它不是通用低代码平台或通用权限脚手架。
 
 ## 目录职责
 
@@ -31,7 +31,7 @@ router -> api -> service -> model
 - Service 负责 owner 校验、状态机、事务和外部调用策略。
 - Model 定义持久化结构及请求/响应契约。
 - Protocol 和 Connection 隔离闲鱼通信细节。
-- Initialize 只负责稳定路由、菜单、权限和种子数据注册，不是插件入口。
+- Initialize 只负责数据库连接、稳定路由和必要的 Agent 默认配置，不是插件入口。
 
 不得把闲鱼业务放回 `server/plugin/`，也不得重新设计插件框架。
 
@@ -40,8 +40,8 @@ router -> api -> service -> model
 继续复用：
 
 - 用户登录和 JWT；
-- Casbin 角色与 API 权限；
-- 用户、角色、菜单、API、字典以及登录/操作/错误日志；
+- `authority_id=888` 的管理员边界和普通用户身份；
+- 用户、字典以及登录日志；
 - `{ code, data, msg }` 统一响应；
 - 从登录用户获得 owner 身份。
 
@@ -63,6 +63,8 @@ router -> api -> service -> model
 - `server/internal/database/migrations/` 是生产表结构事实源。
 - Goose 在服务启动时执行待应用迁移。
 - 复制的 PostgreSQL 结构记录为 `202611010001` 基线。
+- `202611020001` 删除动态权限、演示、生成器、参数、API Token 和通用日志等脚手架表。
+- `202611020002` 删除 `sys_users.origin_setting` 旧 Vue 界面配置列。
 - 只有系统、闲鱼和 Agent 代表表都存在时，已有数据库才能认领基线。
 - 新变化新增前向迁移，基线不可修改。
 - GORM `AutoMigrate` 只允许用于测试自己拥有的临时数据库。
@@ -77,6 +79,6 @@ router -> api -> service -> model
 
 ## 当前迁移状态
 
-后端领域拆分和数据库迁移基础已经建立。React 目前覆盖登录、核心后台和 Agent 对话/轨迹；完整角色授权和多数闲鱼业务页面仍依赖 Vue。
+后端已删除动态 RBAC、菜单/API 管理和无关基础设施。React 覆盖最小后台与 Agent 对话/轨迹；多数闲鱼业务页面仍待从 Vue 迁移。
 
 继续阅读[项目范围](project-scope.md)、[当前数据模型](data-model.md)、[功能矩阵](migration/feature-matrix.md)和[前端迁移矩阵](migration/vue-to-react.md)。

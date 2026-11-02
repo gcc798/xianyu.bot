@@ -8,16 +8,11 @@ import (
 
 type LoginLogRouter struct{}
 
-func (s *LoginLogRouter) InitLoginLogRouter(Router *gin.RouterGroup) {
-	loginLogRouter := Router.Group("sysLoginLog").Use(middleware.OperationRecord())
-	loginLogRouterWithoutRecord := Router.Group("sysLoginLog")
-	sysLoginLogApi := v1.ApiGroupApp.SystemApiGroup.LoginLogApi
-	{
-		loginLogRouter.DELETE("deleteLoginLog", sysLoginLogApi.DeleteLoginLog)           // 删除登录日志
-		loginLogRouter.DELETE("deleteLoginLogByIds", sysLoginLogApi.DeleteLoginLogByIds) // 批量删除登录日志
-	}
-	{
-		loginLogRouterWithoutRecord.GET("findLoginLog", sysLoginLogApi.FindLoginLog)       // 根据ID获取登录日志(详情)
-		loginLogRouterWithoutRecord.GET("getLoginLogList", sysLoginLogApi.GetLoginLogList) // 获取登录日志列表
-	}
+func (s *LoginLogRouter) InitLoginLogRouter(router *gin.RouterGroup) {
+	loginLog := router.Group("sysLoginLog").Use(middleware.AdminOnly())
+	api := v1.ApiGroupApp.SystemApiGroup.LoginLogApi
+	loginLog.DELETE("deleteLoginLog", api.DeleteLoginLog)
+	loginLog.DELETE("deleteLoginLogByIds", api.DeleteLoginLogByIds)
+	loginLog.GET("findLoginLog", api.FindLoginLog)
+	loginLog.GET("getLoginLogList", api.GetLoginLogList)
 }

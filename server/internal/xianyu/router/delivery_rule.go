@@ -1,15 +1,12 @@
 package router
 
-import (
-	"github.com/flipped-aurora/gin-vue-admin/server/middleware"
-	"github.com/gin-gonic/gin"
-)
+import "github.com/gin-gonic/gin"
 
 type deliveryRule struct{}
 
 func (r *deliveryRule) Init(private *gin.RouterGroup) {
 	read := private.Group("xy/delivery-rule")
-	write := private.Group("xy/delivery-rule").Use(middleware.OperationRecord())
+	write := private.Group("xy/delivery-rule")
 	read.GET("list", deliveryRuleApi.List)
 	read.GET("inventory", deliveryRuleApi.Inventory)
 	read.GET("task-list", deliveryRuleApi.ListTasks)

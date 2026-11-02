@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/flipped-aurora/gin-vue-admin/server/global"
+	"github.com/flipped-aurora/gin-vue-admin/server/model/system"
 	"github.com/flipped-aurora/gin-vue-admin/server/utils"
 	"github.com/golang-jwt/jwt/v5"
 
@@ -61,10 +62,6 @@ func JWTAuth() gin.HandlerFunc {
 			c.Header("new-token", newToken)
 			c.Header("new-expires-at", strconv.FormatInt(newClaims.ExpiresAt.Unix(), 10))
 			utils.SetToken(c, newToken, int(dr.Seconds()))
-			if global.GVA_CONFIG.System.UseMultipoint {
-				// 记录新的活跃jwt
-				_ = utils.SetRedisJWT(newToken, newClaims.Username)
-			}
 		}
 		c.Next()
 
@@ -74,6 +71,17 @@ func JWTAuth() gin.HandlerFunc {
 		if newExpiresAt, exists := c.Get("new-expires-at"); exists {
 			c.Header("new-expires-at", newExpiresAt.(string))
 		}
+	}
+}
+
+func AdminOnly() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if utils.GetUserAuthorityId(c) != system.AdministratorAuthorityID {
+			c.JSON(403, response.Response{Code: response.ERROR, Msg: "仅管理员可操作"})
+			c.Abort()
+			return
+		}
+		c.Next()
 	}
 }
 
