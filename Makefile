@@ -6,7 +6,7 @@ BUILD_IMAGE_SERVER  = golang:1.26.10
 #请选择node版本
 BUILD_IMAGE_WEB     = node:20
 #项目名称
-PROJECT_NAME        = github.com/flipped-aurora/gin-vue-admin/server
+PROJECT_NAME        = github.com/gcc798/go.xianyu.assistant
 #配置文件目录
 CONFIG_FILE         = config.yaml
 #镜像版本
@@ -42,8 +42,4 @@ build-server-local:
 	@cd server/ && if [ -f "server" ];then rm -rf server; else echo "OK!"; fi \
 	&& go env -w GO111MODULE=on && go env -w GOPROXY=https://goproxy.cn,direct \
 	&& go env -w CGO_ENABLED=0 && go env  && go mod tidy \
-	&& go build -ldflags "-B 0x$(shell head -c20 /dev/urandom|od -An -tx1|tr -d ' \n') -X main.Version=${TAGS_OPT}" -v
-
-#swagger 文档生成
-doc:
-	@cd server && swag init
+	&& go build -o server -ldflags "-B 0x$(shell head -c20 /dev/urandom|od -An -tx1|tr -d ' \n') -X main.Version=${TAGS_OPT}" -v ./cmd/server

@@ -1,0 +1,48 @@
+package service
+
+import "context"
+
+type Dependencies struct {
+	SendNotificationEmail func(string, string, string) error
+}
+
+func New(deps Dependencies) *Services {
+	accounts := new(account)
+	rules := new(replyRule)
+	deliveryRules := new(deliveryRule)
+	orders := &order{mtop: new(mtopClient)}
+	products := new(product)
+	relists := &relist{mtop: new(mtopClient), products: products}
+	deliveries := &delivery{consigner: orders, rules: deliveryRules, relist: relists, workers: make(map[uint]context.CancelFunc)}
+	orders.planner = deliveries
+	messages := &message{rules: rules, orders: orders, delivery: deliveries, pending: make(map[string]pendingReply)}
+	webSocket := newWebSocketService(messages, deps.SendNotificationEmail)
+	webSocket.accounts = accounts
+	accounts.webSocket = webSocket
+	messages.sender = webSocket
+	orders.sender = webSocket
+	webSocket.delivery = deliveries
+	agentEvents := newAgentEventHub()
+	agentRunner := &agentRunner{events: agentEvents, workers: make(map[uint]context.CancelFunc)}
+	return &Services{Account: *accounts, Product: *products, Message: messages, ReplyRule: *rules, DeliveryRule: *deliveryRules, Delivery: deliveries, Relist: relists, Order: orders, QRLogin: newQRLogin(), WebSocket: webSocket, Resource: resourceCatalog{events: agentEvents}, AgentRunner: agentRunner, AgentEvents: agentEvents}
+}
+
+type Services struct {
+	Status        status
+	Account       account
+	Product       product
+	ReplyRule     replyRule
+	DeliveryRule  deliveryRule
+	Delivery      *delivery
+	Relist        *relist
+	Order         *order
+	Message       *message
+	QRLogin       qrLogin
+	WebSocket     *webSocketService
+	BusinessEvent businessEvent
+	AIConfig      aiConfig
+	Resource      resourceCatalog
+	AgentSession  agentSession
+	AgentRunner   *agentRunner
+	AgentEvents   *agentEventHub
+}

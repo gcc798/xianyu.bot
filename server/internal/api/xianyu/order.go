@@ -1,0 +1,47 @@
+package api
+
+import (
+	"github.com/gcc798/go.xianyu.assistant/server/internal/model/common/response"
+	xyRequest "github.com/gcc798/go.xianyu.assistant/server/internal/model/xianyu/request"
+	"github.com/gcc798/go.xianyu.assistant/server/internal/security"
+	"github.com/gin-gonic/gin"
+)
+
+type order struct{ *dependencies }
+
+// List 分页获取当前用户的闲鱼订单
+// @Tags XyOrder
+// @Summary 分页获取当前用户的闲鱼订单
+// @Security ApiKeyAuth
+// @Produce application/json
+// @Param data query xyRequest.OrderSearch true "分页与筛选条件"
+// @Success 200 {object} response.Response{data=response.PageResult,msg=string} "获取成功"
+// @Router /xy/order/list [get]
+func (a *order) List(c *gin.Context) {
+	var input xyRequest.OrderSearch
+	if err := c.ShouldBindQuery(&input); err != nil {
+		response.FailWithMessage(err.Error(), c)
+		return
+	}
+	list, total, err := a.services.Order.List(c.Request.Context(), security.GetUserID(c), input)
+	if err != nil {
+		failAccount("获取闲鱼订单失败", err, c)
+		return
+	}
+	response.OkWithDetailed(response.PageResult{List: list, Total: total, Page: input.Page, PageSize: input.PageSize}, "获取成功", c)
+}
+
+// SyncPending 从闲鱼同步当前待发货订单
+func (a *order) SyncPending(c *gin.Context) {
+	var input xyRequest.OrderSync
+	if err := c.ShouldBindJSON(&input); err != nil {
+		response.FailWithMessage(err.Error(), c)
+		return
+	}
+	count, err := a.services.Order.SyncPending(c.Request.Context(), security.GetUserID(c), input.AccountID)
+	if err != nil {
+		failAccount("同步待发货订单失败", err, c)
+		return
+	}
+	response.OkWithData(gin.H{"count": count}, c)
+}

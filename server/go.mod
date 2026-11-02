@@ -1,4 +1,4 @@
-module github.com/flipped-aurora/gin-vue-admin/server
+module github.com/gcc798/go.xianyu.assistant/server
 
 go 1.26.10
 
