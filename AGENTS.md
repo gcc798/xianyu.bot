@@ -8,7 +8,7 @@
 - `server/internal/xianyu/` 承载闲鱼自动化和 Agent 业务，是正式领域模块，不是插件。
 - `agent-web/` 是唯一维护的前端，使用 React 18 和 TypeScript。
 - `web/` 是已废弃的 Gin-Vue-Admin/Vue 前端，只暂时用于行为对照、迁移验收和回滚。
-- `server/internal/database/migrations/` 是 PostgreSQL 生产表结构的唯一事实源，服务启动时使用 Goose 执行迁移。
+- `server/internal/infra/migrations/` 是 PostgreSQL 生产表结构的唯一事实源，服务启动时使用 Goose 执行迁移。
 - 当前部署边界是可信内网；直接暴露公网属于范围变化，必须先补充网关、限流和认证设计。
 
 修改模块边界或迁移范围前，先阅读 `docs/architecture.md`、`docs/project-scope.md` 和 `docs/migration/feature-matrix.md`。

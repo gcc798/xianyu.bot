@@ -5,10 +5,10 @@
 PostgreSQL 是重构后的应用数据库。现有应用数据库复制出的表结构已经保存为 Goose 基线 `202611010001`：
 
 ```text
-server/internal/database/migrations/202611010001_baseline.sql
+server/internal/infra/migrations/202611010001_baseline.sql
 ```
 
-服务启动时通过 `server/internal/database.Migrate` 执行待应用迁移。
+服务启动时通过 `server/internal/infra.Migrate` 执行待应用迁移。
 
 ## 基线认领
 

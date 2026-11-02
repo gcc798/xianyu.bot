@@ -11,7 +11,6 @@ import (
 	systemAPI "github.com/gcc798/xianyu.bot/internal/api/system"
 	"github.com/gcc798/xianyu.bot/internal/app"
 	"github.com/gcc798/xianyu.bot/internal/config"
-	"github.com/gcc798/xianyu.bot/internal/database"
 	"github.com/gcc798/xianyu.bot/internal/infra"
 	"github.com/gcc798/xianyu.bot/internal/infra/mail"
 	"github.com/gcc798/xianyu.bot/internal/security"
@@ -46,7 +45,7 @@ func run() error {
 	if db == nil {
 		return fmt.Errorf("PostgreSQL database name is required")
 	}
-	if err := database.Migrate(ctx, db); err != nil {
+	if err := infra.Migrate(ctx, db); err != nil {
 		return fmt.Errorf("database migration: %w", err)
 	}
 

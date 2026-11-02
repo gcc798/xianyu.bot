@@ -10,7 +10,7 @@
 | --- | --- | --- |
 | `server/` | Go HTTP 服务和通用后台基础能力 | 主动维护 |
 | `server/internal/app/` | HTTP 路由组合根 | 主动维护 |
-| `server/internal/database/` | PostgreSQL 启动迁移与 Goose 迁移文件 | 主动维护 |
+| `server/internal/infra/` | PostgreSQL、日志、HTTP 和 Goose 迁移等运行基础设施 | 主动维护 |
 | `server/internal/api/{router/,}xianyu/` | 闲鱼、Agent、MCP 和资源 HTTP 适配层 | 主动维护 |
 | `server/internal/service/xianyu/` | 闲鱼、Agent、MCP 和资源业务服务 | 主动维护 |
 | `server/internal/model/xianyu/` | 闲鱼、Agent、MCP 和资源持久化与 API 契约 | 主动维护 |
@@ -67,7 +67,7 @@ router -> api -> service -> model
 ## 数据库
 
 - PostgreSQL 是应用数据库。
-- `server/internal/database/migrations/` 是生产表结构事实源。
+- `server/internal/infra/migrations/` 是生产表结构事实源。
 - Goose 在服务启动时执行待应用迁移。
 - 复制的 PostgreSQL 结构记录为 `202611010001` 基线。
 - `202611020001` 删除动态权限、演示、生成器、参数、API Token 和通用日志等脚手架表。

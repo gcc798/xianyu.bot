@@ -26,7 +26,7 @@ Xianyu Assistant 是面向闲鱼自动化和可审计 Agent 工作流的 Go 模�
 
 ```text
 server/
-  internal/database/    PostgreSQL 与 Goose
+  internal/infra/       PostgreSQL、Goose、日志与 HTTP 基础设施
   internal/xianyu/      闲鱼自动化与 Agent 领域模块
 
 agent-web/              主动维护的 React 前端
@@ -62,7 +62,7 @@ docker compose up -d --build
 
 ```bash
 cd server
-go test ./internal/database/... ./internal/xianyu/...
+go test ./internal/infra/... ./internal/xianyu/...
 
 cd ../agent-web
 npm run build
