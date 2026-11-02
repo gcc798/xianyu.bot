@@ -13,13 +13,12 @@ import (
 	"sync/atomic"
 	"time"
 
-	openai "github.com/cloudwego/eino-ext/components/model/openai"
+	"github.com/cloudwego/eino-ext/components/model/openai"
 	"github.com/cloudwego/eino/adk"
 	einomodel "github.com/cloudwego/eino/components/model"
 	"github.com/cloudwego/eino/components/tool"
 	"github.com/cloudwego/eino/compose"
 	"github.com/cloudwego/eino/schema"
-	"github.com/gcc798/xianyu.bot/internal/infra"
 	"github.com/gcc798/xianyu.bot/internal/model/xianyu"
 	xyRequest "github.com/gcc798/xianyu.bot/internal/model/xianyu/request"
 	"go.uber.org/zap"
@@ -363,8 +362,8 @@ func (m *agentHarnessMiddleware) publish(eventType string, data any) {
 	if m.events == nil {
 		return
 	}
-	if _, err := m.events.Publish(m.sessionID, eventType, data); err != nil && infra.Log != nil {
-		infra.Log.Error("保存 Agent 模型事件失败", zap.Uint("sessionID", m.sessionID), zap.String("eventType", eventType), zap.Error(err))
+	if _, err := m.events.Publish(m.sessionID, eventType, data); err != nil {
+		zap.L().Error("保存 Agent 模型事件失败", zap.Uint("sessionID", m.sessionID), zap.String("eventType", eventType), zap.Error(err))
 	}
 }
 
@@ -668,16 +667,16 @@ func (s *agentRunner) mcpRegistryOrDefault() *mcpRegistry {
 
 func (s *agentRunner) publish(sessionID uint, eventType string, data any) {
 	if s.events != nil {
-		if _, err := s.events.Publish(sessionID, eventType, data); err != nil && infra.Log != nil {
-			infra.Log.Error("保存 Agent 事件失败", zap.Uint("sessionID", sessionID), zap.String("eventType", eventType), zap.Error(err))
+		if _, err := s.events.Publish(sessionID, eventType, data); err != nil {
+			zap.L().Error("保存 Agent 事件失败", zap.Uint("sessionID", sessionID), zap.String("eventType", eventType), zap.Error(err))
 		}
 	}
 }
 
 func (s *agentRunner) publishTransient(sessionID uint, eventType string, data any) {
 	if s.events != nil {
-		if _, err := s.events.PublishTransient(sessionID, eventType, data); err != nil && infra.Log != nil {
-			infra.Log.Error("广播 Agent 瞬时事件失败", zap.Uint("sessionID", sessionID), zap.String("eventType", eventType), zap.Error(err))
+		if _, err := s.events.PublishTransient(sessionID, eventType, data); err != nil {
+			zap.L().Error("广播 Agent 瞬时事件失败", zap.Uint("sessionID", sessionID), zap.String("eventType", eventType), zap.Error(err))
 		}
 	}
 }

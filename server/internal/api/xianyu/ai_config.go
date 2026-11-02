@@ -3,7 +3,6 @@ package api
 import (
 	"strconv"
 
-	"github.com/gcc798/xianyu.bot/internal/infra"
 	"github.com/gcc798/xianyu.bot/internal/model/common/response"
 	"github.com/gcc798/xianyu.bot/internal/model/xianyu"
 	xyRequest "github.com/gcc798/xianyu.bot/internal/model/xianyu/request"
@@ -161,6 +160,6 @@ func pathID(c *gin.Context) (uint, bool) {
 }
 
 func failAIConfig(message string, err error, c *gin.Context) {
-	infra.Log.Error(message, zap.Error(err))
+	zap.L().Error(message, zap.Error(err))
 	response.FailWithMessage(message+"："+err.Error(), c)
 }

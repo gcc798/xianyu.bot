@@ -1,7 +1,6 @@
 package system
 
 import (
-	"github.com/gcc798/xianyu.bot/internal/infra"
 	"github.com/gcc798/xianyu.bot/internal/model/common/response"
 	"github.com/gcc798/xianyu.bot/internal/model/system"
 	systemReq "github.com/gcc798/xianyu.bot/internal/model/system/request"
@@ -20,7 +19,7 @@ func (s *LoginLogApi) DeleteLoginLog(c *gin.Context) {
 	}
 	err = s.services.LoginLog.DeleteLoginLog(loginLog)
 	if err != nil {
-		infra.Log.Error("删除失败!", zap.Error(err))
+		zap.L().Error("删除失败!", zap.Error(err))
 		response.FailWithMessage("删除失败", c)
 		return
 	}
@@ -36,7 +35,7 @@ func (s *LoginLogApi) GetLoginLogList(c *gin.Context) {
 	}
 	list, total, err := s.services.LoginLog.GetLoginLogInfoList(pageInfo)
 	if err != nil {
-		infra.Log.Error("获取失败!", zap.Error(err))
+		zap.L().Error("获取失败!", zap.Error(err))
 		response.FailWithMessage("获取失败", c)
 		return
 	}

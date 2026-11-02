@@ -3,7 +3,6 @@ package system
 import (
 	"time"
 
-	"github.com/gcc798/xianyu.bot/internal/infra"
 	"github.com/gcc798/xianyu.bot/internal/model/common"
 	"github.com/gcc798/xianyu.bot/internal/model/common/request"
 	"github.com/gcc798/xianyu.bot/internal/model/common/response"
@@ -42,7 +41,7 @@ func (b *BaseApi) Login(c *gin.Context) {
 func (b *BaseApi) TokenNext(c *gin.Context, user system.SysUser) {
 	token, claims, err := b.jwt.LoginToken(&user)
 	if err != nil {
-		infra.Log.Error("获取 token 失败", zap.Error(err))
+		zap.L().Error("获取 token 失败", zap.Error(err))
 		response.FailWithMessage("获取token失败", c)
 		return
 	}
@@ -58,7 +57,7 @@ func (b *BaseApi) recordLogin(c *gin.Context, username string, userID uint, stat
 		Username: username, Ip: c.ClientIP(), Agent: c.Request.UserAgent(), Status: status,
 		ErrorMessage: message, UserID: userID,
 	}); err != nil {
-		infra.Log.Warn("记录登录日志失败", zap.Error(err))
+		zap.L().Warn("记录登录日志失败", zap.Error(err))
 	}
 }
 

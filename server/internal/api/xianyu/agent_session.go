@@ -6,7 +6,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gcc798/xianyu.bot/internal/infra"
 	"github.com/gcc798/xianyu.bot/internal/model/common/response"
 	xyRequest "github.com/gcc798/xianyu.bot/internal/model/xianyu/request"
 	xyResponse "github.com/gcc798/xianyu.bot/internal/model/xianyu/response"
@@ -122,7 +121,7 @@ func (a *agentSession) SendMessage(c *gin.Context) {
 	}
 	result, err := a.services.AgentRunner.Submit(c.Request.Context(), security.GetUserID(c), sessionID, input.Message, input.IdempotencyKey, input.Directives...)
 	if err != nil {
-		infra.Log.Error("提交 Agent 消息失败", zap.Error(err))
+		zap.L().Error("提交 Agent 消息失败", zap.Error(err))
 		response.FailWithMessage("消息提交失败，请检查 Agent 基础配置后重试", c)
 		return
 	}
@@ -157,7 +156,7 @@ func (a *agentSession) ApproveRun(c *gin.Context) {
 	}
 	call, err := a.services.AgentRunner.Approve(c.Request.Context(), security.GetUserID(c), runID)
 	if err != nil {
-		infra.Log.Error("确认 Agent 操作失败", zap.Error(err))
+		zap.L().Error("确认 Agent 操作失败", zap.Error(err))
 		response.FailWithMessage("确认操作执行失败", c)
 		return
 	}

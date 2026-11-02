@@ -1,7 +1,6 @@
 package api
 
 import (
-	"github.com/gcc798/xianyu.bot/internal/infra"
 	"github.com/gcc798/xianyu.bot/internal/model/common/response"
 	xyRequest "github.com/gcc798/xianyu.bot/internal/model/xianyu/request"
 	"github.com/gcc798/xianyu.bot/internal/security"
@@ -145,6 +144,6 @@ func (a *account) CheckLogin(c *gin.Context) {
 }
 
 func failAccount(message string, err error, c *gin.Context) {
-	infra.Log.Error(message, zap.Error(err))
+	zap.L().Error(message, zap.Error(err))
 	response.FailWithMessage(message, c)
 }

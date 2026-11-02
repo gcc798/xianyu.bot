@@ -1,7 +1,6 @@
 package system
 
 import (
-	"github.com/gcc798/xianyu.bot/internal/infra"
 	"github.com/gcc798/xianyu.bot/internal/model/common/response"
 	"github.com/gcc798/xianyu.bot/internal/model/system"
 	"github.com/gcc798/xianyu.bot/internal/model/system/request"
@@ -18,7 +17,7 @@ func (s *DictionaryApi) CreateSysDictionary(c *gin.Context) {
 		return
 	}
 	if err := s.services.Dictionary.CreateSysDictionary(dictionary); err != nil {
-		infra.Log.Error("创建字典失败", zap.Error(err))
+		zap.L().Error("创建字典失败", zap.Error(err))
 		response.FailWithMessage("创建失败", c)
 		return
 	}
@@ -32,7 +31,7 @@ func (s *DictionaryApi) DeleteSysDictionary(c *gin.Context) {
 		return
 	}
 	if err := s.services.Dictionary.DeleteSysDictionary(dictionary); err != nil {
-		infra.Log.Error("删除字典失败", zap.Error(err))
+		zap.L().Error("删除字典失败", zap.Error(err))
 		response.FailWithMessage("删除失败", c)
 		return
 	}
@@ -46,7 +45,7 @@ func (s *DictionaryApi) UpdateSysDictionary(c *gin.Context) {
 		return
 	}
 	if err := s.services.Dictionary.UpdateSysDictionary(&dictionary); err != nil {
-		infra.Log.Error("更新字典失败", zap.Error(err))
+		zap.L().Error("更新字典失败", zap.Error(err))
 		response.FailWithMessage("更新失败", c)
 		return
 	}
@@ -61,7 +60,7 @@ func (s *DictionaryApi) GetSysDictionaryList(c *gin.Context) {
 	}
 	list, err := s.services.Dictionary.GetSysDictionaryInfoList(c.Request.Context(), search)
 	if err != nil {
-		infra.Log.Error("获取字典失败", zap.Error(err))
+		zap.L().Error("获取字典失败", zap.Error(err))
 		response.FailWithMessage("获取失败", c)
 		return
 	}

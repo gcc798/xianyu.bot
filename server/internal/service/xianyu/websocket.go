@@ -14,7 +14,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/gcc798/xianyu.bot/internal/infra"
 	"github.com/gcc798/xianyu.bot/internal/model/xianyu"
 	xyResponse "github.com/gcc798/xianyu.bot/internal/model/xianyu/response"
 	"github.com/gcc798/xianyu.bot/internal/xianyu/connection"
@@ -104,16 +103,14 @@ func newWebSocketService(db *gorm.DB, events *businessEvent, messages *message, 
 }
 
 func (s *webSocketService) connectionStateChanged(snapshot connection.Snapshot) {
-	if infra.Log != nil {
-		fields := []zap.Field{
-			zap.Uint("accountID", snapshot.AccountID), zap.String("state", string(snapshot.State)),
-			zap.Uint64("reconnects", snapshot.Reconnects), zap.String("lastError", snapshot.LastError),
-		}
-		if snapshot.State == connection.StateConnected || snapshot.State == connection.StateConnecting {
-			infra.Log.Info("闲鱼消息连接状态变化", fields...)
-		} else {
-			infra.Log.Warn("闲鱼消息连接状态变化", fields...)
-		}
+	fields := []zap.Field{
+		zap.Uint("accountID", snapshot.AccountID), zap.String("state", string(snapshot.State)),
+		zap.Uint64("reconnects", snapshot.Reconnects), zap.String("lastError", snapshot.LastError),
+	}
+	if snapshot.State == connection.StateConnected || snapshot.State == connection.StateConnecting {
+		zap.L().Info("闲鱼消息连接状态变化", fields...)
+	} else {
+		zap.L().Warn("闲鱼消息连接状态变化", fields...)
 	}
 
 	s.trackConnectionAlertWindow(snapshot)
@@ -190,9 +187,7 @@ func (s *webSocketService) finishConnectionAlertWindow(accountID uint, target *c
 func (s *webSocketService) recordSuppressedConnectionAlert(accountID uint, window *connectionAlertWindow) {
 	var account model.Account
 	if err := s.db.Where("id = ?", accountID).First(&account).Error; err != nil {
-		if infra.Log != nil {
-			infra.Log.Error("记录闲鱼消息连接抖动失败", zap.Uint("accountID", accountID), zap.Error(err))
-		}
+		zap.L().Error("记录闲鱼消息连接抖动失败", zap.Uint("accountID", accountID), zap.Error(err))
 		return
 	}
 	s.events.Record(context.Background(), model.BusinessEvent{
@@ -211,9 +206,7 @@ func (s *webSocketService) cancelConnectionAlertWindow(accountID uint) {
 func (s *webSocketService) sendConnectionNotification(snapshot connection.Snapshot, recovered bool, startedAt time.Time, unavailableCount uint) {
 	var account model.Account
 	if err := s.db.Where("id = ?", snapshot.AccountID).First(&account).Error; err != nil {
-		if infra.Log != nil {
-			infra.Log.Error("读取闲鱼消息告警账号失败", zap.Uint("accountID", snapshot.AccountID), zap.Error(err))
-		}
+		zap.L().Error("读取闲鱼消息告警账号失败", zap.Uint("accountID", snapshot.AccountID), zap.Error(err))
 		return
 	}
 	subject := "[闲鱼助手告警] 消息连接不可用"
@@ -238,9 +231,7 @@ func (s *webSocketService) sendConnectionNotification(snapshot connection.Snapsh
 			OwnerID: account.OwnerID, AccountID: account.ID, Type: "websocket_alert", Status: "failed",
 			Summary: summary + "失败", Error: err.Error(),
 		})
-		if infra.Log != nil {
-			infra.Log.Error(summary+"失败", zap.Uint("accountID", snapshot.AccountID), zap.Error(err))
-		}
+		zap.L().Error(summary+"失败", zap.Uint("accountID", snapshot.AccountID), zap.Error(err))
 		return
 	}
 	event := model.BusinessEvent{
@@ -251,9 +242,7 @@ func (s *webSocketService) sendConnectionNotification(snapshot connection.Snapsh
 		event.Error = snapshot.LastError
 	}
 	s.events.Record(context.Background(), event)
-	if infra.Log != nil {
-		infra.Log.Info(summary, zap.Uint("accountID", snapshot.AccountID), zap.String("recipient", "force_gc@163.com"))
-	}
+	zap.L().Info(summary, zap.Uint("accountID", snapshot.AccountID), zap.String("recipient", "force_gc@163.com"))
 }
 
 func (s *webSocketService) handleRuntimeMessage(ctx context.Context, accountID uint, raw []byte) error {
@@ -307,12 +296,12 @@ func (s *webSocketService) Start(ctx context.Context, ownerID, accountID uint) e
 func (s *webSocketService) StartEnabledAccounts(ctx context.Context) {
 	var accounts []model.Account
 	if err := s.db.WithContext(ctx).Where("enabled = ? AND status = ?", true, "ready").Find(&accounts).Error; err != nil {
-		infra.Log.Error("加载需自动连接的闲鱼账号失败", zap.Error(err))
+		zap.L().Error("加载需自动连接的闲鱼账号失败", zap.Error(err))
 		return
 	}
 	for _, account := range accounts {
 		if err := s.Start(ctx, account.OwnerID, account.ID); err != nil {
-			infra.Log.Error("自动连接闲鱼账号失败", zap.Uint("accountID", account.ID), zap.Error(err))
+			zap.L().Error("自动连接闲鱼账号失败", zap.Uint("accountID", account.ID), zap.Error(err))
 		}
 	}
 }
@@ -399,21 +388,19 @@ func (s *webSocketService) syncRecentMessages(ctx context.Context, accountID uin
 	defer cancel()
 	listPayload, err := buildIMRequest("/r/Conversation/listNewestPagination", []any{int64(9007199254740991), 5})
 	if err != nil {
-		if infra.Log != nil {
-			infra.Log.Warn("构造闲鱼最近会话同步请求失败", zap.Uint("accountID", accountID), zap.Error(err))
-		}
+		zap.L().Warn("构造闲鱼最近会话同步请求失败", zap.Uint("accountID", accountID), zap.Error(err))
 		return
 	}
 	response, err := s.manager.Request(requestCtx, accountID, listPayload)
 	if err != nil {
-		if infra.Log != nil && requestCtx.Err() == nil {
-			infra.Log.Warn("请求闲鱼最近会话失败", zap.Uint("accountID", accountID), zap.Error(err))
+		if requestCtx.Err() == nil {
+			zap.L().Warn("请求闲鱼最近会话失败", zap.Uint("accountID", accountID), zap.Error(err))
 		}
 		return
 	}
 	conversations, err := protocol.ParseConversationResponse(response)
 	if err != nil {
-		infra.Log.Warn("闲鱼最近会话同步失败", zap.Uint("accountID", accountID), zap.Error(err))
+		zap.L().Warn("闲鱼最近会话同步失败", zap.Uint("accountID", accountID), zap.Error(err))
 		return
 	}
 	for _, sessionID := range conversations {
@@ -422,20 +409,18 @@ func (s *webSocketService) syncRecentMessages(ctx context.Context, accountID uin
 		}
 		messagePayload, err := buildIMRequest("/r/MessageManager/listUserMessages", []any{ensureGoofishID(sessionID), false, int64(9007199254740991), 20, false})
 		if err != nil {
-			if infra.Log != nil {
-				infra.Log.Warn("构造闲鱼历史消息同步请求失败", zap.Uint("accountID", accountID), zap.String("sessionID", sessionID), zap.Error(err))
-			}
+			zap.L().Warn("构造闲鱼历史消息同步请求失败", zap.Uint("accountID", accountID), zap.String("sessionID", sessionID), zap.Error(err))
 			return
 		}
 		history, err := s.manager.Request(requestCtx, accountID, messagePayload)
 		if err != nil {
-			if infra.Log != nil && requestCtx.Err() == nil {
-				infra.Log.Warn("请求闲鱼历史消息失败", zap.Uint("accountID", accountID), zap.String("sessionID", sessionID), zap.Error(err))
+			if requestCtx.Err() == nil {
+				zap.L().Warn("请求闲鱼历史消息失败", zap.Uint("accountID", accountID), zap.String("sessionID", sessionID), zap.Error(err))
 			}
 			return
 		}
 		if err := s.messages.HandleHistory(requestCtx, accountID, sessionID, history); err != nil {
-			infra.Log.Warn("闲鱼会话消息补偿同步失败", zap.Uint("accountID", accountID), zap.Error(err))
+			zap.L().Warn("闲鱼会话消息补偿同步失败", zap.Uint("accountID", accountID), zap.Error(err))
 			return
 		}
 	}
@@ -497,13 +482,11 @@ func (s *webSocketService) SendText(ctx context.Context, ownerID, accountID uint
 	sendCtx, cancel := context.WithTimeoutCause(ctx, 10*time.Second, errors.New("闲鱼消息发送结果未知"))
 	defer cancel()
 	err = s.manager.Send(sendCtx, accountID, payload)
-	if infra.Log != nil {
-		fields := []zap.Field{zap.Uint("ownerID", ownerID), zap.Uint("accountID", accountID), zap.String("sessionID", sessionID), zap.String("toUserID", toUserID), zap.Int("textLength", len([]rune(text)))}
-		if err != nil {
-			infra.Log.Warn("发送闲鱼消息失败", append(fields, zap.Error(err))...)
-		} else {
-			infra.Log.Info("发送闲鱼消息成功", fields...)
-		}
+	fields := []zap.Field{zap.Uint("ownerID", ownerID), zap.Uint("accountID", accountID), zap.String("sessionID", sessionID), zap.String("toUserID", toUserID), zap.Int("textLength", len([]rune(text)))}
+	if err != nil {
+		zap.L().Warn("发送闲鱼消息失败", append(fields, zap.Error(err))...)
+	} else {
+		zap.L().Info("发送闲鱼消息成功", fields...)
 	}
 	return err
 }
@@ -640,17 +623,15 @@ func (c *xyConnection) Read(ctx context.Context) ([]byte, error) {
 			Body    json.RawMessage `json:"body"`
 		}
 		if err := json.Unmarshal(message, &envelope); err != nil {
-			if infra.Log != nil {
-				infra.Log.Warn("闲鱼 WebSocket 收到无法解析的协议帧", zap.Uint("accountID", c.accountID), zap.Int("bytes", len(message)), zap.Error(err))
-			}
+			zap.L().Warn("闲鱼 WebSocket 收到无法解析的协议帧", zap.Uint("accountID", c.accountID), zap.Int("bytes", len(message)), zap.Error(err))
 			continue
 		}
 		var pushBody struct {
 			SyncPushPackage json.RawMessage `json:"syncPushPackage"`
 		}
 		_ = json.Unmarshal(envelope.Body, &pushBody)
-		if infra.Log != nil && envelope.LWP != "" && envelope.LWP != "/!" {
-			infra.Log.Info("闲鱼 WebSocket 收到协议帧",
+		if envelope.LWP != "" && envelope.LWP != "/!" {
+			zap.L().Info("闲鱼 WebSocket 收到协议帧",
 				zap.Uint("accountID", c.accountID),
 				zap.String("lwp", envelope.LWP),
 				zap.Int("code", envelope.Code),

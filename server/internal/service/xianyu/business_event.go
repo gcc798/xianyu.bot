@@ -5,7 +5,6 @@ import (
 	"errors"
 	"strings"
 
-	"github.com/gcc798/xianyu.bot/internal/infra"
 	"github.com/gcc798/xianyu.bot/internal/model/xianyu"
 	xyRequest "github.com/gcc798/xianyu.bot/internal/model/xianyu/request"
 	xyResponse "github.com/gcc798/xianyu.bot/internal/model/xianyu/response"
@@ -27,16 +26,14 @@ func (s *businessEvent) Record(ctx context.Context, event model.BusinessEvent) {
 	if event.Error != "" {
 		fields = append(fields, zap.String("error", event.Error))
 	}
-	if infra.Log != nil {
-		if event.Status == "success" || event.Status == "ready" {
-			infra.Log.Info("闲鱼业务操作完成", fields...)
-		} else {
-			infra.Log.Warn("闲鱼业务操作异常", fields...)
-		}
+	if event.Status == "success" || event.Status == "ready" {
+		zap.L().Info("闲鱼业务操作完成", fields...)
+	} else {
+		zap.L().Warn("闲鱼业务操作异常", fields...)
 	}
 	if event.OwnerID != 0 {
-		if err := s.db.WithContext(ctx).Create(&event).Error; err != nil && infra.Log != nil {
-			infra.Log.Error("保存闲鱼业务日志失败", zap.Error(err), zap.String("type", event.Type), zap.Uint("accountID", event.AccountID))
+		if err := s.db.WithContext(ctx).Create(&event).Error; err != nil {
+			zap.L().Error("保存闲鱼业务日志失败", zap.Error(err), zap.String("type", event.Type), zap.Uint("accountID", event.AccountID))
 		}
 	}
 }

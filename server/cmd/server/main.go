@@ -36,8 +36,7 @@ func run() error {
 		return fmt.Errorf("invalid JWT config: %w", err)
 	}
 
-	infra.Log = infra.Zap(settings.Log)
-	zap.ReplaceGlobals(infra.Log)
+	zap.ReplaceGlobals(infra.Zap(settings.Log))
 	db := infra.Postgres(settings.Postgres)
 	if db == nil {
 		return fmt.Errorf("PostgreSQL database name is required")

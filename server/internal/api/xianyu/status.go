@@ -1,7 +1,6 @@
 package api
 
 import (
-	"github.com/gcc798/xianyu.bot/internal/infra"
 	"github.com/gcc798/xianyu.bot/internal/model/common/response"
 	xyRequest "github.com/gcc798/xianyu.bot/internal/model/xianyu/request"
 	xyResponse "github.com/gcc798/xianyu.bot/internal/model/xianyu/response"
@@ -23,7 +22,7 @@ func (a *status) GetStatus(c *gin.Context) {
 	var status xyResponse.Status
 	status, err := a.services.Status.Get(c.Request.Context(), security.GetUserID(c))
 	if err != nil {
-		infra.Log.Error("获取闲鱼助手状态失败", zap.Error(err))
+		zap.L().Error("获取闲鱼助手状态失败", zap.Error(err))
 		response.FailWithMessage("获取状态失败", c)
 		return
 	}
@@ -46,7 +45,7 @@ func (a *status) GetOverview(c *gin.Context) {
 	}
 	overview, err := a.services.Status.Overview(c.Request.Context(), security.GetUserID(c), input)
 	if err != nil {
-		infra.Log.Error("获取闲鱼助手工作台失败", zap.Error(err))
+		zap.L().Error("获取闲鱼助手工作台失败", zap.Error(err))
 		response.FailWithMessage(err.Error(), c)
 		return
 	}

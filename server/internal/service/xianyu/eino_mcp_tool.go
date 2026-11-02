@@ -13,7 +13,6 @@ import (
 	"github.com/cloudwego/eino/compose"
 	"github.com/cloudwego/eino/schema"
 	"github.com/eino-contrib/jsonschema"
-	"github.com/gcc798/xianyu.bot/internal/infra"
 	"github.com/gcc798/xianyu.bot/internal/model/xianyu"
 	"github.com/mark3labs/mcp-go/mcp"
 	"go.uber.org/zap"
@@ -358,8 +357,8 @@ func (t *einoMCPTool) finishToolCall(ctx context.Context, call *model.AgentRunTo
 
 func (t *einoMCPTool) publish(eventType string, data any) {
 	if t.events != nil {
-		if _, err := t.events.Publish(t.sessionID, eventType, data); err != nil && infra.Log != nil {
-			infra.Log.Error("保存 Agent 工具事件失败", zap.Uint("sessionID", t.sessionID), zap.String("eventType", eventType), zap.Error(err))
+		if _, err := t.events.Publish(t.sessionID, eventType, data); err != nil {
+			zap.L().Error("保存 Agent 工具事件失败", zap.Uint("sessionID", t.sessionID), zap.String("eventType", eventType), zap.Error(err))
 		}
 	}
 }

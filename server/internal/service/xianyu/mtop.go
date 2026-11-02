@@ -15,7 +15,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gcc798/xianyu.bot/internal/infra"
 	"github.com/gcc798/xianyu.bot/internal/model/xianyu"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
@@ -41,17 +40,14 @@ var errMTopTransport = errors.New("闲鱼接口结果未知")
 func (m *mtopClient) Call(ctx context.Context, ownerID, accountID uint, api string, data any, seller bool) (result json.RawMessage, err error) {
 	startedAt := time.Now()
 	defer func() {
-		if infra.Log == nil {
-			return
-		}
 		fields := []zap.Field{
 			zap.Uint("ownerID", ownerID), zap.Uint("accountID", accountID), zap.String("api", api),
 			zap.Bool("seller", seller), zap.Duration("duration", time.Since(startedAt)),
 		}
 		if err != nil {
-			infra.Log.Warn("调用闲鱼 MTop 接口失败", append(fields, zap.Error(err))...)
+			zap.L().Warn("调用闲鱼 MTop 接口失败", append(fields, zap.Error(err))...)
 		} else {
-			infra.Log.Info("调用闲鱼 MTop 接口成功", fields...)
+			zap.L().Info("调用闲鱼 MTop 接口成功", fields...)
 		}
 	}()
 	lockValue, _ := credentialRefreshLocks.LoadOrStore(accountID, new(sync.Mutex))

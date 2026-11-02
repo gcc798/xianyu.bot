@@ -4,7 +4,6 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/gcc798/xianyu.bot/internal/auth"
-	"github.com/gcc798/xianyu.bot/internal/infra"
 	"github.com/gcc798/xianyu.bot/internal/model/system"
 	"gorm.io/gorm"
 )
@@ -30,7 +29,7 @@ func (jwtService *JwtService) LoadRevokedTokens() {
 	var data []string
 	err := jwtService.db.Model(&system.JwtBlacklist{}).Select("jwt").Find(&data).Error
 	if err != nil {
-		infra.Log.Error("加载数据库jwt黑名单失败!", zap.Error(err))
+		zap.L().Error("加载数据库jwt黑名单失败!", zap.Error(err))
 		return
 	}
 	for _, token := range data {

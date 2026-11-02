@@ -1,7 +1,6 @@
 package system
 
 import (
-	"github.com/gcc798/xianyu.bot/internal/infra"
 	"github.com/gcc798/xianyu.bot/internal/model/common/response"
 	"github.com/gcc798/xianyu.bot/internal/model/system"
 	"github.com/gcc798/xianyu.bot/internal/security"
@@ -24,7 +23,7 @@ func (j *JwtApi) JsonInBlacklist(c *gin.Context) {
 	jwt := system.JwtBlacklist{Jwt: token}
 	err := j.services.JWT.JsonInBlacklist(jwt)
 	if err != nil {
-		infra.Log.Error("jwt作废失败!", zap.Error(err))
+		zap.L().Error("jwt作废失败!", zap.Error(err))
 		response.FailWithMessage("jwt作废失败", c)
 		return
 	}
