@@ -38,19 +38,19 @@ func run() error {
 
 	infra.Log = infra.Zap(settings.Log)
 	zap.ReplaceGlobals(infra.Log)
-	infra.DB = infra.Postgres(settings.Postgres)
-	if infra.DB == nil {
+	db := infra.Postgres(settings.Postgres)
+	if db == nil {
 		return fmt.Errorf("PostgreSQL database name is required")
 	}
-	if err := database.Migrate(context.Background(), infra.DB); err != nil {
+	if err := database.Migrate(context.Background(), db); err != nil {
 		return fmt.Errorf("database migration: %w", err)
 	}
 
-	systemServices := systemService.New(infra.DB)
+	systemServices := systemService.New(db)
 	systemServices.JWT.LoadRevokedTokens()
 	systemRoutes := systemRouter.New(systemAPI.New(systemServices, jwt))
 	mailSender := mail.NewSender(settings.Email)
-	xianyuDeps := xianyuService.Dependencies{DB: infra.DB, SendNotificationEmail: mailSender.Send}
+	xianyuDeps := xianyuService.Dependencies{DB: db, SendNotificationEmail: mailSender.Send}
 	infra.RunServer(app.Routers(systemRoutes, jwt, xianyuDeps), settings.HTTP.Port)
 	return nil
 }

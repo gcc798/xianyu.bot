@@ -17,10 +17,6 @@ type businessEvent struct {
 	db *gorm.DB
 }
 
-func recordBusinessEvent(ctx context.Context, event model.BusinessEvent) {
-	(&businessEvent{db: infra.DB}).Record(ctx, event)
-}
-
 func (s *businessEvent) Record(ctx context.Context, event model.BusinessEvent) {
 	fields := []zap.Field{
 		zap.Uint("ownerID", event.OwnerID), zap.Uint("accountID", event.AccountID),

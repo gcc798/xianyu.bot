@@ -53,7 +53,7 @@ func TestCheckLoginSerializesRefreshAndUpdatesEncryptedVersion(t *testing.T) {
 	t.Setenv(credentialKeyEnvironment, base64.StdEncoding.EncodeToString([]byte("0123456789abcdef0123456789abcdef")))
 
 	checker := newSerializedLoginChecker()
-	service := &account{db: db, loginChecker: checker}
+	service := &account{db: db, events: &businessEvent{db: db}, loginChecker: checker}
 	created, err := service.Create(t.Context(), 10, xyRequest.CreateAccount{Label: "扫码账号"})
 	require.NoError(t, err)
 	require.NoError(t, service.SaveCredential(t.Context(), 10, xyRequest.SaveCredential{ID: created.ID, Cookie: "unb=old; token=old"}))

@@ -13,6 +13,7 @@ import (
 
 type account struct {
 	db           *gorm.DB
+	events       *businessEvent
 	loginChecker loginChecker
 	webSocket    *webSocketService
 }

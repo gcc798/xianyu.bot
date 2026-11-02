@@ -123,7 +123,7 @@ func (s *account) CheckLogin(ctx context.Context, ownerID, accountID uint) (xyRe
 	if err != nil {
 		return xyResponse.LoginStatus{}, err
 	}
-	recordBusinessEvent(ctx, model.BusinessEvent{OwnerID: ownerID, AccountID: accountID, Type: "login_check", Status: status, Summary: "闲鱼账号登录态检查完成"})
+	s.events.Record(ctx, model.BusinessEvent{OwnerID: ownerID, AccountID: accountID, Type: "login_check", Status: status, Summary: "闲鱼账号登录态检查完成"})
 	return xyResponse.LoginStatus{Status: status, CookieUpdated: cookieUpdated, CredentialVersion: credential.Version}, nil
 }
 

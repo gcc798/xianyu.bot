@@ -10,8 +10,8 @@ type Dependencies struct {
 }
 
 func New(deps Dependencies) *Services {
-	accounts := &account{db: deps.DB}
 	events := &businessEvent{db: deps.DB}
+	accounts := &account{db: deps.DB, events: events}
 	rules := &replyRule{db: deps.DB}
 	deliveryRules := &deliveryRule{db: deps.DB}
 	orders := &order{db: deps.DB, events: events, mtop: &mtopClient{db: deps.DB}}
