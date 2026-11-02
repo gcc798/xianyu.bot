@@ -1,7 +1,7 @@
 package request
 
 import (
-	commonRequest "github.com/gcc798/go.xianyu.assistant/server/internal/model/common/request"
+	commonRequest "github.com/gcc798/xianyu.bot/internal/model/common/request"
 	"gorm.io/gorm"
 )
 

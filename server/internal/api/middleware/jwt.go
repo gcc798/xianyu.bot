@@ -5,12 +5,12 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/gcc798/go.xianyu.assistant/server/internal/auth"
-	"github.com/gcc798/go.xianyu.assistant/server/internal/model/system"
-	"github.com/gcc798/go.xianyu.assistant/server/internal/security"
+	"github.com/gcc798/xianyu.bot/internal/auth"
+	"github.com/gcc798/xianyu.bot/internal/model/system"
+	"github.com/gcc798/xianyu.bot/internal/security"
 	"github.com/golang-jwt/jwt/v5"
 
-	"github.com/gcc798/go.xianyu.assistant/server/internal/model/common/response"
+	"github.com/gcc798/xianyu.bot/internal/model/common/response"
 	"github.com/gin-gonic/gin"
 )
 

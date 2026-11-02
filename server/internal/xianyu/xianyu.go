@@ -4,12 +4,12 @@ import (
 	"context"
 	"errors"
 
-	"github.com/gcc798/go.xianyu.assistant/server/internal/api/middleware"
-	xianyuRouter "github.com/gcc798/go.xianyu.assistant/server/internal/api/router/xianyu"
-	"github.com/gcc798/go.xianyu.assistant/server/internal/api/xianyu"
-	"github.com/gcc798/go.xianyu.assistant/server/internal/model/xianyu"
-	"github.com/gcc798/go.xianyu.assistant/server/internal/security"
-	"github.com/gcc798/go.xianyu.assistant/server/internal/service/xianyu"
+	"github.com/gcc798/xianyu.bot/internal/api/middleware"
+	xianyuRouter "github.com/gcc798/xianyu.bot/internal/api/router/xianyu"
+	"github.com/gcc798/xianyu.bot/internal/api/xianyu"
+	"github.com/gcc798/xianyu.bot/internal/model/xianyu"
+	"github.com/gcc798/xianyu.bot/internal/security"
+	"github.com/gcc798/xianyu.bot/internal/service/xianyu"
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 )

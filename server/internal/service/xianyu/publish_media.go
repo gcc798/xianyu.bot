@@ -18,8 +18,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gcc798/go.xianyu.assistant/server/internal/infra"
-	"github.com/gcc798/go.xianyu.assistant/server/internal/model/xianyu"
+	"github.com/gcc798/xianyu.bot/internal/infra"
+	"github.com/gcc798/xianyu.bot/internal/model/xianyu"
 	_ "golang.org/x/image/webp"
 )
 

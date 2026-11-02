@@ -1,6 +1,6 @@
 package request
 
-import commonRequest "github.com/gcc798/go.xianyu.assistant/server/internal/model/common/request"
+import commonRequest "github.com/gcc798/xianyu.bot/internal/model/common/request"
 
 type DeliveryRuleSearch struct {
 	commonRequest.PageInfo

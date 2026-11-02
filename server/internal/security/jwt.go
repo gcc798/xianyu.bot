@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/gcc798/go.xianyu.assistant/server/internal/config"
-	"github.com/gcc798/go.xianyu.assistant/server/internal/model/system"
-	"github.com/gcc798/go.xianyu.assistant/server/internal/model/system/request"
+	"github.com/gcc798/xianyu.bot/internal/config"
+	"github.com/gcc798/xianyu.bot/internal/model/system"
+	"github.com/gcc798/xianyu.bot/internal/model/system/request"
 	jwt "github.com/golang-jwt/jwt/v5"
 	"golang.org/x/sync/singleflight"
 )

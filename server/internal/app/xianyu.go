@@ -1,10 +1,10 @@
 package app
 
 import (
-	"github.com/gcc798/go.xianyu.assistant/server/internal/infra"
-	"github.com/gcc798/go.xianyu.assistant/server/internal/security"
-	xianyuService "github.com/gcc798/go.xianyu.assistant/server/internal/service/xianyu"
-	"github.com/gcc798/go.xianyu.assistant/server/internal/xianyu"
+	"github.com/gcc798/xianyu.bot/internal/infra"
+	"github.com/gcc798/xianyu.bot/internal/security"
+	xianyuService "github.com/gcc798/xianyu.bot/internal/service/xianyu"
+	"github.com/gcc798/xianyu.bot/internal/xianyu"
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 )

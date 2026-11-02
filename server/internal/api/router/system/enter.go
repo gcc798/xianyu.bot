@@ -1,6 +1,6 @@
 package system
 
-import systemAPI "github.com/gcc798/go.xianyu.assistant/server/internal/api/system"
+import systemAPI "github.com/gcc798/xianyu.bot/internal/api/system"
 
 type dependencies struct{ handlers *systemAPI.API }
 

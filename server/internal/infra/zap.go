@@ -1,7 +1,7 @@
 package infra
 
 import (
-	"github.com/gcc798/go.xianyu.assistant/server/internal/config"
+	"github.com/gcc798/xianyu.bot/internal/config"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )

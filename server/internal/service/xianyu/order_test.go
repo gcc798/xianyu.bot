@@ -6,9 +6,9 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/gcc798/go.xianyu.assistant/server/internal/infra"
-	"github.com/gcc798/go.xianyu.assistant/server/internal/model/xianyu"
-	xyRequest "github.com/gcc798/go.xianyu.assistant/server/internal/model/xianyu/request"
+	"github.com/gcc798/xianyu.bot/internal/infra"
+	"github.com/gcc798/xianyu.bot/internal/model/xianyu"
+	xyRequest "github.com/gcc798/xianyu.bot/internal/model/xianyu/request"
 	"github.com/glebarez/sqlite"
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"

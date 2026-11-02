@@ -1,6 +1,6 @@
 package model
 
-import "github.com/gcc798/go.xianyu.assistant/server/internal/model/common"
+import "github.com/gcc798/xianyu.bot/internal/model/common"
 
 const (
 	DeliveryModeText = "text"

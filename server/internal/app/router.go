@@ -3,11 +3,11 @@ package app
 import (
 	"net/http"
 
-	"github.com/gcc798/go.xianyu.assistant/server/internal/api/middleware"
-	systemRouter "github.com/gcc798/go.xianyu.assistant/server/internal/api/router/system"
-	"github.com/gcc798/go.xianyu.assistant/server/internal/infra"
-	"github.com/gcc798/go.xianyu.assistant/server/internal/security"
-	xianyuService "github.com/gcc798/go.xianyu.assistant/server/internal/service/xianyu"
+	"github.com/gcc798/xianyu.bot/internal/api/middleware"
+	systemRouter "github.com/gcc798/xianyu.bot/internal/api/router/system"
+	"github.com/gcc798/xianyu.bot/internal/infra"
+	"github.com/gcc798/xianyu.bot/internal/security"
+	xianyuService "github.com/gcc798/xianyu.bot/internal/service/xianyu"
 	"github.com/gin-gonic/gin"
 )
 

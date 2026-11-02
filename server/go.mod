@@ -1,4 +1,4 @@
-module github.com/gcc798/go.xianyu.assistant/server
+module github.com/gcc798/xianyu.bot
 
 go 1.26.10
 

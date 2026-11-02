@@ -7,7 +7,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/gcc798/go.xianyu.assistant/server/internal/model/xianyu"
+	"github.com/gcc798/xianyu.bot/internal/model/xianyu"
 	"github.com/mark3labs/mcp-go/mcp"
 )
 

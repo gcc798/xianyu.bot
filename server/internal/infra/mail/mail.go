@@ -6,7 +6,7 @@ import (
 	"net/smtp"
 	"strings"
 
-	"github.com/gcc798/go.xianyu.assistant/server/internal/config"
+	"github.com/gcc798/xianyu.bot/internal/config"
 	"github.com/jordan-wright/email"
 )
 

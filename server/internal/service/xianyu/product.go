@@ -17,9 +17,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gcc798/go.xianyu.assistant/server/internal/model/xianyu"
-	xyRequest "github.com/gcc798/go.xianyu.assistant/server/internal/model/xianyu/request"
-	xyResponse "github.com/gcc798/go.xianyu.assistant/server/internal/model/xianyu/response"
+	"github.com/gcc798/xianyu.bot/internal/model/xianyu"
+	xyRequest "github.com/gcc798/xianyu.bot/internal/model/xianyu/request"
+	xyResponse "github.com/gcc798/xianyu.bot/internal/model/xianyu/response"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )

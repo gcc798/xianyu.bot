@@ -1,7 +1,7 @@
 package system
 
 import (
-	"github.com/gcc798/go.xianyu.assistant/server/internal/model/common"
+	"github.com/gcc798/xianyu.bot/internal/model/common"
 )
 
 type JwtBlacklist struct {

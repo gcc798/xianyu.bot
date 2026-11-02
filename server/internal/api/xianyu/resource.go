@@ -1,9 +1,9 @@
 package api
 
 import (
-	"github.com/gcc798/go.xianyu.assistant/server/internal/model/common/response"
-	xyRequest "github.com/gcc798/go.xianyu.assistant/server/internal/model/xianyu/request"
-	"github.com/gcc798/go.xianyu.assistant/server/internal/security"
+	"github.com/gcc798/xianyu.bot/internal/model/common/response"
+	xyRequest "github.com/gcc798/xianyu.bot/internal/model/xianyu/request"
+	"github.com/gcc798/xianyu.bot/internal/security"
 	"github.com/gin-gonic/gin"
 )
 

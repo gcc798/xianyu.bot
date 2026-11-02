@@ -8,7 +8,7 @@ import (
 	"runtime/debug"
 	"strings"
 
-	"github.com/gcc798/go.xianyu.assistant/server/internal/infra"
+	"github.com/gcc798/xianyu.bot/internal/infra"
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 )

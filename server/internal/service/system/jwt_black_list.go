@@ -3,9 +3,9 @@ package system
 import (
 	"go.uber.org/zap"
 
-	"github.com/gcc798/go.xianyu.assistant/server/internal/auth"
-	"github.com/gcc798/go.xianyu.assistant/server/internal/infra"
-	"github.com/gcc798/go.xianyu.assistant/server/internal/model/system"
+	"github.com/gcc798/xianyu.bot/internal/auth"
+	"github.com/gcc798/xianyu.bot/internal/infra"
+	"github.com/gcc798/xianyu.bot/internal/model/system"
 	"gorm.io/gorm"
 )
 

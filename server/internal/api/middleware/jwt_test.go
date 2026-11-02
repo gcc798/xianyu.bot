@@ -5,7 +5,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	systemReq "github.com/gcc798/go.xianyu.assistant/server/internal/model/system/request"
+	systemReq "github.com/gcc798/xianyu.bot/internal/model/system/request"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )

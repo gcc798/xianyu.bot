@@ -1,7 +1,7 @@
 package system
 
 import (
-	"github.com/gcc798/go.xianyu.assistant/server/internal/api/middleware"
+	"github.com/gcc798/xianyu.bot/internal/api/middleware"
 	"github.com/gin-gonic/gin"
 )
 

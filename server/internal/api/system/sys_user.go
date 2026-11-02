@@ -3,14 +3,14 @@ package system
 import (
 	"time"
 
-	"github.com/gcc798/go.xianyu.assistant/server/internal/infra"
-	"github.com/gcc798/go.xianyu.assistant/server/internal/model/common"
-	"github.com/gcc798/go.xianyu.assistant/server/internal/model/common/request"
-	"github.com/gcc798/go.xianyu.assistant/server/internal/model/common/response"
-	"github.com/gcc798/go.xianyu.assistant/server/internal/model/system"
-	systemReq "github.com/gcc798/go.xianyu.assistant/server/internal/model/system/request"
-	systemRes "github.com/gcc798/go.xianyu.assistant/server/internal/model/system/response"
-	"github.com/gcc798/go.xianyu.assistant/server/internal/security"
+	"github.com/gcc798/xianyu.bot/internal/infra"
+	"github.com/gcc798/xianyu.bot/internal/model/common"
+	"github.com/gcc798/xianyu.bot/internal/model/common/request"
+	"github.com/gcc798/xianyu.bot/internal/model/common/response"
+	"github.com/gcc798/xianyu.bot/internal/model/system"
+	systemReq "github.com/gcc798/xianyu.bot/internal/model/system/request"
+	systemRes "github.com/gcc798/xianyu.bot/internal/model/system/response"
+	"github.com/gcc798/xianyu.bot/internal/security"
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 )

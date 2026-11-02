@@ -2,7 +2,7 @@
 package system
 
 import (
-	"github.com/gcc798/go.xianyu.assistant/server/internal/model/common"
+	"github.com/gcc798/xianyu.bot/internal/model/common"
 )
 
 // 如果含有time.Time 请自行import time包

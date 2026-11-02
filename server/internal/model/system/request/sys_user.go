@@ -1,7 +1,7 @@
 package request
 
 import (
-	common "github.com/gcc798/go.xianyu.assistant/server/internal/model/common/request"
+	common "github.com/gcc798/xianyu.bot/internal/model/common/request"
 )
 
 // Register User register structure

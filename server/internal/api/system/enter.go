@@ -1,7 +1,7 @@
 package system
 
-import systemService "github.com/gcc798/go.xianyu.assistant/server/internal/service/system"
-import "github.com/gcc798/go.xianyu.assistant/server/internal/security"
+import systemService "github.com/gcc798/xianyu.bot/internal/service/system"
+import "github.com/gcc798/xianyu.bot/internal/security"
 
 type dependencies struct {
 	services *systemService.Services

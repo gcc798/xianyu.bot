@@ -1,6 +1,6 @@
 package response
 
-import "github.com/gcc798/go.xianyu.assistant/server/internal/model/xianyu"
+import "github.com/gcc798/xianyu.bot/internal/model/xianyu"
 
 type ResourceDetail struct {
 	model.Resource

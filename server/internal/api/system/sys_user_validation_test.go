@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	systemService "github.com/gcc798/go.xianyu.assistant/server/internal/service/system"
+	systemService "github.com/gcc798/xianyu.bot/internal/service/system"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )

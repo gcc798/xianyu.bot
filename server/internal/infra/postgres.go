@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gcc798/go.xianyu.assistant/server/internal/config"
+	"github.com/gcc798/xianyu.bot/internal/config"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"

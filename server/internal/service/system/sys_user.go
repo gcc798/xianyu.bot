@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/gcc798/go.xianyu.assistant/server/internal/model/system"
-	systemReq "github.com/gcc798/go.xianyu.assistant/server/internal/model/system/request"
-	"github.com/gcc798/go.xianyu.assistant/server/internal/security"
+	"github.com/gcc798/xianyu.bot/internal/model/system"
+	systemReq "github.com/gcc798/xianyu.bot/internal/model/system/request"
+	"github.com/gcc798/xianyu.bot/internal/security"
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 )

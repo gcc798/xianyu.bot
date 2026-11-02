@@ -3,7 +3,7 @@ package system
 import (
 	"testing"
 
-	model "github.com/gcc798/go.xianyu.assistant/server/internal/model/system"
+	model "github.com/gcc798/xianyu.bot/internal/model/system"
 	"github.com/stretchr/testify/require"
 )
 

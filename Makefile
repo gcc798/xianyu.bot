@@ -6,7 +6,7 @@ BUILD_IMAGE_SERVER  = golang:1.26.10
 #请选择node版本
 BUILD_IMAGE_WEB     = node:20
 #项目名称
-PROJECT_NAME        = github.com/gcc798/go.xianyu.assistant
+PROJECT_NAME        = github.com/gcc798/xianyu.bot
 #配置文件目录
 CONFIG_FILE         = config.yaml
 #镜像版本
