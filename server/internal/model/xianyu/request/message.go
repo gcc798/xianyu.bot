@@ -1,13 +1,9 @@
 package request
 
-import (
-	commonRequest "github.com/gcc798/xianyu.bot/internal/model/common/request"
-	"gorm.io/gorm"
-)
+import commonRequest "github.com/gcc798/xianyu.bot/internal/model/common/request"
 
 type MessageSearch struct {
-	Page              int    `json:"page" form:"page"`
-	PageSize          int    `json:"pageSize" form:"pageSize"`
+	commonRequest.Pagination
 	AccountID         uint   `json:"accountId" form:"accountId"`
 	SessionID         string `json:"sessionId" form:"sessionId"`
 	Direction         string `json:"direction" form:"direction"`
@@ -16,10 +12,6 @@ type MessageSearch struct {
 	Content           string `json:"content" form:"content"`
 	StartTime         int64  `json:"startTime" form:"startTime"`
 	EndTime           int64  `json:"endTime" form:"endTime"`
-}
-
-func (r *MessageSearch) Paginate() func(*gorm.DB) *gorm.DB {
-	return (&commonRequest.PageInfo{Page: r.Page, PageSize: r.PageSize}).Paginate()
 }
 
 type SendMessage struct {

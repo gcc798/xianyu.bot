@@ -104,7 +104,7 @@ func (b *UserAPI) ChangePassword(c *gin.Context) {
 }
 
 func (b *UserAPI) GetUserList(c *gin.Context) {
-	var page systemReq.GetUserList
+	var page systemReq.UserSearch
 	if err := c.ShouldBindJSON(&page); err != nil {
 		response.FailWithMessage(err.Error(), c)
 		return
@@ -113,7 +113,7 @@ func (b *UserAPI) GetUserList(c *gin.Context) {
 		response.FailWithMessage("页码和每页数量不能为空", c)
 		return
 	}
-	list, total, err := b.services.User.GetUserInfoList(page)
+	list, total, err := b.services.User.List(page)
 	if err != nil {
 		response.FailWithMessage("获取失败", c)
 		return

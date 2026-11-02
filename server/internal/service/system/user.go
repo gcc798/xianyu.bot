@@ -57,7 +57,7 @@ func (userService *UserService) ChangePassword(user *system.User, newPassword st
 	return userService.db.Model(&stored).Update("password", security.BcryptHash(newPassword)).Error
 }
 
-func (userService *UserService) GetUserInfoList(info systemReq.GetUserList) (list any, total int64, err error) {
+func (userService *UserService) List(info systemReq.UserSearch) ([]system.User, int64, error) {
 	db := userService.db.Model(&system.User{})
 	for column, value := range map[string]string{
 		"username":  info.Username,
@@ -69,7 +69,8 @@ func (userService *UserService) GetUserInfoList(info systemReq.GetUserList) (lis
 			db = db.Where(column+" LIKE ?", "%"+value+"%")
 		}
 	}
-	if err = db.Count(&total).Error; err != nil {
+	var total int64
+	if err := db.Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
 	order := "id desc"
@@ -81,8 +82,10 @@ func (userService *UserService) GetUserInfoList(info systemReq.GetUserList) (lis
 		}
 	}
 	var users []system.User
-	err = db.Limit(info.PageSize).Offset(info.PageSize * (info.Page - 1)).Order(order).Find(&users).Error
-	return users, total, err
+	if err := db.Scopes(info.Paginate()).Order(order).Find(&users).Error; err != nil {
+		return nil, 0, err
+	}
+	return users, total, nil
 }
 
 func (userService *UserService) DeleteUser(id int) error {

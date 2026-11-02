@@ -1,17 +1,13 @@
 package request
 
-import (
-	commonRequest "github.com/gcc798/xianyu.bot/internal/model/common/request"
-	"gorm.io/gorm"
-)
+import commonRequest "github.com/gcc798/xianyu.bot/internal/model/common/request"
 
 type CreateAgentSession struct {
 	Title string `json:"title" binding:"max=200"`
 }
 
 type AgentSessionSearch struct {
-	Page     int `json:"page" form:"page"`
-	PageSize int `json:"pageSize" form:"pageSize"`
+	commonRequest.Pagination
 }
 
 type AgentTrajectorySearch struct {
@@ -30,8 +26,4 @@ type SendAgentMessage struct {
 type AgentDirective struct {
 	Type string `json:"type" binding:"required,oneof=skill tool"`
 	Name string `json:"name" binding:"required,max=120"`
-}
-
-func (r *AgentSessionSearch) Paginate() func(*gorm.DB) *gorm.DB {
-	return (&commonRequest.PageInfo{Page: r.Page, PageSize: r.PageSize}).Paginate()
 }

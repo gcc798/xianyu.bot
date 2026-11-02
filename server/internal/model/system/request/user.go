@@ -44,7 +44,7 @@ type ChangeUserInfo struct {
 	Enable      int    `json:"enable"`
 }
 
-type GetUserList struct {
+type UserSearch struct {
 	common.PageInfo
 	Username string `json:"username" form:"username"`
 	NickName string `json:"nickName" form:"nickName"`

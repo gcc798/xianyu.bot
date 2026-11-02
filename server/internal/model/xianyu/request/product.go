@@ -1,20 +1,12 @@
 package request
 
-import (
-	commonRequest "github.com/gcc798/xianyu.bot/internal/model/common/request"
-	"gorm.io/gorm"
-)
+import commonRequest "github.com/gcc798/xianyu.bot/internal/model/common/request"
 
 type ProductSearch struct {
-	Page      int    `json:"page" form:"page"`
-	PageSize  int    `json:"pageSize" form:"pageSize"`
+	commonRequest.Pagination
 	AccountID uint   `json:"accountId" form:"accountId"`
 	TitleOrID string `json:"titleOrId" form:"titleOrId"`
 	Status    string `json:"status" form:"status"`
-}
-
-func (r *ProductSearch) Paginate() func(*gorm.DB) *gorm.DB {
-	return (&commonRequest.PageInfo{Page: r.Page, PageSize: r.PageSize}).Paginate()
 }
 
 type ProductSync struct {

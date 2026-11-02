@@ -4,14 +4,12 @@ import (
 	"gorm.io/gorm"
 )
 
-// PageInfo Paging common input parameter structure
-type PageInfo struct {
-	Page     int    `json:"page" form:"page"`         // 页码
-	PageSize int    `json:"pageSize" form:"pageSize"` // 每页大小
-	Keyword  string `json:"keyword" form:"keyword"`   // 关键字
+type Pagination struct {
+	Page     int `json:"page" form:"page"`         // 页码
+	PageSize int `json:"pageSize" form:"pageSize"` // 每页大小
 }
 
-func (r *PageInfo) Paginate() func(db *gorm.DB) *gorm.DB {
+func (r *Pagination) Paginate() func(db *gorm.DB) *gorm.DB {
 	return func(db *gorm.DB) *gorm.DB {
 		if r.Page <= 0 {
 			r.Page = 1
@@ -25,6 +23,11 @@ func (r *PageInfo) Paginate() func(db *gorm.DB) *gorm.DB {
 		offset := (r.Page - 1) * r.PageSize
 		return db.Offset(offset).Limit(r.PageSize)
 	}
+}
+
+type PageInfo struct {
+	Pagination
+	Keyword string `json:"keyword" form:"keyword"` // 关键字
 }
 
 // GetById Find by id structure
