@@ -14,7 +14,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func (b *BaseApi) Login(c *gin.Context) {
+func (b *UserAPI) Login(c *gin.Context) {
 	var input systemReq.Login
 	if err := c.ShouldBindJSON(&input); err != nil {
 		response.FailWithMessage(err.Error(), c)
@@ -38,7 +38,7 @@ func (b *BaseApi) Login(c *gin.Context) {
 	b.TokenNext(c, *user)
 }
 
-func (b *BaseApi) TokenNext(c *gin.Context, user system.User) {
+func (b *UserAPI) TokenNext(c *gin.Context, user system.User) {
 	token, claims, err := b.jwt.LoginToken(&user)
 	if err != nil {
 		zap.L().Error("获取 token 失败", zap.Error(err))
@@ -52,7 +52,7 @@ func (b *BaseApi) TokenNext(c *gin.Context, user system.User) {
 	}, "登录成功", c)
 }
 
-func (b *BaseApi) recordLogin(c *gin.Context, username string, userID uint, status bool, message string) {
+func (b *UserAPI) recordLogin(c *gin.Context, username string, userID uint, status bool, message string) {
 	if err := b.services.LoginLog.Create(system.LoginLog{
 		Username: username, Ip: c.ClientIP(), Agent: c.Request.UserAgent(), Status: status,
 		ErrorMessage: message, UserID: userID,
@@ -61,7 +61,7 @@ func (b *BaseApi) recordLogin(c *gin.Context, username string, userID uint, stat
 	}
 }
 
-func (b *BaseApi) Register(c *gin.Context) {
+func (b *UserAPI) Register(c *gin.Context) {
 	var input systemReq.Register
 	if err := c.ShouldBindJSON(&input); err != nil {
 		response.FailWithMessage(err.Error(), c)
@@ -83,7 +83,7 @@ func (b *BaseApi) Register(c *gin.Context) {
 	response.OkWithDetailed(systemRes.UserResponse{User: user}, "注册成功", c)
 }
 
-func (b *BaseApi) ChangePassword(c *gin.Context) {
+func (b *UserAPI) ChangePassword(c *gin.Context) {
 	var input systemReq.ChangePasswordReq
 	if err := c.ShouldBindJSON(&input); err != nil {
 		response.FailWithMessage(err.Error(), c)
@@ -103,7 +103,7 @@ func (b *BaseApi) ChangePassword(c *gin.Context) {
 	response.OkWithMessage("修改成功", c)
 }
 
-func (b *BaseApi) GetUserList(c *gin.Context) {
+func (b *UserAPI) GetUserList(c *gin.Context) {
 	var page systemReq.GetUserList
 	if err := c.ShouldBindJSON(&page); err != nil {
 		response.FailWithMessage(err.Error(), c)
@@ -121,7 +121,7 @@ func (b *BaseApi) GetUserList(c *gin.Context) {
 	response.OkWithDetailed(response.PageResult{List: list, Total: total, Page: page.Page, PageSize: page.PageSize}, "获取成功", c)
 }
 
-func (b *BaseApi) DeleteUser(c *gin.Context) {
+func (b *UserAPI) DeleteUser(c *gin.Context) {
 	var input request.GetById
 	if err := c.ShouldBindJSON(&input); err != nil {
 		response.FailWithMessage(err.Error(), c)
@@ -142,7 +142,7 @@ func (b *BaseApi) DeleteUser(c *gin.Context) {
 	response.OkWithMessage("删除成功", c)
 }
 
-func (b *BaseApi) SetUserInfo(c *gin.Context) {
+func (b *UserAPI) SetUserInfo(c *gin.Context) {
 	var input systemReq.ChangeUserInfo
 	if err := c.ShouldBindJSON(&input); err != nil {
 		response.FailWithMessage(err.Error(), c)
@@ -162,7 +162,7 @@ func (b *BaseApi) SetUserInfo(c *gin.Context) {
 	response.OkWithMessage("设置成功", c)
 }
 
-func (b *BaseApi) SetSelfInfo(c *gin.Context) {
+func (b *UserAPI) SetSelfInfo(c *gin.Context) {
 	var input systemReq.ChangeUserInfo
 	if err := c.ShouldBindJSON(&input); err != nil {
 		response.FailWithMessage(err.Error(), c)
@@ -178,7 +178,7 @@ func (b *BaseApi) SetSelfInfo(c *gin.Context) {
 	response.OkWithMessage("设置成功", c)
 }
 
-func (b *BaseApi) GetUserInfo(c *gin.Context) {
+func (b *UserAPI) GetUserInfo(c *gin.Context) {
 	user, err := b.services.User.GetUserInfo(security.GetUserUuid(c))
 	if err != nil {
 		response.FailWithMessage("获取失败", c)
@@ -187,7 +187,7 @@ func (b *BaseApi) GetUserInfo(c *gin.Context) {
 	response.OkWithDetailed(gin.H{"userInfo": user}, "获取成功", c)
 }
 
-func (b *BaseApi) ResetPassword(c *gin.Context) {
+func (b *UserAPI) ResetPassword(c *gin.Context) {
 	var input systemReq.ResetPassword
 	if err := c.ShouldBindJSON(&input); err != nil {
 		response.FailWithMessage(err.Error(), c)

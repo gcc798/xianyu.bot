@@ -7,16 +7,16 @@ import (
 
 type UserRouter struct{ *dependencies }
 
-func (s *UserRouter) InitUserRouter(router *gin.RouterGroup) {
+func (s *UserRouter) Init(router *gin.RouterGroup) {
 	user := router.Group("user")
-	user.POST("changePassword", s.handlers.Base.ChangePassword)
-	user.PUT("setSelfInfo", s.handlers.Base.SetSelfInfo)
-	user.GET("getUserInfo", s.handlers.Base.GetUserInfo)
+	user.POST("changePassword", s.handlers.User.ChangePassword)
+	user.PUT("setSelfInfo", s.handlers.User.SetSelfInfo)
+	user.GET("getUserInfo", s.handlers.User.GetUserInfo)
 
 	admin := user.Group("").Use(middleware.AdminOnly())
-	admin.POST("admin_register", s.handlers.Base.Register)
-	admin.POST("getUserList", s.handlers.Base.GetUserList)
-	admin.DELETE("deleteUser", s.handlers.Base.DeleteUser)
-	admin.PUT("setUserInfo", s.handlers.Base.SetUserInfo)
-	admin.POST("resetPassword", s.handlers.Base.ResetPassword)
+	admin.POST("admin_register", s.handlers.User.Register)
+	admin.POST("getUserList", s.handlers.User.GetUserList)
+	admin.DELETE("deleteUser", s.handlers.User.DeleteUser)
+	admin.PUT("setUserInfo", s.handlers.User.SetUserInfo)
+	admin.POST("resetPassword", s.handlers.User.ResetPassword)
 }

@@ -14,7 +14,7 @@ import (
 
 func TestUserAPIRejectsMissingRequiredFields(t *testing.T) {
 	gin.SetMode(gin.TestMode)
-	api := New(systemService.New(nil), nil).Base
+	api := New(systemService.New(nil), nil).User
 	tests := []struct {
 		name    string
 		body    string

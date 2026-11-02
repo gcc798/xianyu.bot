@@ -8,9 +8,9 @@ import (
 	"go.uber.org/zap"
 )
 
-type DictionaryDetailApi struct{ *dependencies }
+type DictionaryDetailAPI struct{ *dependencies }
 
-func (s *DictionaryDetailApi) Create(c *gin.Context) {
+func (s *DictionaryDetailAPI) Create(c *gin.Context) {
 	var detail system.DictionaryDetail
 	if err := c.ShouldBindJSON(&detail); err != nil {
 		response.FailWithMessage(err.Error(), c)
@@ -24,7 +24,7 @@ func (s *DictionaryDetailApi) Create(c *gin.Context) {
 	response.OkWithMessage("创建成功", c)
 }
 
-func (s *DictionaryDetailApi) Delete(c *gin.Context) {
+func (s *DictionaryDetailAPI) Delete(c *gin.Context) {
 	var detail system.DictionaryDetail
 	if err := c.ShouldBindJSON(&detail); err != nil {
 		response.FailWithMessage(err.Error(), c)
@@ -38,7 +38,7 @@ func (s *DictionaryDetailApi) Delete(c *gin.Context) {
 	response.OkWithMessage("删除成功", c)
 }
 
-func (s *DictionaryDetailApi) Update(c *gin.Context) {
+func (s *DictionaryDetailAPI) Update(c *gin.Context) {
 	var detail system.DictionaryDetail
 	if err := c.ShouldBindJSON(&detail); err != nil {
 		response.FailWithMessage(err.Error(), c)
@@ -52,7 +52,7 @@ func (s *DictionaryDetailApi) Update(c *gin.Context) {
 	response.OkWithMessage("更新成功", c)
 }
 
-func (s *DictionaryDetailApi) List(c *gin.Context) {
+func (s *DictionaryDetailAPI) List(c *gin.Context) {
 	var search request.DictionaryDetailSearch
 	if err := c.ShouldBindQuery(&search); err != nil {
 		response.FailWithMessage(err.Error(), c)

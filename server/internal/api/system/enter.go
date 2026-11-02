@@ -1,27 +1,29 @@
 package system
 
-import systemService "github.com/gcc798/xianyu.bot/internal/service/system"
-import "github.com/gcc798/xianyu.bot/internal/security"
+import (
+	"github.com/gcc798/xianyu.bot/internal/security"
+	systemService "github.com/gcc798/xianyu.bot/internal/service/system"
+)
 
 type dependencies struct {
 	services *systemService.Services
 	jwt      *security.JWT
 }
 
-type BaseApi struct{ *dependencies }
+type UserAPI struct{ *dependencies }
 
 type API struct {
-	JWT              JwtApi
-	Base             BaseApi
-	Dictionary       DictionaryApi
-	DictionaryDetail DictionaryDetailApi
-	LoginLog         LoginLogApi
+	JWT              JWTAPI
+	User             UserAPI
+	Dictionary       DictionaryAPI
+	DictionaryDetail DictionaryDetailAPI
+	LoginLog         LoginLogAPI
 }
 
 func New(services *systemService.Services, jwt *security.JWT) *API {
 	deps := &dependencies{services: services, jwt: jwt}
 	return &API{
-		JWT: JwtApi{deps}, Base: BaseApi{deps}, Dictionary: DictionaryApi{deps},
-		DictionaryDetail: DictionaryDetailApi{deps}, LoginLog: LoginLogApi{deps},
+		JWT: JWTAPI{deps}, User: UserAPI{deps}, Dictionary: DictionaryAPI{deps},
+		DictionaryDetail: DictionaryDetailAPI{deps}, LoginLog: LoginLogAPI{deps},
 	}
 }

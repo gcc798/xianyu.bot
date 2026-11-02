@@ -8,9 +8,9 @@ import (
 	"go.uber.org/zap"
 )
 
-type LoginLogApi struct{ *dependencies }
+type LoginLogAPI struct{ *dependencies }
 
-func (s *LoginLogApi) Delete(c *gin.Context) {
+func (s *LoginLogAPI) Delete(c *gin.Context) {
 	var loginLog system.LoginLog
 	err := c.ShouldBindJSON(&loginLog)
 	if err != nil {
@@ -26,7 +26,7 @@ func (s *LoginLogApi) Delete(c *gin.Context) {
 	response.OkWithMessage("删除成功", c)
 }
 
-func (s *LoginLogApi) List(c *gin.Context) {
+func (s *LoginLogAPI) List(c *gin.Context) {
 	var pageInfo systemReq.LoginLogSearch
 	err := c.ShouldBindQuery(&pageInfo)
 	if err != nil {

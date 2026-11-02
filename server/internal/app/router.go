@@ -28,9 +28,9 @@ func Routers(ctx context.Context, systemRoutes *systemRouter.RouterGroup, jwt *s
 		c.JSON(http.StatusOK, "ok")
 	})
 
-	systemRoutes.InitBaseRouter(public)
-	systemRoutes.InitJwtRouter(private)
-	systemRoutes.InitUserRouter(private)
+	systemRoutes.AuthRouter.Init(public)
+	systemRoutes.JWTRouter.Init(private)
+	systemRoutes.UserRouter.Init(private)
 	systemRoutes.DictionaryRouter.Init(private)
 	systemRoutes.DictionaryDetailRouter.Init(private)
 	systemRoutes.LoginLogRouter.Init(private)
