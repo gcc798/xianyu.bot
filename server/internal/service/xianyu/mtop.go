@@ -67,7 +67,7 @@ func (m *mtopClient) Call(ctx context.Context, ownerID, accountID uint, api stri
 	if err := db.Where("account_id = ?", accountID).First(&credential).Error; err != nil {
 		return nil, err
 	}
-	cookie, err := decryptCredential(credential.CookieCiphertext, credentialAAD(accountID, "cookie"))
+	cookie, err := decryptCredential(m.db, credential.CookieCiphertext, credentialAAD(accountID, "cookie"))
 	if err != nil {
 		return nil, err
 	}
@@ -76,7 +76,7 @@ func (m *mtopClient) Call(ctx context.Context, ownerID, accountID uint, api stri
 		if cookie == originalCookie {
 			return
 		}
-		ciphertext, saveErr := encryptCredential(cookie, credentialAAD(accountID, "cookie"))
+		ciphertext, saveErr := encryptCredential(m.db, cookie, credentialAAD(accountID, "cookie"))
 		if saveErr == nil {
 			update := db.Model(&model.Credential{}).Where("id = ? AND version = ?", credential.ID, credential.Version).
 				Updates(map[string]any{"cookie_ciphertext": ciphertext, "version": gorm.Expr("version + 1")})

@@ -16,7 +16,7 @@ func TestCredentialKeyFailsWithoutEnvironmentOrDatabase(t *testing.T) {
 	t.Cleanup(func() { infra.DB = oldDB })
 	infra.DB = nil
 
-	_, err := credentialKey()
+	_, err := credentialKey(infra.DB)
 	require.Error(t, err)
 }
 
@@ -30,13 +30,13 @@ func TestValidateCredentialKeyInitializesEmptyDatabase(t *testing.T) {
 	t.Cleanup(func() { infra.DB = oldDB })
 	infra.DB = db
 
-	require.NoError(t, ValidateCredentialKey())
-	first, err := credentialKey()
+	require.NoError(t, ValidateCredentialKey(infra.DB))
+	first, err := credentialKey(infra.DB)
 	require.NoError(t, err)
 	require.Len(t, first, 32)
 
-	require.NoError(t, ValidateCredentialKey())
-	second, err := credentialKey()
+	require.NoError(t, ValidateCredentialKey(infra.DB))
+	second, err := credentialKey(infra.DB)
 	require.NoError(t, err)
 	require.Equal(t, first, second)
 }

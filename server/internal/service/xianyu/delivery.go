@@ -50,7 +50,7 @@ func (s *delivery) ImportResources(ctx context.Context, ownerID uint, input xyRe
 			continue
 		}
 		seen[hash] = struct{}{}
-		ciphertext, err := encryptCredential(value, deliveryResourceAAD(rule.ID, hash))
+		ciphertext, err := encryptCredential(s.db, value, deliveryResourceAAD(rule.ID, hash))
 		if err != nil {
 			return 0, err
 		}
@@ -176,14 +176,14 @@ func (s *delivery) Plan(ctx context.Context, order model.Order) error {
 			if reserve.RowsAffected != 1 {
 				return errors.New("卡密被其他任务占用")
 			}
-			value, err := decryptCredential(resource.ValueCiphertext, deliveryResourceAAD(rule.ID, resource.ValueHash))
+			value, err := decryptCredential(s.db, resource.ValueCiphertext, deliveryResourceAAD(rule.ID, resource.ValueHash))
 			if err != nil {
 				return err
 			}
 			payload = strings.ReplaceAll(rule.Template, "{card}", value)
 			task.ResourceID = resource.ID
 		}
-		ciphertext, err := encryptCredential(payload, deliveryTaskAAD(order.AccountID, order.ExternalOrderID))
+		ciphertext, err := encryptCredential(s.db, payload, deliveryTaskAAD(order.AccountID, order.ExternalOrderID))
 		if err != nil {
 			return err
 		}
@@ -222,7 +222,7 @@ func (s *delivery) ProcessTask(ctx context.Context, ownerID, taskID uint) error 
 	if err := db.Where("id = ? AND owner_id = ?", task.OrderID, ownerID).First(&order).Error; err != nil {
 		return s.failTask(db, task, err)
 	}
-	payload, err := decryptCredential(task.PayloadCiphertext, deliveryTaskAAD(order.AccountID, order.ExternalOrderID))
+	payload, err := decryptCredential(s.db, task.PayloadCiphertext, deliveryTaskAAD(order.AccountID, order.ExternalOrderID))
 	if err != nil {
 		return s.failTask(db, task, err)
 	}

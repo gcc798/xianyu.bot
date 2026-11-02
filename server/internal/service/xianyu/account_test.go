@@ -29,10 +29,10 @@ func TestAccountOwnerIsolationAndCredentialEncryption(t *testing.T) {
 	var credential model.Credential
 	require.NoError(t, db.Where("account_id = ?", created.ID).First(&credential).Error)
 	require.NotContains(t, credential.CookieCiphertext, "secret-cookie")
-	plainCookie, err := decryptCredential(credential.CookieCiphertext, credentialAAD(created.ID, "cookie"))
+	plainCookie, err := decryptCredential(db, credential.CookieCiphertext, credentialAAD(created.ID, "cookie"))
 	require.NoError(t, err)
 	require.Equal(t, "secret-cookie", plainCookie)
-	_, err = decryptCredential(credential.CookieCiphertext, credentialAAD(created.ID+1, "cookie"))
+	_, err = decryptCredential(db, credential.CookieCiphertext, credentialAAD(created.ID+1, "cookie"))
 	require.Error(t, err)
 
 	ownerList, total, err := service.List(t.Context(), 10, xyRequest.AccountSearch{})

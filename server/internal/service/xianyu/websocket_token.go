@@ -74,10 +74,10 @@ func (s *webSocketToken) Get(ctx context.Context, ownerID, accountID uint) (stri
 		return "", "", err
 	}
 	if credential.TokenCiphertext != "" && credential.TokenExpiresAt != nil && time.Until(*credential.TokenExpiresAt) > 5*time.Minute {
-		token, err := decryptCredential(credential.TokenCiphertext, credentialAAD(accountID, "token"))
+		token, err := decryptCredential(s.db, credential.TokenCiphertext, credentialAAD(accountID, "token"))
 		return token, account.DeviceID, err
 	}
-	cookie, err := decryptCredential(credential.CookieCiphertext, credentialAAD(accountID, "cookie"))
+	cookie, err := decryptCredential(s.db, credential.CookieCiphertext, credentialAAD(accountID, "cookie"))
 	if err != nil {
 		return "", "", err
 	}
@@ -102,7 +102,7 @@ func (s *webSocketToken) Get(ctx context.Context, ownerID, accountID uint) (stri
 			break
 		}
 		if verification, ok := errors.AsType[*verificationRequiredError](err); ok {
-			cipherCookie, encryptErr := encryptCredential(cookie, credentialAAD(accountID, "cookie"))
+			cipherCookie, encryptErr := encryptCredential(s.db, cookie, credentialAAD(accountID, "cookie"))
 			if encryptErr != nil {
 				return "", "", errors.Join(verification, fmt.Errorf("保存风控 Cookie: %w", encryptErr))
 			}
@@ -133,11 +133,11 @@ func (s *webSocketToken) Get(ctx context.Context, ownerID, accountID uint) (stri
 		}
 	}
 	expiresAt := time.Now().Add(webSocketTokenLifetime)
-	cipherCookie, err := encryptCredential(cookie, credentialAAD(accountID, "cookie"))
+	cipherCookie, err := encryptCredential(s.db, cookie, credentialAAD(accountID, "cookie"))
 	if err != nil {
 		return "", "", err
 	}
-	cipherToken, err := encryptCredential(token, credentialAAD(accountID, "token"))
+	cipherToken, err := encryptCredential(s.db, token, credentialAAD(accountID, "token"))
 	if err != nil {
 		return "", "", err
 	}

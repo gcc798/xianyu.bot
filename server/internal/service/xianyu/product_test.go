@@ -29,7 +29,7 @@ func TestProductSyncUsesRemoteDataAndIsOwnerScoped(t *testing.T) {
 	infra.DB = db
 	account := model.Account{OwnerID: 10, Label: "测试账号", Status: "ready", Enabled: true}
 	require.NoError(t, db.Create(&account).Error)
-	ciphertext, err := encryptCredential("_m_h5_tk=oldtoken_1; unb=12345", credentialAAD(account.ID, "cookie"))
+	ciphertext, err := encryptCredential(db, "_m_h5_tk=oldtoken_1; unb=12345", credentialAAD(account.ID, "cookie"))
 	require.NoError(t, err)
 	require.NoError(t, db.Create(&model.Credential{AccountID: account.ID, CookieCiphertext: ciphertext}).Error)
 	require.NoError(t, db.Create(&model.Product{
@@ -70,7 +70,7 @@ func TestProductSyncUsesRemoteDataAndIsOwnerScoped(t *testing.T) {
 	var credential model.Credential
 	require.NoError(t, db.Where("account_id = ?", account.ID).First(&credential).Error)
 	require.EqualValues(t, 2, credential.Version)
-	updatedCookie, err := decryptCredential(credential.CookieCiphertext, credentialAAD(account.ID, "cookie"))
+	updatedCookie, err := decryptCredential(db, credential.CookieCiphertext, credentialAAD(account.ID, "cookie"))
 	require.NoError(t, err)
 	require.Contains(t, updatedCookie, "_m_h5_tk=newtoken_2")
 

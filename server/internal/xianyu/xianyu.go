@@ -19,7 +19,7 @@ func Initialize(engine *gin.Engine, jwt *security.JWT, deps service.Dependencies
 	if err := initializeDatabase(ctx, deps.DB); err != nil {
 		return err
 	}
-	if err := service.ValidateCredentialKey(); err != nil {
+	if err := service.ValidateCredentialKey(deps.DB); err != nil {
 		return err
 	}
 	services := service.New(deps)

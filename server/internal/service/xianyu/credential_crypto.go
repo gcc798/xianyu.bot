@@ -10,7 +10,6 @@ import (
 	"os"
 	"strings"
 
-	"github.com/gcc798/xianyu.bot/internal/infra"
 	"github.com/gcc798/xianyu.bot/internal/model/xianyu"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
@@ -21,8 +20,8 @@ const credentialKeyEnvironment = "XY_CREDENTIAL_KEY"
 
 const credentialKeySetting = "xy_credential_key"
 
-func encryptCredential(plaintext, associatedData string) (string, error) {
-	key, err := credentialKey()
+func encryptCredential(db *gorm.DB, plaintext, associatedData string) (string, error) {
+	key, err := credentialKey(db)
 	if err != nil {
 		return "", err
 	}
@@ -42,8 +41,8 @@ func encryptCredential(plaintext, associatedData string) (string, error) {
 	return base64.RawStdEncoding.EncodeToString(sealed), nil
 }
 
-func decryptCredential(encoded, associatedData string) (string, error) {
-	key, err := credentialKey()
+func decryptCredential(db *gorm.DB, encoded, associatedData string) (string, error) {
+	key, err := credentialKey(db)
 	if err != nil {
 		return "", err
 	}
@@ -69,14 +68,14 @@ func decryptCredential(encoded, associatedData string) (string, error) {
 	return string(plaintext), nil
 }
 
-func credentialKey() ([]byte, error) {
+func credentialKey(db *gorm.DB) ([]byte, error) {
 	encoded := os.Getenv(credentialKeyEnvironment)
 	if strings.TrimSpace(encoded) == "" {
-		if infra.DB == nil {
+		if db == nil {
 			return nil, errors.New("xy credential key is not configured: set XY_CREDENTIAL_KEY or initialize the database setting")
 		}
 		var setting model.Setting
-		if err := infra.DB.Where("key = ?", credentialKeySetting).First(&setting).Error; err != nil {
+		if err := db.Where("key = ?", credentialKeySetting).First(&setting).Error; err != nil {
 			return nil, fmt.Errorf("load xy credential key from database: %w", err)
 		}
 		encoded = setting.Value
@@ -88,10 +87,10 @@ func credentialKey() ([]byte, error) {
 	return key, nil
 }
 
-func ValidateCredentialKey() error {
+func ValidateCredentialKey(db *gorm.DB) error {
 	encoded := strings.TrimSpace(os.Getenv(credentialKeyEnvironment))
 	if encoded == "" {
-		if _, err := credentialKey(); err == nil {
+		if _, err := credentialKey(db); err == nil {
 			return nil
 		} else if !errors.Is(err, gorm.ErrRecordNotFound) {
 			return err
@@ -102,10 +101,10 @@ func ValidateCredentialKey() error {
 		}
 		encoded = base64.StdEncoding.EncodeToString(key)
 	}
-	if infra.DB == nil {
+	if db == nil {
 		return errors.New("database is not initialized")
 	}
-	db := infra.DB.Session(&gorm.Session{Logger: logger.Default.LogMode(logger.Silent)})
+	db = db.Session(&gorm.Session{Logger: logger.Default.LogMode(logger.Silent)})
 	conflict := clause.OnConflict{UpdateAll: true}
 	if strings.TrimSpace(os.Getenv(credentialKeyEnvironment)) == "" {
 		conflict = clause.OnConflict{DoNothing: true}
@@ -113,6 +112,6 @@ func ValidateCredentialKey() error {
 	if err := db.Clauses(conflict).Create(&model.Setting{Key: credentialKeySetting, Value: encoded}).Error; err != nil {
 		return fmt.Errorf("store xy credential key in database: %w", err)
 	}
-	_, err := credentialKey()
+	_, err := credentialKey(db)
 	return err
 }

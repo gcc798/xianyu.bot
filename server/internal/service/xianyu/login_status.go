@@ -64,7 +64,7 @@ func (s *account) CheckLogin(ctx context.Context, ownerID, accountID uint) (xyRe
 	if err := db.Where("account_id = ?", accountID).First(&credential).Error; err != nil {
 		return xyResponse.LoginStatus{}, err
 	}
-	cookie, err := decryptCredential(credential.CookieCiphertext, credentialAAD(accountID, "cookie"))
+	cookie, err := decryptCredential(s.db, credential.CookieCiphertext, credentialAAD(accountID, "cookie"))
 	if err != nil {
 		return xyResponse.LoginStatus{}, err
 	}
@@ -103,7 +103,7 @@ func (s *account) CheckLogin(ctx context.Context, ownerID, accountID uint) (xyRe
 
 	err = db.Transaction(func(tx *gorm.DB) error {
 		if cookieUpdated {
-			ciphertext, encryptErr := encryptCredential(cookie, credentialAAD(accountID, "cookie"))
+			ciphertext, encryptErr := encryptCredential(s.db, cookie, credentialAAD(accountID, "cookie"))
 			if encryptErr != nil {
 				return encryptErr
 			}

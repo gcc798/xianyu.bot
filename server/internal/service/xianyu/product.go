@@ -178,7 +178,7 @@ func (s *product) Sync(ctx context.Context, ownerID uint, input xyRequest.Produc
 	if err := db.Where("account_id = ?", input.AccountID).First(&credential).Error; err != nil {
 		return 0, err
 	}
-	cookie, err := decryptCredential(credential.CookieCiphertext, credentialAAD(input.AccountID, "cookie"))
+	cookie, err := decryptCredential(s.db, credential.CookieCiphertext, credentialAAD(input.AccountID, "cookie"))
 	if err != nil {
 		return 0, err
 	}
@@ -187,7 +187,7 @@ func (s *product) Sync(ctx context.Context, ownerID uint, input xyRequest.Produc
 		if cookie == originalCookie {
 			return
 		}
-		ciphertext, encryptErr := encryptCredential(cookie, credentialAAD(input.AccountID, "cookie"))
+		ciphertext, encryptErr := encryptCredential(s.db, cookie, credentialAAD(input.AccountID, "cookie"))
 		if encryptErr == nil {
 			result := db.Model(&model.Credential{}).
 				Where("id = ? AND account_id = ? AND version = ?", credential.ID, input.AccountID, credential.Version).

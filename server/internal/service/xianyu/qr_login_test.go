@@ -82,7 +82,7 @@ func TestQRLoginSavesCredentialWithoutReturningIt(t *testing.T) {
 
 	var credential model.Credential
 	require.NoError(t, db.Where("account_id = ?", created.ID).First(&credential).Error)
-	plain, err := decryptCredential(credential.CookieCiphertext, credentialAAD(created.ID, "cookie"))
+	plain, err := decryptCredential(db, credential.CookieCiphertext, credentialAAD(created.ID, "cookie"))
 	require.NoError(t, err)
 	require.Contains(t, plain, "unb=user-demo")
 	require.Contains(t, plain, "cookie2=secret-demo")

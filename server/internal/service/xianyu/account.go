@@ -105,13 +105,13 @@ func (s *account) SaveCredential(ctx context.Context, ownerID uint, input xyRequ
 	if err := s.db.WithContext(ctx).Where("id = ? AND owner_id = ?", input.ID, ownerID).First(&item).Error; err != nil {
 		return err
 	}
-	cipherCookie, err := encryptCredential(cookie, credentialAAD(input.ID, "cookie"))
+	cipherCookie, err := encryptCredential(s.db, cookie, credentialAAD(input.ID, "cookie"))
 	if err != nil {
 		return err
 	}
 	cipherToken := ""
 	if strings.TrimSpace(input.Token) != "" {
-		cipherToken, err = encryptCredential(strings.TrimSpace(input.Token), credentialAAD(input.ID, "token"))
+		cipherToken, err = encryptCredential(s.db, strings.TrimSpace(input.Token), credentialAAD(input.ID, "token"))
 		if err != nil {
 			return err
 		}

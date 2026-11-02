@@ -66,10 +66,10 @@ func TestWebSocketTokenIsEncryptedAndCached(t *testing.T) {
 	require.NotContains(t, credential.TokenCiphertext, token)
 	require.Equal(t, uint(2), credential.Version)
 	require.WithinDuration(t, time.Now().Add(webSocketTokenLifetime), *credential.TokenExpiresAt, time.Minute)
-	plainToken, err := decryptCredential(credential.TokenCiphertext, credentialAAD(created.ID, "token"))
+	plainToken, err := decryptCredential(db, credential.TokenCiphertext, credentialAAD(created.ID, "token"))
 	require.NoError(t, err)
 	require.Equal(t, token, plainToken)
-	plainCookie, err := decryptCredential(credential.CookieCiphertext, credentialAAD(created.ID, "cookie"))
+	plainCookie, err := decryptCredential(db, credential.CookieCiphertext, credentialAAD(created.ID, "cookie"))
 	require.NoError(t, err)
 	require.Contains(t, plainCookie, "_m_h5_tk=new-token_expiry")
 
@@ -114,7 +114,7 @@ func TestWebSocketTokenMarksAccountWhenVerificationIsRequired(t *testing.T) {
 	require.NotEmpty(t, created.DeviceID)
 	var credential model.Credential
 	require.NoError(t, db.Where("account_id = ?", created.ID).First(&credential).Error)
-	cookie, err := decryptCredential(credential.CookieCiphertext, credentialAAD(created.ID, "cookie"))
+	cookie, err := decryptCredential(db, credential.CookieCiphertext, credentialAAD(created.ID, "cookie"))
 	require.NoError(t, err)
 	require.Contains(t, cookie, "x5sec=challenge-cookie")
 }

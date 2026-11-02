@@ -37,7 +37,7 @@ func reuploadPublishImages(ctx context.Context, db *gorm.DB, ownerID, accountID 
 	if err := db.WithContext(ctx).Where("account_id = ?", accountID).First(&credential).Error; err != nil {
 		return err
 	}
-	cookie, err := decryptCredential(credential.CookieCiphertext, credentialAAD(accountID, "cookie"))
+	cookie, err := decryptCredential(db, credential.CookieCiphertext, credentialAAD(accountID, "cookie"))
 	if err != nil {
 		return err
 	}

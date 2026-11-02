@@ -557,7 +557,7 @@ func (d *xyDialer) Dial(ctx context.Context, accountID uint) (connection.Connect
 	if err := d.db.WithContext(ctx).Where("account_id = ?", accountID).First(&credential).Error; err != nil {
 		return nil, err
 	}
-	cookie, err := decryptCredential(credential.CookieCiphertext, credentialAAD(accountID, "cookie"))
+	cookie, err := decryptCredential(d.db, credential.CookieCiphertext, credentialAAD(accountID, "cookie"))
 	if err != nil {
 		return nil, err
 	}
