@@ -12,7 +12,7 @@ volumes:
 services:
   web:
     build:
-      context: ../..
+      context: .
       dockerfile: ./web/Dockerfile
     container_name: gva-web
     restart: always
@@ -24,7 +24,7 @@ services:
 
   server:
     build:
-      context: ../../server
+      context: ./server
       dockerfile: ./Dockerfile
     container_name: gva-server
     restart: always
@@ -97,12 +97,12 @@ services:
 
   telegram:
     build:
-      context: ../../script/tel-bot
+      context: ./script/tel-bot
       dockerfile: Dockerfile
     container_name: gva-telegram
     restart: unless-stopped
     env_file:
-      - path: ../../script/tel-bot/.env
+      - path: ./script/tel-bot/.env
         required: false
     environment:
       DATABASE_URL: postgresql://xianyu:xianyu_assistant@postgres:5432/xianyu_assistant_v2
@@ -127,4 +127,4 @@ services:
     ports:
       - '127.0.0.1:18081:8080'
     volumes:
-      - ../../tmp:/workspace/tmp
+      - ./tmp:/workspace/tmp

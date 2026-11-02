@@ -48,13 +48,13 @@ python test_core.py
 
 Compose 中的服务统一使用 `go.xy.assistant` 网络。闲鱼助手后台映射到宿主机 `18080`，PostgreSQL 映射到 `15432`，RustFS 的 S3 API/控制台分别映射到 `19000`/`19001`，Telegram Web UI 映射到 `127.0.0.1:18081`。
 
-Telegram 与 Go 后端共用 `xianyu_assistant` 数据库，Telegram 表统一使用 `tel_` 前缀；PostgreSQL 通过宿主机 `15432` 端口连接。原 SQLite 业务数据不再使用，不提供 SQLite 迁移流程。
+Telegram 与 Go 后端共用 `xianyu_assistant_v2` 数据库，Telegram 表统一使用 `tel_` 前缀；PostgreSQL 通过宿主机 `15432` 端口连接。原 SQLite 业务数据不再使用，不提供 SQLite 迁移流程。
 
 资源任务表为 `tel_resource_tasks`、`tel_resource_files`、`tel_resource_sources`。文件临时落在项目根目录 `tmp/telegram/`，上传 RustFS 后立即删除；网页经 Go 后端 JWT/Casbin 接口访问，不暴露 RustFS 凭据。
 
 ```bash
-docker compose -f deploy/docker-compose/docker-compose.yaml up -d --build
-docker compose -f deploy/docker-compose/docker-compose.yaml config
+docker compose up -d --build
+docker compose config
 DATABASE_URL=postgresql://xianyu:xianyu_assistant@127.0.0.1:15432/xianyu_assistant python script/tel-bot/test_core.py
 ```
 

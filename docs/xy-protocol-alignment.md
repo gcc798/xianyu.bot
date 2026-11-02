@@ -1,6 +1,6 @@
 # 闲鱼协议能力 1–16 对齐清单
 
-对照参考：`zhinianboke/xy-auto-reply` 提交 `58032ee09de384c79f746d8dacb1e20508c6406e`。本项目仅参考协议事实，在 Go/GVA 架构内独立实现。
+对照参考：`zhinianboke/xy-auto-reply` 提交 `58032ee09de384c79f746d8dacb1e20508c6406e`。本项目仅参考协议事实，在 `server/internal/xianyu/` 的协议与服务边界内独立实现。
 
 | # | 能力 | 本项目实现 | 验证状态 |
 |---:|---|---|---|

@@ -3,7 +3,6 @@ FROM golang:1.26.10-alpine AS builder
 
 WORKDIR /go/src/github.com/flipped-aurora/gin-vue-admin/server
 RUN go env -w GO111MODULE=on \
-    && go env -w GOPROXY=https://goproxy.cn,direct \
     && go env -w CGO_ENABLED=0
 
 COPY go.mod go.sum ./
