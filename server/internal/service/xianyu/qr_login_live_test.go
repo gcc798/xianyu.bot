@@ -24,7 +24,7 @@ func TestLiveQRLoginCanGenerateAndCancel(t *testing.T) {
 	accountService := &account{db: db}
 	created, err := accountService.Create(t.Context(), 10, xyRequest.CreateAccount{Label: "在线测试账号"})
 	require.NoError(t, err)
-	loginService := newQRLogin(accountService)
+	loginService := newQRLogin(t.Context(), accountService)
 
 	login, err := loginService.Start(t.Context(), 10, created.ID)
 	require.NoError(t, err)

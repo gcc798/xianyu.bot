@@ -18,6 +18,7 @@ import (
 )
 
 type delivery struct {
+	root      context.Context
 	db        *gorm.DB
 	events    *businessEvent
 	consigner interface {
@@ -191,7 +192,7 @@ func (s *delivery) Plan(ctx context.Context, order model.Order) error {
 		return tx.Model(&task).Updates(map[string]any{"resource_id": task.ResourceID, "payload_ciphertext": ciphertext}).Error
 	})
 	if err == nil && task.ID != 0 && task.Status == model.DeliveryTaskPending {
-		go func() { _ = s.ProcessTask(context.Background(), order.OwnerID, task.ID) }()
+		go func() { _ = s.ProcessTask(contextOrBackground(s.root), order.OwnerID, task.ID) }()
 	}
 	return err
 }
@@ -283,7 +284,7 @@ func (s *delivery) StartAccount(accountID uint) {
 		s.mu.Unlock()
 		return
 	}
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(contextOrBackground(s.root))
 	s.workers[accountID] = cancel
 	s.mu.Unlock()
 	go func() {

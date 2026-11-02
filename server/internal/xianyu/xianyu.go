@@ -15,6 +15,7 @@ import (
 )
 
 func Initialize(ctx context.Context, engine *gin.Engine, jwt *security.JWT, deps service.Dependencies) error {
+	deps.Context = ctx
 	if err := initializeDatabase(ctx, deps.DB); err != nil {
 		return err
 	}

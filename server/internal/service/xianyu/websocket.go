@@ -34,6 +34,7 @@ type webSocketTokenGetter interface {
 }
 
 type webSocketService struct {
+	root        context.Context
 	db          *gorm.DB
 	events      *businessEvent
 	manager     *connection.Manager
@@ -81,10 +82,11 @@ type webSocketResponse struct {
 	raw  []byte
 }
 
-func newWebSocketService(db *gorm.DB, events *businessEvent, messages *message, sendNotificationEmail func(string, string, string) error) *webSocketService {
+func newWebSocketService(root context.Context, db *gorm.DB, events *businessEvent, messages *message, sendNotificationEmail func(string, string, string) error) *webSocketService {
 	token := newWebSocketToken(db, events)
 	dialer := &xyDialer{db: db, token: &token, endpoint: webSocketEndpoint}
 	service := &webSocketService{
+		root:                  contextOrBackground(root),
 		db:                    db,
 		events:                events,
 		messages:              messages,
@@ -153,7 +155,15 @@ func (s *webSocketService) trackConnectionAlertWindow(snapshot connection.Snapsh
 		if duration <= 0 {
 			duration = time.Hour
 		}
-		time.AfterFunc(duration, func() { s.finishConnectionAlertWindow(snapshot.AccountID, window) })
+		go func() {
+			timer := time.NewTimer(duration)
+			defer timer.Stop()
+			select {
+			case <-contextOrBackground(s.root).Done():
+			case <-timer.C:
+				s.finishConnectionAlertWindow(snapshot.AccountID, window)
+			}
+		}()
 	}
 	if !window.unavailable {
 		window.unavailableCount++
@@ -190,7 +200,7 @@ func (s *webSocketService) recordSuppressedConnectionAlert(accountID uint, windo
 		zap.L().Error("记录闲鱼消息连接抖动失败", zap.Uint("accountID", accountID), zap.Error(err))
 		return
 	}
-	s.events.Record(context.Background(), model.BusinessEvent{
+	s.events.Record(contextOrBackground(s.root), model.BusinessEvent{
 		OwnerID: account.OwnerID, AccountID: account.ID, Type: "websocket_alert", Status: "success",
 		Summary: fmt.Sprintf("一小时连接抖动窗口结束，当前连接正常（不可用 %d 次，未发送告警）", window.unavailableCount),
 		Error:   window.lastFailure.LastError,
@@ -227,7 +237,7 @@ func (s *webSocketService) sendConnectionNotification(snapshot connection.Snapsh
 		return
 	}
 	if err := sender("force_gc@163.com", subject, body); err != nil {
-		s.events.Record(context.Background(), model.BusinessEvent{
+		s.events.Record(contextOrBackground(s.root), model.BusinessEvent{
 			OwnerID: account.OwnerID, AccountID: account.ID, Type: "websocket_alert", Status: "failed",
 			Summary: summary + "失败", Error: err.Error(),
 		})
@@ -241,7 +251,7 @@ func (s *webSocketService) sendConnectionNotification(snapshot connection.Snapsh
 	if !recovered {
 		event.Error = snapshot.LastError
 	}
-	s.events.Record(context.Background(), event)
+	s.events.Record(contextOrBackground(s.root), event)
 	zap.L().Info(summary, zap.Uint("accountID", snapshot.AccountID), zap.String("recipient", "force_gc@163.com"))
 }
 
@@ -276,8 +286,7 @@ func (s *webSocketService) Start(ctx context.Context, ownerID, accountID uint) e
 	if account.Status != "ready" {
 		return errors.New("闲鱼账号登录状态不可用")
 	}
-	// shortcut: account connections live for the process; add graceful shutdown when the server owns a root context.
-	if err := s.manager.Start(context.Background(), accountID); err != nil {
+	if err := s.manager.Start(contextOrBackground(s.root), accountID); err != nil {
 		return err
 	}
 	if s.delivery != nil {
@@ -344,7 +353,7 @@ func (s *webSocketService) startKeepalive(ownerID, accountID uint) {
 		s.keepaliveMu.Unlock()
 		return
 	}
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(contextOrBackground(s.root))
 	s.keepalives[accountID] = cancel
 	s.keepaliveMu.Unlock()
 	go func() {

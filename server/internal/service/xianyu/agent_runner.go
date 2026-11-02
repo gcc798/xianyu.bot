@@ -46,6 +46,7 @@ var (
 type agentModelFactory func(context.Context, model.AIModel, model.AgentConfig) (einomodel.BaseChatModel, error)
 
 type agentRunner struct {
+	root      context.Context
 	db        *gorm.DB
 	registry  *mcpRegistry
 	resources *resourceCatalog
@@ -69,7 +70,7 @@ func (s *agentRunner) Submit(ctx context.Context, ownerID, sessionID uint, conte
 		return *existing, nil
 	}
 	s.publish(prepared.run.SessionID, "run.started", map[string]any{"runId": prepared.run.ID, "model": prepared.run.ModelName})
-	runContext, cancel := context.WithCancel(context.Background())
+	runContext, cancel := context.WithCancel(contextOrBackground(s.root))
 	s.setWorker(prepared.run.ID, cancel)
 	go func() {
 		defer cancel()
@@ -121,7 +122,7 @@ func (s *agentRunner) clearWorker(runID uint) {
 }
 
 func (s *agentRunner) failSubmittedRun(run model.AgentRun) {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(contextOrBackground(s.root)), 5*time.Second)
 	defer cancel()
 	completedAt := time.Now()
 	_ = s.db.WithContext(ctx).Model(&run).Updates(map[string]any{

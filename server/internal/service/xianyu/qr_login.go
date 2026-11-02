@@ -47,6 +47,7 @@ type qrLogin struct {
 
 type qrLoginManager struct {
 	mu        sync.Mutex
+	root      context.Context
 	accounts  *account
 	sessions  map[string]*qrSession
 	byAccount map[[2]uint]string
@@ -90,8 +91,9 @@ func (value *stringOrNumber) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-func newQRLogin(accounts *account) qrLogin {
+func newQRLogin(root context.Context, accounts *account) qrLogin {
 	return qrLogin{manager: &qrLoginManager{
+		root:      contextOrBackground(root),
 		accounts:  accounts,
 		sessions:  make(map[string]*qrSession),
 		byAccount: make(map[[2]uint]string),
@@ -127,7 +129,7 @@ func (s *qrLogin) Start(ctx context.Context, ownerID, accountID uint) (xyRespons
 	if err != nil {
 		return xyResponse.QRLogin{}, err
 	}
-	sessionCtx, cancel := context.WithTimeout(context.Background(), manager.timeout)
+	sessionCtx, cancel := context.WithTimeout(contextOrBackground(manager.root), manager.timeout)
 	session := &qrSession{
 		id:        uuid.NewString(),
 		ownerID:   ownerID,

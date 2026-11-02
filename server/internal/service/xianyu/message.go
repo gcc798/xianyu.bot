@@ -41,6 +41,7 @@ type pendingReply struct {
 }
 
 type message struct {
+	root     context.Context
 	db       *gorm.DB
 	events   *businessEvent
 	sender   textSender
@@ -360,7 +361,7 @@ func (s *message) scheduleAutoReply(ctx context.Context, account model.Account, 
 
 func (s *message) launchReply(task model.ReplyTask) {
 	key := fmt.Sprintf("%d:%s", task.AccountID, task.SessionID)
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(contextOrBackground(s.root))
 	s.mu.Lock()
 	if s.pending == nil {
 		s.pending = make(map[string]pendingReply)
