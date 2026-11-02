@@ -21,6 +21,7 @@ import (
 )
 
 type einoMCPTool struct {
+	db         *gorm.DB
 	connection *mcpConnection
 	definition mcp.Tool
 	alias      string
@@ -34,12 +35,13 @@ type einoMCPTool struct {
 
 var _ tool.InvokableTool = (*einoMCPTool)(nil)
 
-func newEinoMCPTool(connection *mcpConnection, definition mcp.Tool, harness *agentHarness) (*einoMCPTool, error) {
+func newEinoMCPTool(db *gorm.DB, connection *mcpConnection, definition mcp.Tool, harness *agentHarness) (*einoMCPTool, error) {
 	parameters, err := agentVisibleToolSchema(definition)
 	if err != nil {
 		return nil, fmt.Errorf("解析 MCP 工具 %s 参数: %w", definition.Name, err)
 	}
 	return &einoMCPTool{
+		db:         db,
 		connection: connection, definition: definition,
 		alias:   connection.Server.Code + "__" + definition.Name,
 		harness: harness, parameters: parameters,
@@ -162,7 +164,7 @@ func (t *einoMCPTool) queueApproval(ctx context.Context, call *model.AgentRunToo
 	completedAt := time.Now()
 	finishContext, cancel := agentFinishContext(ctx)
 	defer cancel()
-	return infra.DB.WithContext(finishContext).Model(call).Updates(map[string]any{
+	return t.db.WithContext(finishContext).Model(call).Updates(map[string]any{
 		"arguments": string(arguments), "status": "waiting_approval", "error_code": "approval_required",
 		"error_message": "等待用户确认", "completed_at": completedAt,
 		"duration_millis": time.Since(call.StartedAt).Milliseconds(),
@@ -209,7 +211,7 @@ func (t *einoMCPTool) persistResourceCandidates(ctx context.Context, input map[s
 	}
 	query, _ := input["query"].(string)
 	expiresAt := time.Now().Add(24 * time.Hour)
-	return infra.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	return t.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		search := model.ResourceSearch{OwnerID: t.ownerID, Query: query, Status: "completed"}
 		if err := tx.Create(&search).Error; err != nil {
 			return err
@@ -277,7 +279,7 @@ func (t *einoMCPTool) startToolCall(ctx context.Context) (*model.AgentRunTool, e
 		RunID: t.runID, CallID: callID, MCPServerCode: t.connection.Server.Code,
 		ToolName: t.definition.Name, Status: "running", StartedAt: time.Now(),
 	}
-	if err := infra.DB.WithContext(ctx).Create(call).Error; err != nil {
+	if err := t.db.WithContext(ctx).Create(call).Error; err != nil {
 		return nil, err
 	}
 	return call, nil
@@ -291,7 +293,7 @@ func (t *einoMCPTool) saveToolArguments(ctx context.Context, call *model.AgentRu
 	if err != nil {
 		return err
 	}
-	return infra.DB.WithContext(ctx).Model(call).Update("arguments", string(arguments)).Error
+	return t.db.WithContext(ctx).Model(call).Update("arguments", string(arguments)).Error
 }
 
 func (t *einoMCPTool) saveToolResult(ctx context.Context, call *model.AgentRunTool, result any) error {
@@ -304,7 +306,7 @@ func (t *einoMCPTool) saveToolResult(ctx context.Context, call *model.AgentRunTo
 	}
 	finishContext, cancel := agentFinishContext(ctx)
 	defer cancel()
-	return infra.DB.WithContext(finishContext).Model(call).Update("result", string(payload)).Error
+	return t.db.WithContext(finishContext).Model(call).Update("result", string(payload)).Error
 }
 
 func compactToolTrace(value any) any {
@@ -348,7 +350,7 @@ func (t *einoMCPTool) finishToolCall(ctx context.Context, call *model.AgentRunTo
 	completedAt := time.Now()
 	finishContext, cancel := agentFinishContext(ctx)
 	defer cancel()
-	return infra.DB.WithContext(finishContext).Model(call).Updates(map[string]any{
+	return t.db.WithContext(finishContext).Model(call).Updates(map[string]any{
 		"status": status, "duration_millis": time.Since(call.StartedAt).Milliseconds(),
 		"error_code": errorCode, "error_message": errorMessage, "completed_at": completedAt,
 	}).Error

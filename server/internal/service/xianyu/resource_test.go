@@ -8,7 +8,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gcc798/xianyu.bot/internal/infra"
 	"github.com/gcc798/xianyu.bot/internal/model/xianyu"
 	xyRequest "github.com/gcc798/xianyu.bot/internal/model/xianyu/request"
 	"github.com/glebarez/sqlite"
@@ -48,10 +47,6 @@ func TestResourceCatalogScopesQueriesByOwner(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
 	require.NoError(t, db.AutoMigrate(&model.Resource{}, &model.ResourceSource{}, &model.ResourceTask{}))
-	oldDB := infra.DB
-	infra.DB = db
-	t.Cleanup(func() { infra.DB = oldDB })
-
 	ownerResource := model.Resource{OwnerID: 11, TaskID: 1, Name: "Go.pdf", Size: 100, Bucket: "secret-bucket", ObjectKey: "owners/11/go.pdf"}
 	otherResource := model.Resource{OwnerID: 22, TaskID: 2, Name: "Private.pdf", Size: 200, Bucket: "secret-bucket", ObjectKey: "owners/22/private.pdf"}
 	require.NoError(t, db.Create(&ownerResource).Error)
@@ -60,7 +55,7 @@ func TestResourceCatalogScopesQueriesByOwner(t *testing.T) {
 	require.NoError(t, db.Create(&model.ResourceTask{OwnerID: 11, CandidateID: 1, MCPServerCode: "telegram", IdempotencyKey: "task-owner", State: "queued"}).Error)
 	require.NoError(t, db.Create(&model.ResourceTask{OwnerID: 22, CandidateID: 2, MCPServerCode: "telegram", IdempotencyKey: "task-other", State: "queued"}).Error)
 
-	catalog := new(resourceCatalog)
+	catalog := &resourceCatalog{db: db}
 	resources, total, err := catalog.List(t.Context(), 11, xyRequest.ResourceSearch{})
 	require.NoError(t, err)
 	require.EqualValues(t, 1, total)
@@ -92,10 +87,6 @@ func TestResourceDeliveryGrantAndCompletion(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
 	require.NoError(t, db.AutoMigrate(&model.ResourceSearch{}, &model.ResourceCandidate{}, &model.ResourceTask{}, &model.Resource{}, &model.ResourceSource{}, &model.AgentSession{}, &model.AgentRun{}, &model.AgentEvent{}))
-	oldDB := infra.DB
-	infra.DB = db
-	t.Cleanup(func() { infra.DB = oldDB })
-
 	search := model.ResourceSearch{OwnerID: 11, Query: "Go", Status: "completed"}
 	require.NoError(t, db.Create(&search).Error)
 	candidate := model.ResourceCandidate{
@@ -104,8 +95,8 @@ func TestResourceDeliveryGrantAndCompletion(t *testing.T) {
 	}
 	require.NoError(t, db.Create(&candidate).Error)
 	store := &fakeResourceObjectStore{size: candidate.Size}
-	events := newAgentEventHub()
-	catalog := &resourceCatalog{objectStore: store, bucket: "resources", events: events}
+	events := newAgentEventHub(db)
+	catalog := &resourceCatalog{db: db, objectStore: store, bucket: "resources", events: events}
 	session := model.AgentSession{OwnerID: 11, Title: "资源交付"}
 	require.NoError(t, db.Create(&session).Error)
 	run := model.AgentRun{OwnerID: 11, SessionID: session.ID, ModelID: 1, ModelName: "test", Status: "completed", ConfigSnapshot: `{}`, StartedAt: time.Now()}
@@ -169,9 +160,6 @@ func TestResourceCatalogCancelsTaskThroughOwningMCPServer(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
 	require.NoError(t, db.AutoMigrate(&model.ResourceTask{}, &model.MCPServer{}))
-	oldDB := infra.DB
-	infra.DB = db
-	t.Cleanup(func() { infra.DB = oldDB })
 	server := model.MCPServer{Name: "资源服务", Code: "resources", BaseURL: "http://resources/mcp", Enabled: true, RequestTimeoutSeconds: 15}
 	require.NoError(t, db.Create(&server).Error)
 	task := model.ResourceTask{
@@ -180,10 +168,10 @@ func TestResourceCatalogCancelsTaskThroughOwningMCPServer(t *testing.T) {
 	}
 	require.NoError(t, db.Create(&task).Error)
 	client := &recordingMCPClient{result: map[string]any{"status": "success", "data": map[string]any{}}}
-	registry := &mcpRegistry{connect: func(context.Context, model.MCPServer) (*mcpConnection, error) {
+	registry := &mcpRegistry{db: db, connect: func(context.Context, model.MCPServer) (*mcpConnection, error) {
 		return &mcpConnection{Server: server, Client: client, Tools: []mcp.Tool{{Name: "task_cancel"}}}, nil
 	}}
-	catalog := &resourceCatalog{registry: registry}
+	catalog := &resourceCatalog{db: db, registry: registry}
 
 	_, err = catalog.CancelTask(t.Context(), 22, task.ID)
 	require.True(t, errors.Is(err, gorm.ErrRecordNotFound))

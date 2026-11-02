@@ -5,7 +5,6 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/gcc798/xianyu.bot/internal/infra"
 	"github.com/gcc798/xianyu.bot/internal/model/xianyu"
 	"github.com/glebarez/sqlite"
 	"github.com/mark3labs/mcp-go/mcp"
@@ -17,10 +16,6 @@ func TestMCPRegistryDiscoversEnabledServersAndKeepsAvailableOnes(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
 	require.NoError(t, db.AutoMigrate(&model.MCPServer{}))
-	oldDB := infra.DB
-	infra.DB = db
-	t.Cleanup(func() { infra.DB = oldDB })
-
 	require.NoError(t, db.Create(&[]model.MCPServer{
 		{Name: "可用", Code: "available", BaseURL: "http://available/mcp", Enabled: true, RequestTimeoutSeconds: 15},
 		{Name: "故障", Code: "broken", BaseURL: "http://broken/mcp", Enabled: true, RequestTimeoutSeconds: 15},
@@ -29,7 +24,7 @@ func TestMCPRegistryDiscoversEnabledServersAndKeepsAvailableOnes(t *testing.T) {
 	require.NoError(t, db.Model(&model.MCPServer{}).Where("code = ?", "disabled").Update("enabled", false).Error)
 
 	discovered := make([]string, 0)
-	registry := &mcpRegistry{connect: func(_ context.Context, server model.MCPServer) (*mcpConnection, error) {
+	registry := &mcpRegistry{db: db, connect: func(_ context.Context, server model.MCPServer) (*mcpConnection, error) {
 		discovered = append(discovered, server.Code)
 		if server.Code == "broken" {
 			return nil, errors.New("connection refused")
@@ -54,12 +49,9 @@ func TestMCPRegistryFailsWhenNoEnabledServerIsAvailable(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
 	require.NoError(t, db.AutoMigrate(&model.MCPServer{}))
-	oldDB := infra.DB
-	infra.DB = db
-	t.Cleanup(func() { infra.DB = oldDB })
 	require.NoError(t, db.Create(&model.MCPServer{Name: "故障", Code: "broken", BaseURL: "http://broken/mcp", Enabled: true, RequestTimeoutSeconds: 15}).Error)
 
-	registry := &mcpRegistry{connect: func(context.Context, model.MCPServer) (*mcpConnection, error) {
+	registry := &mcpRegistry{db: db, connect: func(context.Context, model.MCPServer) (*mcpConnection, error) {
 		return nil, errors.New("connection refused")
 	}}
 	connections, err := registry.Discover(t.Context())

@@ -47,11 +47,13 @@ var (
 type agentModelFactory func(context.Context, model.AIModel, model.AgentConfig) (einomodel.BaseChatModel, error)
 
 type agentRunner struct {
-	registry *mcpRegistry
-	newModel agentModelFactory
-	events   *agentEventHub
-	workerMu sync.Mutex
-	workers  map[uint]context.CancelFunc
+	db        *gorm.DB
+	registry  *mcpRegistry
+	resources *resourceCatalog
+	newModel  agentModelFactory
+	events    *agentEventHub
+	workerMu  sync.Mutex
+	workers   map[uint]context.CancelFunc
 }
 
 type agentRunResult struct {
@@ -88,7 +90,7 @@ func (s *agentRunner) Cancel(ctx context.Context, ownerID, sessionID, runID uint
 		return errors.New("运行标识不能为空")
 	}
 	var run model.AgentRun
-	if err := infra.DB.WithContext(ctx).Where("id = ? AND session_id = ? AND owner_id = ?", runID, sessionID, ownerID).First(&run).Error; err != nil {
+	if err := s.db.WithContext(ctx).Where("id = ? AND session_id = ? AND owner_id = ?", runID, sessionID, ownerID).First(&run).Error; err != nil {
 		return err
 	}
 	if run.Status != "running" {
@@ -123,7 +125,7 @@ func (s *agentRunner) failSubmittedRun(run model.AgentRun) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	completedAt := time.Now()
-	_ = infra.DB.WithContext(ctx).Model(&run).Updates(map[string]any{
+	_ = s.db.WithContext(ctx).Model(&run).Updates(map[string]any{
 		"status": "failed", "end_reason": "panic", "error_message": "Agent 运行异常",
 		"completed_at": completedAt,
 	}).Error
@@ -153,16 +155,16 @@ func (s *agentRunner) prepare(ctx context.Context, ownerID, sessionID uint, cont
 	if err != nil {
 		return preparedAgentRun{}, nil, err
 	}
-	aiModel, config, snapshot, err := loadAgentRunConfig(ctx)
+	aiModel, config, snapshot, err := loadAgentRunConfig(ctx, s.db)
 	if err != nil {
 		return preparedAgentRun{}, nil, err
 	}
-	run, existing, err := createAgentRun(ctx, ownerID, sessionID, content, string(directiveJSON), idempotencyKey, aiModel, snapshot)
+	run, existing, err := createAgentRun(ctx, s.db, ownerID, sessionID, content, string(directiveJSON), idempotencyKey, aiModel, snapshot)
 	if err != nil {
 		return preparedAgentRun{}, nil, err
 	}
 	if existing {
-		result, err := existingAgentRunResult(ctx, run)
+		result, err := existingAgentRunResult(ctx, s.db, run)
 		return preparedAgentRun{}, &result, err
 	}
 	return preparedAgentRun{run: run, aiModel: aiModel, config: config, directives: directives}, nil, nil
@@ -178,7 +180,7 @@ func (s *agentRunner) execute(ctx context.Context, prepared preparedAgentRun) (a
 	connections, discoveryErr := s.mcpRegistryOrDefault().Discover(runContext)
 	defer func() { _ = closeMCPConnections(connections) }()
 
-	tools, err := buildEinoMCPTools(connections, harness, s.events, run)
+	tools, err := buildEinoMCPTools(s.db, connections, harness, s.events, run)
 	if err != nil {
 		return s.failRun(ctx, run, harness, started, "tool_setup_failed", err)
 	}
@@ -216,7 +218,7 @@ func (s *agentRunner) execute(ctx context.Context, prepared preparedAgentRun) (a
 	if err != nil {
 		return s.failRun(ctx, run, harness, started, "agent_setup_failed", err)
 	}
-	history, err := loadAgentHistory(runContext, run.OwnerID, run.SessionID, config.ConversationHistoryLimit)
+	history, err := loadAgentHistory(runContext, s.db, run.OwnerID, run.SessionID, config.ConversationHistoryLimit)
 	if err != nil {
 		return s.failRun(ctx, run, harness, started, "history_failed", err)
 	}
@@ -250,7 +252,7 @@ func (s *agentRunner) execute(ctx context.Context, prepared preparedAgentRun) (a
 	if finalMessage == nil || strings.TrimSpace(finalMessage.Content) == "" {
 		return s.failRun(ctx, run, harness, started, "empty_response", errors.New("模型未返回最终消息"))
 	}
-	result, err := completeAgentRun(ctx, run, harness, started, inputTokens, outputTokens, finalMessage.Content)
+	result, err := completeAgentRun(ctx, s.db, run, harness, started, inputTokens, outputTokens, finalMessage.Content)
 	if err != nil {
 		return agentRunResult{}, err
 	}
@@ -377,16 +379,16 @@ func newConfiguredAgentModel(ctx context.Context, aiModel model.AIModel, config 
 	})
 }
 
-func loadAgentRunConfig(ctx context.Context) (model.AIModel, model.AgentConfig, string, error) {
+func loadAgentRunConfig(ctx context.Context, db *gorm.DB) (model.AIModel, model.AgentConfig, string, error) {
 	var aiModel model.AIModel
-	if err := infra.DB.WithContext(ctx).Where("enabled = ? AND is_default = ? AND supports_tools = ?", true, true, true).First(&aiModel).Error; err != nil {
+	if err := db.WithContext(ctx).Where("enabled = ? AND is_default = ? AND supports_tools = ?", true, true, true).First(&aiModel).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return model.AIModel{}, model.AgentConfig{}, "", errors.New("尚未配置可用的默认 AI 模型")
 		}
 		return model.AIModel{}, model.AgentConfig{}, "", err
 	}
 	config := model.DefaultAgentConfig()
-	if err := infra.DB.WithContext(ctx).FirstOrCreate(&config, model.AgentConfig{ID: 1}).Error; err != nil {
+	if err := db.WithContext(ctx).FirstOrCreate(&config, model.AgentConfig{ID: 1}).Error; err != nil {
 		return model.AIModel{}, model.AgentConfig{}, "", err
 	}
 	snapshot, err := json.Marshal(struct {
@@ -427,10 +429,10 @@ func validateAgentDirectives(directives []xyRequest.AgentDirective) error {
 	return nil
 }
 
-func createAgentRun(ctx context.Context, ownerID, sessionID uint, content, directives, idempotencyKey string, aiModel model.AIModel, snapshot string) (model.AgentRun, bool, error) {
+func createAgentRun(ctx context.Context, db *gorm.DB, ownerID, sessionID uint, content, directives, idempotencyKey string, aiModel model.AIModel, snapshot string) (model.AgentRun, bool, error) {
 	var run model.AgentRun
 	existing := false
-	err := infra.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	err := db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := tx.Where("owner_id = ? AND idempotency_key = ?", ownerID, idempotencyKey).First(&run).Error; err == nil {
 			if run.SessionID != sessionID {
 				return errors.New("幂等键已用于其他会话")
@@ -480,9 +482,9 @@ func createAgentRun(ctx context.Context, ownerID, sessionID uint, content, direc
 	return run, existing, err
 }
 
-func existingAgentRunResult(ctx context.Context, run model.AgentRun) (agentRunResult, error) {
+func existingAgentRunResult(ctx context.Context, db *gorm.DB, run model.AgentRun) (agentRunResult, error) {
 	var assistant model.AgentMessage
-	err := infra.DB.WithContext(ctx).Where("run_id = ? AND role = ?", run.ID, "assistant").First(&assistant).Error
+	err := db.WithContext(ctx).Where("run_id = ? AND role = ?", run.ID, "assistant").First(&assistant).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return agentRunResult{Run: run}, nil
 	}
@@ -492,9 +494,9 @@ func existingAgentRunResult(ctx context.Context, run model.AgentRun) (agentRunRe
 	return agentRunResult{Run: run, Assistant: &assistant}, nil
 }
 
-func loadAgentHistory(ctx context.Context, ownerID, sessionID uint, limit int) ([]*schema.Message, error) {
+func loadAgentHistory(ctx context.Context, db *gorm.DB, ownerID, sessionID uint, limit int) ([]*schema.Message, error) {
 	messages := make([]model.AgentMessage, 0)
-	if err := infra.DB.WithContext(ctx).Where("owner_id = ? AND session_id = ?", ownerID, sessionID).Order("sequence DESC").Limit(limit).Find(&messages).Error; err != nil {
+	if err := db.WithContext(ctx).Where("owner_id = ? AND session_id = ?", ownerID, sessionID).Order("sequence DESC").Limit(limit).Find(&messages).Error; err != nil {
 		return nil, err
 	}
 	slices.Reverse(messages)
@@ -507,7 +509,7 @@ func loadAgentHistory(ctx context.Context, ownerID, sessionID uint, limit int) (
 			history = append(history, schema.AssistantMessage(message.Content, nil))
 		}
 	}
-	trace, err := recentToolTrace(ctx, ownerID, sessionID)
+	trace, err := recentToolTrace(ctx, db, ownerID, sessionID)
 	if err != nil {
 		return nil, err
 	}
@@ -521,9 +523,9 @@ func loadAgentHistory(ctx context.Context, ownerID, sessionID uint, limit int) (
 	return history, nil
 }
 
-func recentToolTrace(ctx context.Context, ownerID, sessionID uint) (string, error) {
+func recentToolTrace(ctx context.Context, db *gorm.DB, ownerID, sessionID uint) (string, error) {
 	var calls []model.AgentRunTool
-	if err := infra.DB.WithContext(ctx).Table("xy_agent_run_tools AS t").
+	if err := db.WithContext(ctx).Table("xy_agent_run_tools AS t").
 		Select("t.*").Joins("JOIN xy_agent_runs AS r ON r.id = t.run_id AND r.deleted_at IS NULL").
 		Where("r.owner_id = ? AND r.session_id = ? AND t.result <> '' AND t.deleted_at IS NULL", ownerID, sessionID).
 		Order("t.id DESC").Limit(10).Find(&calls).Error; err != nil {
@@ -541,11 +543,11 @@ func recentToolTrace(ctx context.Context, ownerID, sessionID uint) (string, erro
 	return strings.TrimSpace(trace.String()), nil
 }
 
-func buildEinoMCPTools(connections []*mcpConnection, harness *agentHarness, events *agentEventHub, run model.AgentRun) ([]tool.BaseTool, error) {
+func buildEinoMCPTools(db *gorm.DB, connections []*mcpConnection, harness *agentHarness, events *agentEventHub, run model.AgentRun) ([]tool.BaseTool, error) {
 	tools := make([]tool.BaseTool, 0)
 	for _, connection := range connections {
 		for _, definition := range connection.Tools {
-			adapted, err := newEinoMCPTool(connection, definition, harness)
+			adapted, err := newEinoMCPTool(db, connection, definition, harness)
 			if err != nil {
 				return nil, err
 			}
@@ -565,13 +567,13 @@ func nextAgentMessageSequence(tx *gorm.DB, sessionID uint) (int64, error) {
 	return sequence + 1, err
 }
 
-func completeAgentRun(ctx context.Context, run model.AgentRun, harness *agentHarness, started time.Time, inputTokens, outputTokens int, content string) (agentRunResult, error) {
+func completeAgentRun(ctx context.Context, db *gorm.DB, run model.AgentRun, harness *agentHarness, started time.Time, inputTokens, outputTokens int, content string) (agentRunResult, error) {
 	usage := harness.Usage()
 	completedAt := time.Now()
 	var assistant model.AgentMessage
 	finishContext, cancel := agentFinishContext(ctx)
 	defer cancel()
-	err := infra.DB.WithContext(finishContext).Transaction(func(tx *gorm.DB) error {
+	err := db.WithContext(finishContext).Transaction(func(tx *gorm.DB) error {
 		sequence, err := nextAgentMessageSequence(tx, run.SessionID)
 		if err != nil {
 			return err
@@ -594,7 +596,7 @@ func completeAgentRun(ctx context.Context, run model.AgentRun, harness *agentHar
 	if err != nil {
 		return agentRunResult{}, err
 	}
-	if err := infra.DB.WithContext(finishContext).First(&run, run.ID).Error; err != nil {
+	if err := db.WithContext(finishContext).First(&run, run.ID).Error; err != nil {
 		return agentRunResult{}, err
 	}
 	return agentRunResult{Run: run, Assistant: &assistant}, nil
@@ -616,7 +618,7 @@ func (s *agentRunner) failRun(ctx context.Context, run model.AgentRun, harness *
 	if reason == "cancelled" {
 		status, eventType, eventMessage = "cancelled", "run.cancelled", "Agent 运行已取消"
 	}
-	updateErr := infra.DB.WithContext(finishContext).Model(&run).Updates(map[string]any{
+	updateErr := s.db.WithContext(finishContext).Model(&run).Updates(map[string]any{
 		"status": status, "end_reason": reason, "iterations": usage.Iterations,
 		"model_calls": usage.ModelCalls, "tool_calls": usage.ToolCalls,
 		"wall_time_millis": time.Since(started).Milliseconds(), "completed_at": completedAt,
@@ -661,7 +663,7 @@ func (s *agentRunner) mcpRegistryOrDefault() *mcpRegistry {
 	if s.registry != nil {
 		return s.registry
 	}
-	return new(mcpRegistry)
+	return &mcpRegistry{db: s.db}
 }
 
 func (s *agentRunner) publish(sessionID uint, eventType string, data any) {

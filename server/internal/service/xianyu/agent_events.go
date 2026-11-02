@@ -8,7 +8,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gcc798/xianyu.bot/internal/infra"
 	"github.com/gcc798/xianyu.bot/internal/model/xianyu"
 	"gorm.io/gorm"
 )
@@ -29,7 +28,7 @@ type agentEventSession struct {
 }
 
 // agentEventHub persists settled Agent facts and broadcasts both persisted and transient events.
-// The database is optional only for isolated unit tests; production resolves infra.DB.
+// A nil database keeps events in memory for isolated unit tests.
 type agentEventHub struct {
 	mu       sync.Mutex
 	db       *gorm.DB
@@ -182,10 +181,7 @@ func (h *agentEventHub) broadcast(sessionID uint, event agentEvent) {
 }
 
 func (h *agentEventHub) database() *gorm.DB {
-	if h.db != nil {
-		return h.db
-	}
-	return infra.DB
+	return h.db
 }
 
 func (h *agentEventHub) session(sessionID uint) *agentEventSession {

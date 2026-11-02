@@ -9,7 +9,6 @@ import (
 
 	einomodel "github.com/cloudwego/eino/components/model"
 	"github.com/cloudwego/eino/schema"
-	"github.com/gcc798/xianyu.bot/internal/infra"
 	"github.com/gcc798/xianyu.bot/internal/model/xianyu"
 	xyRequest "github.com/gcc798/xianyu.bot/internal/model/xianyu/request"
 	"github.com/glebarez/sqlite"
@@ -34,7 +33,7 @@ func TestAgentRunnerPersistsConversationAndDeduplicatesRequest(t *testing.T) {
 	session := model.AgentSession{OwnerID: 11, Title: "测试会话"}
 	require.NoError(t, db.Create(&session).Error)
 	chatModel := &stubAgentModel{answer: "这是最终回答"}
-	runner := &agentRunner{newModel: func(context.Context, model.AIModel, model.AgentConfig) (einomodel.BaseChatModel, error) {
+	runner := &agentRunner{db: db, registry: &mcpRegistry{db: db}, newModel: func(context.Context, model.AIModel, model.AgentConfig) (einomodel.BaseChatModel, error) {
 		return chatModel, nil
 	}}
 
@@ -67,7 +66,7 @@ func TestAgentRunnerRecordsModelFailure(t *testing.T) {
 	db := agentRunnerTestDB(t)
 	session := model.AgentSession{OwnerID: 11, Title: "失败会话"}
 	require.NoError(t, db.Create(&session).Error)
-	runner := &agentRunner{events: newAgentEventHub(), newModel: func(context.Context, model.AIModel, model.AgentConfig) (einomodel.BaseChatModel, error) {
+	runner := &agentRunner{db: db, registry: &mcpRegistry{db: db}, events: newAgentEventHub(db), newModel: func(context.Context, model.AIModel, model.AgentConfig) (einomodel.BaseChatModel, error) {
 		return &stubAgentModel{err: errors.New("upstream unavailable")}, nil
 	}}
 
@@ -88,8 +87,8 @@ func TestAgentRunnerSubmitPublishesStreamingEvents(t *testing.T) {
 	db := agentRunnerTestDB(t)
 	session := model.AgentSession{OwnerID: 11, Title: "异步会话"}
 	require.NoError(t, db.Create(&session).Error)
-	events := newAgentEventHub()
-	runner := &agentRunner{events: events, newModel: func(context.Context, model.AIModel, model.AgentConfig) (einomodel.BaseChatModel, error) {
+	events := newAgentEventHub(db)
+	runner := &agentRunner{db: db, registry: &mcpRegistry{db: db}, events: events, newModel: func(context.Context, model.AIModel, model.AgentConfig) (einomodel.BaseChatModel, error) {
 		return &stubAgentModel{answer: "流式回答"}, nil
 	}}
 	_, stream, cancel, err := events.Subscribe(t.Context(), session.ID, 0)
@@ -126,7 +125,7 @@ func TestAgentRunnerPersistsAuditableModelSnapshot(t *testing.T) {
 	db := agentRunnerTestDB(t)
 	session := model.AgentSession{OwnerID: 11, Title: "模型轨迹"}
 	require.NoError(t, db.Create(&session).Error)
-	runner := &agentRunner{events: newAgentEventHub(), newModel: func(context.Context, model.AIModel, model.AgentConfig) (einomodel.BaseChatModel, error) {
+	runner := &agentRunner{db: db, registry: &mcpRegistry{db: db}, events: newAgentEventHub(db), newModel: func(context.Context, model.AIModel, model.AgentConfig) (einomodel.BaseChatModel, error) {
 		return &stubAgentModel{answer: "轨迹回答"}, nil
 	}}
 
@@ -151,8 +150,8 @@ func TestAgentRunnerCancelsOwnedRun(t *testing.T) {
 	db := agentRunnerTestDB(t)
 	session := model.AgentSession{OwnerID: 11, Title: "取消会话"}
 	require.NoError(t, db.Create(&session).Error)
-	events := newAgentEventHub()
-	runner := &agentRunner{events: events, newModel: func(context.Context, model.AIModel, model.AgentConfig) (einomodel.BaseChatModel, error) {
+	events := newAgentEventHub(db)
+	runner := &agentRunner{db: db, registry: &mcpRegistry{db: db}, events: events, newModel: func(context.Context, model.AIModel, model.AgentConfig) (einomodel.BaseChatModel, error) {
 		return cancelAwareAgentModel{}, nil
 	}}
 	_, stream, unsubscribe, err := events.Subscribe(t.Context(), session.ID, 0)
@@ -207,7 +206,7 @@ func TestLoadAgentHistoryIncludesRecentToolTrace(t *testing.T) {
 	}).Error)
 	require.NoError(t, db.Create(&model.AgentMessage{OwnerID: 11, SessionID: session.ID, Sequence: 1, Role: "user", Content: "刚才搜索了哪里"}).Error)
 
-	history, err := loadAgentHistory(t.Context(), 11, session.ID, 40)
+	history, err := loadAgentHistory(t.Context(), db, 11, session.ID, 40)
 	require.NoError(t, err)
 	require.Len(t, history, 2)
 	require.Equal(t, schema.System, history[0].Role)
@@ -226,9 +225,6 @@ func agentRunnerTestDB(t *testing.T) *gorm.DB {
 		&model.AIModel{}, &model.MCPServer{}, &model.AgentConfig{}, &model.AgentSession{},
 		&model.AgentMessage{}, &model.AgentRun{}, &model.AgentRunTool{}, &model.AgentEvent{},
 	))
-	oldDB := infra.DB
-	infra.DB = db
-	t.Cleanup(func() { infra.DB = oldDB })
 	aiModel := model.AIModel{
 		Name: "测试模型", Provider: "openai", BaseURL: "https://example.com/v1", APIKey: "secret-key",
 		Model: "test", Enabled: true, IsDefault: true, SupportsTools: true, SupportsStreaming: true,

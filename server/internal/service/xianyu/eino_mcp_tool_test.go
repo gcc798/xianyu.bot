@@ -6,7 +6,6 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"github.com/gcc798/xianyu.bot/internal/infra"
 	"github.com/gcc798/xianyu.bot/internal/model/xianyu"
 	"github.com/glebarez/sqlite"
 	"github.com/mark3labs/mcp-go/mcp"
@@ -18,9 +17,6 @@ func TestEinoMCPToolHidesDeliveryFieldsAndRequiresApproval(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
 	require.NoError(t, db.AutoMigrate(&model.AgentRunTool{}))
-	oldDB := infra.DB
-	infra.DB = db
-	t.Cleanup(func() { infra.DB = oldDB })
 	client := new(recordingMCPClient)
 	connection := &mcpConnection{
 		Server: model.MCPServer{Code: "telegram", RequestTimeoutSeconds: 15}, Client: client,
@@ -37,7 +33,7 @@ func TestEinoMCPToolHidesDeliveryFieldsAndRequiresApproval(t *testing.T) {
 			Required: []string{"candidate_id", "task_id", "idempotency_key", "delivery_token"},
 		},
 	}
-	target, err := newEinoMCPTool(connection, definition, newAgentHarness(model.DefaultAgentConfig()))
+	target, err := newEinoMCPTool(db, connection, definition, newAgentHarness(model.DefaultAgentConfig()))
 	require.NoError(t, err)
 	info, err := target.Info(t.Context())
 	require.NoError(t, err)
@@ -65,9 +61,6 @@ func TestEinoMCPToolCallsReadCapability(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
 	require.NoError(t, db.AutoMigrate(&model.AgentSession{}, &model.AgentRunTool{}, &model.AgentEvent{}))
-	oldDB := infra.DB
-	infra.DB = db
-	t.Cleanup(func() { infra.DB = oldDB })
 	client := new(recordingMCPClient)
 	connection := &mcpConnection{
 		Server: model.MCPServer{Code: "telegram", RequestTimeoutSeconds: 15}, Client: client,
@@ -78,7 +71,7 @@ func TestEinoMCPToolCallsReadCapability(t *testing.T) {
 			"query": map[string]any{"type": "string"},
 		}},
 	}
-	target, err := newEinoMCPTool(connection, definition, newAgentHarness(model.DefaultAgentConfig()))
+	target, err := newEinoMCPTool(db, connection, definition, newAgentHarness(model.DefaultAgentConfig()))
 	require.NoError(t, err)
 	session := model.AgentSession{OwnerID: 11, Title: "工具轨迹"}
 	require.NoError(t, db.Create(&session).Error)
@@ -112,9 +105,6 @@ func TestEinoMCPToolPersistsMessageCandidates(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
 	require.NoError(t, db.AutoMigrate(&model.AgentRunTool{}, &model.ResourceSearch{}, &model.ResourceCandidate{}))
-	oldDB := infra.DB
-	infra.DB = db
-	t.Cleanup(func() { infra.DB = oldDB })
 	client := &recordingMCPClient{textResult: true, result: map[string]any{
 		"status": "success",
 		"data": map[string]any{
@@ -128,7 +118,7 @@ func TestEinoMCPToolPersistsMessageCandidates(t *testing.T) {
 	definition := mcp.Tool{Name: "message_search", InputSchema: mcp.ToolInputSchema{Type: "object", Properties: map[string]any{
 		"query": map[string]any{"type": "string"},
 	}}}
-	target, err := newEinoMCPTool(connection, definition, newAgentHarness(model.DefaultAgentConfig()))
+	target, err := newEinoMCPTool(db, connection, definition, newAgentHarness(model.DefaultAgentConfig()))
 	require.NoError(t, err)
 	target.ownerID = 11
 	target.runID = 9

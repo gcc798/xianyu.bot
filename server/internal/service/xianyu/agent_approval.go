@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/gcc798/xianyu.bot/internal/infra"
 	"github.com/gcc798/xianyu.bot/internal/model/xianyu"
 	"github.com/mark3labs/mcp-go/mcp"
 )
@@ -17,18 +16,18 @@ func (s *agentRunner) Approve(ctx context.Context, ownerID, runID uint) (model.A
 		return model.AgentRunTool{}, errors.New("运行标识不能为空")
 	}
 	var run model.AgentRun
-	if err := infra.DB.WithContext(ctx).Where("id = ? AND owner_id = ?", runID, ownerID).First(&run).Error; err != nil {
+	if err := s.db.WithContext(ctx).Where("id = ? AND owner_id = ?", runID, ownerID).First(&run).Error; err != nil {
 		return model.AgentRunTool{}, err
 	}
 	var calls []model.AgentRunTool
-	if err := infra.DB.WithContext(ctx).Where("run_id = ? AND status = ?", runID, "waiting_approval").Order("id").Find(&calls).Error; err != nil {
+	if err := s.db.WithContext(ctx).Where("run_id = ? AND status = ?", runID, "waiting_approval").Order("id").Find(&calls).Error; err != nil {
 		return model.AgentRunTool{}, err
 	}
 	if len(calls) == 0 {
 		return model.AgentRunTool{}, errors.New("当前运行没有待确认操作")
 	}
 	call := calls[0]
-	claimed := infra.DB.WithContext(ctx).Model(&call).Where("status = ?", "waiting_approval").Updates(map[string]any{
+	claimed := s.db.WithContext(ctx).Model(&call).Where("status = ?", "waiting_approval").Updates(map[string]any{
 		"status": "approving", "error_code": "", "error_message": "",
 	})
 	if claimed.Error != nil {
@@ -73,7 +72,7 @@ func (s *agentRunner) executeApproval(ctx context.Context, run model.AgentRun, c
 	}
 	var task *model.ResourceTask
 	if call.ToolName == "resource_acquire" {
-		task, err = prepareResourceApproval(ctx, run.OwnerID, call, input)
+		task, err = s.prepareResourceApproval(ctx, run.OwnerID, call, input)
 		if err != nil {
 			return err
 		}
@@ -82,29 +81,29 @@ func (s *agentRunner) executeApproval(ctx context.Context, run model.AgentRun, c
 	defer cancel()
 	result, err := connection.Client.CallTool(requestContext, mcp.CallToolRequest{Params: mcp.CallToolParams{Name: call.ToolName, Arguments: input}})
 	if err != nil {
-		failApprovedResourceTask(ctx, task)
+		s.failApprovedResourceTask(ctx, task)
 		return errors.New("MCP 能力暂不可用")
 	}
 	payload, err := json.Marshal(result)
 	if err != nil {
 		return errors.New("MCP 工具结果无效")
 	}
-	if err := infra.DB.WithContext(ctx).Model(call).Update("result", string(payload)).Error; err != nil {
+	if err := s.db.WithContext(ctx).Model(call).Update("result", string(payload)).Error; err != nil {
 		return err
 	}
 	resultValue := mcpToolResultValue(result)
 	if result.IsError || !approvedResultSucceeded(resultValue) {
-		failApprovedResourceTask(ctx, task)
+		s.failApprovedResourceTask(ctx, task)
 		return errors.New("MCP 操作执行失败")
 	}
 	if task != nil {
 		externalTaskID := approvedExternalTaskID(resultValue)
 		if externalTaskID == "" {
-			failApprovedResourceTask(ctx, task)
+			s.failApprovedResourceTask(ctx, task)
 			return errors.New("MCP 操作未返回任务标识")
 		}
 		now := time.Now()
-		if err := infra.DB.WithContext(ctx).Model(task).Updates(map[string]any{
+		if err := s.db.WithContext(ctx).Model(task).Updates(map[string]any{
 			"external_task_id": externalTaskID, "state": "running", "stage": "submitted", "started_at": now,
 		}).Error; err != nil {
 			return err
@@ -123,12 +122,12 @@ func approvedResultSucceeded(value any) bool {
 	return result.Status == "" || result.Status == "success"
 }
 
-func failApprovedResourceTask(ctx context.Context, task *model.ResourceTask) {
+func (s *agentRunner) failApprovedResourceTask(ctx context.Context, task *model.ResourceTask) {
 	if task == nil {
 		return
 	}
 	now := time.Now()
-	_ = infra.DB.WithContext(ctx).Model(task).Updates(map[string]any{
+	_ = s.db.WithContext(ctx).Model(task).Updates(map[string]any{
 		"state": "failed", "stage": "submit_failed", "error_code": "capability_unavailable",
 		"error_message": "MCP 能力暂不可用", "completed_at": now,
 	}).Error
@@ -148,24 +147,24 @@ func approvedTool(connections []*mcpConnection, serverCode, toolName string) (*m
 	return nil, mcp.Tool{}
 }
 
-func prepareResourceApproval(ctx context.Context, ownerID uint, call *model.AgentRunTool, input map[string]any) (*model.ResourceTask, error) {
+func (s *agentRunner) prepareResourceApproval(ctx context.Context, ownerID uint, call *model.AgentRunTool, input map[string]any) (*model.ResourceTask, error) {
 	externalID, _ := input["candidate_id"].(string)
 	if externalID == "" {
 		return nil, errors.New("资源候选无效")
 	}
 	var candidate model.ResourceCandidate
-	if err := infra.DB.WithContext(ctx).Table("xy_resource_candidates AS c").
+	if err := s.db.WithContext(ctx).Table("xy_resource_candidates AS c").
 		Joins("JOIN xy_resource_searches AS s ON s.id = c.search_id AND s.deleted_at IS NULL").
 		Where("c.external_id = ? AND c.mcp_server_code = ? AND c.deleted_at IS NULL AND s.owner_id = ?", externalID, call.MCPServerCode, ownerID).
 		Select("c.*").Order("c.id DESC").First(&candidate).Error; err != nil {
 		return nil, err
 	}
 	idempotencyKey := fmt.Sprintf("agent-run-%d-tool-%d", call.RunID, call.ID)
-	grant, err := new(resourceCatalog).CreateDeliveryTask(ctx, ownerID, candidate.ID, idempotencyKey)
+	grant, err := s.resources.CreateDeliveryTask(ctx, ownerID, candidate.ID, idempotencyKey)
 	if err != nil {
 		return nil, err
 	}
-	if err := infra.DB.WithContext(ctx).Model(&grant.Task).Update("agent_run_id", call.RunID).Error; err != nil {
+	if err := s.db.WithContext(ctx).Model(&grant.Task).Update("agent_run_id", call.RunID).Error; err != nil {
 		return nil, err
 	}
 	grant.Task.AgentRunID = new(call.RunID)
@@ -190,7 +189,7 @@ func (s *agentRunner) finishApproval(ctx context.Context, call *model.AgentRunTo
 	completedAt := time.Now()
 	finishContext, cancel := agentFinishContext(ctx)
 	defer cancel()
-	err := infra.DB.WithContext(finishContext).Model(call).Updates(map[string]any{
+	err := s.db.WithContext(finishContext).Model(call).Updates(map[string]any{
 		"status": status, "error_code": errorCode, "error_message": errorMessage, "completed_at": completedAt,
 	}).Error
 	if err == nil {

@@ -26,9 +26,11 @@ func New(deps Dependencies) *Services {
 	messages.sender = webSocket
 	orders.sender = webSocket
 	webSocket.delivery = deliveries
-	agentEvents := newAgentEventHub()
-	agentRunner := &agentRunner{events: agentEvents, workers: make(map[uint]context.CancelFunc)}
-	return &Services{Status: status{db: deps.DB}, Account: *accounts, Product: *products, Message: messages, ReplyRule: *rules, DeliveryRule: *deliveryRules, Delivery: deliveries, Relist: relists, Order: orders, QRLogin: newQRLogin(accounts), WebSocket: webSocket, BusinessEvent: *events, AIConfig: aiConfig{db: deps.DB}, Resource: resourceCatalog{events: agentEvents}, AgentSession: agentSession{db: deps.DB}, AgentRunner: agentRunner, AgentEvents: agentEvents}
+	agentEvents := newAgentEventHub(deps.DB)
+	mcpRegistry := &mcpRegistry{db: deps.DB}
+	resources := resourceCatalog{db: deps.DB, events: agentEvents, registry: mcpRegistry}
+	agentRunner := &agentRunner{db: deps.DB, registry: mcpRegistry, resources: &resources, events: agentEvents, workers: make(map[uint]context.CancelFunc)}
+	return &Services{Status: status{db: deps.DB}, Account: *accounts, Product: *products, Message: messages, ReplyRule: *rules, DeliveryRule: *deliveryRules, Delivery: deliveries, Relist: relists, Order: orders, QRLogin: newQRLogin(accounts), WebSocket: webSocket, BusinessEvent: *events, AIConfig: aiConfig{db: deps.DB}, Resource: resources, AgentSession: agentSession{db: deps.DB}, AgentRunner: agentRunner, AgentEvents: agentEvents}
 }
 
 type Services struct {

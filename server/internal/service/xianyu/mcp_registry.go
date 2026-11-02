@@ -8,11 +8,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gcc798/xianyu.bot/internal/infra"
 	"github.com/gcc798/xianyu.bot/internal/model/xianyu"
 	"github.com/mark3labs/mcp-go/client"
 	"github.com/mark3labs/mcp-go/client/transport"
 	"github.com/mark3labs/mcp-go/mcp"
+	"gorm.io/gorm"
 )
 
 type connectedMCPClient interface {
@@ -32,12 +32,13 @@ type mcpConnection struct {
 func (c *mcpConnection) Close() error { return c.Client.Close() }
 
 type mcpRegistry struct {
+	db      *gorm.DB
 	connect func(context.Context, model.MCPServer) (*mcpConnection, error)
 }
 
 func (r *mcpRegistry) Discover(ctx context.Context) ([]*mcpConnection, error) {
 	servers := make([]model.MCPServer, 0)
-	if err := infra.DB.WithContext(ctx).Where("enabled = ?", true).Order("id").Find(&servers).Error; err != nil {
+	if err := r.db.WithContext(ctx).Where("enabled = ?", true).Order("id").Find(&servers).Error; err != nil {
 		return nil, err
 	}
 	connect := r.connect
@@ -71,7 +72,7 @@ func (r *mcpRegistry) updateStatus(ctx context.Context, serverID uint, status st
 			message = message[:1000]
 		}
 	}
-	_ = infra.DB.WithContext(ctx).Model(&model.MCPServer{}).Where("id = ?", serverID).Updates(map[string]any{
+	_ = r.db.WithContext(ctx).Model(&model.MCPServer{}).Where("id = ?", serverID).Updates(map[string]any{
 		"last_status": status, "last_checked_at": now, "last_error": message,
 	}).Error
 }

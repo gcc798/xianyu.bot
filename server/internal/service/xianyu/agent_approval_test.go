@@ -5,7 +5,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gcc798/xianyu.bot/internal/infra"
 	"github.com/gcc798/xianyu.bot/internal/model/xianyu"
 	"github.com/glebarez/sqlite"
 	"github.com/mark3labs/mcp-go/mcp"
@@ -20,9 +19,6 @@ func TestAgentRunnerApprovesResourceAcquisitionWithoutPersistingDeliveryToken(t 
 		&model.MCPServer{}, &model.AgentSession{}, &model.AgentRun{}, &model.AgentRunTool{}, &model.AgentEvent{}, &model.ResourceSearch{},
 		&model.ResourceCandidate{}, &model.ResourceTask{},
 	))
-	oldDB := infra.DB
-	infra.DB = db
-	t.Cleanup(func() { infra.DB = oldDB })
 	server := model.MCPServer{Name: "资源服务", Code: "resources", BaseURL: "http://resources/mcp", Enabled: true, RequestTimeoutSeconds: 15, TaskTimeoutSeconds: 60}
 	require.NoError(t, db.Create(&server).Error)
 	search := model.ResourceSearch{OwnerID: 11, Query: "Go", Status: "completed"}
@@ -41,10 +37,11 @@ func TestAgentRunnerApprovesResourceAcquisitionWithoutPersistingDeliveryToken(t 
 	client := &recordingMCPClient{textResult: true, result: map[string]any{
 		"status": "success", "data": map[string]any{"task_id": "resource_acquire:42"},
 	}}
-	registry := &mcpRegistry{connect: func(context.Context, model.MCPServer) (*mcpConnection, error) {
+	registry := &mcpRegistry{db: db, connect: func(context.Context, model.MCPServer) (*mcpConnection, error) {
 		return &mcpConnection{Server: server, Client: client, Tools: []mcp.Tool{{Name: "resource_acquire"}}}, nil
 	}}
-	runner := &agentRunner{registry: registry, events: newAgentEventHub(db)}
+	resources := &resourceCatalog{db: db, events: newAgentEventHub(db), registry: registry}
+	runner := &agentRunner{db: db, registry: registry, resources: resources, events: resources.events}
 
 	_, err = runner.Approve(t.Context(), 22, run.ID)
 	require.Error(t, err)

@@ -15,7 +15,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gcc798/xianyu.bot/internal/infra"
 	"github.com/gcc798/xianyu.bot/internal/model/xianyu"
 	xyRequest "github.com/gcc798/xianyu.bot/internal/model/xianyu/request"
 	xyResponse "github.com/gcc798/xianyu.bot/internal/model/xianyu/response"
@@ -41,6 +40,7 @@ type resourceObjectStore interface {
 }
 
 type resourceCatalog struct {
+	db          *gorm.DB
 	objectStore resourceObjectStore
 	bucket      string
 	events      *agentEventHub
@@ -57,7 +57,7 @@ func (s *resourceCatalog) List(ctx context.Context, ownerID uint, input xyReques
 	if ownerID == 0 {
 		return nil, 0, errors.New("用户未登录")
 	}
-	db := infra.DB.WithContext(ctx).Model(&model.Resource{}).Where("owner_id = ?", ownerID)
+	db := s.db.WithContext(ctx).Model(&model.Resource{}).Where("owner_id = ?", ownerID)
 	if keyword := strings.TrimSpace(input.Keyword); keyword != "" {
 		db = db.Where("name LIKE ?", "%"+keyword+"%")
 	}
@@ -81,11 +81,11 @@ func (s *resourceCatalog) Get(ctx context.Context, ownerID, resourceID uint) (xy
 		return xyResponse.ResourceDetail{}, errors.New("资源 ID 不能为空")
 	}
 	var resource model.Resource
-	if err := infra.DB.WithContext(ctx).Where("id = ? AND owner_id = ?", resourceID, ownerID).First(&resource).Error; err != nil {
+	if err := s.db.WithContext(ctx).Where("id = ? AND owner_id = ?", resourceID, ownerID).First(&resource).Error; err != nil {
 		return xyResponse.ResourceDetail{}, err
 	}
 	sources := make([]model.ResourceSource, 0)
-	if err := infra.DB.WithContext(ctx).Where("resource_id = ?", resourceID).Order("id").Find(&sources).Error; err != nil {
+	if err := s.db.WithContext(ctx).Where("resource_id = ?", resourceID).Order("id").Find(&sources).Error; err != nil {
 		return xyResponse.ResourceDetail{}, err
 	}
 	return xyResponse.ResourceDetail{Resource: resource, Sources: sources}, nil
@@ -96,7 +96,7 @@ func (s *resourceCatalog) GetTask(ctx context.Context, ownerID, taskID uint) (mo
 		return model.ResourceTask{}, errors.New("任务 ID 不能为空")
 	}
 	var task model.ResourceTask
-	err := infra.DB.WithContext(ctx).Where("id = ? AND owner_id = ?", taskID, ownerID).First(&task).Error
+	err := s.db.WithContext(ctx).Where("id = ? AND owner_id = ?", taskID, ownerID).First(&task).Error
 	return task, err
 }
 
@@ -113,7 +113,7 @@ func (s *resourceCatalog) CancelTask(ctx context.Context, ownerID, taskID uint) 
 	}
 	registry := s.registry
 	if registry == nil {
-		registry = new(mcpRegistry)
+		registry = &mcpRegistry{db: s.db}
 	}
 	connections, err := registry.Discover(ctx)
 	if err != nil {
@@ -133,7 +133,7 @@ func (s *resourceCatalog) CancelTask(ctx context.Context, ownerID, taskID uint) 
 		return model.ResourceTask{}, errors.New("MCP 能力暂不可用")
 	}
 	completedAt := time.Now()
-	if err := infra.DB.WithContext(ctx).Model(&task).Where("state IN ?", []string{"queued", "running"}).Updates(map[string]any{
+	if err := s.db.WithContext(ctx).Model(&task).Where("state IN ?", []string{"queued", "running"}).Updates(map[string]any{
 		"state": "cancelled", "stage": "cancelled", "completed_at": completedAt,
 	}).Error; err != nil {
 		return model.ResourceTask{}, err
@@ -148,7 +148,7 @@ func (s *resourceCatalog) Download(ctx context.Context, ownerID, resourceID uint
 		return "", time.Time{}, errors.New("资源 ID 不能为空")
 	}
 	var resource model.Resource
-	if err := infra.DB.WithContext(ctx).Where("id = ? AND owner_id = ? AND state = ?", resourceID, ownerID, "available").First(&resource).Error; err != nil {
+	if err := s.db.WithContext(ctx).Where("id = ? AND owner_id = ? AND state = ?", resourceID, ownerID, "available").First(&resource).Error; err != nil {
 		return "", time.Time{}, err
 	}
 	store, _, err := s.storage()
@@ -174,7 +174,7 @@ func (s *resourceCatalog) CreateDeliveryTask(ctx context.Context, ownerID, candi
 	expiresAt := time.Now().Add(resourceDeliveryTTL)
 	tokenHash := sha256.Sum256([]byte(token))
 	var task model.ResourceTask
-	err := infra.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var candidate model.ResourceCandidate
 		if err := tx.Table("xy_resource_candidates AS c").
 			Joins("JOIN xy_resource_searches AS s ON s.id = c.search_id AND s.deleted_at IS NULL").
@@ -243,7 +243,7 @@ func (s *resourceCatalog) PresignDelivery(ctx context.Context, taskID uint, toke
 	if err != nil {
 		return "", time.Time{}, fmt.Errorf("生成上传地址: %w", err)
 	}
-	if err := infra.DB.WithContext(ctx).Model(&task).Where("state = ?", "queued").Update("state", "running").Error; err != nil {
+	if err := s.db.WithContext(ctx).Model(&task).Where("state = ?", "queued").Update("state", "running").Error; err != nil {
 		return "", time.Time{}, err
 	}
 	return uploadURL.String(), expiresAt, nil
@@ -274,7 +274,7 @@ func (s *resourceCatalog) CompleteDelivery(ctx context.Context, taskID uint, tok
 	}
 
 	var resource model.Resource
-	err = infra.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := tx.Where("task_id = ? AND owner_id = ?", task.ID, task.OwnerID).First(&resource).Error; err == nil {
 			return nil
 		} else if !errors.Is(err, gorm.ErrRecordNotFound) {
@@ -341,10 +341,10 @@ func (s *resourceCatalog) UpdateDelivery(ctx context.Context, taskID uint, token
 	if task.StartedAt == nil {
 		updates["started_at"] = time.Now()
 	}
-	if err := infra.DB.WithContext(ctx).Model(&task).Updates(updates).Error; err != nil {
+	if err := s.db.WithContext(ctx).Model(&task).Updates(updates).Error; err != nil {
 		return model.ResourceTask{}, err
 	}
-	if err := infra.DB.WithContext(ctx).First(&task, task.ID).Error; err != nil {
+	if err := s.db.WithContext(ctx).First(&task, task.ID).Error; err != nil {
 		return model.ResourceTask{}, err
 	}
 	s.publishResourceTaskEvent(ctx, task, "task.updated", nil)
@@ -360,7 +360,7 @@ func (s *resourceCatalog) FailDelivery(ctx context.Context, taskID uint, token s
 		return model.ResourceTask{}, errors.New("资源任务已结束")
 	}
 	completedAt := time.Now()
-	if err := infra.DB.WithContext(ctx).Model(&task).Updates(map[string]any{
+	if err := s.db.WithContext(ctx).Model(&task).Updates(map[string]any{
 		"state": "failed", "stage": "failed", "error_code": input.ErrorCode,
 		"error_message": input.ErrorMessage, "completed_at": completedAt,
 	}).Error; err != nil {
@@ -376,7 +376,7 @@ func (s *resourceCatalog) publishResourceTaskEvent(ctx context.Context, task mod
 		return
 	}
 	var run model.AgentRun
-	if err := infra.DB.WithContext(ctx).Where("id = ? AND owner_id = ?", *task.AgentRunID, task.OwnerID).First(&run).Error; err != nil {
+	if err := s.db.WithContext(ctx).Where("id = ? AND owner_id = ?", *task.AgentRunID, task.OwnerID).First(&run).Error; err != nil {
 		return
 	}
 	data := map[string]any{
@@ -395,7 +395,7 @@ func (s *resourceCatalog) deliveryTask(ctx context.Context, taskID uint, token s
 		return model.ResourceTask{}, errors.New("交付授权无效")
 	}
 	var task model.ResourceTask
-	if err := infra.DB.WithContext(ctx).First(&task, taskID).Error; err != nil {
+	if err := s.db.WithContext(ctx).First(&task, taskID).Error; err != nil {
 		return model.ResourceTask{}, err
 	}
 	providedHash := sha256.Sum256([]byte(token))
