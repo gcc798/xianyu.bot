@@ -1,8 +1,8 @@
 package system
 
 import (
-	"github.com/gcc798/xianyu.bot/internal/model/common/response"
-	"github.com/gcc798/xianyu.bot/internal/model/system"
+	"github.com/gcc798/xianyu.bot/internal/model"
+	"github.com/gcc798/xianyu.bot/internal/model/response"
 	"github.com/gcc798/xianyu.bot/internal/security"
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
@@ -20,7 +20,7 @@ type JWTAPI struct{ *dependencies }
 // @Router    /jwt/jsonInBlacklist [post]
 func (j *JWTAPI) Revoke(c *gin.Context) {
 	token := security.GetToken(c)
-	err := j.services.RevokedTokens.Revoke(system.RevokedToken{Token: token})
+	err := j.services.RevokedTokens.Revoke(model.RevokedToken{Token: token})
 	if err != nil {
 		zap.L().Error("jwt作废失败!", zap.Error(err))
 		response.FailWithMessage("jwt作废失败", c)

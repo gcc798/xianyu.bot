@@ -4,16 +4,16 @@ import (
 	"errors"
 	"strconv"
 
-	"github.com/gcc798/xianyu.bot/internal/model/system"
-	"github.com/gcc798/xianyu.bot/internal/model/system/request"
+	"github.com/gcc798/xianyu.bot/internal/model"
+	"github.com/gcc798/xianyu.bot/internal/model/request"
 	"gorm.io/gorm"
 )
 
 type DictionaryDetailService struct{ db *gorm.DB }
 
-func (dictionaryDetailService *DictionaryDetailService) Create(detail system.DictionaryDetail) error {
+func (dictionaryDetailService *DictionaryDetailService) Create(detail model.DictionaryDetail) error {
 	if detail.ParentID != nil {
-		var parent system.DictionaryDetail
+		var parent model.DictionaryDetail
 		if err := dictionaryDetailService.db.First(&parent, *detail.ParentID).Error; err != nil {
 			return err
 		}
@@ -26,9 +26,9 @@ func (dictionaryDetailService *DictionaryDetailService) Create(detail system.Dic
 	return dictionaryDetailService.db.Create(&detail).Error
 }
 
-func (dictionaryDetailService *DictionaryDetailService) Delete(detail system.DictionaryDetail) error {
+func (dictionaryDetailService *DictionaryDetailService) Delete(detail model.DictionaryDetail) error {
 	var childCount int64
-	if err := dictionaryDetailService.db.Model(&system.DictionaryDetail{}).Where("parent_id = ?", detail.ID).Count(&childCount).Error; err != nil {
+	if err := dictionaryDetailService.db.Model(&model.DictionaryDetail{}).Where("parent_id = ?", detail.ID).Count(&childCount).Error; err != nil {
 		return err
 	}
 	if childCount > 0 {
@@ -37,9 +37,9 @@ func (dictionaryDetailService *DictionaryDetailService) Delete(detail system.Dic
 	return dictionaryDetailService.db.Delete(&detail).Error
 }
 
-func (dictionaryDetailService *DictionaryDetailService) Update(detail *system.DictionaryDetail) error {
+func (dictionaryDetailService *DictionaryDetailService) Update(detail *model.DictionaryDetail) error {
 	if detail.ParentID != nil {
-		var parent system.DictionaryDetail
+		var parent model.DictionaryDetail
 		if err := dictionaryDetailService.db.First(&parent, *detail.ParentID).Error; err != nil {
 			return err
 		}
@@ -62,7 +62,7 @@ func (dictionaryDetailService *DictionaryDetailService) hasCircularReference(id,
 	if id == parentID {
 		return true
 	}
-	var parent system.DictionaryDetail
+	var parent model.DictionaryDetail
 	if err := dictionaryDetailService.db.First(&parent, parentID).Error; err != nil || parent.ParentID == nil {
 		return false
 	}
@@ -70,11 +70,11 @@ func (dictionaryDetailService *DictionaryDetailService) hasCircularReference(id,
 }
 
 func (dictionaryDetailService *DictionaryDetailService) updateChildrenPath(parentID uint) error {
-	var parent system.DictionaryDetail
+	var parent model.DictionaryDetail
 	if err := dictionaryDetailService.db.First(&parent, parentID).Error; err != nil {
 		return err
 	}
-	var children []system.DictionaryDetail
+	var children []model.DictionaryDetail
 	if err := dictionaryDetailService.db.Where("parent_id = ?", parentID).Find(&children).Error; err != nil {
 		return err
 	}
@@ -91,7 +91,7 @@ func (dictionaryDetailService *DictionaryDetailService) updateChildrenPath(paren
 	return nil
 }
 
-func dictionaryPath(parent system.DictionaryDetail) string {
+func dictionaryPath(parent model.DictionaryDetail) string {
 	parentID := strconv.FormatUint(uint64(parent.ID), 10)
 	if parent.Path == "" {
 		return parentID
@@ -99,8 +99,8 @@ func dictionaryPath(parent system.DictionaryDetail) string {
 	return parent.Path + "," + parentID
 }
 
-func (dictionaryDetailService *DictionaryDetailService) List(search request.DictionaryDetailSearch) ([]system.DictionaryDetail, int64, error) {
-	query := dictionaryDetailService.db.Model(&system.DictionaryDetail{})
+func (dictionaryDetailService *DictionaryDetailService) List(search request.DictionaryDetailSearch) ([]model.DictionaryDetail, int64, error) {
+	query := dictionaryDetailService.db.Model(&model.DictionaryDetail{})
 	if search.Label != "" {
 		query = query.Where("label LIKE ?", "%"+search.Label+"%")
 	}
@@ -123,7 +123,7 @@ func (dictionaryDetailService *DictionaryDetailService) List(search request.Dict
 	if err := query.Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
-	var details []system.DictionaryDetail
+	var details []model.DictionaryDetail
 	offset := search.PageSize * (search.Page - 1)
 	err := query.Limit(search.PageSize).Offset(offset).Order("sort").Order("id").Find(&details).Error
 	return details, total, err

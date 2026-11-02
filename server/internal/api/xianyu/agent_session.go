@@ -6,9 +6,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gcc798/xianyu.bot/internal/model/common/response"
-	xyRequest "github.com/gcc798/xianyu.bot/internal/model/xianyu/request"
-	xyResponse "github.com/gcc798/xianyu.bot/internal/model/xianyu/response"
+	xyRequest "github.com/gcc798/xianyu.bot/internal/model/request"
+	"github.com/gcc798/xianyu.bot/internal/model/response"
+	xyResponse "github.com/gcc798/xianyu.bot/internal/model/response"
 	"github.com/gcc798/xianyu.bot/internal/security"
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"

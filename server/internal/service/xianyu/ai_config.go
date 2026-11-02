@@ -8,8 +8,8 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/gcc798/xianyu.bot/internal/model/xianyu"
-	xyRequest "github.com/gcc798/xianyu.bot/internal/model/xianyu/request"
+	"github.com/gcc798/xianyu.bot/internal/model"
+	xyRequest "github.com/gcc798/xianyu.bot/internal/model/request"
 	"gorm.io/gorm"
 )
 

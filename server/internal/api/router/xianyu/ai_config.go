@@ -1,7 +1,7 @@
 package router
 
 import (
-	"github.com/gcc798/xianyu.bot/internal/model/common/response"
+	"github.com/gcc798/xianyu.bot/internal/model/response"
 	"github.com/gcc798/xianyu.bot/internal/security"
 	"github.com/gin-gonic/gin"
 )

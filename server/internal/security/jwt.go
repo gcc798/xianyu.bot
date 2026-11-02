@@ -6,8 +6,8 @@ import (
 	"time"
 
 	"github.com/gcc798/xianyu.bot/internal/config"
-	"github.com/gcc798/xianyu.bot/internal/model/system"
-	"github.com/gcc798/xianyu.bot/internal/model/system/request"
+	"github.com/gcc798/xianyu.bot/internal/model"
+	"github.com/gcc798/xianyu.bot/internal/model/request"
 	jwt "github.com/golang-jwt/jwt/v5"
 	"golang.org/x/sync/singleflight"
 )
@@ -102,7 +102,7 @@ func (j *JWT) ParseToken(tokenString string) (*request.CustomClaims, error) {
 
 func (j *JWT) ExpiresIn() time.Duration { return j.expires }
 
-func (j *JWT) LoginToken(user *system.User) (string, request.CustomClaims, error) {
+func (j *JWT) LoginToken(user *model.User) (string, request.CustomClaims, error) {
 	claims := j.CreateClaims(request.BaseClaims{
 		UUID: user.UUID, ID: user.ID, NickName: user.NickName,
 		Username: user.Username, AuthorityID: user.AuthorityID,

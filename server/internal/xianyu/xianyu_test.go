@@ -3,7 +3,7 @@ package xianyu
 import (
 	"testing"
 
-	"github.com/gcc798/xianyu.bot/internal/model/xianyu"
+	"github.com/gcc798/xianyu.bot/internal/model"
 	"github.com/glebarez/sqlite"
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"

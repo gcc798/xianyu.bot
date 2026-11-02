@@ -1,9 +1,9 @@
 package system
 
 import (
-	"github.com/gcc798/xianyu.bot/internal/model/common/response"
-	"github.com/gcc798/xianyu.bot/internal/model/system"
-	"github.com/gcc798/xianyu.bot/internal/model/system/request"
+	"github.com/gcc798/xianyu.bot/internal/model"
+	"github.com/gcc798/xianyu.bot/internal/model/request"
+	"github.com/gcc798/xianyu.bot/internal/model/response"
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 )
@@ -11,7 +11,7 @@ import (
 type DictionaryAPI struct{ *dependencies }
 
 func (s *DictionaryAPI) Create(c *gin.Context) {
-	var dictionary system.Dictionary
+	var dictionary model.Dictionary
 	if err := c.ShouldBindJSON(&dictionary); err != nil {
 		response.FailWithMessage(err.Error(), c)
 		return
@@ -25,7 +25,7 @@ func (s *DictionaryAPI) Create(c *gin.Context) {
 }
 
 func (s *DictionaryAPI) Delete(c *gin.Context) {
-	var dictionary system.Dictionary
+	var dictionary model.Dictionary
 	if err := c.ShouldBindJSON(&dictionary); err != nil {
 		response.FailWithMessage(err.Error(), c)
 		return
@@ -39,7 +39,7 @@ func (s *DictionaryAPI) Delete(c *gin.Context) {
 }
 
 func (s *DictionaryAPI) Update(c *gin.Context) {
-	var dictionary system.Dictionary
+	var dictionary model.Dictionary
 	if err := c.ShouldBindJSON(&dictionary); err != nil {
 		response.FailWithMessage(err.Error(), c)
 		return

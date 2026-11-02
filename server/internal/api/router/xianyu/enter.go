@@ -1,6 +1,6 @@
 package router
 
-import "github.com/gcc798/xianyu.bot/internal/api/xianyu"
+import api "github.com/gcc798/xianyu.bot/internal/api/xianyu"
 
 type dependencies struct {
 	handlers *api.API

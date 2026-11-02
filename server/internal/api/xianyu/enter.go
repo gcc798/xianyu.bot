@@ -1,6 +1,6 @@
 package api
 
-import "github.com/gcc798/xianyu.bot/internal/service/xianyu"
+import service "github.com/gcc798/xianyu.bot/internal/service/xianyu"
 
 type dependencies struct {
 	services *service.Services

@@ -5,9 +5,9 @@ import (
 	"errors"
 	"strings"
 
-	"github.com/gcc798/xianyu.bot/internal/model/xianyu"
-	xyRequest "github.com/gcc798/xianyu.bot/internal/model/xianyu/request"
-	xyResponse "github.com/gcc798/xianyu.bot/internal/model/xianyu/response"
+	"github.com/gcc798/xianyu.bot/internal/model"
+	xyRequest "github.com/gcc798/xianyu.bot/internal/model/request"
+	xyResponse "github.com/gcc798/xianyu.bot/internal/model/response"
 	"gorm.io/gorm"
 )
 

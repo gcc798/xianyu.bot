@@ -18,7 +18,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gcc798/xianyu.bot/internal/model/xianyu"
+	"github.com/gcc798/xianyu.bot/internal/model"
 	_ "golang.org/x/image/webp"
 	"gorm.io/gorm"
 )

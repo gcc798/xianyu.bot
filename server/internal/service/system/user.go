@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/gcc798/xianyu.bot/internal/model/system"
-	systemReq "github.com/gcc798/xianyu.bot/internal/model/system/request"
+	"github.com/gcc798/xianyu.bot/internal/model"
+	systemReq "github.com/gcc798/xianyu.bot/internal/model/request"
 	"github.com/gcc798/xianyu.bot/internal/security"
 	"github.com/google/uuid"
 	"gorm.io/gorm"
@@ -14,14 +14,14 @@ import (
 
 type UserService struct{ db *gorm.DB }
 
-func (userService *UserService) Register(user system.User) (system.User, error) {
-	var existing system.User
+func (userService *UserService) Register(user model.User) (model.User, error) {
+	var existing model.User
 	err := userService.db.Where("username = ?", user.Username).First(&existing).Error
 	if err == nil {
-		return system.User{}, errors.New("用户名已注册")
+		return model.User{}, errors.New("用户名已注册")
 	}
 	if !errors.Is(err, gorm.ErrRecordNotFound) {
-		return system.User{}, err
+		return model.User{}, err
 	}
 	user.AuthorityID = normalizeAuthorityID(user.AuthorityID)
 	if user.Enable == 0 {
@@ -32,11 +32,11 @@ func (userService *UserService) Register(user system.User) (system.User, error) 
 	return user, userService.db.Create(&user).Error
 }
 
-func (userService *UserService) Login(input *system.User) (*system.User, error) {
+func (userService *UserService) Login(input *model.User) (*model.User, error) {
 	if userService.db == nil {
 		return nil, fmt.Errorf("db not init")
 	}
-	var user system.User
+	var user model.User
 	if err := userService.db.Where("username = ?", input.Username).First(&user).Error; err != nil {
 		return nil, err
 	}
@@ -46,8 +46,8 @@ func (userService *UserService) Login(input *system.User) (*system.User, error) 
 	return &user, nil
 }
 
-func (userService *UserService) ChangePassword(user *system.User, newPassword string) error {
-	var stored system.User
+func (userService *UserService) ChangePassword(user *model.User, newPassword string) error {
+	var stored model.User
 	if err := userService.db.Select("id, password").Where("id = ?", user.ID).First(&stored).Error; err != nil {
 		return err
 	}
@@ -57,8 +57,8 @@ func (userService *UserService) ChangePassword(user *system.User, newPassword st
 	return userService.db.Model(&stored).Update("password", security.BcryptHash(newPassword)).Error
 }
 
-func (userService *UserService) List(info systemReq.UserSearch) ([]system.User, int64, error) {
-	db := userService.db.Model(&system.User{})
+func (userService *UserService) List(info systemReq.UserSearch) ([]model.User, int64, error) {
+	db := userService.db.Model(&model.User{})
 	for column, value := range map[string]string{
 		"username":  info.Username,
 		"nick_name": info.NickName,
@@ -81,7 +81,7 @@ func (userService *UserService) List(info systemReq.UserSearch) ([]system.User, 
 			order += " desc"
 		}
 	}
-	var users []system.User
+	var users []model.User
 	if err := db.Scopes(info.Paginate()).Order(order).Find(&users).Error; err != nil {
 		return nil, 0, err
 	}
@@ -89,36 +89,36 @@ func (userService *UserService) List(info systemReq.UserSearch) ([]system.User, 
 }
 
 func (userService *UserService) DeleteUser(id int) error {
-	return userService.db.Delete(&system.User{}, id).Error
+	return userService.db.Delete(&model.User{}, id).Error
 }
 
-func (userService *UserService) SetUserInfo(user system.User) error {
+func (userService *UserService) SetUserInfo(user model.User) error {
 	user.AuthorityID = normalizeAuthorityID(user.AuthorityID)
-	return userService.db.Model(&system.User{}).Where("id = ?", user.ID).Updates(map[string]any{
+	return userService.db.Model(&model.User{}).Where("id = ?", user.ID).Updates(map[string]any{
 		"updated_at": time.Now(), "nick_name": user.NickName, "header_img": user.HeaderImage,
 		"phone": user.Phone, "email": user.Email, "enable": user.Enable, "authority_id": user.AuthorityID,
 	}).Error
 }
 
 func normalizeAuthorityID(authorityID uint) uint {
-	if authorityID == system.AdministratorAuthorityID {
+	if authorityID == model.AdministratorAuthorityID {
 		return authorityID
 	}
-	return system.UserAuthorityID
+	return model.UserAuthorityID
 }
 
-func (userService *UserService) SetSelfInfo(user system.User) error {
-	return userService.db.Model(&system.User{}).Where("id = ?", user.ID).Updates(map[string]any{
+func (userService *UserService) SetSelfInfo(user model.User) error {
+	return userService.db.Model(&model.User{}).Where("id = ?", user.ID).Updates(map[string]any{
 		"updated_at": time.Now(), "nick_name": user.NickName, "header_img": user.HeaderImage,
 		"phone": user.Phone, "email": user.Email,
 	}).Error
 }
 
-func (userService *UserService) GetUserInfo(userUUID uuid.UUID) (user system.User, err error) {
+func (userService *UserService) GetUserInfo(userUUID uuid.UUID) (user model.User, err error) {
 	err = userService.db.First(&user, "uuid = ?", userUUID).Error
 	return user, err
 }
 
 func (userService *UserService) ResetPassword(id uint, password string) error {
-	return userService.db.Model(&system.User{}).Where("id = ?", id).Update("password", security.BcryptHash(password)).Error
+	return userService.db.Model(&model.User{}).Where("id = ?", id).Update("password", security.BcryptHash(password)).Error
 }

@@ -18,8 +18,8 @@ import (
 	"github.com/cloudwego/eino/components/tool"
 	"github.com/cloudwego/eino/compose"
 	"github.com/cloudwego/eino/schema"
-	"github.com/gcc798/xianyu.bot/internal/model/xianyu"
-	xyRequest "github.com/gcc798/xianyu.bot/internal/model/xianyu/request"
+	"github.com/gcc798/xianyu.bot/internal/model"
+	xyRequest "github.com/gcc798/xianyu.bot/internal/model/request"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
 )

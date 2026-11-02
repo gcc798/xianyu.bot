@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gcc798/xianyu.bot/internal/model/xianyu"
+	"github.com/gcc798/xianyu.bot/internal/model"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/stretchr/testify/require"
 )

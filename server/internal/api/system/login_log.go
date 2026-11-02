@@ -1,9 +1,9 @@
 package system
 
 import (
-	"github.com/gcc798/xianyu.bot/internal/model/common/response"
-	"github.com/gcc798/xianyu.bot/internal/model/system"
-	systemReq "github.com/gcc798/xianyu.bot/internal/model/system/request"
+	"github.com/gcc798/xianyu.bot/internal/model"
+	systemReq "github.com/gcc798/xianyu.bot/internal/model/request"
+	"github.com/gcc798/xianyu.bot/internal/model/response"
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 )
@@ -11,7 +11,7 @@ import (
 type LoginLogAPI struct{ *dependencies }
 
 func (s *LoginLogAPI) Delete(c *gin.Context) {
-	var loginLog system.LoginLog
+	var loginLog model.LoginLog
 	err := c.ShouldBindJSON(&loginLog)
 	if err != nil {
 		response.FailWithMessage(err.Error(), c)

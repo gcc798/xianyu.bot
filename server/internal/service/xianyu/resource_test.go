@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gcc798/xianyu.bot/internal/model/xianyu"
-	xyRequest "github.com/gcc798/xianyu.bot/internal/model/xianyu/request"
+	"github.com/gcc798/xianyu.bot/internal/model"
+	xyRequest "github.com/gcc798/xianyu.bot/internal/model/request"
 	"github.com/glebarez/sqlite"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/minio/minio-go/v7"

@@ -4,13 +4,13 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/gcc798/xianyu.bot/internal/auth"
-	"github.com/gcc798/xianyu.bot/internal/model/system"
+	"github.com/gcc798/xianyu.bot/internal/model"
 	"gorm.io/gorm"
 )
 
 type RevokedTokenService struct{ db *gorm.DB }
 
-func (revokedTokens *RevokedTokenService) Revoke(token system.RevokedToken) error {
+func (revokedTokens *RevokedTokenService) Revoke(token model.RevokedToken) error {
 	if err := revokedTokens.db.Create(&token).Error; err != nil {
 		return err
 	}
@@ -20,7 +20,7 @@ func (revokedTokens *RevokedTokenService) Revoke(token system.RevokedToken) erro
 
 func (revokedTokens *RevokedTokenService) Load() {
 	var data []string
-	err := revokedTokens.db.Model(&system.RevokedToken{}).Select("jwt").Find(&data).Error
+	err := revokedTokens.db.Model(&model.RevokedToken{}).Select("jwt").Find(&data).Error
 	if err != nil {
 		zap.L().Error("加载已撤销令牌失败", zap.Error(err))
 		return

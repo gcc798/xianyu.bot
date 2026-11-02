@@ -13,7 +13,7 @@ import (
 	"github.com/cloudwego/eino/compose"
 	"github.com/cloudwego/eino/schema"
 	"github.com/eino-contrib/jsonschema"
-	"github.com/gcc798/xianyu.bot/internal/model/xianyu"
+	"github.com/gcc798/xianyu.bot/internal/model"
 	"github.com/mark3labs/mcp-go/mcp"
 	"go.uber.org/zap"
 	"gorm.io/gorm"

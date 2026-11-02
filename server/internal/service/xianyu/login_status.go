@@ -14,8 +14,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gcc798/xianyu.bot/internal/model/xianyu"
-	xyResponse "github.com/gcc798/xianyu.bot/internal/model/xianyu/response"
+	"github.com/gcc798/xianyu.bot/internal/model"
+	xyResponse "github.com/gcc798/xianyu.bot/internal/model/response"
 	"gorm.io/gorm"
 )
 

@@ -15,7 +15,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gcc798/xianyu.bot/internal/model/xianyu"
+	"github.com/gcc798/xianyu.bot/internal/model"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
 )

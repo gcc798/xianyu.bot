@@ -6,7 +6,7 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"github.com/gcc798/xianyu.bot/internal/model/xianyu"
+	"github.com/gcc798/xianyu.bot/internal/model"
 	"github.com/glebarez/sqlite"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/stretchr/testify/require"

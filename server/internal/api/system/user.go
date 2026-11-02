@@ -3,12 +3,11 @@ package system
 import (
 	"time"
 
-	"github.com/gcc798/xianyu.bot/internal/model/common"
-	"github.com/gcc798/xianyu.bot/internal/model/common/request"
-	"github.com/gcc798/xianyu.bot/internal/model/common/response"
-	"github.com/gcc798/xianyu.bot/internal/model/system"
-	systemReq "github.com/gcc798/xianyu.bot/internal/model/system/request"
-	systemRes "github.com/gcc798/xianyu.bot/internal/model/system/response"
+	"github.com/gcc798/xianyu.bot/internal/model"
+	"github.com/gcc798/xianyu.bot/internal/model/request"
+	systemReq "github.com/gcc798/xianyu.bot/internal/model/request"
+	"github.com/gcc798/xianyu.bot/internal/model/response"
+	systemRes "github.com/gcc798/xianyu.bot/internal/model/response"
 	"github.com/gcc798/xianyu.bot/internal/security"
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
@@ -24,7 +23,7 @@ func (b *UserAPI) Login(c *gin.Context) {
 		response.FailWithMessage("用户名和密码不能为空", c)
 		return
 	}
-	user, err := b.services.User.Login(&system.User{Username: input.Username, Password: input.Password})
+	user, err := b.services.User.Login(&model.User{Username: input.Username, Password: input.Password})
 	if err != nil {
 		b.recordLogin(c, input.Username, 0, false, "用户名不存在或者密码错误")
 		response.FailWithMessage("用户名不存在或者密码错误", c)
@@ -38,7 +37,7 @@ func (b *UserAPI) Login(c *gin.Context) {
 	b.TokenNext(c, *user)
 }
 
-func (b *UserAPI) TokenNext(c *gin.Context, user system.User) {
+func (b *UserAPI) TokenNext(c *gin.Context, user model.User) {
 	token, claims, err := b.jwt.LoginToken(&user)
 	if err != nil {
 		zap.L().Error("获取 token 失败", zap.Error(err))
@@ -53,7 +52,7 @@ func (b *UserAPI) TokenNext(c *gin.Context, user system.User) {
 }
 
 func (b *UserAPI) recordLogin(c *gin.Context, username string, userID uint, status bool, message string) {
-	if err := b.services.LoginLog.Create(system.LoginLog{
+	if err := b.services.LoginLog.Create(model.LoginLog{
 		Username: username, IP: c.ClientIP(), Agent: c.Request.UserAgent(), Status: status,
 		ErrorMessage: message, UserID: userID,
 	}); err != nil {
@@ -71,7 +70,7 @@ func (b *UserAPI) Register(c *gin.Context) {
 		response.FailWithMessage("用户名、密码、昵称和角色不能为空", c)
 		return
 	}
-	user, err := b.services.User.Register(system.User{
+	user, err := b.services.User.Register(model.User{
 		Username: input.Username, Password: input.Password, NickName: input.NickName,
 		HeaderImage: input.HeaderImage, AuthorityID: input.AuthorityID, Enable: input.Enable,
 		Phone: input.Phone, Email: input.Email,
@@ -93,8 +92,8 @@ func (b *UserAPI) ChangePassword(c *gin.Context) {
 		response.FailWithMessage("原密码和新密码不能为空", c)
 		return
 	}
-	err := b.services.User.ChangePassword(&system.User{
-		Timestamps: common.Timestamps{ID: security.GetUserID(c)}, Password: input.Password,
+	err := b.services.User.ChangePassword(&model.User{
+		Timestamps: model.Timestamps{ID: security.GetUserID(c)}, Password: input.Password,
 	}, input.NewPassword)
 	if err != nil {
 		response.FailWithMessage("修改失败，原密码与当前账户不符", c)
@@ -152,8 +151,8 @@ func (b *UserAPI) SetUserInfo(c *gin.Context) {
 		response.FailWithMessage("用户 ID 不能为空", c)
 		return
 	}
-	if err := b.services.User.SetUserInfo(system.User{
-		Timestamps: common.Timestamps{ID: input.ID}, NickName: input.NickName, HeaderImage: input.HeaderImage,
+	if err := b.services.User.SetUserInfo(model.User{
+		Timestamps: model.Timestamps{ID: input.ID}, NickName: input.NickName, HeaderImage: input.HeaderImage,
 		Phone: input.Phone, Email: input.Email, Enable: input.Enable, AuthorityID: input.AuthorityID,
 	}); err != nil {
 		response.FailWithMessage("设置失败", c)
@@ -168,8 +167,8 @@ func (b *UserAPI) SetSelfInfo(c *gin.Context) {
 		response.FailWithMessage(err.Error(), c)
 		return
 	}
-	if err := b.services.User.SetSelfInfo(system.User{
-		Timestamps: common.Timestamps{ID: security.GetUserID(c)}, NickName: input.NickName,
+	if err := b.services.User.SetSelfInfo(model.User{
+		Timestamps: model.Timestamps{ID: security.GetUserID(c)}, NickName: input.NickName,
 		HeaderImage: input.HeaderImage, Phone: input.Phone, Email: input.Email,
 	}); err != nil {
 		response.FailWithMessage("设置失败", c)

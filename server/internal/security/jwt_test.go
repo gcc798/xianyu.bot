@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/gcc798/xianyu.bot/internal/config"
-	"github.com/gcc798/xianyu.bot/internal/model/system/request"
+	"github.com/gcc798/xianyu.bot/internal/model/request"
 	"github.com/stretchr/testify/require"
 )
 

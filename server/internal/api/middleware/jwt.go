@@ -6,11 +6,11 @@ import (
 	"time"
 
 	"github.com/gcc798/xianyu.bot/internal/auth"
-	"github.com/gcc798/xianyu.bot/internal/model/system"
+	"github.com/gcc798/xianyu.bot/internal/model"
 	"github.com/gcc798/xianyu.bot/internal/security"
 	"github.com/golang-jwt/jwt/v5"
 
-	"github.com/gcc798/xianyu.bot/internal/model/common/response"
+	"github.com/gcc798/xianyu.bot/internal/model/response"
 	"github.com/gin-gonic/gin"
 )
 
@@ -67,7 +67,7 @@ func JWTAuth(jwtManager *security.JWT) gin.HandlerFunc {
 
 func AdminOnly() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		if security.GetUserAuthorityID(c) != system.AdministratorAuthorityID {
+		if security.GetUserAuthorityID(c) != model.AdministratorAuthorityID {
 			c.JSON(403, response.Response{Code: response.ERROR, Msg: "仅管理员可操作"})
 			c.Abort()
 			return

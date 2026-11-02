@@ -8,9 +8,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gcc798/xianyu.bot/internal/model/xianyu"
-	xyRequest "github.com/gcc798/xianyu.bot/internal/model/xianyu/request"
-	xyResponse "github.com/gcc798/xianyu.bot/internal/model/xianyu/response"
+	"github.com/gcc798/xianyu.bot/internal/model"
+	xyRequest "github.com/gcc798/xianyu.bot/internal/model/request"
+	xyResponse "github.com/gcc798/xianyu.bot/internal/model/response"
 	"github.com/gcc798/xianyu.bot/internal/xianyu/protocol"
 	"github.com/google/uuid"
 	"gorm.io/gorm"

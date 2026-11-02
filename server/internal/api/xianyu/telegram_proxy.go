@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gcc798/xianyu.bot/internal/model/common/response"
+	"github.com/gcc798/xianyu.bot/internal/model/response"
 	"github.com/gin-gonic/gin"
 )
 

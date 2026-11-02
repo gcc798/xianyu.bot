@@ -8,7 +8,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gcc798/xianyu.bot/internal/model/xianyu"
+	"github.com/gcc798/xianyu.bot/internal/model"
 	"gorm.io/gorm"
 )
 

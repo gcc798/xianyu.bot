@@ -1,8 +1,8 @@
 package api
 
 import (
-	"github.com/gcc798/xianyu.bot/internal/model/common/response"
-	xyRequest "github.com/gcc798/xianyu.bot/internal/model/xianyu/request"
+	xyRequest "github.com/gcc798/xianyu.bot/internal/model/request"
+	"github.com/gcc798/xianyu.bot/internal/model/response"
 	"github.com/gcc798/xianyu.bot/internal/security"
 	"github.com/gin-gonic/gin"
 )

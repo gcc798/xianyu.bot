@@ -9,9 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gcc798/xianyu.bot/internal/model/common"
-	"github.com/gcc798/xianyu.bot/internal/model/xianyu"
-	xyRequest "github.com/gcc798/xianyu.bot/internal/model/xianyu/request"
+	"github.com/gcc798/xianyu.bot/internal/model"
+	xyRequest "github.com/gcc798/xianyu.bot/internal/model/request"
 	"github.com/glebarez/sqlite"
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
@@ -85,9 +84,9 @@ func TestProductListFiltersByTitleOrIDAndStatus(t *testing.T) {
 	require.NoError(t, db.Create(&account).Error)
 	updatedAt := func(day int) time.Time { return time.Date(2026, time.January, day, 0, 0, 0, 0, time.UTC) }
 	for _, item := range []model.Product{
-		{Timestamps: common.Timestamps{UpdatedAt: updatedAt(1)}, OwnerID: 10, AccountID: account.ID, ExternalProductID: "item-1", Title: "天涯书籍", Status: "on_sale", SourceJSON: `{"detailParams":{"imageInfos":"[{\"url\":\"https://img.example/1.jpg\"},{\"url\":\"https://img.example/2.jpg\"}]"}}`},
-		{Timestamps: common.Timestamps{UpdatedAt: updatedAt(2)}, OwnerID: 10, AccountID: account.ID, ExternalProductID: "item-2", Title: "天涯旧书", Status: "sold"},
-		{Timestamps: common.Timestamps{UpdatedAt: updatedAt(3)}, OwnerID: 10, AccountID: account.ID, ExternalProductID: "item-3", Title: "其他商品", Status: "offline"},
+		{Timestamps: model.Timestamps{UpdatedAt: updatedAt(1)}, OwnerID: 10, AccountID: account.ID, ExternalProductID: "item-1", Title: "天涯书籍", Status: "on_sale", SourceJSON: `{"detailParams":{"imageInfos":"[{\"url\":\"https://img.example/1.jpg\"},{\"url\":\"https://img.example/2.jpg\"}]"}}`},
+		{Timestamps: model.Timestamps{UpdatedAt: updatedAt(2)}, OwnerID: 10, AccountID: account.ID, ExternalProductID: "item-2", Title: "天涯旧书", Status: "sold"},
+		{Timestamps: model.Timestamps{UpdatedAt: updatedAt(3)}, OwnerID: 10, AccountID: account.ID, ExternalProductID: "item-3", Title: "其他商品", Status: "offline"},
 	} {
 		require.NoError(t, db.Create(&item).Error)
 	}

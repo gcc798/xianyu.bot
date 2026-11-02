@@ -4,9 +4,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gcc798/xianyu.bot/internal/model/common"
-	"github.com/gcc798/xianyu.bot/internal/model/xianyu"
-	xyRequest "github.com/gcc798/xianyu.bot/internal/model/xianyu/request"
+	"github.com/gcc798/xianyu.bot/internal/model"
+	xyRequest "github.com/gcc798/xianyu.bot/internal/model/request"
 	"github.com/glebarez/sqlite"
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
@@ -43,16 +42,16 @@ func TestDashboardOverviewIsOwnerAndAccountScoped(t *testing.T) {
 		RecipientID: "buyer", ReplyText: "回复", Status: model.ReplyTaskSent, ScheduledAt: completedAt, CompletedAt: &completedAt,
 	}).Error)
 	order := model.Order{
-		Timestamps: common.Timestamps{CreatedAt: start.Add(3 * time.Hour)}, OwnerID: 10, AccountID: account.ID,
+		Timestamps: model.Timestamps{CreatedAt: start.Add(3 * time.Hour)}, OwnerID: 10, AccountID: account.ID,
 		ExternalOrderID: "o-1", Status: model.OrderStatusPendingDelivery,
 	}
 	require.NoError(t, db.Create(&order).Error)
 	require.NoError(t, db.Create(&model.DeliveryTask{
-		Timestamps: common.Timestamps{UpdatedAt: start.Add(4 * time.Hour)}, OwnerID: 10, AccountID: account.ID,
+		Timestamps: model.Timestamps{UpdatedAt: start.Add(4 * time.Hour)}, OwnerID: 10, AccountID: account.ID,
 		OrderID: order.ID, PayloadCiphertext: "payload", Status: model.DeliveryTaskFailed, NextAttemptAt: end,
 	}).Error)
 	require.NoError(t, db.Create(&model.BusinessEvent{
-		Timestamps: common.Timestamps{CreatedAt: start.Add(5 * time.Hour)}, OwnerID: 10, AccountID: account.ID,
+		Timestamps: model.Timestamps{CreatedAt: start.Add(5 * time.Hour)}, OwnerID: 10, AccountID: account.ID,
 		Type: "delivery", Status: "failed", Summary: "自动发货失败",
 	}).Error)
 
