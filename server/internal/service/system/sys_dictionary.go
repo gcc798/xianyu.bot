@@ -11,15 +11,15 @@ import (
 
 type DictionaryService struct{ db *gorm.DB }
 
-func (dictionaryService *DictionaryService) CreateSysDictionary(dictionary system.SysDictionary) error {
-	if !errors.Is(dictionaryService.db.First(&system.SysDictionary{}, "type = ?", dictionary.Type).Error, gorm.ErrRecordNotFound) {
+func (dictionaryService *DictionaryService) Create(dictionary system.Dictionary) error {
+	if !errors.Is(dictionaryService.db.First(&system.Dictionary{}, "type = ?", dictionary.Type).Error, gorm.ErrRecordNotFound) {
 		return errors.New("存在相同的type，不允许创建")
 	}
 	return dictionaryService.db.Create(&dictionary).Error
 }
 
-func (dictionaryService *DictionaryService) DeleteSysDictionary(dictionary system.SysDictionary) error {
-	err := dictionaryService.db.Where("id = ?", dictionary.ID).Preload("SysDictionaryDetails").First(&dictionary).Error
+func (dictionaryService *DictionaryService) Delete(dictionary system.Dictionary) error {
+	err := dictionaryService.db.Where("id = ?", dictionary.ID).Preload("Details").First(&dictionary).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return errors.New("字典不存在")
 	}
@@ -29,18 +29,18 @@ func (dictionaryService *DictionaryService) DeleteSysDictionary(dictionary syste
 	if err := dictionaryService.db.Delete(&dictionary).Error; err != nil {
 		return err
 	}
-	if dictionary.SysDictionaryDetails != nil {
-		return dictionaryService.db.Where("sys_dictionary_id = ?", dictionary.ID).Delete(dictionary.SysDictionaryDetails).Error
+	if dictionary.Details != nil {
+		return dictionaryService.db.Where("sys_dictionary_id = ?", dictionary.ID).Delete(dictionary.Details).Error
 	}
 	return nil
 }
 
-func (dictionaryService *DictionaryService) UpdateSysDictionary(dictionary *system.SysDictionary) error {
-	var stored system.SysDictionary
+func (dictionaryService *DictionaryService) Update(dictionary *system.Dictionary) error {
+	var stored system.Dictionary
 	if err := dictionaryService.db.Where("id = ?", dictionary.ID).First(&stored).Error; err != nil {
 		return errors.New("查询字典数据失败")
 	}
-	if stored.Type != dictionary.Type && !errors.Is(dictionaryService.db.First(&system.SysDictionary{}, "type = ?", dictionary.Type).Error, gorm.ErrRecordNotFound) {
+	if stored.Type != dictionary.Type && !errors.Is(dictionaryService.db.First(&system.Dictionary{}, "type = ?", dictionary.Type).Error, gorm.ErrRecordNotFound) {
 		return errors.New("存在相同的type，不允许创建")
 	}
 	if dictionary.ParentID != nil && *dictionary.ParentID != 0 {
@@ -54,8 +54,8 @@ func (dictionaryService *DictionaryService) UpdateSysDictionary(dictionary *syst
 	}).Error
 }
 
-func (dictionaryService *DictionaryService) GetSysDictionaryInfoList(ctx context.Context, search request.SysDictionarySearch) ([]system.SysDictionary, error) {
-	var dictionaries []system.SysDictionary
+func (dictionaryService *DictionaryService) List(ctx context.Context, search request.DictionarySearch) ([]system.Dictionary, error) {
+	var dictionaries []system.Dictionary
 	query := dictionaryService.db.WithContext(ctx)
 	if search.Name != "" {
 		query = query.Where("name LIKE ? OR type LIKE ?", "%"+search.Name+"%", "%"+search.Name+"%")
@@ -68,7 +68,7 @@ func (dictionaryService *DictionaryService) checkCircularReference(currentID, pa
 	if currentID == parentID {
 		return errors.New("不能将字典设置为自己的父级")
 	}
-	var parent system.SysDictionary
+	var parent system.Dictionary
 	err := dictionaryService.db.Where("id = ?", parentID).First(&parent).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil

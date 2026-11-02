@@ -5,7 +5,7 @@ import (
 	"github.com/gcc798/xianyu.bot/internal/model/system"
 )
 
-type SysDictionaryDetailSearch struct {
-	system.SysDictionaryDetail
+type DictionaryDetailSearch struct {
+	system.DictionaryDetail
 	request.PageInfo
 }

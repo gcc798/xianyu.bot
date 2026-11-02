@@ -10,13 +10,13 @@ import (
 
 type DictionaryApi struct{ *dependencies }
 
-func (s *DictionaryApi) CreateSysDictionary(c *gin.Context) {
-	var dictionary system.SysDictionary
+func (s *DictionaryApi) Create(c *gin.Context) {
+	var dictionary system.Dictionary
 	if err := c.ShouldBindJSON(&dictionary); err != nil {
 		response.FailWithMessage(err.Error(), c)
 		return
 	}
-	if err := s.services.Dictionary.CreateSysDictionary(dictionary); err != nil {
+	if err := s.services.Dictionary.Create(dictionary); err != nil {
 		zap.L().Error("创建字典失败", zap.Error(err))
 		response.FailWithMessage("创建失败", c)
 		return
@@ -24,13 +24,13 @@ func (s *DictionaryApi) CreateSysDictionary(c *gin.Context) {
 	response.OkWithMessage("创建成功", c)
 }
 
-func (s *DictionaryApi) DeleteSysDictionary(c *gin.Context) {
-	var dictionary system.SysDictionary
+func (s *DictionaryApi) Delete(c *gin.Context) {
+	var dictionary system.Dictionary
 	if err := c.ShouldBindJSON(&dictionary); err != nil {
 		response.FailWithMessage(err.Error(), c)
 		return
 	}
-	if err := s.services.Dictionary.DeleteSysDictionary(dictionary); err != nil {
+	if err := s.services.Dictionary.Delete(dictionary); err != nil {
 		zap.L().Error("删除字典失败", zap.Error(err))
 		response.FailWithMessage("删除失败", c)
 		return
@@ -38,13 +38,13 @@ func (s *DictionaryApi) DeleteSysDictionary(c *gin.Context) {
 	response.OkWithMessage("删除成功", c)
 }
 
-func (s *DictionaryApi) UpdateSysDictionary(c *gin.Context) {
-	var dictionary system.SysDictionary
+func (s *DictionaryApi) Update(c *gin.Context) {
+	var dictionary system.Dictionary
 	if err := c.ShouldBindJSON(&dictionary); err != nil {
 		response.FailWithMessage(err.Error(), c)
 		return
 	}
-	if err := s.services.Dictionary.UpdateSysDictionary(&dictionary); err != nil {
+	if err := s.services.Dictionary.Update(&dictionary); err != nil {
 		zap.L().Error("更新字典失败", zap.Error(err))
 		response.FailWithMessage("更新失败", c)
 		return
@@ -52,13 +52,13 @@ func (s *DictionaryApi) UpdateSysDictionary(c *gin.Context) {
 	response.OkWithMessage("更新成功", c)
 }
 
-func (s *DictionaryApi) GetSysDictionaryList(c *gin.Context) {
-	var search request.SysDictionarySearch
+func (s *DictionaryApi) List(c *gin.Context) {
+	var search request.DictionarySearch
 	if err := c.ShouldBindQuery(&search); err != nil {
 		response.FailWithMessage(err.Error(), c)
 		return
 	}
-	list, err := s.services.Dictionary.GetSysDictionaryInfoList(c.Request.Context(), search)
+	list, err := s.services.Dictionary.List(c.Request.Context(), search)
 	if err != nil {
 		zap.L().Error("获取字典失败", zap.Error(err))
 		response.FailWithMessage("获取失败", c)

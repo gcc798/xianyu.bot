@@ -7,10 +7,10 @@ import (
 
 type DictionaryDetailRouter struct{ *dependencies }
 
-func (s *DictionaryDetailRouter) InitSysDictionaryDetailRouter(router *gin.RouterGroup) {
+func (s *DictionaryDetailRouter) Init(router *gin.RouterGroup) {
 	detail := router.Group("sysDictionaryDetail").Use(middleware.AdminOnly())
-	detail.POST("createSysDictionaryDetail", s.handlers.DictionaryDetail.CreateSysDictionaryDetail)
-	detail.DELETE("deleteSysDictionaryDetail", s.handlers.DictionaryDetail.DeleteSysDictionaryDetail)
-	detail.PUT("updateSysDictionaryDetail", s.handlers.DictionaryDetail.UpdateSysDictionaryDetail)
-	detail.GET("getSysDictionaryDetailList", s.handlers.DictionaryDetail.GetSysDictionaryDetailList)
+	detail.POST("createSysDictionaryDetail", s.handlers.DictionaryDetail.Create)
+	detail.DELETE("deleteSysDictionaryDetail", s.handlers.DictionaryDetail.Delete)
+	detail.PUT("updateSysDictionaryDetail", s.handlers.DictionaryDetail.Update)
+	detail.GET("getSysDictionaryDetailList", s.handlers.DictionaryDetail.List)
 }
