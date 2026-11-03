@@ -49,12 +49,14 @@ func run() error {
 	if db == nil {
 		return fmt.Errorf("PostgreSQL database name is required")
 	}
-	if err := infra.Migrate(ctx, db); err != nil {
-		return fmt.Errorf("database migration: %w", err)
-	}
-
 	mailSender := mail.NewSender(settings.Email)
-	services := service.New(ctx, db, mailSender.Send)
+	var sendNotificationEmail func(string, string) error
+	if settings.Email.To != "" {
+		sendNotificationEmail = func(subject string, body string) error {
+			return mailSender.Send(settings.Email.To, subject, body)
+		}
+	}
+	services := service.New(ctx, db, sendNotificationEmail)
 	services.RevokedTokens.Load()
 	if err := agent.Initialize(ctx, db); err != nil {
 		return fmt.Errorf("initialize Agent: %w", err)

@@ -14,5 +14,5 @@ type Dictionary struct {
 
 // TableName 返回系统字典表名。
 func (Dictionary) TableName() string {
-	return "sys_dictionaries"
+	return "s_dictionaries"
 }

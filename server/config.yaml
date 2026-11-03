@@ -1,8 +1,8 @@
 jwt:
-  signing-key: qmPlus
+  signing-key: change-me
   expires-time: 7d
   buffer-time: 1d
-  issuer: xianyu-assistant
+  issuer: xianyu.bot
 
 log:
   level: info
@@ -10,13 +10,13 @@ log:
   show-line: true
 
 email:
-  to: xxx@qq.com
+  to: ""
   port: 465
-  from: xxx@163.com
-  host: smtp.163.com
+  from: ""
+  host: ""
   is-ssl: true
-  secret: xxx
-  nickname: xianyu-assistant
+  secret: ""
+  nickname: xianyu.bot
 
 http:
   port: 8888
@@ -25,9 +25,9 @@ postgres:
   host: 127.0.0.1
   port: "15432"
   parameters: "sslmode=disable TimeZone=Asia/Shanghai"
-  database: xianyu_assistant_v2
-  username: xianyu
-  password: xianyu_assistant
+  database: xianyu_bot
+  username: xianyu_bot
+  password: change-me
   max-idle-conns: 10
   max-open-conns: 100
   conn-max-lifetime: 0

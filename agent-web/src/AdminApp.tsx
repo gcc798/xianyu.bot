@@ -267,7 +267,7 @@ function Overview() {
           ["访问边界", "管理员 · 普通用户", "#d8ff5f"],
           ["业务字典", "层级字典与值维护", "#82e7ff"],
           ["登录审计", "成功与失败登录", "#ffc56e"],
-          ["数据库", "Goose 基线已接管", "#ff8a72"],
+          ["数据库", "PostgreSQL 单一基线", "#ff8a72"],
         ].map(([title, text, color]) => (
           <article key={title} style={{ "--accent": color } as CSSProperties}>
             <div>

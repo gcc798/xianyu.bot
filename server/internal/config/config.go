@@ -75,6 +75,12 @@ func Load() (Server, error) {
 	v := viper.New()
 	v.SetConfigFile(configPath())
 	v.SetConfigType("yaml")
+	if err := v.BindEnv("jwt.signing-key", "XIANYU_JWT_SIGNING_KEY"); err != nil {
+		return Server{}, err
+	}
+	if err := v.BindEnv("postgres.password", "XIANYU_POSTGRES_PASSWORD"); err != nil {
+		return Server{}, err
+	}
 	if err := v.ReadInConfig(); err != nil {
 		return Server{}, err
 	}

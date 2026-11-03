@@ -197,7 +197,7 @@ func TestConnectionStateChangedAlertsOnlyWhenUnavailableAtWindowEnd(t *testing.T
 		events:              &BusinessEvent{db: db},
 		alertWindows:        make(map[uint]*ConnectionAlertWindow),
 		alertWindowDuration: 100 * time.Millisecond,
-		sendNotificationEmail: func(_ string, subject string, _ string) error {
+		sendNotificationEmail: func(subject string, _ string) error {
 			subjects <- subject
 			return nil
 		},
@@ -223,7 +223,7 @@ func TestConnectionStateChangedAlertsOnlyWhenUnavailableAtWindowEnd(t *testing.T
 	require.NoError(t, db.Where("account_id = ? AND type = ?", account.ID, "websocket_alert").Find(&sentEvents).Error)
 	require.Contains(t, sentEvents[0].Summary, "不可用 2 次")
 
-	failedService := &WebSocketService{db: db, events: &BusinessEvent{db: db}, sendNotificationEmail: func(string, string, string) error {
+	failedService := &WebSocketService{db: db, events: &BusinessEvent{db: db}, sendNotificationEmail: func(string, string) error {
 		return errors.New("SMTP 不可用")
 	}}
 	failedService.sendConnectionNotification(failure, false, time.Now().Add(-time.Hour), 3)
@@ -249,7 +249,7 @@ func TestConnectionStateChangedSuppressesAlertWhenConnectedAtWindowEnd(t *testin
 		events:              &BusinessEvent{db: db},
 		alertWindows:        make(map[uint]*ConnectionAlertWindow),
 		alertWindowDuration: 30 * time.Millisecond,
-		sendNotificationEmail: func(_ string, subject string, _ string) error {
+		sendNotificationEmail: func(subject string, _ string) error {
 			subjects <- subject
 			return nil
 		},

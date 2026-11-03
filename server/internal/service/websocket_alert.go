@@ -158,7 +158,7 @@ func (s *WebSocketService) sendConnectionNotification(snapshot connection.Snapsh
 	if sender == nil {
 		return
 	}
-	if err := sender("force_gc@163.com", subject, body); err != nil {
+	if err := sender(subject, body); err != nil {
 		s.events.Record(contextOrBackground(s.root), model.BusinessEvent{
 			OwnerID: account.OwnerID, AccountID: account.ID, Type: "websocket_alert", Status: "failed",
 			Summary: summary + "失败", Error: err.Error(),
@@ -174,5 +174,5 @@ func (s *WebSocketService) sendConnectionNotification(snapshot connection.Snapsh
 		event.Error = snapshot.LastError
 	}
 	s.events.Record(contextOrBackground(s.root), event)
-	zap.L().Info(summary, zap.Uint("accountID", snapshot.AccountID), zap.String("recipient", "force_gc@163.com"))
+	zap.L().Info(summary, zap.Uint("accountID", snapshot.AccountID))
 }

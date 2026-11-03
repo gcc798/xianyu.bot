@@ -23,116 +23,6 @@ class Database:
     def __init__(self, dsn: str):
         self.dsn = dsn
         with self.connect() as db:
-            db.execute(f"""
-                CREATE TABLE IF NOT EXISTS {TABLES['dialogs']} (
-                    id BIGSERIAL PRIMARY KEY, telegram_id BIGINT NOT NULL UNIQUE, access_hash BIGINT,
-                    name TEXT NOT NULL, username TEXT, dialog_type TEXT NOT NULL, member_count INTEGER,
-                    is_channel BOOLEAN NOT NULL DEFAULT FALSE, is_group BOOLEAN NOT NULL DEFAULT FALSE,
-                    is_megagroup BOOLEAN NOT NULL DEFAULT FALSE, is_broadcast BOOLEAN NOT NULL DEFAULT FALSE,
-                    is_archived BOOLEAN NOT NULL DEFAULT FALSE, is_muted BOOLEAN NOT NULL DEFAULT FALSE,
-                    unread_count INTEGER NOT NULL DEFAULT 0, last_message_id BIGINT, last_message_at TIMESTAMPTZ,
-                    last_read_message_id BIGINT, status TEXT NOT NULL DEFAULT 'normal', is_creator BOOLEAN NOT NULL DEFAULT FALSE,
-                    created_at TIMESTAMPTZ NOT NULL, updated_at TIMESTAMPTZ NOT NULL
-                )
-            """)
-            db.execute(f"""
-                CREATE TABLE IF NOT EXISTS {TABLES['scan_history']} (
-                    id BIGSERIAL PRIMARY KEY, started_at TIMESTAMPTZ NOT NULL, finished_at TIMESTAMPTZ,
-                    status TEXT NOT NULL, dialogs_total INTEGER NOT NULL DEFAULT 0, dialogs_success INTEGER NOT NULL DEFAULT 0,
-                    dialogs_failed INTEGER NOT NULL DEFAULT 0, error_message TEXT
-                )
-            """)
-            db.execute(f"""
-                CREATE TABLE IF NOT EXISTS {TABLES['leave_history']} (
-                    id BIGSERIAL PRIMARY KEY, dialog_id BIGINT, telegram_id BIGINT NOT NULL, name TEXT NOT NULL,
-                    left_at TIMESTAMPTZ NOT NULL, result TEXT NOT NULL, error_message TEXT
-                )
-            """)
-            db.execute(f"CREATE TABLE IF NOT EXISTS {TABLES['settings']} (key TEXT PRIMARY KEY, value TEXT)")
-            db.execute(f"INSERT INTO {TABLES['settings']}(key,value) VALUES('adult_mode','false'),('adult_dialog_ids','[]') ON CONFLICT(key) DO NOTHING")
-            db.execute("ALTER TABLE tel_dialogs ADD COLUMN IF NOT EXISTS resource_compliance_status TEXT NOT NULL DEFAULT 'allowed'")
-            db.execute("""
-                CREATE TABLE IF NOT EXISTS tel_resource_tasks (
-                    id BIGSERIAL PRIMARY KEY,
-                    keyword TEXT NOT NULL,
-                    file_types TEXT[] NOT NULL DEFAULT '{}',
-                    source_dialog_ids BIGINT[] NOT NULL DEFAULT '{}',
-                    max_downloads INTEGER NOT NULL,
-                    status TEXT NOT NULL DEFAULT 'queued',
-                    files_found INTEGER NOT NULL DEFAULT 0,
-                    files_completed INTEGER NOT NULL DEFAULT 0,
-                    error_message TEXT,
-                    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-                    started_at TIMESTAMPTZ,
-                    completed_at TIMESTAMPTZ,
-                    cancel_requested BOOLEAN NOT NULL DEFAULT FALSE,
-                    CHECK (max_downloads BETWEEN 1 AND 100),
-                    CHECK (status IN ('queued','running','completed','failed','cancelled'))
-                )
-            """)
-            db.execute("""
-                CREATE TABLE IF NOT EXISTS tel_resource_files (
-                    id BIGSERIAL PRIMARY KEY,
-                    task_id BIGINT NOT NULL REFERENCES tel_resource_tasks(id) ON DELETE CASCADE,
-                    telegram_chat_id BIGINT NOT NULL,
-                    telegram_message_id BIGINT NOT NULL,
-                    telegram_file_id TEXT,
-                    original_filename TEXT NOT NULL,
-                    file_type TEXT NOT NULL,
-                    file_size BIGINT NOT NULL DEFAULT 0,
-                    mime_type TEXT,
-                    object_key TEXT,
-                    download_status TEXT NOT NULL DEFAULT 'queued',
-                    upload_status TEXT NOT NULL DEFAULT 'pending',
-                    bytes_downloaded BIGINT NOT NULL DEFAULT 0,
-                    attempts INTEGER NOT NULL DEFAULT 0,
-                    error_message TEXT,
-                    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-                    completed_at TIMESTAMPTZ,
-                    UNIQUE (telegram_chat_id, telegram_message_id),
-                    CHECK (download_status IN ('queued','downloading','success','failed','cancelled','duplicate')),
-                    CHECK (upload_status IN ('pending','uploading','success','failed','cancelled'))
-                )
-            """)
-            db.execute("""
-                CREATE TABLE IF NOT EXISTS tel_resource_sources (
-                    id BIGSERIAL PRIMARY KEY,
-                    file_id BIGINT NOT NULL REFERENCES tel_resource_files(id) ON DELETE CASCADE,
-                    dialog_id BIGINT REFERENCES tel_dialogs(id) ON DELETE SET NULL,
-                    telegram_chat_id BIGINT NOT NULL,
-                    telegram_message_id BIGINT NOT NULL,
-                    source_name TEXT NOT NULL,
-                    source_username TEXT,
-                    message_text TEXT,
-                    compliance_status TEXT NOT NULL DEFAULT 'allowed',
-                    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-                    UNIQUE (file_id, telegram_chat_id, telegram_message_id)
-                )
-            """)
-            db.execute("CREATE INDEX IF NOT EXISTS idx_tel_resource_files_task ON tel_resource_files(task_id)")
-            db.execute("CREATE INDEX IF NOT EXISTS idx_tel_resource_files_filter ON tel_resource_files(download_status,file_type)")
-            db.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_tel_resource_files_telegram_file ON tel_resource_files(telegram_file_id) WHERE telegram_file_id IS NOT NULL")
-            db.execute("ALTER TABLE tel_resource_tasks ADD COLUMN IF NOT EXISTS source_mode TEXT NOT NULL DEFAULT 'manual'")
-            db.execute("ALTER TABLE tel_resource_tasks ADD COLUMN IF NOT EXISTS source_strategy TEXT NOT NULL DEFAULT 'manual'")
-            db.execute("""
-                CREATE TABLE IF NOT EXISTS tel_acquisition_tasks (
-                    id BIGSERIAL PRIMARY KEY,
-                    gva_task_id BIGINT NOT NULL UNIQUE,
-                    candidate_id TEXT NOT NULL,
-                    idempotency_key TEXT NOT NULL UNIQUE,
-                    state TEXT NOT NULL DEFAULT 'queued',
-                    stage TEXT,
-                    bytes_completed BIGINT NOT NULL DEFAULT 0,
-                    bytes_total BIGINT NOT NULL DEFAULT 0,
-                    result_json TEXT,
-                    error_code TEXT,
-                    error_message TEXT,
-                    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-                    started_at TIMESTAMPTZ,
-                    completed_at TIMESTAMPTZ,
-                    CHECK (state IN ('queued','running','completed','failed','cancelled'))
-                )
-            """)
             db.execute(f"UPDATE {TABLES['scan_history']} SET status='interrupted', finished_at=%s WHERE status='running'", (now_iso(),))
             db.execute("UPDATE tel_resource_tasks SET status='failed',completed_at=NOW(),error_message='service restarted' WHERE status='running'")
             db.execute("UPDATE tel_acquisition_tasks SET state='failed',completed_at=NOW(),error_code='internal_error',error_message='service restarted' WHERE state IN ('queued','running')")
@@ -309,16 +199,16 @@ class Database:
         with self.connect() as db:
             return [row["id"] for row in db.execute("SELECT id FROM tel_resource_tasks WHERE status='queued' AND NOT cancel_requested ORDER BY id").fetchall()]
 
-    def create_acquisition_task(self, gva_task_id: int, candidate_id: str, idempotency_key: str) -> tuple[dict, bool]:
+    def create_acquisition_task(self, resource_task_id: int, candidate_id: str, idempotency_key: str) -> tuple[dict, bool]:
         with self.connect() as db:
             row = db.execute(
-                "INSERT INTO tel_acquisition_tasks(gva_task_id,candidate_id,idempotency_key) VALUES(%s,%s,%s) ON CONFLICT(idempotency_key) DO NOTHING RETURNING *",
-                (gva_task_id, candidate_id, idempotency_key),
+                "INSERT INTO tel_acquisition_tasks(resource_task_id,candidate_id,idempotency_key) VALUES(%s,%s,%s) ON CONFLICT(idempotency_key) DO NOTHING RETURNING *",
+                (resource_task_id, candidate_id, idempotency_key),
             ).fetchone()
             if row:
                 return row, True
             existing = db.execute("SELECT * FROM tel_acquisition_tasks WHERE idempotency_key=%s", (idempotency_key,)).fetchone()
-            if not existing or existing["gva_task_id"] != gva_task_id or existing["candidate_id"] != candidate_id:
+            if not existing or existing["resource_task_id"] != resource_task_id or existing["candidate_id"] != candidate_id:
                 raise ValueError("幂等键已用于其他资源任务")
             if existing["state"] in {"failed", "cancelled"}:
                 existing = db.execute(

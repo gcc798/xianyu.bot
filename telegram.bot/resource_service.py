@@ -169,13 +169,13 @@ class ResourceService:
     def enqueue(self, task_id: int) -> None:
         self.queue.put_nowait(task_id)
 
-    async def submit_acquisition(self, candidate_id: str, gva_task_id: int, idempotency_key: str, delivery_token: str) -> dict:
-        if gva_task_id < 1 or not idempotency_key.strip() or not delivery_token:
+    async def submit_acquisition(self, candidate_id: str, resource_task_id: int, idempotency_key: str, delivery_token: str) -> dict:
+        if resource_task_id < 1 or not idempotency_key.strip() or not delivery_token:
             raise ResourceCapabilityError("invalid_argument", "资源任务参数不完整")
         await self.inspect_candidate(candidate_id)
-        task, created = self.db.create_acquisition_task(gva_task_id, candidate_id, idempotency_key.strip())
+        task, created = self.db.create_acquisition_task(resource_task_id, candidate_id, idempotency_key.strip())
         if created:
-            worker = asyncio.create_task(self._acquire(task["id"], candidate_id, gva_task_id, delivery_token))
+            worker = asyncio.create_task(self._acquire(task["id"], candidate_id, resource_task_id, delivery_token))
             self.acquisitions[task["id"]] = worker
             worker.add_done_callback(lambda _worker, task_id=task["id"]: self.acquisitions.pop(task_id, None))
         return task
@@ -189,11 +189,11 @@ class ResourceService:
             worker.cancel()
         self.db.update_acquisition_task(task_id, state="cancelled", completed_at=datetime.now(timezone.utc))
 
-    async def _acquire(self, task_id: int, candidate_id: str, gva_task_id: int, delivery_token: str) -> None:
+    async def _acquire(self, task_id: int, candidate_id: str, resource_task_id: int, delivery_token: str) -> None:
         task_dir = self.tmp_root / f"acquire-{task_id}"
         path = None
         self.db.update_acquisition_task(task_id, state="running", stage="downloading", started_at=datetime.now(timezone.utc))
-        await asyncio.to_thread(self._notify_gva, f"/xy/internal/resource-tasks/{gva_task_id}/progress", delivery_token, {
+        await asyncio.to_thread(self._notify_backend, f"/xy/internal/resource-tasks/{resource_task_id}/progress", delivery_token, {
             "stage": "downloading", "progressPercent": 0, "progressDone": 0, "progressTotal": 0, "progressUnit": "bytes",
         })
         try:
@@ -220,18 +220,18 @@ class ResourceService:
             checksum = await asyncio.to_thread(_sha256_file, path)
 
             self.db.update_acquisition_task(task_id, stage="waiting_upload", bytes_completed=size, bytes_total=size)
-            await asyncio.to_thread(self._notify_gva, f"/xy/internal/resource-tasks/{gva_task_id}/progress", delivery_token, {
+            await asyncio.to_thread(self._notify_backend, f"/xy/internal/resource-tasks/{resource_task_id}/progress", delivery_token, {
                 "stage": "waiting_upload", "progressPercent": 70, "progressDone": size, "progressTotal": size, "progressUnit": "bytes",
             })
-            upload = await asyncio.to_thread(self._gva_json, f"/xy/internal/resource-tasks/{gva_task_id}/upload", delivery_token, None)
+            upload = await asyncio.to_thread(self._backend_json, f"/xy/internal/resource-tasks/{resource_task_id}/upload", delivery_token, None)
             self.db.update_acquisition_task(task_id, stage="uploading")
-            await asyncio.to_thread(self._notify_gva, f"/xy/internal/resource-tasks/{gva_task_id}/progress", delivery_token, {
+            await asyncio.to_thread(self._notify_backend, f"/xy/internal/resource-tasks/{resource_task_id}/progress", delivery_token, {
                 "stage": "uploading", "progressPercent": 80, "progressDone": size, "progressTotal": size, "progressUnit": "bytes",
             })
             await asyncio.to_thread(_put_file, upload["uploadUrl"], path, metadata["mime_type"])
             completed = await asyncio.to_thread(
-                self._gva_json,
-                f"/xy/internal/resource-tasks/{gva_task_id}/complete",
+                self._backend_json,
+                f"/xy/internal/resource-tasks/{resource_task_id}/complete",
                 delivery_token,
                 {"size": size, "sha256": checksum},
             )
@@ -244,13 +244,13 @@ class ResourceService:
             raise
         except ResourceCapabilityError as exc:
             self.db.update_acquisition_task(task_id, state="failed", error_code=exc.code, error_message=str(exc), completed_at=datetime.now(timezone.utc))
-            await asyncio.to_thread(self._notify_gva, f"/xy/internal/resource-tasks/{gva_task_id}/fail", delivery_token, {
+            await asyncio.to_thread(self._notify_backend, f"/xy/internal/resource-tasks/{resource_task_id}/fail", delivery_token, {
                 "errorCode": exc.code, "errorMessage": "资源获取失败",
             })
         except Exception as exc:
             LOGGER.exception("Resource acquisition failed for task %s", task_id)
             self.db.update_acquisition_task(task_id, state="failed", error_code="delivery_failed", error_message=str(exc)[:2000], completed_at=datetime.now(timezone.utc))
-            await asyncio.to_thread(self._notify_gva, f"/xy/internal/resource-tasks/{gva_task_id}/fail", delivery_token, {
+            await asyncio.to_thread(self._notify_backend, f"/xy/internal/resource-tasks/{resource_task_id}/fail", delivery_token, {
                 "errorCode": "delivery_failed", "errorMessage": "资源获取失败",
             })
         finally:
@@ -261,8 +261,8 @@ class ResourceService:
             except OSError:
                 pass
 
-    def _gva_json(self, path: str, delivery_token: str, payload: dict | None) -> dict:
-        base_url = os.getenv("GVA_INTERNAL_URL", "http://server:8888").rstrip("/")
+    def _backend_json(self, path: str, delivery_token: str, payload: dict | None) -> dict:
+        base_url = os.getenv("XIANYU_INTERNAL_URL", "http://server:8888").rstrip("/")
         body = json.dumps(payload, ensure_ascii=False).encode() if payload is not None else b"{}"
         request = urllib.request.Request(
             base_url + path,
@@ -279,11 +279,11 @@ class ResourceService:
             raise ResourceCapabilityError("delivery_failed", "资源交付服务拒绝请求")
         return result["data"]
 
-    def _notify_gva(self, path: str, delivery_token: str, payload: dict) -> None:
+    def _notify_backend(self, path: str, delivery_token: str, payload: dict) -> None:
         try:
-            self._gva_json(path, delivery_token, payload)
+            self._backend_json(path, delivery_token, payload)
         except Exception:
-            LOGGER.warning("Failed to report resource task state to GVA: %s", path)
+            LOGGER.warning("Failed to report resource task state to backend: %s", path)
 
     async def search_candidates(self, query: str, file_types: list[str] | None, limit: int, source_ids: list[int] | None = None) -> list[dict]:
         query = query.strip()

@@ -9,7 +9,7 @@
 - `server/internal/agent/` 独立承载 Agent、MCP 和资源能力；`server/internal/xianyu/` 只承载闲鱼协议、连接与启动逻辑。
 - `agent-web/` 是唯一维护的前端，使用 React 18 和 TypeScript。
 - `web/` 是已废弃的 Gin-Vue-Admin/Vue 前端，只暂时用于行为对照、迁移验收和回滚。
-- `server/internal/infra/migrations/` 是 PostgreSQL 生产表结构的唯一事实源，服务启动时使用 Goose 执行迁移。
+- `server/internal/infra/migrations/init.sql` 是 PostgreSQL 表结构和基础数据的唯一初始化入口，由 PostgreSQL 容器在空数据目录执行。
 - 当前部署边界是可信内网；直接暴露公网属于范围变化，必须先补充网关、限流和认证设计。
 
 修改模块边界或迁移范围前，先阅读 `docs/architecture.md`、`docs/project-scope.md` 和 `docs/migration/feature-matrix.md`。
@@ -44,11 +44,12 @@
 
 ## 数据库变更
 
-- 所有生产表结构变化都必须新增 Goose 迁移，不得修改已经应用的基线迁移。
-- 生产启动不得再使用 `AutoMigrate` 演进表结构。
+- 当前开源基线只维护 `server/internal/infra/migrations/init.sql`，不得新增平行建表脚本或在服务启动时动态建表。
+- `init.sql` 只面向空数据库；修改既有部署的数据结构前，必须先重新引入可审计的增量迁移方案。
+- 生产启动不得使用 `AutoMigrate` 演进表结构。
 - 只有完全由测试拥有的临时数据库可以在测试中使用 `AutoMigrate`。
-- 迁移默认保留现有数据；有意破坏数据时必须明确记录并验证。
-- 完成前检查迁移顺序、约束、索引和启动行为。
+- 基础数据不得包含真实账号、凭据、会话或业务记录。
+- 完成前检查约束、索引、序列、空库初始化和启动行为。
 
 ## 文档
 
@@ -69,5 +70,5 @@
 - 先运行最小相关测试，再运行受影响包或应用的完整检查。
 - Go 修改必须格式化并测试受影响包。
 - React 修改必须通过 TypeScript 生产构建。
-- 数据库修改必须通过迁移测试。
+- 数据库修改必须通过空库初始化测试。
 - 只运行模拟或隔离测试时，不得声称真实外部联调成功。

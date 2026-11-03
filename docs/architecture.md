@@ -9,14 +9,14 @@
 | 路径 | 职责 | 状态 |
 | --- | --- | --- |
 | `server/` | Go HTTP 服务和通用后台基础能力 | 主动维护 |
-| `server/internal/infra/` | PostgreSQL、日志、HTTP 和 Goose 迁移等运行基础设施 | 主动维护 |
+| `server/internal/infra/` | PostgreSQL、日志、HTTP 和数据库初始化等运行基础设施 | 主动维护 |
 | `server/internal/api/` | 平铺的 HTTP Handler；`router/` 创建 Gin 引擎并注册路径和中间件 | 主动维护 |
 | `server/internal/service/` | 平铺的通用基础和闲鱼业务服务 | 主动维护 |
 | `server/internal/model/` | 平铺的持久化实体，`request/` 和 `response/` 存放 API 契约 | 主动维护 |
 | `server/internal/agent/` | Agent 运行、会话、事件、Tool 契约、MCP 和资源能力 | 主动维护 |
 | `server/internal/xianyu/` | 闲鱼通信协议、连接运行时、启动检查和 Agent Tool 适配 | 主动维护 |
 | `agent-web/` | React 18 + TypeScript 后台与 Agent 前端 | 主动维护 |
-| `script/tel-bot/` | Telegram 资源渠道和 MCP 支撑服务 | 辅助服务 |
+| `telegram.bot/` | Telegram 资源渠道和 MCP 支撑服务 | 辅助服务 |
 | `web/` | Vue 旧后台，只用于迁移对照和回滚 | 已废弃 |
 | `.agents/skills/` | 仓库级 Codex 工作流 | 主动维护 |
 
@@ -73,19 +73,16 @@ cmd/server
 ## 数据库
 
 - PostgreSQL 是应用数据库。
-- `server/internal/infra/migrations/` 是生产表结构事实源。
-- Goose 在服务启动时执行待应用迁移。
-- 复制的 PostgreSQL 结构记录为 `202611010001` 基线。
-- `202611020001` 删除动态权限、演示、生成器、参数、API Token 和通用日志等脚手架表。
-- `202611020002` 删除 `sys_users.origin_setting` 旧 Vue 界面配置列。
-- 只有系统、闲鱼和 Agent 代表表都存在时，已有数据库才能认领基线。
-- 新变化新增前向迁移，基线不可修改。
+- `server/internal/infra/migrations/init.sql` 是表结构和最小基础数据的唯一初始化入口。
+- PostgreSQL 容器只在空数据目录执行该脚本，Go 服务不再执行运行时迁移。
+- 基础数据只包含超级管理员、字典、Agent 默认上限和 Telegram 默认设置。
+- 当前基线不接管旧数据库；既有部署升级前必须另行提供增量迁移方案。
 - GORM `AutoMigrate` 只允许用于测试自己拥有的临时数据库。
 - 数据库配置只表达 PostgreSQL，不再保留数据库类型、表名前缀和复数命名等脚手架开关。
 
 ## 运行配置
 
-- `server/config.yaml` 和 `server/config.docker.yaml` 使用 `postgres`、`log`、`jwt`、`email` 和 `http` 五个配置段。
+- `server/config.yaml` 和 `server/config.docker.yaml` 使用 `postgres`、`log`、`jwt`、`email` 和 `http` 五个配置段；数据库密码和 JWT 密钥通过环境变量注入。
 - 日志只写入 stdout/stderr，由 Docker 或宿主机负责收集、轮转和保留。
 - 配置通过 `-c <path>`、`XIANYU_CONFIG` 或默认 `config.yaml` 选择；启动后不做部分生效的热更新。
 - HTTP 路径固定，不提供全局路由前缀开关。

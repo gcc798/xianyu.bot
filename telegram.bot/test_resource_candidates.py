@@ -84,9 +84,9 @@ class FakeDatabase:
     def dialog(self, dialog_id):
         return self.dialog_record.copy() if dialog_id == 7 else None
 
-    def create_acquisition_task(self, gva_task_id, candidate_id, idempotency_key):
+    def create_acquisition_task(self, resource_task_id, candidate_id, idempotency_key):
         self.acquisition = {
-            "id": 1, "gva_task_id": gva_task_id, "candidate_id": candidate_id,
+            "id": 1, "resource_task_id": resource_task_id, "candidate_id": candidate_id,
             "idempotency_key": idempotency_key, "state": "queued",
         }
         return self.acquisition.copy(), True
@@ -184,7 +184,7 @@ class ResourceCandidateTest(unittest.IsolatedAsyncioTestCase):
         with tempfile.TemporaryDirectory() as directory:
             service = self.service([message()])
             service.tmp_root = Path(directory)
-            service._gva_json = Mock(side_effect=lambda path, _token, _payload: (
+            service._backend_json = Mock(side_effect=lambda path, _token, _payload: (
                 {"uploadUrl": "http://rustfs/upload"} if path.endswith("/upload") else
                 {"resource": {"ID": 9}} if path.endswith("/complete") else {}
             ))
@@ -197,19 +197,19 @@ class ResourceCandidateTest(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(service.db.acquisition["state"], "completed")
             self.assertEqual(service.db.acquisition["stage"], "completed")
             upload.assert_called_once()
-            complete_call = next(call for call in service._gva_json.call_args_list if call.args[0].endswith("/complete"))
+            complete_call = next(call for call in service._backend_json.call_args_list if call.args[0].endswith("/complete"))
             complete_payload = complete_call.args[2]
             self.assertEqual(complete_payload["size"], 2048)
             self.assertEqual(len(complete_payload["sha256"]), 64)
-            progress_paths = [call.args[0] for call in service._gva_json.call_args_list if call.args[0].endswith("/progress")]
+            progress_paths = [call.args[0] for call in service._backend_json.call_args_list if call.args[0].endswith("/progress")]
             self.assertEqual(len(progress_paths), 3)
 
     @patch.dict(os.environ, {"TELEGRAM_INTERNAL_TOKEN": "candidate-test-secret"})
-    async def test_acquisition_reports_failure_to_gva(self):
+    async def test_acquisition_reports_failure_to_backend(self):
         with tempfile.TemporaryDirectory() as directory:
             service = self.service([message()])
             service.tmp_root = Path(directory)
-            service._gva_json = Mock(side_effect=lambda path, _token, _payload: (
+            service._backend_json = Mock(side_effect=lambda path, _token, _payload: (
                 {"uploadUrl": "http://rustfs/upload"} if path.endswith("/upload") else {}
             ))
             candidate = (await service.search_candidates("Go", None, 1))[0]["candidate_id"]
@@ -218,7 +218,7 @@ class ResourceCandidateTest(unittest.IsolatedAsyncioTestCase):
                 await service.acquisitions[task["id"]]
 
             self.assertEqual(service.db.acquisition["state"], "failed")
-            failure = next(call for call in service._gva_json.call_args_list if call.args[0].endswith("/fail"))
+            failure = next(call for call in service._backend_json.call_args_list if call.args[0].endswith("/fail"))
             self.assertEqual(failure.args[2]["errorCode"], "delivery_failed")
             self.assertEqual(failure.args[2]["errorMessage"], "资源获取失败")
 

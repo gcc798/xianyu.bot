@@ -26,3 +26,15 @@ func TestServerConfigFiles(t *testing.T) {
 		})
 	}
 }
+
+// TestLoadSensitiveValuesFromEnvironment 验证敏感配置可以脱离仓库文件注入。
+func TestLoadSensitiveValuesFromEnvironment(t *testing.T) {
+	t.Setenv("XIANYU_CONFIG", filepath.Join("..", "..", "config.yaml"))
+	t.Setenv("XIANYU_JWT_SIGNING_KEY", "test-signing-key")
+	t.Setenv("XIANYU_POSTGRES_PASSWORD", "test-database-password")
+
+	settings, err := Load()
+	require.NoError(t, err)
+	require.Equal(t, "test-signing-key", settings.JWT.SigningKey)
+	require.Equal(t, "test-database-password", settings.Postgres.Password)
+}

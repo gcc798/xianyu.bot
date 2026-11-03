@@ -27,5 +27,5 @@ type User struct {
 
 // TableName 返回系统用户表名。
 func (User) TableName() string {
-	return "sys_users"
+	return "s_users"
 }

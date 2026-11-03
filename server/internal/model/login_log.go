@@ -11,3 +11,6 @@ type LoginLog struct {
 	UserID       uint   `json:"userId" gorm:"column:user_id;comment:用户id"`             // UserID 是成功匹配的系统用户 ID。
 	User         User   `json:"user" gorm:"foreignKey:UserID"`                         // User 是关联的系统用户。
 }
+
+// TableName 返回登录审计表名。
+func (LoginLog) TableName() string { return "s_login_logs" }

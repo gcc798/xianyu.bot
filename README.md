@@ -7,7 +7,7 @@ Xianyu Assistant 是面向闲鱼自动化和可审计 Agent 工作流的 Go 模�
 项目正在迁移中：
 
 - 闲鱼业务服务位于 `server/internal/service/`，Agent 能力位于 `server/internal/agent/`。
-- PostgreSQL 表结构由 Goose 管理。
+- PostgreSQL 表结构和最小基础数据由单一 `init.sql` 初始化。
 - `agent-web/` 是目标 React 18 + TypeScript 前端。
 - `web/` 是冻结的 Vue 旧前端，只暂时用于迁移对照和回滚。
 - React 已覆盖最小后台和 Agent 对话/轨迹；多数闲鱼业务页面仍待迁移。
@@ -20,7 +20,7 @@ Xianyu Assistant 是面向闲鱼自动化和可审计 Agent 工作流的 Go 模�
 - 闲鱼账号、加密凭据、扫码登录、商品、消息、回复规则、订单、发货和续售；
 - Agent 会话、流式输出、MCP 工具、审批、持久化轨迹和工具检查；
 - 资源搜索、候选检查、异步获取、来源追踪和交付元数据；
-- PostgreSQL 启动迁移和复制数据库基线。
+- PostgreSQL 19 初始化、基础数据和容器化启动。
 
 ## 目录
 
@@ -30,19 +30,19 @@ server/
   internal/api/         HTTP Handler 和 Router
   internal/service/     通用基础与闲鱼业务服务
   internal/model/       持久化实体与请求/响应契约
-  internal/infra/       PostgreSQL、Goose、日志与 HTTP 基础设施
+  internal/infra/       PostgreSQL、日志与 HTTP 基础设施
   internal/xianyu/      闲鱼协议、连接与启动逻辑
 
 agent-web/              主动维护的 React 前端
 web/                    已废弃的 Vue 迁移对照
-script/tel-bot/         Telegram 资源与 MCP 支撑服务
+telegram.bot/           Telegram 资源与 MCP 支撑服务
 docs/                   架构、领域、范围和迁移状态
 .agents/skills/         仓库级 Codex Skills
 ```
 
 ## 技术栈
 
-后端使用 Go、Gin、GORM、PostgreSQL、Goose、JWT、Eino 和 MCP。前端使用 React 18、TypeScript、Vite、原生 Fetch 和流式响应。Ant Design 已确定为标准组件方向，但尚未安装。
+后端使用 Go、Gin、GORM、PostgreSQL、JWT、Eino 和 MCP。前端使用 React 18、TypeScript、Vite、原生 Fetch 和流式响应。Ant Design 已确定为标准组件方向，但尚未安装。
 
 ## 文档入口
 
@@ -53,7 +53,7 @@ docs/                   架构、领域、范围和迁移状态
 - [闲鱼领域](docs/domains/xianyu.md)
 - [Agent 领域](docs/domains/agent.md)
 - [Vue 到 React 迁移](docs/migration/vue-to-react.md)
-- [PostgreSQL 与 Goose](docs/migration/sqlite-to-postgres.md)
+- [PostgreSQL 初始化](docs/database.md)
 
 根目录 `docker-compose.yaml` 是当前唯一保留的容器编排入口：
 
@@ -61,6 +61,8 @@ docs/                   架构、领域、范围和迁移状态
 docker compose config
 docker compose up -d --build
 ```
+
+首次登录使用 `admin / 123456`，登录后应立即修改密码。PostgreSQL 19 当前仅有官方 RC 镜像，正式版发布后应将 Compose 镜像切换到稳定的 `19-alpine`。
 
 常用验证：
 

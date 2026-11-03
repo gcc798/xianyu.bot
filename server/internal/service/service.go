@@ -28,7 +28,7 @@ type Service struct {
 }
 
 // New 组装共享同一数据库和根上下文的全部业务服务。
-func New(ctx context.Context, db *gorm.DB, sendNotificationEmail func(string, string, string) error) *Service {
+func New(ctx context.Context, db *gorm.DB, sendNotificationEmail func(string, string) error) *Service {
 	root := contextOrBackground(ctx)
 	events := NewBusinessEvent(db)
 	accounts := NewAccount(db, events)

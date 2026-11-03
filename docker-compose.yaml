@@ -1,8 +1,8 @@
-name: go.xy.assistant
+name: xianyu.bot
 
 networks:
   default:
-    name: go.xy.assistant
+    name: xianyu.bot
 
 volumes:
   postgres:
@@ -13,7 +13,7 @@ services:
     build:
       context: ./agent-web
       dockerfile: ./Dockerfile
-    container_name: xy-web
+    container_name: xianyu.bot.web
     restart: always
     ports:
       - '18080:8080'
@@ -24,7 +24,7 @@ services:
     build:
       context: ./server
       dockerfile: ./Dockerfile
-    container_name: xy-server
+    container_name: xianyu.bot.server
     restart: always
     ports:
       - '18888:8888'
@@ -33,7 +33,8 @@ services:
         condition: service_healthy
     environment:
       XY_CREDENTIAL_KEY: ${XY_CREDENTIAL_KEY:-}
-      GVA_ADMIN_PASSWORD: ${GVA_ADMIN_PASSWORD:-123456}
+      XIANYU_JWT_SIGNING_KEY: ${XIANYU_JWT_SIGNING_KEY:-change-this-before-production}
+      XIANYU_POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-xianyu_bot}
       TELEGRAM_SERVICE_URL: http://telegram:8080
       TELEGRAM_INTERNAL_TOKEN: ${TELEGRAM_INTERNAL_TOKEN:-}
       RUSTFS_ENDPOINT: http://rustfs:9000
@@ -42,27 +43,28 @@ services:
       RUSTFS_BUCKET: ${RUSTFS_BUCKET:-telegram-resources}
 
   postgres:
-    image: postgres:17-alpine
-    container_name: xy-postgres
+    image: postgres:19rc1-alpine
+    container_name: xianyu.bot.postgres
     restart: always
     ports:
       - '${PGSQL_HOST_PORT:-15432}:5432'
     environment:
-      POSTGRES_DB: xianyu_assistant_v2
-      POSTGRES_USER: xianyu
-      POSTGRES_PASSWORD: ${PGSQL_PASSWORD:-xianyu_assistant}
+      POSTGRES_DB: xianyu_bot
+      POSTGRES_USER: xianyu_bot
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-xianyu_bot}
       TZ: Asia/Shanghai
     healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -U xianyu -d xianyu_assistant_v2']
+      test: ['CMD-SHELL', 'pg_isready -U xianyu_bot -d xianyu_bot']
       interval: 5s
       timeout: 5s
       retries: 20
     volumes:
-      - postgres:/var/lib/postgresql/data
+      - postgres:/var/lib/postgresql
+      - ./server/internal/infra/migrations/init.sql:/docker-entrypoint-initdb.d/001-init.sql:ro
 
   rustfs:
     image: rustfs/rustfs:latest
-    container_name: xy-rustfs
+    container_name: xianyu.bot.rustfs
     restart: always
     command: ['--address', ':9000', '--console-enable', '--console-address', ':9001', '/data']
     ports:
@@ -79,17 +81,17 @@ services:
 
   telegram:
     build:
-      context: ./script/tel-bot
+      context: ./telegram.bot
       dockerfile: Dockerfile
-    container_name: xy-telegram
+    container_name: xianyu.bot.telegram
     restart: unless-stopped
     env_file:
-      - path: ./script/tel-bot/.env
+      - path: ./telegram.bot/.env
         required: false
     environment:
-      DATABASE_URL: postgresql://xianyu:xianyu_assistant@postgres:5432/xianyu_assistant_v2
+      DATABASE_URL: postgresql://xianyu_bot:${POSTGRES_PASSWORD:-xianyu_bot}@postgres:5432/xianyu_bot
       TELEGRAM_INTERNAL_TOKEN: ${TELEGRAM_INTERNAL_TOKEN:-}
-      GVA_INTERNAL_URL: http://server:8888
+      XIANYU_INTERNAL_URL: http://server:8888
       TG_RESOURCE_CONCURRENCY: ${TG_RESOURCE_CONCURRENCY:-1}
       TG_RESOURCE_MAX_FILE_MB: ${TG_RESOURCE_MAX_FILE_MB:-200}
       TG_RESOURCE_AI_BASE_URL: ${TG_RESOURCE_AI_BASE_URL:-}

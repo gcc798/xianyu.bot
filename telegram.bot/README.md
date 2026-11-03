@@ -25,7 +25,7 @@ TG_PROXY_PORT=17891
 
 通过 Docker Compose 运行且代理位于宿主机时，将 `TG_PROXY_HOST` 设置为 `host.docker.internal`。
 
-浏览器打开 <http://127.0.0.1:8080>。首次使用点击“生成二维码”，用手机 Telegram 的“设置 → 设备 → 链接桌面设备”扫码。登录 session 保存在 PostgreSQL `xianyu_assistant.tel_settings` 中，应按凭据保护，不要导出或分享。
+浏览器打开 <http://127.0.0.1:8080>。首次使用点击“生成二维码”，用手机 Telegram 的“设置 → 设备 → 链接桌面设备”扫码。登录 session 保存在 PostgreSQL `xianyu_bot.tel_settings` 中，应按凭据保护，不要导出或分享。
 
 Streamable HTTP MCP 端点为 `/mcp/`，固定提供渠道、来源、资源和通用任务工具。调用必须携带 `x-internal-token`，其值来自 `TELEGRAM_INTERNAL_TOKEN`；未配置令牌时 MCP 端点拒绝服务。
 
@@ -46,16 +46,16 @@ python test_core.py
 
 ## Docker 与 PostgreSQL
 
-Compose 中的服务统一使用 `go.xy.assistant` 网络。闲鱼助手后台映射到宿主机 `18080`，PostgreSQL 映射到 `15432`，RustFS 的 S3 API/控制台分别映射到 `19000`/`19001`，Telegram Web UI 映射到 `127.0.0.1:18081`。
+Compose 中的服务统一使用 `xianyu.bot` 网络。闲鱼助手后台映射到宿主机 `18080`，PostgreSQL 映射到 `15432`，RustFS 的 S3 API/控制台分别映射到 `19000`/`19001`，Telegram Web UI 映射到 `127.0.0.1:18081`。
 
-Telegram 与 Go 后端共用 `xianyu_assistant_v2` 数据库，Telegram 表统一使用 `tel_` 前缀；PostgreSQL 通过宿主机 `15432` 端口连接。原 SQLite 业务数据不再使用，不提供 SQLite 迁移流程。
+Telegram 与 Go 后端共用 `xianyu_bot` 数据库，Telegram 表统一使用 `tel_` 前缀；PostgreSQL 通过宿主机 `15432` 端口连接。表结构由根工程的单一 `init.sql` 初始化，Telegram 进程不动态建表。
 
 资源任务表为 `tel_resource_tasks`、`tel_resource_files`、`tel_resource_sources`。文件临时落在项目根目录 `tmp/telegram/`，上传 RustFS 后立即删除；网页经 Go 后端 JWT/Casbin 接口访问，不暴露 RustFS 凭据。
 
 ```bash
 docker compose up -d --build
 docker compose config
-DATABASE_URL=postgresql://xianyu:xianyu_assistant@127.0.0.1:15432/xianyu_assistant python script/tel-bot/test_core.py
+DATABASE_URL=postgresql://xianyu_bot:xianyu_bot@127.0.0.1:15432/xianyu_bot python telegram.bot/test_core.py
 ```
 
 拒绝词只能拦截明显风险内容，不能判断版权授权；操作者仍须确认来源和保存权限。Office 文件当前提供下载，PDF、图片、文本可在线预览。

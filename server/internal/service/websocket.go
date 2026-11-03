@@ -45,9 +45,9 @@ type WebSocketService struct {
 	keepalives  map[uint]context.CancelFunc // keepalives 保存账号保活任务取消函数。
 	alertMu     sync.Mutex                  // alertMu 保护 alertWindows。
 	// shortcut: active alert windows reset on process restart; persist them if cross-restart continuity becomes required.
-	alertWindows          map[uint]*ConnectionAlertWindow    // alertWindows 聚合账号连接抖动。
-	alertWindowDuration   time.Duration                      // alertWindowDuration 是告警聚合周期。
-	sendNotificationEmail func(string, string, string) error // sendNotificationEmail 发送故障与恢复通知。
+	alertWindows          map[uint]*ConnectionAlertWindow // alertWindows 聚合账号连接抖动。
+	alertWindowDuration   time.Duration                   // alertWindowDuration 是告警聚合周期。
+	sendNotificationEmail func(string, string) error      // sendNotificationEmail 发送故障与恢复通知。
 	delivery              interface {
 		// StartAccount 启动账号发货后台任务。
 		StartAccount(uint)
@@ -57,7 +57,7 @@ type WebSocketService struct {
 }
 
 // NewWebSocketService 创建消息连接服务并组装令牌、拨号和运行时管理器。
-func NewWebSocketService(root context.Context, db *gorm.DB, events *BusinessEvent, messages *Message, sendNotificationEmail func(string, string, string) error) *WebSocketService {
+func NewWebSocketService(root context.Context, db *gorm.DB, events *BusinessEvent, messages *Message, sendNotificationEmail func(string, string) error) *WebSocketService {
 	token := NewWebSocketToken(db, events)
 	dialer := &XYDialer{db: db, token: &token, endpoint: webSocketEndpoint}
 	service := &WebSocketService{
