@@ -126,7 +126,7 @@ func TestXyDialerRegistersAndRoutesSyncMessages(t *testing.T) {
 		ID: created.ID, Cookie: "unb=user-demo; cookie2=do-not-send-in-register",
 	}))
 
-	dialer := &xyDialer{db: db, token: fixedWebSocketToken{}, endpoint: "ws" + strings.TrimPrefix(server.URL, "http")}
+	dialer := &XYDialer{db: db, token: fixedWebSocketToken{}, endpoint: "ws" + strings.TrimPrefix(server.URL, "http")}
 	connection, err := dialer.Dial(t.Context(), created.ID)
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = connection.Close() })
@@ -187,7 +187,7 @@ func TestConnectionStateChangedAlertsOnlyWhenUnavailableAtWindowEnd(t *testing.T
 	service := &WebSocketService{
 		db:                  db,
 		events:              &BusinessEvent{db: db},
-		alertWindows:        make(map[uint]*connectionAlertWindow),
+		alertWindows:        make(map[uint]*ConnectionAlertWindow),
 		alertWindowDuration: 100 * time.Millisecond,
 		sendNotificationEmail: func(_ string, subject string, _ string) error {
 			subjects <- subject
@@ -238,7 +238,7 @@ func TestConnectionStateChangedSuppressesAlertWhenConnectedAtWindowEnd(t *testin
 	service := &WebSocketService{
 		db:                  db,
 		events:              &BusinessEvent{db: db},
-		alertWindows:        make(map[uint]*connectionAlertWindow),
+		alertWindows:        make(map[uint]*ConnectionAlertWindow),
 		alertWindowDuration: 30 * time.Millisecond,
 		sendNotificationEmail: func(_ string, subject string, _ string) error {
 			subjects <- subject

@@ -7,8 +7,8 @@ import (
 	"os/signal"
 	"syscall"
 
-	systemRouter "github.com/gcc798/xianyu.bot/internal/api/router/system"
-	systemAPI "github.com/gcc798/xianyu.bot/internal/api/system"
+	"github.com/gcc798/xianyu.bot/internal/api"
+	"github.com/gcc798/xianyu.bot/internal/api/router"
 	"github.com/gcc798/xianyu.bot/internal/app"
 	"github.com/gcc798/xianyu.bot/internal/config"
 	"github.com/gcc798/xianyu.bot/internal/infra"
@@ -51,6 +51,6 @@ func run() error {
 	mailSender := mail.NewSender(settings.Email)
 	services := service.New(ctx, db, mailSender.Send)
 	services.RevokedTokens.Load()
-	systemRoutes := systemRouter.New(systemAPI.New(services, jwt))
-	return infra.RunServer(ctx, app.Routers(ctx, systemRoutes, jwt, services), settings.HTTP.Port)
+	routes := router.New(api.New(services, jwt))
+	return infra.RunServer(ctx, app.Routers(ctx, routes, jwt, services), settings.HTTP.Port)
 }

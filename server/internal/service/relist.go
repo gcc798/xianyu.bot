@@ -27,7 +27,7 @@ func (s *Relist) caller() mtopCaller {
 	if s.mtop != nil {
 		return s.mtop
 	}
-	return &mtopClient{db: s.db}
+	return &MTopClient{db: s.db}
 }
 
 func (s *Relist) Plan(ctx context.Context, order model.Order) error {
@@ -99,7 +99,7 @@ func (s *Relist) ProcessTask(ctx context.Context, ownerID, taskID uint) error {
 			return db.Model(&task).Updates(map[string]any{"status": model.RelistTaskPending, "next_attempt_at": time.Now().Add(30 * time.Second)}).Error
 		}
 	}
-	var snapshot publishSnapshot
+	var snapshot PublishSnapshot
 	if err := json.Unmarshal([]byte(item.PublishSnapshot), &snapshot); err != nil || snapshot.API == "" || len(snapshot.Payload) == 0 {
 		return s.failTask(db, task, errors.New("商品发布快照已损坏"))
 	}

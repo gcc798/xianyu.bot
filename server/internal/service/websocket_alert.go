@@ -10,7 +10,7 @@ import (
 	"go.uber.org/zap"
 )
 
-type connectionAlertWindow struct {
+type ConnectionAlertWindow struct {
 	startedAt        time.Time
 	unavailable      bool
 	unavailableCount uint
@@ -64,7 +64,7 @@ func (s *WebSocketService) trackConnectionAlertWindow(snapshot connection.Snapsh
 	}
 
 	if window == nil {
-		window = &connectionAlertWindow{startedAt: time.Now()}
+		window = &ConnectionAlertWindow{startedAt: time.Now()}
 		s.alertWindows[snapshot.AccountID] = window
 		duration := s.alertWindowDuration
 		if duration <= 0 {
@@ -88,7 +88,7 @@ func (s *WebSocketService) trackConnectionAlertWindow(snapshot connection.Snapsh
 	s.alertMu.Unlock()
 }
 
-func (s *WebSocketService) finishConnectionAlertWindow(accountID uint, target *connectionAlertWindow) {
+func (s *WebSocketService) finishConnectionAlertWindow(accountID uint, target *ConnectionAlertWindow) {
 	s.alertMu.Lock()
 	window := s.alertWindows[accountID]
 	if window != target || window.alerted {
@@ -109,7 +109,7 @@ func (s *WebSocketService) finishConnectionAlertWindow(accountID uint, target *c
 	close(window.notificationDone)
 }
 
-func (s *WebSocketService) recordSuppressedConnectionAlert(accountID uint, window *connectionAlertWindow) {
+func (s *WebSocketService) recordSuppressedConnectionAlert(accountID uint, window *ConnectionAlertWindow) {
 	var account model.Account
 	if err := s.db.Where("id = ?", accountID).First(&account).Error; err != nil {
 		zap.L().Error("记录闲鱼消息连接抖动失败", zap.Uint("accountID", accountID), zap.Error(err))

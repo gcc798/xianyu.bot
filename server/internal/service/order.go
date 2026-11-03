@@ -24,7 +24,7 @@ type Order struct {
 	sender  textSender
 }
 
-type pendingOrderPage struct {
+type PendingOrderPage struct {
 	Module struct {
 		Items []struct {
 			CommonData struct {
@@ -52,7 +52,7 @@ func (s *Order) caller() mtopCaller {
 	if s.mtop != nil {
 		return s.mtop
 	}
-	return &mtopClient{db: s.db}
+	return &MTopClient{db: s.db}
 }
 
 func (s *Order) SyncPending(ctx context.Context, ownerID, accountID uint) (int, error) {
@@ -65,7 +65,7 @@ func (s *Order) SyncPending(ctx context.Context, ownerID, accountID uint) (int, 
 	if err != nil {
 		return 0, err
 	}
-	var page pendingOrderPage
+	var page PendingOrderPage
 	if err := json.Unmarshal(data, &page); err != nil {
 		return 0, errors.New("闲鱼订单响应格式无法识别")
 	}

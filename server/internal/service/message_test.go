@@ -173,7 +173,7 @@ func TestAutoReplyMergesMessagesAndSendsOnlyLatest(t *testing.T) {
 		ProductID: product.ID, Type: model.ReplyRuleFuzzy, Keyword: "你好", Content: "自动回复内容", Enabled: true,
 	}))
 	sent := make(chan string, 2)
-	service := &Message{db: db, events: &BusinessEvent{db: db}, sender: channelTextSender(sent), rules: rules, pending: make(map[string]pendingReply)}
+	service := &Message{db: db, events: &BusinessEvent{db: db}, sender: channelTextSender(sent), rules: rules, pending: make(map[string]PendingReply)}
 	first := model.Message{OwnerID: 10, AccountID: account.ID, PNMID: "one", SessionID: "session-1", ContentType: 1, Content: "你好", SenderUserID: "buyer-1", ExternalProductID: "item-1", Direction: "inbound", Source: "remote"}
 	second := first
 	second.PNMID = "two"
@@ -218,7 +218,7 @@ func TestVirtualProductUsesDefaultFallbackReply(t *testing.T) {
 	}
 	require.NoError(t, db.Create(&incoming).Error)
 	sent := make(chan string, 1)
-	service := &Message{db: db, events: &BusinessEvent{db: db}, sender: channelTextSender(sent), rules: &ReplyRule{db: db}, pending: make(map[string]pendingReply)}
+	service := &Message{db: db, events: &BusinessEvent{db: db}, sender: channelTextSender(sent), rules: &ReplyRule{db: db}, pending: make(map[string]PendingReply)}
 
 	require.NoError(t, service.scheduleAutoReply(t.Context(), account, incoming))
 	select {
@@ -246,7 +246,7 @@ func TestHandleHistoryRepliesOnlyToLatestRecentMessage(t *testing.T) {
 		ProductID: product.ID, Type: model.ReplyRuleFuzzy, Keyword: "价格是什么", Content: "十元", Enabled: true,
 	}))
 	sent := make(chan string, 2)
-	service := &Message{db: db, events: &BusinessEvent{db: db}, sender: channelTextSender(sent), rules: rules, pending: make(map[string]pendingReply)}
+	service := &Message{db: db, events: &BusinessEvent{db: db}, sender: channelTextSender(sent), rules: rules, pending: make(map[string]PendingReply)}
 	now := time.Now().UnixMilli()
 	raw := historyResponse(t, []map[string]any{
 		historyMessage(t, "old", "buyer", "价格是什么", "item-1", now-1000),

@@ -24,20 +24,20 @@ type mtopCaller interface {
 	Call(context.Context, uint, uint, string, any, bool) (json.RawMessage, error)
 }
 
-type mtopClient struct {
+type MTopClient struct {
 	db       *gorm.DB
 	client   *http.Client
 	endpoint string
 }
 
-type mtopEnvelope struct {
+type MTopEnvelope struct {
 	Ret  []string        `json:"ret"`
 	Data json.RawMessage `json:"data"`
 }
 
 var errMTopTransport = errors.New("闲鱼接口结果未知")
 
-func (m *mtopClient) Call(ctx context.Context, ownerID, accountID uint, api string, data any, seller bool) (result json.RawMessage, err error) {
+func (m *MTopClient) Call(ctx context.Context, ownerID, accountID uint, api string, data any, seller bool) (result json.RawMessage, err error) {
 	startedAt := time.Now()
 	defer func() {
 		fields := []zap.Field{
@@ -87,7 +87,7 @@ func (m *mtopClient) Call(ctx context.Context, ownerID, accountID uint, api stri
 	}()
 
 	for attempt := range 2 {
-		var envelope mtopEnvelope
+		var envelope MTopEnvelope
 		var nextCookie string
 		envelope, nextCookie, err = m.call(ctx, cookie, api, data, seller)
 		cookie = nextCookie
@@ -102,7 +102,7 @@ func (m *mtopClient) Call(ctx context.Context, ownerID, accountID uint, api stri
 	return nil, err
 }
 
-func (m *mtopClient) call(ctx context.Context, cookie, api string, data any, seller bool) (mtopEnvelope, string, error) {
+func (m *MTopClient) call(ctx context.Context, cookie, api string, data any, seller bool) (MTopEnvelope, string, error) {
 	version := "1.0"
 	if strings.HasSuffix(api, "/2.0") {
 		api = strings.TrimSuffix(api, "/2.0")
@@ -110,12 +110,12 @@ func (m *mtopClient) call(ctx context.Context, cookie, api string, data any, sel
 	}
 	payload, err := json.Marshal(data)
 	if err != nil {
-		return mtopEnvelope{}, cookie, err
+		return MTopEnvelope{}, cookie, err
 	}
 	cookies := parseCookieHeader(cookie)
 	token := strings.Split(cookies["_m_h5_tk"], "_")[0]
 	if token == "" {
-		return mtopEnvelope{}, cookie, errors.New("闲鱼凭证缺少签名令牌，请重新扫码登录")
+		return MTopEnvelope{}, cookie, errors.New("闲鱼凭证缺少签名令牌，请重新扫码登录")
 	}
 	timestamp := strconv.FormatInt(time.Now().UnixMilli(), 10)
 	hash := md5.Sum([]byte(token + "&" + timestamp + "&" + mtopAppKey + "&" + string(payload)))
@@ -125,7 +125,7 @@ func (m *mtopClient) call(ctx context.Context, cookie, api string, data any, sel
 	}
 	target, err := url.Parse(base + "/" + api + "/" + version + "/")
 	if err != nil {
-		return mtopEnvelope{}, cookie, err
+		return MTopEnvelope{}, cookie, err
 	}
 	query := target.Query()
 	for key, value := range map[string]string{
@@ -147,7 +147,7 @@ func (m *mtopClient) call(ctx context.Context, cookie, api string, data any, sel
 	target.RawQuery = query.Encode()
 	request, err := http.NewRequestWithContext(ctx, http.MethodPost, target.String(), strings.NewReader(url.Values{"data": {string(payload)}}.Encode()))
 	if err != nil {
-		return mtopEnvelope{}, cookie, err
+		return MTopEnvelope{}, cookie, err
 	}
 	request.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	request.Header.Set("Accept", "application/json")
@@ -173,23 +173,23 @@ func (m *mtopClient) call(ctx context.Context, cookie, api string, data any, sel
 	}
 	response, err := client.Do(request)
 	if err != nil {
-		return mtopEnvelope{}, cookie, fmt.Errorf("%w: %v", errMTopTransport, err)
+		return MTopEnvelope{}, cookie, fmt.Errorf("%w: %v", errMTopTransport, err)
 	}
 	defer response.Body.Close()
 	body, err := io.ReadAll(io.LimitReader(response.Body, 8<<20))
 	merged := mergeResponseCookies(cookies, response.Cookies())
 	if err != nil {
-		return mtopEnvelope{}, merged, fmt.Errorf("%w: %v", errMTopTransport, err)
+		return MTopEnvelope{}, merged, fmt.Errorf("%w: %v", errMTopTransport, err)
 	}
 	if response.StatusCode < 200 || response.StatusCode >= 300 {
-		return mtopEnvelope{}, merged, fmt.Errorf("闲鱼接口 HTTP 状态 %d", response.StatusCode)
+		return MTopEnvelope{}, merged, fmt.Errorf("闲鱼接口 HTTP 状态 %d", response.StatusCode)
 	}
-	var envelope mtopEnvelope
+	var envelope MTopEnvelope
 	if json.Unmarshal(body, &envelope) != nil || len(envelope.Ret) == 0 {
-		return mtopEnvelope{}, merged, errors.New("闲鱼接口响应格式无法识别")
+		return MTopEnvelope{}, merged, errors.New("闲鱼接口响应格式无法识别")
 	}
 	if !strings.Contains(envelope.Ret[0], "SUCCESS") {
-		return mtopEnvelope{}, merged, errors.New(envelope.Ret[0])
+		return MTopEnvelope{}, merged, errors.New(envelope.Ret[0])
 	}
 	return envelope, merged, nil
 }

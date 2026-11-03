@@ -17,7 +17,7 @@ func TestMTopSellerRequestCarriesFishShopContext(t *testing.T) {
 	}))
 	t.Cleanup(server.Close)
 
-	client := &mtopClient{client: server.Client(), endpoint: server.URL}
+	client := &MTopClient{client: server.Client(), endpoint: server.URL}
 	envelope, _, err := client.call(t.Context(), "_m_h5_tk=token_1", "mtop.idle.pc.backend.idleitem.editdetail", map[string]any{"itemId": "1"}, true)
 	require.NoError(t, err)
 	require.JSONEq(t, `{"itemId":"1"}`, string(envelope.Data))
@@ -32,7 +32,7 @@ func TestMTopSupportsCategoryRecommendationVersion(t *testing.T) {
 	}))
 	t.Cleanup(server.Close)
 
-	client := &mtopClient{client: server.Client(), endpoint: server.URL}
+	client := &MTopClient{client: server.Client(), endpoint: server.URL}
 	_, _, err := client.call(t.Context(), "_m_h5_tk=token_1", "mtop.taobao.idle.kgraph.pc.property.recommend/2.0", map[string]any{}, true)
 	require.NoError(t, err)
 }

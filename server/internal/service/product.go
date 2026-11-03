@@ -33,7 +33,7 @@ type Product struct {
 	mtop     mtopCaller
 }
 
-type remoteProduct struct {
+type RemoteProduct struct {
 	ExternalProductID string
 	Title             string
 	PriceCent         int64
@@ -41,7 +41,7 @@ type remoteProduct struct {
 	SourceJSON        string
 }
 
-type productCardData struct {
+type ProductCardData struct {
 	ID        string `json:"id"`
 	Title     string `json:"title"`
 	PriceInfo struct {
@@ -59,8 +59,8 @@ type productCardData struct {
 	Raw json.RawMessage `json:"-"`
 }
 
-func (c *productCardData) UnmarshalJSON(data []byte) error {
-	type card productCardData
+func (c *ProductCardData) UnmarshalJSON(data []byte) error {
+	type card ProductCardData
 	if err := json.Unmarshal(data, (*card)(c)); err != nil {
 		return err
 	}
@@ -195,9 +195,9 @@ func (s *Product) Sync(ctx context.Context, ownerID uint, input xyRequest.Produc
 		}
 	}()
 
-	all := make([]remoteProduct, 0)
+	all := make([]RemoteProduct, 0)
 	for page := 1; page <= 100; page++ {
-		var items []remoteProduct
+		var items []RemoteProduct
 		var nextCookie string
 		items, nextCookie, err = s.fetchPage(ctx, cookie, page, 20)
 		if err != nil && nextCookie != cookie {
@@ -251,7 +251,7 @@ func (s *Product) Sync(ctx context.Context, ownerID uint, input xyRequest.Produc
 	return len(all), err
 }
 
-func (s *Product) fetchPage(ctx context.Context, cookie string, page, pageSize int) ([]remoteProduct, string, error) {
+func (s *Product) fetchPage(ctx context.Context, cookie string, page, pageSize int) ([]RemoteProduct, string, error) {
 	cookies := parseCookieHeader(cookie)
 	token := strings.Split(cookies["_m_h5_tk"], "_")[0]
 	if token == "" || cookies["unb"] == "" {
@@ -321,12 +321,12 @@ func (s *Product) endpointURL() string {
 	return productListEndpoint
 }
 
-func parseProductPage(body []byte) ([]remoteProduct, error) {
+func parseProductPage(body []byte) ([]RemoteProduct, error) {
 	var payload struct {
 		Ret  []string `json:"ret"`
 		Data struct {
 			CardList []struct {
-				CardData productCardData `json:"cardData"`
+				CardData ProductCardData `json:"cardData"`
 			} `json:"cardList"`
 		} `json:"data"`
 	}
@@ -340,7 +340,7 @@ func parseProductPage(body []byte) ([]remoteProduct, error) {
 		}
 		return nil, errors.New("闲鱼商品同步失败：响应缺少状态")
 	}
-	items := make([]remoteProduct, 0, len(payload.Data.CardList))
+	items := make([]RemoteProduct, 0, len(payload.Data.CardList))
 	seen := make(map[string]struct{}, len(payload.Data.CardList))
 	for _, card := range payload.Data.CardList {
 		itemID := strings.TrimSpace(card.CardData.DetailParams.ItemID)
@@ -370,7 +370,7 @@ func parseProductPage(body []byte) ([]remoteProduct, error) {
 		if imageURL == "" {
 			imageURL = strings.TrimSpace(card.CardData.DetailParams.PicURL)
 		}
-		items = append(items, remoteProduct{
+		items = append(items, RemoteProduct{
 			ExternalProductID: itemID, Title: title, PriceCent: int64(math.Round(price * 100)), ImageURL: imageURL, SourceJSON: string(card.CardData.Raw),
 		})
 	}

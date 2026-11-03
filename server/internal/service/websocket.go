@@ -39,7 +39,7 @@ type WebSocketService struct {
 	keepalives  map[uint]context.CancelFunc
 	alertMu     sync.Mutex
 	// shortcut: active alert windows reset on process restart; persist them if cross-restart continuity becomes required.
-	alertWindows          map[uint]*connectionAlertWindow
+	alertWindows          map[uint]*ConnectionAlertWindow
 	alertWindowDuration   time.Duration
 	sendNotificationEmail func(string, string, string) error
 	delivery              interface {
@@ -48,35 +48,35 @@ type WebSocketService struct {
 	}
 }
 
-type xyDialer struct {
+type XYDialer struct {
 	db       *gorm.DB
 	token    webSocketTokenGetter
 	endpoint string
 }
 
-type xyConnection struct {
+type XYConnection struct {
 	accountID uint
 	conn      *websocket.Conn
 	writeMu   sync.Mutex
 	pendingMu sync.Mutex
-	pending   map[string]chan webSocketResponse
+	pending   map[string]chan WebSocketResponse
 	closeOnce sync.Once
 }
 
-type webSocketResponse struct {
+type WebSocketResponse struct {
 	code int
 	raw  []byte
 }
 
 func NewWebSocketService(root context.Context, db *gorm.DB, events *BusinessEvent, messages *Message, sendNotificationEmail func(string, string, string) error) *WebSocketService {
-	token := newWebSocketToken(db, events)
-	dialer := &xyDialer{db: db, token: &token, endpoint: webSocketEndpoint}
+	token := NewWebSocketToken(db, events)
+	dialer := &XYDialer{db: db, token: &token, endpoint: webSocketEndpoint}
 	service := &WebSocketService{
 		root:                  contextOrBackground(root),
 		db:                    db,
 		events:                events,
 		messages:              messages,
-		alertWindows:          make(map[uint]*connectionAlertWindow),
+		alertWindows:          make(map[uint]*ConnectionAlertWindow),
 		alertWindowDuration:   time.Hour,
 		sendNotificationEmail: sendNotificationEmail,
 	}

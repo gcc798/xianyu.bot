@@ -35,7 +35,7 @@ type deliveryPlanner interface {
 	Plan(context.Context, model.Order) error
 }
 
-type pendingReply struct {
+type PendingReply struct {
 	id     uint
 	cancel context.CancelFunc
 }
@@ -49,7 +49,7 @@ type Message struct {
 	orders   orderRecorder
 	delivery deliveryPlanner
 	mu       sync.Mutex
-	pending  map[string]pendingReply
+	pending  map[string]PendingReply
 }
 
 func (s *Message) StartAccount(accountID uint) {
@@ -364,7 +364,7 @@ func (s *Message) launchReply(task model.ReplyTask) {
 	ctx, cancel := context.WithCancel(contextOrBackground(s.root))
 	s.mu.Lock()
 	if s.pending == nil {
-		s.pending = make(map[string]pendingReply)
+		s.pending = make(map[string]PendingReply)
 	}
 	if previous := s.pending[key]; previous.cancel != nil {
 		previous.cancel()
@@ -375,7 +375,7 @@ func (s *Message) launchReply(task model.ReplyTask) {
 		_ = s.finishReplyTask(task.ID, model.ReplyTaskFailed, "待回复队列已满")
 		return
 	}
-	s.pending[key] = pendingReply{id: task.ID, cancel: cancel}
+	s.pending[key] = PendingReply{id: task.ID, cancel: cancel}
 	s.mu.Unlock()
 	go func() {
 		delay := time.Until(task.ScheduledAt)

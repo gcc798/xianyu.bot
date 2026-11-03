@@ -175,7 +175,7 @@ func TestCapturePublishSnapshotAdaptsDetailResponseAndUsesLatestImages(t *testin
 	service := &Product{mtop: fakeMTopCaller{data: json.RawMessage(`{"itemDO":{"imageInfos":[{"url":"https://img.example/new.jpg"}]},"picDetailDO":{}}`)}}
 	snapshotJSON, err := service.capturePublishSnapshot(t.Context(), 10, item, xyRequest.UpdateProductSetting{RelistDescription: "新描述"})
 	require.NoError(t, err)
-	var snapshot publishSnapshot
+	var snapshot PublishSnapshot
 	require.NoError(t, json.Unmarshal([]byte(snapshotJSON), &snapshot))
 	require.Equal(t, "新描述", snapshot.Payload["itemTextDTO"].(map[string]any)["desc"])
 	images := snapshot.Payload["imageInfoDOList"].([]any)

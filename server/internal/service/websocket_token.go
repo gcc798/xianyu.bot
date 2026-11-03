@@ -27,17 +27,17 @@ const (
 	webSocketTokenLifetime = 20 * time.Hour
 )
 
-type verificationRequiredError struct {
+type VerificationRequiredError struct {
 	URL string
 }
 
-func (e *verificationRequiredError) Error() string {
+func (e *VerificationRequiredError) Error() string {
 	return "消息接口需要网页安全验证并更新 Cookie"
 }
-func (e *verificationRequiredError) NonRetryable() bool { return true }
-func (e *verificationRequiredError) ActionURL() string  { return e.URL }
+func (e *VerificationRequiredError) NonRetryable() bool { return true }
+func (e *VerificationRequiredError) ActionURL() string  { return e.URL }
 
-type webSocketToken struct {
+type WebSocketToken struct {
 	db                   *gorm.DB
 	events               *BusinessEvent
 	client               *http.Client
@@ -45,8 +45,8 @@ type webSocketToken struct {
 	deviceCookieEndpoint string
 }
 
-func newWebSocketToken(db *gorm.DB, events *BusinessEvent) webSocketToken {
-	return webSocketToken{
+func NewWebSocketToken(db *gorm.DB, events *BusinessEvent) WebSocketToken {
+	return WebSocketToken{
 		db:                   db,
 		events:               events,
 		client:               &http.Client{Timeout: 30 * time.Second},
@@ -55,7 +55,7 @@ func newWebSocketToken(db *gorm.DB, events *BusinessEvent) webSocketToken {
 	}
 }
 
-func (s *webSocketToken) Get(ctx context.Context, ownerID, accountID uint) (string, string, error) {
+func (s *WebSocketToken) Get(ctx context.Context, ownerID, accountID uint) (string, string, error) {
 	if ownerID == 0 || accountID == 0 {
 		return "", "", errors.New("账号 ID 不能为空")
 	}
@@ -101,7 +101,7 @@ func (s *webSocketToken) Get(ctx context.Context, ownerID, accountID uint) (stri
 		if err == nil {
 			break
 		}
-		if verification, ok := errors.AsType[*verificationRequiredError](err); ok {
+		if verification, ok := errors.AsType[*VerificationRequiredError](err); ok {
 			cipherCookie, encryptErr := encryptCredential(s.db, cookie, credentialAAD(accountID, "cookie"))
 			if encryptErr != nil {
 				return "", "", errors.Join(verification, fmt.Errorf("保存风控 Cookie: %w", encryptErr))
@@ -163,7 +163,7 @@ func (s *webSocketToken) Get(ctx context.Context, ownerID, accountID uint) (stri
 	return token, deviceID, err
 }
 
-func (s *webSocketToken) ensureDeviceCookie(ctx context.Context, cookie string) (string, error) {
+func (s *WebSocketToken) ensureDeviceCookie(ctx context.Context, cookie string) (string, error) {
 	if parseCookieHeader(cookie)["cna"] != "" {
 		return cookie, nil
 	}
@@ -186,7 +186,7 @@ func (s *webSocketToken) ensureDeviceCookie(ctx context.Context, cookie string) 
 	return "", errors.New("闲鱼设备 Cookie 获取失败")
 }
 
-func (s *webSocketToken) fetch(ctx context.Context, cookie, deviceID string) (string, string, error) {
+func (s *WebSocketToken) fetch(ctx context.Context, cookie, deviceID string) (string, string, error) {
 	timestamp := fmt.Sprintf("%d", time.Now().UnixMilli())
 	data, err := json.Marshal(struct {
 		AppKey   string `json:"appKey"`
@@ -256,7 +256,7 @@ func (s *webSocketToken) fetch(ctx context.Context, cookie, deviceID string) (st
 	}
 	for _, result := range payload.Ret {
 		if strings.Contains(result, "FAIL_SYS_USER_VALIDATE") || strings.Contains(result, "RGV587_ERROR") || strings.Contains(result, "被挤爆啦") {
-			return "", mergedCookie, &verificationRequiredError{URL: safeVerificationURL(payload.Data.URL)}
+			return "", mergedCookie, &VerificationRequiredError{URL: safeVerificationURL(payload.Data.URL)}
 		}
 	}
 	if payload.Data.AccessToken == "" {

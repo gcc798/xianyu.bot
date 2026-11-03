@@ -16,7 +16,7 @@ import (
 
 func TestLiveWebSocketTokenCanBeFetched(t *testing.T) {
 	db, ownerID, accountID := liveAccount(t)
-	tokenService := newWebSocketToken(db, &BusinessEvent{db: db})
+	tokenService := NewWebSocketToken(db, &BusinessEvent{db: db})
 	token, deviceID, err := tokenService.Get(t.Context(), ownerID, accountID)
 	require.NoError(t, err)
 	require.NotEmpty(t, token)
@@ -25,8 +25,8 @@ func TestLiveWebSocketTokenCanBeFetched(t *testing.T) {
 
 func TestLiveWebSocketCanRegister(t *testing.T) {
 	db, _, accountID := liveAccount(t)
-	dialer := &xyDialer{db: db, token: func() webSocketTokenGetter {
-		token := newWebSocketToken(db, &BusinessEvent{db: db})
+	dialer := &XYDialer{db: db, token: func() webSocketTokenGetter {
+		token := NewWebSocketToken(db, &BusinessEvent{db: db})
 		return &token
 	}(), endpoint: webSocketEndpoint}
 	ctx, cancel := context.WithTimeoutCause(t.Context(), 20*time.Second, errors.New("在线 WebSocket 连接测试超时"))

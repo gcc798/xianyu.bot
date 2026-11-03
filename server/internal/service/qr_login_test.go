@@ -51,10 +51,10 @@ func TestQRLoginSavesCredentialWithoutReturningIt(t *testing.T) {
 	created, err := accountService.Create(t.Context(), 10, xyRequest.CreateAccount{Label: "扫码账号"})
 	require.NoError(t, err)
 
-	loginService := &QRLogin{manager: &qrLoginManager{
+	loginService := &QRLogin{manager: &QRLoginManager{
 		accounts: accountService,
-		sessions: make(map[string]*qrSession), byAccount: make(map[[2]uint]string),
-		endpoints: qrEndpoints{
+		sessions: make(map[string]*QRSession), byAccount: make(map[[2]uint]string),
+		endpoints: QREndpoints{
 			h5Token: server.URL + "/h5", miniLogin: server.URL + "/mini",
 			generate: server.URL + "/generate", query: server.URL + "/query", loginToken: server.URL + "/login-token",
 		},

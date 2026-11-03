@@ -23,23 +23,23 @@ const hasLoginEndpoint = "https://passport.goofish.com/newlogin/hasLogin.do"
 
 var credentialRefreshLocks sync.Map
 
-type loginCheck struct {
+type LoginCheck struct {
 	valid  bool
 	risk   bool
 	cookie string
 }
 
 type loginChecker interface {
-	Check(context.Context, string) (loginCheck, error)
+	Check(context.Context, string) (LoginCheck, error)
 }
 
-type httpLoginChecker struct {
+type HTTPLoginChecker struct {
 	client   *http.Client
 	endpoint string
 }
 
-func newHTTPLoginChecker() *httpLoginChecker {
-	return &httpLoginChecker{
+func NewHTTPLoginChecker() *HTTPLoginChecker {
+	return &HTTPLoginChecker{
 		client:   &http.Client{Timeout: 20 * time.Second},
 		endpoint: hasLoginEndpoint,
 	}
@@ -72,9 +72,9 @@ func (s *Account) CheckLogin(ctx context.Context, ownerID, accountID uint) (xyRe
 
 	checker := s.loginChecker
 	if checker == nil {
-		checker = newHTTPLoginChecker()
+		checker = NewHTTPLoginChecker()
 	}
-	var check loginCheck
+	var check LoginCheck
 	for attempt := range 2 {
 		check, err = checker.Check(ctx, cookie)
 		if check.cookie != "" {
@@ -127,7 +127,7 @@ func (s *Account) CheckLogin(ctx context.Context, ownerID, accountID uint) (xyRe
 	return xyResponse.LoginStatus{Status: status, CookieUpdated: cookieUpdated, CredentialVersion: credential.Version}, nil
 }
 
-func (c *httpLoginChecker) Check(ctx context.Context, cookie string) (loginCheck, error) {
+func (c *HTTPLoginChecker) Check(ctx context.Context, cookie string) (LoginCheck, error) {
 	cookies := parseCookieHeader(cookie)
 	form := url.Values{
 		"appName":         {"xianyu"},
@@ -151,7 +151,7 @@ func (c *httpLoginChecker) Check(ctx context.Context, cookie string) (loginCheck
 	}
 	request, err := http.NewRequestWithContext(ctx, http.MethodPost, c.endpoint, strings.NewReader(form.Encode()))
 	if err != nil {
-		return loginCheck{}, err
+		return LoginCheck{}, err
 	}
 	request.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	request.Header.Set("Accept", "application/json, text/plain, */*")
@@ -162,15 +162,15 @@ func (c *httpLoginChecker) Check(ctx context.Context, cookie string) (loginCheck
 
 	response, err := c.client.Do(request)
 	if err != nil {
-		return loginCheck{}, err
+		return LoginCheck{}, err
 	}
 	defer response.Body.Close()
 	body, err := io.ReadAll(io.LimitReader(response.Body, 1<<20))
 	if err != nil {
-		return loginCheck{}, err
+		return LoginCheck{}, err
 	}
 	if response.StatusCode < 200 || response.StatusCode >= 300 {
-		return loginCheck{}, fmt.Errorf("hasLogin HTTP 状态 %d", response.StatusCode)
+		return LoginCheck{}, fmt.Errorf("hasLogin HTTP 状态 %d", response.StatusCode)
 	}
 	text := string(body)
 	merged := cookie
@@ -178,7 +178,7 @@ func (c *httpLoginChecker) Check(ctx context.Context, cookie string) (loginCheck
 		merged = mergeResponseCookies(cookies, responseCookies)
 	}
 	if strings.Contains(text, "RGV587_ERROR") || strings.Contains(text, "被挤爆啦") {
-		return loginCheck{risk: true, cookie: merged}, nil
+		return LoginCheck{risk: true, cookie: merged}, nil
 	}
 	var payload struct {
 		Content struct {
@@ -186,9 +186,9 @@ func (c *httpLoginChecker) Check(ctx context.Context, cookie string) (loginCheck
 		} `json:"content"`
 	}
 	if err := json.Unmarshal(body, &payload); err != nil {
-		return loginCheck{}, errors.New("hasLogin 响应格式无法识别")
+		return LoginCheck{}, errors.New("hasLogin 响应格式无法识别")
 	}
-	return loginCheck{valid: payload.Content.Success, cookie: merged}, nil
+	return LoginCheck{valid: payload.Content.Success, cookie: merged}, nil
 }
 
 func parseCookieHeader(header string) map[string]string {

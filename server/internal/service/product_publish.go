@@ -13,7 +13,7 @@ import (
 	xyRequest "github.com/gcc798/xianyu.bot/internal/model/request"
 )
 
-type publishSnapshot struct {
+type PublishSnapshot struct {
 	API     string         `json:"api"`
 	Seller  bool           `json:"seller"`
 	Payload map[string]any `json:"payload"`
@@ -22,7 +22,7 @@ type publishSnapshot struct {
 func (s *Product) capturePublishSnapshot(ctx context.Context, ownerID uint, item model.Product, input xyRequest.UpdateProductSetting) (string, error) {
 	caller := s.mtop
 	if caller == nil {
-		caller = &mtopClient{db: s.db}
+		caller = &MTopClient{db: s.db}
 	}
 	data, err := caller.Call(ctx, ownerID, item.AccountID, "mtop.idle.pc.backend.idleitem.editdetail", map[string]any{"itemId": item.ExternalProductID}, true)
 	if err != nil {
@@ -94,7 +94,7 @@ func (s *Product) capturePublishSnapshot(ctx context.Context, ownerID uint, item
 }
 
 func marshalPublishSnapshot(payload map[string]any) (string, error) {
-	snapshot, err := json.Marshal(publishSnapshot{API: "mtop.idle.pc.idleitem.publish", Payload: payload})
+	snapshot, err := json.Marshal(PublishSnapshot{API: "mtop.idle.pc.idleitem.publish", Payload: payload})
 	if err != nil {
 		return "", err
 	}
@@ -102,7 +102,7 @@ func marshalPublishSnapshot(payload map[string]any) (string, error) {
 }
 
 func publishSnapshotDescription(raw string) string {
-	var snapshot publishSnapshot
+	var snapshot PublishSnapshot
 	if json.Unmarshal([]byte(raw), &snapshot) != nil {
 		return ""
 	}
@@ -209,7 +209,7 @@ func detailPublishImages(payload map[string]any) []any {
 }
 
 func inheritedPublishAddress(snapshot string) map[string]any {
-	var saved publishSnapshot
+	var saved PublishSnapshot
 	if json.Unmarshal([]byte(snapshot), &saved) != nil {
 		return nil
 	}

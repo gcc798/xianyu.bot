@@ -17,7 +17,7 @@ import (
 	"golang.org/x/net/websocket"
 )
 
-func (d *xyDialer) Dial(ctx context.Context, accountID uint) (connection.Connection, error) {
+func (d *XYDialer) Dial(ctx context.Context, accountID uint) (connection.Connection, error) {
 	var account model.Account
 	if err := d.db.WithContext(ctx).Where("id = ?", accountID).First(&account).Error; err != nil {
 		return nil, err
@@ -49,7 +49,7 @@ func (d *xyDialer) Dial(ctx context.Context, accountID uint) (connection.Connect
 	if err != nil {
 		return nil, fmt.Errorf("连接闲鱼 WebSocket: %w", err)
 	}
-	connection := &xyConnection{accountID: accountID, conn: conn, pending: make(map[string]chan webSocketResponse)}
+	connection := &XYConnection{accountID: accountID, conn: conn, pending: make(map[string]chan WebSocketResponse)}
 	registerCtx, cancel := context.WithTimeoutCause(ctx, 10*time.Second, errors.New("闲鱼 WebSocket 注册超时"))
 	defer cancel()
 	if err := connection.register(registerCtx, token, deviceID); err != nil {
@@ -59,7 +59,7 @@ func (d *xyDialer) Dial(ctx context.Context, accountID uint) (connection.Connect
 	return connection, nil
 }
 
-func (c *xyConnection) register(ctx context.Context, token, deviceID string) error {
+func (c *XYConnection) register(ctx context.Context, token, deviceID string) error {
 	registration := map[string]any{
 		"lwp": "/reg",
 		"headers": map[string]any{
@@ -100,7 +100,7 @@ func (c *xyConnection) register(ctx context.Context, token, deviceID string) err
 	})
 }
 
-func (c *xyConnection) Read(ctx context.Context) ([]byte, error) {
+func (c *XYConnection) Read(ctx context.Context) ([]byte, error) {
 	for {
 		message, err := c.receive(ctx)
 		if err != nil {
@@ -139,7 +139,7 @@ func (c *xyConnection) Read(ctx context.Context) ([]byte, error) {
 			if code == 0 && len(envelope.Body) > 0 && string(envelope.Body) != "null" {
 				code = http.StatusOK
 			}
-			c.resolve(mid, webSocketResponse{code: code, raw: message})
+			c.resolve(mid, WebSocketResponse{code: code, raw: message})
 			return nil, nil
 		}
 		hasSyncPushPackage := len(pushBody.SyncPushPackage) > 0 && string(pushBody.SyncPushPackage) != "null"
@@ -161,18 +161,18 @@ func (c *xyConnection) Read(ctx context.Context) ([]byte, error) {
 	}
 }
 
-func (c *xyConnection) hasPending(mid string) bool {
+func (c *XYConnection) hasPending(mid string) bool {
 	c.pendingMu.Lock()
 	defer c.pendingMu.Unlock()
 	return c.pending[mid] != nil
 }
 
-func (c *xyConnection) Send(ctx context.Context, payload []byte) error {
+func (c *XYConnection) Send(ctx context.Context, payload []byte) error {
 	_, err := c.Request(ctx, payload)
 	return err
 }
 
-func (c *xyConnection) Request(ctx context.Context, payload []byte) ([]byte, error) {
+func (c *XYConnection) Request(ctx context.Context, payload []byte) ([]byte, error) {
 	var envelope struct {
 		Headers struct {
 			MID string `json:"mid"`
@@ -181,7 +181,7 @@ func (c *xyConnection) Request(ctx context.Context, payload []byte) ([]byte, err
 	if err := json.Unmarshal(payload, &envelope); err != nil || envelope.Headers.MID == "" {
 		return nil, errors.New("闲鱼发送消息缺少请求标识")
 	}
-	result := make(chan webSocketResponse, 1)
+	result := make(chan WebSocketResponse, 1)
 	c.pendingMu.Lock()
 	if _, exists := c.pending[envelope.Headers.MID]; exists {
 		c.pendingMu.Unlock()
@@ -208,7 +208,7 @@ func (c *xyConnection) Request(ctx context.Context, payload []byte) ([]byte, err
 	}
 }
 
-func (c *xyConnection) resolve(mid string, response webSocketResponse) {
+func (c *XYConnection) resolve(mid string, response WebSocketResponse) {
 	c.pendingMu.Lock()
 	result := c.pending[mid]
 	c.pendingMu.Unlock()
@@ -220,17 +220,17 @@ func (c *xyConnection) resolve(mid string, response webSocketResponse) {
 	}
 }
 
-func (c *xyConnection) Ping(ctx context.Context) error {
+func (c *XYConnection) Ping(ctx context.Context) error {
 	return c.writeJSON(ctx, map[string]any{"lwp": "/!", "headers": map[string]any{"mid": webSocketMID()}})
 }
 
-func (c *xyConnection) Close() error {
+func (c *XYConnection) Close() error {
 	var err error
 	c.closeOnce.Do(func() { err = c.conn.Close() })
 	return err
 }
 
-func (c *xyConnection) ack(ctx context.Context, headers map[string]any) error {
+func (c *XYConnection) ack(ctx context.Context, headers map[string]any) error {
 	if len(headers) == 0 {
 		return nil
 	}
@@ -246,7 +246,7 @@ func (c *xyConnection) ack(ctx context.Context, headers map[string]any) error {
 	return c.writeJSON(ctx, map[string]any{"code": http.StatusOK, "headers": ackHeaders})
 }
 
-func (c *xyConnection) receive(ctx context.Context) ([]byte, error) {
+func (c *XYConnection) receive(ctx context.Context) ([]byte, error) {
 	stop := context.AfterFunc(ctx, func() { _ = c.conn.SetReadDeadline(time.Now()) })
 	defer stop()
 	if deadline, ok := ctx.Deadline(); ok {
@@ -261,7 +261,7 @@ func (c *xyConnection) receive(ctx context.Context) ([]byte, error) {
 	return message, err
 }
 
-func (c *xyConnection) writeJSON(ctx context.Context, payload any) error {
+func (c *XYConnection) writeJSON(ctx context.Context, payload any) error {
 	c.writeMu.Lock()
 	defer c.writeMu.Unlock()
 	stop := context.AfterFunc(ctx, func() { _ = c.conn.SetWriteDeadline(time.Now()) })
@@ -277,7 +277,7 @@ func (c *xyConnection) writeJSON(ctx context.Context, payload any) error {
 	return err
 }
 
-func (c *xyConnection) writeText(ctx context.Context, payload []byte) error {
+func (c *XYConnection) writeText(ctx context.Context, payload []byte) error {
 	c.writeMu.Lock()
 	defer c.writeMu.Unlock()
 	stop := context.AfterFunc(ctx, func() { _ = c.conn.SetWriteDeadline(time.Now()) })

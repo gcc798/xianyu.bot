@@ -25,7 +25,7 @@ const (
 	qrStatusError                = "error"
 )
 
-type qrEndpoints struct {
+type QREndpoints struct {
 	h5Token    string
 	miniLogin  string
 	generate   string
@@ -34,21 +34,21 @@ type qrEndpoints struct {
 }
 
 type QRLogin struct {
-	manager *qrLoginManager
+	manager *QRLoginManager
 }
 
-type qrLoginManager struct {
+type QRLoginManager struct {
 	mu        sync.Mutex
 	root      context.Context
 	accounts  *Account
-	sessions  map[string]*qrSession
+	sessions  map[string]*QRSession
 	byAccount map[[2]uint]string
-	endpoints qrEndpoints
+	endpoints QREndpoints
 	timeout   time.Duration
 	pollEvery time.Duration
 }
 
-type qrSession struct {
+type QRSession struct {
 	mu              sync.Mutex
 	id              string
 	ownerID         uint
@@ -65,12 +65,12 @@ type qrSession struct {
 }
 
 func NewQRLogin(root context.Context, accounts *Account) *QRLogin {
-	return &QRLogin{manager: &qrLoginManager{
+	return &QRLogin{manager: &QRLoginManager{
 		root:      contextOrBackground(root),
 		accounts:  accounts,
-		sessions:  make(map[string]*qrSession),
+		sessions:  make(map[string]*QRSession),
 		byAccount: make(map[[2]uint]string),
-		endpoints: qrEndpoints{
+		endpoints: QREndpoints{
 			h5Token:    "https://h5api.m.goofish.com/h5/mtop.gaia.nodejs.gaia.idle.data.gw.v2.index.get/1.0/",
 			miniLogin:  "https://passport.goofish.com/mini_login.htm",
 			generate:   "https://passport.goofish.com/newlogin/qrcode/generate.do",
@@ -103,7 +103,7 @@ func (s *QRLogin) Start(ctx context.Context, ownerID, accountID uint) (xyRespons
 		return xyResponse.QRLogin{}, err
 	}
 	sessionCtx, cancel := context.WithTimeout(contextOrBackground(manager.root), manager.timeout)
-	session := &qrSession{
+	session := &QRSession{
 		id:        uuid.NewString(),
 		ownerID:   ownerID,
 		accountID: accountID,
@@ -141,7 +141,7 @@ func (s *QRLogin) Cancel(ownerID uint, sessionID string) error {
 	return nil
 }
 
-func (m *qrLoginManager) active(ownerID, accountID uint) *qrSession {
+func (m *QRLoginManager) active(ownerID, accountID uint) *QRSession {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.cleanupLocked(time.Now())
@@ -154,7 +154,7 @@ func (m *qrLoginManager) active(ownerID, accountID uint) *qrSession {
 	return session
 }
 
-func (m *qrLoginManager) cleanupLocked(now time.Time) {
+func (m *QRLoginManager) cleanupLocked(now time.Time) {
 	for id, session := range m.sessions {
 		if now.Before(session.expiresAt.Add(5 * time.Minute)) {
 			continue
@@ -167,14 +167,14 @@ func (m *qrLoginManager) cleanupLocked(now time.Time) {
 	}
 }
 
-func (m *qrLoginManager) store(session *qrSession) {
+func (m *QRLoginManager) store(session *QRSession) {
 	m.mu.Lock()
 	m.sessions[session.id] = session
 	m.byAccount[[2]uint{session.ownerID, session.accountID}] = session.id
 	m.mu.Unlock()
 }
 
-func (m *qrLoginManager) get(ownerID uint, sessionID string) *qrSession {
+func (m *QRLoginManager) get(ownerID uint, sessionID string) *QRSession {
 	m.mu.Lock()
 	session := m.sessions[sessionID]
 	m.mu.Unlock()
@@ -184,7 +184,7 @@ func (m *qrLoginManager) get(ownerID uint, sessionID string) *qrSession {
 	return session
 }
 
-func (m *qrLoginManager) poll(ctx context.Context, session *qrSession) {
+func (m *QRLoginManager) poll(ctx context.Context, session *QRSession) {
 	ticker := time.NewTicker(m.pollEvery)
 	defer ticker.Stop()
 	defer func() {
@@ -237,7 +237,7 @@ func (m *qrLoginManager) poll(ctx context.Context, session *qrSession) {
 	}
 }
 
-func (m *qrLoginManager) saveCredential(ctx context.Context, session *qrSession) error {
+func (m *QRLoginManager) saveCredential(ctx context.Context, session *QRSession) error {
 	cookie := cookieHeader(session.client, m.endpoints.h5Token, m.endpoints.miniLogin, m.endpoints.query)
 	unb := parseCookieHeader(cookie)["unb"]
 	if cookie == "" || unb == "" {
@@ -251,7 +251,7 @@ func (m *qrLoginManager) saveCredential(ctx context.Context, session *qrSession)
 		Update("external_user_id", unb).Error
 }
 
-func (s *qrSession) response(includeQR bool) xyResponse.QRLogin {
+func (s *QRSession) response(includeQR bool) xyResponse.QRLogin {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	response := xyResponse.QRLogin{
@@ -264,13 +264,13 @@ func (s *qrSession) response(includeQR bool) xyResponse.QRLogin {
 	return response
 }
 
-func (s *qrSession) terminal() bool {
+func (s *QRSession) terminal() bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.status == qrStatusConfirmed || s.status == qrStatusExpired || s.status == qrStatusCancelled || s.status == qrStatusVerificationRequired || s.status == qrStatusError
 }
 
-func (s *qrSession) setStatus(status, message string) {
+func (s *QRSession) setStatus(status, message string) {
 	s.mu.Lock()
 	if !s.isTerminalLocked() {
 		s.status = status
@@ -279,7 +279,7 @@ func (s *qrSession) setStatus(status, message string) {
 	s.mu.Unlock()
 }
 
-func (s *qrSession) finish(status, message, verificationURL string) {
+func (s *QRSession) finish(status, message, verificationURL string) {
 	s.mu.Lock()
 	if !s.isTerminalLocked() {
 		s.status = status
@@ -290,6 +290,6 @@ func (s *qrSession) finish(status, message, verificationURL string) {
 	s.mu.Unlock()
 }
 
-func (s *qrSession) isTerminalLocked() bool {
+func (s *QRSession) isTerminalLocked() bool {
 	return s.status == qrStatusConfirmed || s.status == qrStatusExpired || s.status == qrStatusCancelled || s.status == qrStatusVerificationRequired || s.status == qrStatusError
 }

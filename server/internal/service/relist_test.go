@@ -20,7 +20,7 @@ func TestRelistPublishesOnceAndMovesProductRules(t *testing.T) {
 
 	account := model.Account{OwnerID: 10, Label: "续售账号", Status: "ready", Enabled: true}
 	require.NoError(t, db.Create(&account).Error)
-	snapshot, err := json.Marshal(publishSnapshot{API: "mtop.idle.pc.idleitem.publish", Payload: map[string]any{
+	snapshot, err := json.Marshal(PublishSnapshot{API: "mtop.idle.pc.idleitem.publish", Payload: map[string]any{
 		"itemTextDTO": map[string]any{"title": "商品", "desc": "商品描述"},
 		"itemCatDTO":  map[string]any{"catId": "cat-1", "channelCatId": "", "tbCatId": ""},
 		"itemAddrDTO": map[string]any{"divisionId": "330106", "gps": "30.25961,120.13026", "poiId": "poi-1", "poiName": "西湖区"},
@@ -46,7 +46,7 @@ func TestRelistPublishesOnceAndMovesProductRules(t *testing.T) {
 
 	require.NoError(t, service.Plan(t.Context(), order))
 	require.NoError(t, db.First(&item, item.ID).Error)
-	var refreshed publishSnapshot
+	var refreshed PublishSnapshot
 	require.NoError(t, json.Unmarshal([]byte(item.PublishSnapshot), &refreshed))
 	require.Equal(t, "最新描述", refreshed.Payload["itemTextDTO"].(map[string]any)["desc"])
 	require.Equal(t, "https://img.example/new.jpg", refreshed.Payload["imageInfoDOList"].([]any)[0].(map[string]any)["url"])

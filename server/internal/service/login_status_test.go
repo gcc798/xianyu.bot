@@ -29,7 +29,7 @@ func TestHTTPLoginCheckerMergesResponseCookies(t *testing.T) {
 		_, _ = writer.Write([]byte(`{"content":{"success":true}}`))
 	}))
 	t.Cleanup(server.Close)
-	checker := &httpLoginChecker{client: server.Client(), endpoint: server.URL}
+	checker := &HTTPLoginChecker{client: server.Client(), endpoint: server.URL}
 
 	result, err := checker.Check(t.Context(), "unb=user-demo; _m_h5_tk=old-token; cookie2=value=with=equals")
 	require.NoError(t, err)
@@ -85,7 +85,7 @@ type serializedLoginChecker struct {
 
 func newSerializedLoginChecker() *serializedLoginChecker { return new(serializedLoginChecker) }
 
-func (c *serializedLoginChecker) Check(ctx context.Context, cookie string) (loginCheck, error) {
+func (c *serializedLoginChecker) Check(ctx context.Context, cookie string) (LoginCheck, error) {
 	active := c.active.Add(1)
 	defer c.active.Add(-1)
 	for {
@@ -96,11 +96,11 @@ func (c *serializedLoginChecker) Check(ctx context.Context, cookie string) (logi
 	}
 	select {
 	case <-ctx.Done():
-		return loginCheck{}, context.Cause(ctx)
+		return LoginCheck{}, context.Cause(ctx)
 	case <-time.After(10 * time.Millisecond):
 	}
 	if strings.Contains(cookie, "updated") {
-		return loginCheck{valid: true, cookie: cookie}, nil
+		return LoginCheck{valid: true, cookie: cookie}, nil
 	}
-	return loginCheck{valid: true, cookie: "unb=updated; token=new"}, nil
+	return LoginCheck{valid: true, cookie: "unb=updated; token=new"}, nil
 }

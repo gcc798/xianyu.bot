@@ -36,7 +36,7 @@ func (value *stringOrNumber) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-func (m *qrLoginManager) prepare(ctx context.Context, session *qrSession) error {
+func (m *QRLoginManager) prepare(ctx context.Context, session *QRSession) error {
 	if err := m.refreshH5Token(ctx, session); err != nil {
 		return fmt.Errorf("初始化二维码登录凭证失败: %w", err)
 	}
@@ -52,7 +52,7 @@ func (m *qrLoginManager) prepare(ctx context.Context, session *qrSession) error 
 		return err
 	}
 	requestURL.RawQuery = session.params.Encode()
-	request, err := newQRRequest(ctx, http.MethodGet, requestURL.String(), nil)
+	request, err := NewQRRequest(ctx, http.MethodGet, requestURL.String(), nil)
 	if err != nil {
 		return err
 	}
@@ -82,8 +82,8 @@ func (m *qrLoginManager) prepare(ctx context.Context, session *qrSession) error 
 	return nil
 }
 
-func (m *qrLoginManager) refreshH5Token(ctx context.Context, session *qrSession) error {
-	request, err := newQRRequest(ctx, http.MethodGet, m.endpoints.h5Token, nil)
+func (m *QRLoginManager) refreshH5Token(ctx context.Context, session *QRSession) error {
+	request, err := NewQRRequest(ctx, http.MethodGet, m.endpoints.h5Token, nil)
 	if err != nil {
 		return err
 	}
@@ -113,7 +113,7 @@ func (m *qrLoginManager) refreshH5Token(ctx context.Context, session *qrSession)
 		query.Set(key, value)
 	}
 	signedURL.RawQuery = query.Encode()
-	request, err = newQRRequest(ctx, http.MethodPost, signedURL.String(), strings.NewReader(""))
+	request, err = NewQRRequest(ctx, http.MethodPost, signedURL.String(), strings.NewReader(""))
 	if err != nil {
 		return err
 	}
@@ -129,7 +129,7 @@ func (m *qrLoginManager) refreshH5Token(ctx context.Context, session *qrSession)
 	return nil
 }
 
-func (m *qrLoginManager) loginParams(ctx context.Context, session *qrSession) (url.Values, error) {
+func (m *QRLoginManager) loginParams(ctx context.Context, session *QRSession) (url.Values, error) {
 	loginURL, err := url.Parse(m.endpoints.miniLogin)
 	if err != nil {
 		return nil, err
@@ -143,7 +143,7 @@ func (m *qrLoginManager) loginParams(ctx context.Context, session *qrSession) (u
 		query.Set(key, value)
 	}
 	loginURL.RawQuery = query.Encode()
-	request, err := newQRRequest(ctx, http.MethodGet, loginURL.String(), nil)
+	request, err := NewQRRequest(ctx, http.MethodGet, loginURL.String(), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -186,8 +186,8 @@ func loginParam(value any) string {
 	}
 }
 
-func (m *qrLoginManager) pollOnce(ctx context.Context, session *qrSession) (string, string, string, bool, error) {
-	request, err := newQRRequest(ctx, http.MethodPost, m.endpoints.query, strings.NewReader(session.params.Encode()))
+func (m *QRLoginManager) pollOnce(ctx context.Context, session *QRSession) (string, string, string, bool, error) {
+	request, err := NewQRRequest(ctx, http.MethodPost, m.endpoints.query, strings.NewReader(session.params.Encode()))
 	if err != nil {
 		return "", "", "", false, err
 	}
@@ -216,7 +216,7 @@ func (m *qrLoginManager) pollOnce(ctx context.Context, session *qrSession) (stri
 	return payload.Content.Data.Status, loginToken, "", false, nil
 }
 
-func (m *qrLoginManager) completeLogin(ctx context.Context, session *qrSession, loginToken string) error {
+func (m *QRLoginManager) completeLogin(ctx context.Context, session *QRSession, loginToken string) error {
 	target, err := url.Parse(m.endpoints.loginToken)
 	if err != nil {
 		return err
@@ -229,7 +229,7 @@ func (m *qrLoginManager) completeLogin(ctx context.Context, session *qrSession, 
 	query.Set("confirm", "true")
 	target.RawQuery = query.Encode()
 	body := url.Values{"deviceId": {cookieValue(session.client, m.endpoints.h5Token, "cna")}}
-	request, err := newQRRequest(ctx, http.MethodPost, target.String(), strings.NewReader(body.Encode()))
+	request, err := NewQRRequest(ctx, http.MethodPost, target.String(), strings.NewReader(body.Encode()))
 	if err != nil {
 		return err
 	}
@@ -254,11 +254,11 @@ func safeVerificationURL(rawURL string) string {
 	return parsed.String()
 }
 
-type loginViewData struct {
+type LoginViewData struct {
 	LoginFormData map[string]any `json:"loginFormData"`
 }
 
-func extractViewData(body []byte) (loginViewData, error) {
+func extractViewData(body []byte) (LoginViewData, error) {
 	text := string(body)
 	for _, marker := range []string{"window.viewData", "var viewData"} {
 		index := strings.Index(text, marker)
@@ -270,15 +270,15 @@ func extractViewData(body []byte) (loginViewData, error) {
 		if !ok {
 			continue
 		}
-		var result loginViewData
+		var result LoginViewData
 		if err := json.NewDecoder(strings.NewReader(strings.TrimSpace(rest))).Decode(&result); err == nil && len(result.LoginFormData) > 0 {
 			return result, nil
 		}
 	}
-	return loginViewData{}, errors.New("登录页缺少 loginFormData")
+	return LoginViewData{}, errors.New("登录页缺少 loginFormData")
 }
 
-func newQRRequest(ctx context.Context, method, target string, body io.Reader) (*http.Request, error) {
+func NewQRRequest(ctx context.Context, method, target string, body io.Reader) (*http.Request, error) {
 	request, err := http.NewRequestWithContext(ctx, method, target, body)
 	if err != nil {
 		return nil, err

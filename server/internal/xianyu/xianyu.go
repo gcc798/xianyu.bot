@@ -4,43 +4,18 @@ import (
 	"context"
 	"errors"
 
-	"github.com/gcc798/xianyu.bot/internal/api/middleware"
-	xianyuRouter "github.com/gcc798/xianyu.bot/internal/api/router/xianyu"
-	api "github.com/gcc798/xianyu.bot/internal/api/xianyu"
 	"github.com/gcc798/xianyu.bot/internal/model"
-	"github.com/gcc798/xianyu.bot/internal/security"
 	"github.com/gcc798/xianyu.bot/internal/service"
-	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 )
 
-func Initialize(ctx context.Context, engine *gin.Engine, jwt *security.JWT, services *service.Service) error {
+func Initialize(ctx context.Context, services *service.Service) error {
 	if err := initializeDatabase(ctx, services.DB); err != nil {
 		return err
 	}
 	if err := service.ValidateCredentialKey(services.DB); err != nil {
 		return err
 	}
-	handlers := api.New(services)
-	private := engine.Group("")
-	private.Use(middleware.JWTAuth(jwt))
-	internal := engine.Group("/xy/internal")
-	routes := xianyuRouter.New(handlers)
-	routes.Status.Init(private)
-	routes.Account.Init(private)
-	routes.Product.Init(private)
-	routes.ReplyRule.Init(private)
-	routes.DeliveryRule.Init(private)
-	routes.QRLogin.Init(private)
-	routes.WebSocket.Init(private)
-	routes.Message.Init(private)
-	routes.Order.Init(private)
-	routes.BusinessEvent.Init(private)
-	routes.TelegramProxy.Init(private)
-	routes.AIConfig.Init(private)
-	routes.Resource.Init(private)
-	routes.AgentSession.Init(private)
-	routes.Resource.InitInternal(internal)
 	services.WebSocket.StartEnabledAccounts(ctx)
 	return nil
 }

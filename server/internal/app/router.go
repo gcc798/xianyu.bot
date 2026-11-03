@@ -5,7 +5,7 @@ import (
 	"net/http"
 
 	"github.com/gcc798/xianyu.bot/internal/api/middleware"
-	systemRouter "github.com/gcc798/xianyu.bot/internal/api/router/system"
+	"github.com/gcc798/xianyu.bot/internal/api/router"
 	"github.com/gcc798/xianyu.bot/internal/security"
 	"github.com/gcc798/xianyu.bot/internal/service"
 	"github.com/gcc798/xianyu.bot/internal/xianyu"
@@ -13,7 +13,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func Routers(ctx context.Context, systemRoutes *systemRouter.RouterGroup, jwt *security.JWT, services *service.Service) *gin.Engine {
+func Routers(ctx context.Context, routes *router.Router, jwt *security.JWT, services *service.Service) *gin.Engine {
 	engine := gin.New()
 	engine.Use(middleware.GinRecovery(true))
 	if gin.Mode() == gin.DebugMode {
@@ -28,16 +28,32 @@ func Routers(ctx context.Context, systemRoutes *systemRouter.RouterGroup, jwt *s
 		c.JSON(http.StatusOK, "ok")
 	})
 
-	systemRoutes.AuthRouter.Init(public)
-	systemRoutes.JWTRouter.Init(private)
-	systemRoutes.UserRouter.Init(private)
-	systemRoutes.DictionaryRouter.Init(private)
-	systemRoutes.DictionaryDetailRouter.Init(private)
-	systemRoutes.LoginLogRouter.Init(private)
-	if err := xianyu.Initialize(ctx, engine, jwt, services); err != nil {
+	if err := xianyu.Initialize(ctx, services); err != nil {
 		zap.L().Error("初始化闲鱼业务失败", zap.Error(err))
 		panic(err)
 	}
+
+	routes.Auth.Init(public)
+	routes.JWT.Init(private)
+	routes.User.Init(private)
+	routes.Dictionary.Init(private)
+	routes.DictionaryDetail.Init(private)
+	routes.LoginLog.Init(private)
+	routes.Status.Init(private)
+	routes.Account.Init(private)
+	routes.Product.Init(private)
+	routes.ReplyRule.Init(private)
+	routes.DeliveryRule.Init(private)
+	routes.QRLogin.Init(private)
+	routes.WebSocket.Init(private)
+	routes.Message.Init(private)
+	routes.Order.Init(private)
+	routes.BusinessEvent.Init(private)
+	routes.TelegramProxy.Init(private)
+	routes.AIConfig.Init(private)
+	routes.Resource.Init(private)
+	routes.AgentSession.Init(private)
+	routes.Resource.InitInternal(engine.Group("/xy/internal"))
 
 	zap.L().Info("router register success")
 	return engine

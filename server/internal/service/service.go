@@ -84,16 +84,16 @@ func NewProduct(db *gorm.DB, events *BusinessEvent) *Product {
 func NewReplyRule(db *gorm.DB) *ReplyRule       { return &ReplyRule{db: db} }
 func NewDeliveryRule(db *gorm.DB) *DeliveryRule { return &DeliveryRule{db: db} }
 func NewOrder(db *gorm.DB, events *BusinessEvent) *Order {
-	return &Order{db: db, events: events, mtop: &mtopClient{db: db}}
+	return &Order{db: db, events: events, mtop: &MTopClient{db: db}}
 }
 func NewRelist(db *gorm.DB, events *BusinessEvent, products *Product) *Relist {
-	return &Relist{db: db, events: events, mtop: &mtopClient{db: db}, products: products}
+	return &Relist{db: db, events: events, mtop: &MTopClient{db: db}, products: products}
 }
 func NewDelivery(ctx context.Context, db *gorm.DB, events *BusinessEvent, orders *Order, rules *DeliveryRule, relist *Relist) *Delivery {
 	return &Delivery{root: contextOrBackground(ctx), db: db, events: events, consigner: orders, rules: rules, relist: relist, workers: make(map[uint]context.CancelFunc)}
 }
 func NewMessage(ctx context.Context, db *gorm.DB, events *BusinessEvent, rules *ReplyRule, orders *Order, delivery *Delivery) *Message {
-	return &Message{root: contextOrBackground(ctx), db: db, events: events, rules: rules, orders: orders, delivery: delivery, pending: make(map[string]pendingReply)}
+	return &Message{root: contextOrBackground(ctx), db: db, events: events, rules: rules, orders: orders, delivery: delivery, pending: make(map[string]PendingReply)}
 }
 
 func contextOrBackground(ctx context.Context) context.Context {
