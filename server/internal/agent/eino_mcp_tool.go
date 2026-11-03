@@ -43,7 +43,7 @@ func newMCPAgentTool(db *gorm.DB, connection *mcpConnection, remote mcp.Tool) (*
 		definition: agenttool.Definition{
 			Code: connection.Server.Code + "__" + remote.Name, Name: remote.Name,
 			Description: remote.Description, Source: "mcp", ProviderCode: connection.Server.Code,
-			Parameters: parameters, ReadOnly: !requiresApproval, RequiresApproval: requiresApproval,
+			Parameters: parameters, ReadOnly: mcpToolReadOnly(remote), RequiresApproval: requiresApproval,
 			Timeout: timeout, BudgetClass: budgetClass,
 		},
 	}, nil
@@ -190,6 +190,18 @@ func mcpToolRequiresApproval(remote mcp.Tool) bool {
 		return true
 	default:
 		return remote.Annotations.ReadOnlyHint == nil || !*remote.Annotations.ReadOnlyHint
+	}
+}
+
+func mcpToolReadOnly(remote mcp.Tool) bool {
+	if remote.Annotations.ReadOnlyHint != nil {
+		return *remote.Annotations.ReadOnlyHint
+	}
+	switch remote.Name {
+	case "channel_get_info", "channel_get_status", "dialog_list", "dialog_resolve", "message_list", "message_search", "resource_search", "resource_inspect", "task_get":
+		return true
+	default:
+		return false
 	}
 }
 

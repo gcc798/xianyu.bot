@@ -9,13 +9,13 @@
 | 路径 | 职责 | 状态 |
 | --- | --- | --- |
 | `server/` | Go HTTP 服务和通用后台基础能力 | 主动维护 |
-| `server/internal/app/` | HTTP 路由组合根 | 主动维护 |
+| `server/internal/app/` | HTTP 路由注册 | 主动维护 |
 | `server/internal/infra/` | PostgreSQL、日志、HTTP 和 Goose 迁移等运行基础设施 | 主动维护 |
 | `server/internal/api/` | 平铺的 HTTP Handler；`router/` 注册路径和中间件 | 主动维护 |
 | `server/internal/service/` | 平铺的通用基础和闲鱼业务服务 | 主动维护 |
 | `server/internal/model/` | 平铺的持久化实体，`request/` 和 `response/` 存放 API 契约 | 主动维护 |
-| `server/internal/agent/` | Agent 运行、会话、事件、MCP 和资源能力 | 主动维护 |
-| `server/internal/xianyu/` | 闲鱼通信协议、连接运行时与启动检查 | 主动维护 |
+| `server/internal/agent/` | Agent 运行、会话、事件、Tool 契约、MCP 和资源能力 | 主动维护 |
+| `server/internal/xianyu/` | 闲鱼通信协议、连接运行时、启动检查和 Agent Tool 适配 | 主动维护 |
 | `agent-web/` | React 18 + TypeScript 后台与 Agent 前端 | 主动维护 |
 | `script/tel-bot/` | Telegram 资源渠道和 MCP 支撑服务 | 辅助服务 |
 | `web/` | Vue 旧后台，只用于迁移对照和回滚 | 已废弃 |
@@ -26,9 +26,11 @@
 闲鱼能力是正式业务模块，按 HTTP、业务、模型和通信边界分包：
 
 ```text
-router -> api -> service -> model
-                   |
-                   +-> protocol / connection / external services
+cmd/server
+├── router -> api -> service -> model
+│                         └── xianyu protocol / connection
+├── api -> agent -> model / MCP / resource
+└── xianyu/agenttool -> service + agent/tool
 ```
 
 - Router 注册路径和中间件。
@@ -36,7 +38,10 @@ router -> api -> service -> model
 - Service 负责 owner 校验、状态机、事务和外部调用策略。
 - Model 定义持久化结构及请求/响应契约。
 - Protocol 和 Connection 隔离闲鱼通信细节。
-- `service.New` 是唯一业务服务组合根；API 和 Router 直接依赖 `service.Service`，不使用额外的 Dependencies 包装。
+- `cmd/server` 是进程组合根，分别创建 Service、Agent、Tool、API 和 Router；`service.New` 只组装基础与闲鱼业务 Service。
+- Agent API 直接依赖 Agent 组件，不通过 `service.Service` 间接访问。
+- Agent 只调用统一 Tool 契约；本进程闲鱼能力由 `internal/xianyu/agenttool` 直接适配 Service，外部能力由 MCP Tool 适配。
+- Tool Code 是稳定机器标识，Tool Name 是展示名称；本地工具和 MCP 工具共用预算、审批、超时、审计和轨迹治理。
 - Agent 和闲鱼启动检查分别由各自包的 `Initialize` 负责，不是插件入口。
 - `cmd/server` 创建进程信号上下文并持有数据库、日志和 HTTP 生命周期；业务 worker 从同一个根上下文派生。
 - 数据库通过组合根显式注入，不使用包级数据库或日志变量；日志使用 Zap 的标准全局入口。
@@ -54,7 +59,7 @@ router -> api -> service -> model
 - `{ code, data, msg }` 统一响应；
 - 从登录用户获得 owner 身份。
 
-通用后台能力与闲鱼业务服务在 `server/internal/service/` 平铺管理；Agent 执行与 MCP/资源能力留在 `server/internal/agent/`，`server/internal/xianyu/` 只负责闲鱼通信协议、连接和启动检查。
+通用后台能力与闲鱼业务服务在 `server/internal/service/` 平铺管理；Agent 执行与 MCP/资源能力留在 `server/internal/agent/`。闲鱼 Tool Adapter 是 Agent 与业务 Service 之间的显式桥梁，不使用本进程 MCP，也不把整个 `service.Service` 注入 Agent。
 
 ## 前端
 

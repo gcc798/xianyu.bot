@@ -2,6 +2,7 @@ package xianyutool
 
 import (
 	"context"
+	"encoding/json"
 	"testing"
 
 	agenttool "github.com/gcc798/xianyu.bot/internal/agent/tool"
@@ -51,6 +52,10 @@ func TestRegisterAddsStableXianyuToolDefinitions(t *testing.T) {
 	tools := registry.List()
 	require.Len(t, tools, 5)
 	require.Equal(t, "xianyu_account_list", tools[0].Definition().Code)
+	accountSchema, err := json.Marshal(tools[0].Definition().Parameters)
+	require.NoError(t, err)
+	require.Contains(t, string(accountSchema), `"page"`)
+	require.Contains(t, string(accountSchema), `"pageSize"`)
 	reply, exists := registry.Get("xianyu_message_reply")
 	require.True(t, exists)
 	require.Equal(t, "回复闲鱼消息", reply.Definition().Name)

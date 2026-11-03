@@ -32,8 +32,17 @@ func (r *Registry) Register(implementation Tool) error {
 	if strings.TrimSpace(definition.Name) == "" {
 		return fmt.Errorf("工具 %s 的名称不能为空", definition.Code)
 	}
+	if strings.TrimSpace(definition.Description) == "" {
+		return fmt.Errorf("工具 %s 的描述不能为空", definition.Code)
+	}
+	if strings.TrimSpace(definition.Source) == "" {
+		return fmt.Errorf("工具 %s 的来源不能为空", definition.Code)
+	}
 	if definition.Parameters == nil {
 		return fmt.Errorf("工具 %s 的参数定义不能为空", definition.Code)
+	}
+	if definition.Timeout <= 0 {
+		return fmt.Errorf("工具 %s 的超时必须大于零", definition.Code)
 	}
 
 	r.mu.Lock()

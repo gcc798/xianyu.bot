@@ -22,7 +22,8 @@ type approvalToolStub struct {
 func (*approvalToolStub) Definition() agenttool.Definition {
 	return agenttool.Definition{
 		Code: "xianyu_message_reply", Name: "回复闲鱼消息", Source: "local",
-		Parameters: &jsonschema.Schema{Type: "object"}, RequiresApproval: true, Timeout: time.Second,
+		Description: "测试回复工具", Parameters: &jsonschema.Schema{Type: "object"},
+		RequiresApproval: true, Timeout: time.Second,
 	}
 }
 

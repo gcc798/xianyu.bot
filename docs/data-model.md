@@ -44,7 +44,7 @@
 | `xy_agent_sessions` | owner 隔离会话 |
 | `xy_agent_messages` | 会话消息 |
 | `xy_agent_runs` | 单次 Agent 运行 |
-| `xy_agent_run_tools` | 完整工具调用记录 |
+| `xy_agent_run_tools` | 完整工具调用记录，分别保存稳定 `tool_code`、展示 `tool_name` 和 `tool_source` |
 | `xy_agent_events` | 追加式可恢复轨迹事件 |
 
 ## 资源

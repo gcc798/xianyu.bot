@@ -73,10 +73,12 @@ func TestAgentHarnessLimitsActiveToolCalls(t *testing.T) {
 func TestMCPToolPoliciesClassifyUnknownToolsConservatively(t *testing.T) {
 	readOnly := true
 	require.False(t, mcpToolRequiresApproval(mcp.Tool{Name: "custom_read", Annotations: mcp.ToolAnnotation{ReadOnlyHint: &readOnly}}))
+	require.True(t, mcpToolReadOnly(mcp.Tool{Name: "custom_read", Annotations: mcp.ToolAnnotation{ReadOnlyHint: &readOnly}}))
 	require.True(t, mcpToolRequiresApproval(mcp.Tool{Name: "custom_unknown"}))
 	require.Equal(t, 5*time.Second, mcpToolTimeout(mcp.Tool{Name: "resource_acquire"}))
 	require.Equal(t, 35*time.Second, mcpToolTimeout(mcp.Tool{Name: "message_list"}))
 	require.False(t, mcpToolRequiresApproval(mcp.Tool{Name: "message_send"}))
+	require.False(t, mcpToolReadOnly(mcp.Tool{Name: "message_send"}))
 	require.True(t, mcpToolRequiresApproval(mcp.Tool{Name: "dialog_join"}))
 	require.Equal(t, 30*time.Second, mcpToolTimeout(mcp.Tool{Name: "dialog_join"}))
 }
