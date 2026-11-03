@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 
+	"github.com/gcc798/xianyu.bot/internal/agent"
 	"github.com/gcc798/xianyu.bot/internal/api/middleware"
 	"github.com/gcc798/xianyu.bot/internal/api/router"
 	"github.com/gcc798/xianyu.bot/internal/security"
@@ -28,6 +29,10 @@ func Routers(ctx context.Context, routes *router.Router, jwt *security.JWT, serv
 		c.JSON(http.StatusOK, "ok")
 	})
 
+	if err := agent.Initialize(ctx, services.DB); err != nil {
+		zap.L().Error("初始化 Agent 失败", zap.Error(err))
+		panic(err)
+	}
 	if err := xianyu.Initialize(ctx, services); err != nil {
 		zap.L().Error("初始化闲鱼业务失败", zap.Error(err))
 		panic(err)
