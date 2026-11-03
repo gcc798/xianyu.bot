@@ -17,45 +17,58 @@ import (
 	"gorm.io/gorm/clause"
 )
 
+// virtualProductFallbackReply 是虚拟商品未命中规则时的默认回复。
 const virtualProductFallbackReply = "虚拟商品，下单自动网盘发货"
 
+// textSender 描述消息服务需要的闲鱼文本发送能力。
 type textSender interface {
+	// SendText 向指定账号会话和接收方发送文本。
 	SendText(context.Context, uint, uint, string, string, string) error
 }
 
+// replyResolver 描述消息服务需要的回复规则匹配能力。
 type replyResolver interface {
+	// Resolve 为用户商品和消息选择最高优先级规则。
 	Resolve(context.Context, uint, uint, string) (*xyResponse.ReplyRule, error)
 }
 
+// orderRecorder 描述消息服务需要的订单消息入库能力。
 type orderRecorder interface {
+	// UpsertFromMessage 从闲鱼消息更新订单，非订单消息返回 nil。
 	UpsertFromMessage(context.Context, model.Account, model.Message) (*model.Order, error)
 }
 
+// deliveryPlanner 描述订单产生后规划自动发货的能力。
 type deliveryPlanner interface {
+	// Plan 为符合条件的订单幂等创建发货任务。
 	Plan(context.Context, model.Order) error
 }
 
+// PendingReply 保存内存中等待执行的会话回复。
 type PendingReply struct {
-	id     uint
-	cancel context.CancelFunc
+	id     uint               // id 是持久化回复任务 ID。
+	cancel context.CancelFunc // cancel 用于新消息或账号停止时取消等待。
 }
 
+// Message 管理闲鱼消息入库、人工回复和自动回复调度。
 type Message struct {
-	root     context.Context
-	db       *gorm.DB
-	events   *BusinessEvent
-	sender   textSender
-	rules    replyResolver
-	orders   orderRecorder
-	delivery deliveryPlanner
-	mu       sync.Mutex
-	pending  map[string]PendingReply
+	root     context.Context         // root 控制后台回复任务生命周期。
+	db       *gorm.DB                // db 持久化消息、接管和回复任务。
+	events   *BusinessEvent          // events 记录消息业务结果。
+	sender   textSender              // sender 向闲鱼会话发送文本。
+	rules    replyResolver           // rules 匹配商品回复规则。
+	orders   orderRecorder           // orders 从消息提取并保存订单。
+	delivery deliveryPlanner         // delivery 为消息订单规划发货。
+	mu       sync.Mutex              // mu 保护 pending。
+	pending  map[string]PendingReply // pending 按账号和会话保存等待中的回复。
 }
 
+// NewMessage 创建消息服务并初始化后台回复队列。
 func NewMessage(ctx context.Context, db *gorm.DB, events *BusinessEvent, rules *ReplyRule, orders *Order, delivery *Delivery) *Message {
 	return &Message{root: contextOrBackground(ctx), db: db, events: events, rules: rules, orders: orders, delivery: delivery, pending: make(map[string]PendingReply)}
 }
 
+// StartAccount 恢复账号未执行回复，并把重启时发送中的任务标记为未知。
 func (s *Message) StartAccount(accountID uint) {
 	var tasks []model.ReplyTask
 	db := s.db
@@ -72,6 +85,7 @@ func (s *Message) StartAccount(accountID uint) {
 	}
 }
 
+// StopAccount 取消指定账号所有仍在等待的自动回复。
 func (s *Message) StopAccount(accountID uint) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -83,6 +97,7 @@ func (s *Message) StopAccount(accountID uint) {
 	}
 }
 
+// Handle 解析实时同步帧并处理其中的闲鱼消息。
 func (s *Message) Handle(ctx context.Context, accountID uint, raw []byte) error {
 	messages, err := protocol.ParseSyncEnvelope(raw)
 	if err != nil || len(messages) == 0 {
@@ -91,6 +106,7 @@ func (s *Message) Handle(ctx context.Context, accountID uint, raw []byte) error 
 	return s.handleParsed(ctx, accountID, messages, false)
 }
 
+// HandleHistory 解析指定会话的历史响应，仅为最新且足够新的消息规划回复。
 func (s *Message) HandleHistory(ctx context.Context, accountID uint, sessionID string, raw []byte) error {
 	messages, err := protocol.ParseHistoryResponse(raw, sessionID)
 	if err != nil || len(messages) == 0 {
@@ -99,6 +115,7 @@ func (s *Message) HandleHistory(ctx context.Context, accountID uint, sessionID s
 	return s.handleParsed(ctx, accountID, messages, true)
 }
 
+// handleParsed 幂等保存归一化消息，并触发订单、发货和自动回复流程。
 func (s *Message) handleParsed(ctx context.Context, accountID uint, messages []protocol.ChatMessage, history bool) error {
 	var account model.Account
 	if err := s.db.WithContext(ctx).Select("id", "owner_id", "external_user_id").First(&account, accountID).Error; err != nil {
@@ -159,6 +176,7 @@ func (s *Message) handleParsed(ctx context.Context, accountID uint, messages []p
 	return nil
 }
 
+// mergeLocalOutbound 用远端回执补全相邻的本地出站记录并删除重复消息。
 func (s *Message) mergeLocalOutbound(ctx context.Context, remote model.Message) {
 	if strings.TrimSpace(remote.Content) == "" {
 		return
@@ -183,6 +201,7 @@ func (s *Message) mergeLocalOutbound(ctx context.Context, remote model.Message) 
 	})
 }
 
+// sameGoofishUser 忽略 @goofish 后缀比较两个非空用户标识。
 func sameGoofishUser(left, right string) bool {
 	normalize := func(value string) string {
 		return strings.TrimSuffix(strings.TrimSpace(value), "@goofish")
@@ -190,6 +209,7 @@ func sameGoofishUser(left, right string) bool {
 	return normalize(left) != "" && normalize(left) == normalize(right)
 }
 
+// List 分页查询 ownerID 名下消息并合并账号和人工接管状态。
 func (s *Message) List(ctx context.Context, ownerID uint, input xyRequest.MessageSearch) ([]xyResponse.Message, int64, error) {
 	if ownerID == 0 {
 		return nil, 0, errors.New("用户未登录")
@@ -240,6 +260,7 @@ func (s *Message) List(ctx context.Context, ownerID uint, input xyRequest.Messag
 	return list, total, err
 }
 
+// UpdateTakeover 依据归属消息启用或关闭对应会话的人工接管。
 func (s *Message) UpdateTakeover(ctx context.Context, ownerID uint, input xyRequest.UpdateTakeover) error {
 	item, err := s.ownedMessage(ctx, ownerID, input.MessageID)
 	if err != nil {
@@ -257,6 +278,7 @@ func (s *Message) UpdateTakeover(ctx context.Context, ownerID uint, input xyRequ
 	}).Create(&takeover).Error
 }
 
+// Reply 接管目标会话、发送人工回复并保存本地出站记录。
 func (s *Message) Reply(ctx context.Context, ownerID uint, input xyRequest.SendMessage) error {
 	text := strings.TrimSpace(input.Text)
 	if input.MessageID == 0 || text == "" || len([]rune(text)) > 4000 {
@@ -289,6 +311,7 @@ func (s *Message) Reply(ctx context.Context, ownerID uint, input xyRequest.SendM
 	return nil
 }
 
+// ownedMessage 查询 ownerID 名下的指定消息。
 func (s *Message) ownedMessage(ctx context.Context, ownerID, messageID uint) (model.Message, error) {
 	if ownerID == 0 || messageID == 0 {
 		return model.Message{}, errors.New("消息 ID 不能为空")
@@ -298,6 +321,7 @@ func (s *Message) ownedMessage(ctx context.Context, ownerID, messageID uint) (mo
 	return item, err
 }
 
+// scheduleAutoReply 校验商品设置、接管状态和规则后幂等调度回复。
 func (s *Message) scheduleAutoReply(ctx context.Context, account model.Account, item model.Message) error {
 	if s.sender == nil || s.rules == nil || item.ContentType != 1 || item.SessionID == "" ||
 		item.ExternalProductID == "" || strings.TrimSpace(item.Content) == "" || item.SenderUserID == "" ||
@@ -305,10 +329,10 @@ func (s *Message) scheduleAutoReply(ctx context.Context, account model.Account, 
 		return nil
 	}
 	var setting struct {
-		ProductID         uint
-		VirtualProduct    bool
-		AutoReplyEnabled  bool
-		ReplyDelaySeconds int
+		ProductID         uint // ProductID 是消息关联的本地商品 ID。
+		VirtualProduct    bool // VirtualProduct 决定是否允许默认回复。
+		AutoReplyEnabled  bool // AutoReplyEnabled 表示商品已启用自动回复。
+		ReplyDelaySeconds int  // ReplyDelaySeconds 是回复前等待秒数。
 	}
 	err := s.db.WithContext(ctx).Table("xy_products AS p").
 		Select("p.id AS product_id, s.virtual_product, s.auto_reply_enabled, s.reply_delay_seconds").
@@ -363,6 +387,7 @@ func (s *Message) scheduleAutoReply(ctx context.Context, account model.Account, 
 	return err
 }
 
+// launchReply 按账号和会话合并等待任务，并在计划时间启动发送。
 func (s *Message) launchReply(task model.ReplyTask) {
 	key := fmt.Sprintf("%d:%s", task.AccountID, task.SessionID)
 	ctx, cancel := context.WithCancel(contextOrBackground(s.root))
@@ -401,6 +426,7 @@ func (s *Message) launchReply(task model.ReplyTask) {
 	}()
 }
 
+// runReplyTask 重新校验接管与商品设置后发送并落库回复结果。
 func (s *Message) runReplyTask(ctx context.Context, task model.ReplyTask) {
 	db := s.db.WithContext(ctx)
 	result := db.Model(&model.ReplyTask{}).Where("id = ? AND status = ?", task.ID, model.ReplyTaskScheduled).
@@ -452,6 +478,7 @@ func (s *Message) runReplyTask(ctx context.Context, task model.ReplyTask) {
 	})
 }
 
+// finishReplyTask 原子写入回复任务的终态、完成时间和说明。
 func (s *Message) finishReplyTask(id uint, status, message string) error {
 	now := time.Now()
 	return s.db.Model(&model.ReplyTask{}).Where("id = ?", id).

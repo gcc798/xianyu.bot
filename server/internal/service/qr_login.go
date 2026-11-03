@@ -16,27 +16,37 @@ import (
 )
 
 const (
-	qrStatusPending              = "pending"
-	qrStatusScanned              = "scanned"
-	qrStatusConfirmed            = "confirmed"
-	qrStatusExpired              = "expired"
-	qrStatusCancelled            = "cancelled"
+	// qrStatusPending 表示等待用户扫码。
+	qrStatusPending = "pending"
+	// qrStatusScanned 表示已扫码且等待手机确认。
+	qrStatusScanned = "scanned"
+	// qrStatusConfirmed 表示登录成功且凭据已保存。
+	qrStatusConfirmed = "confirmed"
+	// qrStatusExpired 表示二维码会话超时。
+	qrStatusExpired = "expired"
+	// qrStatusCancelled 表示用户或远端取消登录。
+	qrStatusCancelled = "cancelled"
+	// qrStatusVerificationRequired 表示登录需要额外安全验证。
 	qrStatusVerificationRequired = "verification_required"
-	qrStatusError                = "error"
+	// qrStatusError 表示登录流程发生不可恢复错误。
+	qrStatusError = "error"
 )
 
+// QREndpoints 汇总二维码登录流程使用的闲鱼入口。
 type QREndpoints struct {
-	h5Token    string
-	miniLogin  string
-	generate   string
-	query      string
-	loginToken string
+	h5Token    string // h5Token 初始化和刷新 H5 Cookie。
+	miniLogin  string // miniLogin 返回二维码登录表单参数。
+	generate   string // generate 生成二维码内容。
+	query      string // query 轮询二维码状态。
+	loginToken string // loginToken 将确认令牌交换为登录 Cookie。
 }
 
+// QRLogin 提供用户维度的二维码登录入口。
 type QRLogin struct {
-	manager *QRLoginManager
+	manager *QRLoginManager // manager 管理并发登录会话与轮询。
 }
 
+// NewQRLogin 创建二维码登录服务及默认闲鱼端点。
 func NewQRLogin(root context.Context, accounts *Account) *QRLogin {
 	return &QRLogin{manager: &QRLoginManager{
 		root:      contextOrBackground(root),
@@ -55,33 +65,36 @@ func NewQRLogin(root context.Context, accounts *Account) *QRLogin {
 	}}
 }
 
+// QRLoginManager 管理二维码会话索引、生命周期和远端轮询。
 type QRLoginManager struct {
-	mu        sync.Mutex
-	root      context.Context
-	accounts  *Account
-	sessions  map[string]*QRSession
-	byAccount map[[2]uint]string
-	endpoints QREndpoints
-	timeout   time.Duration
-	pollEvery time.Duration
+	mu        sync.Mutex            // mu 保护 sessions 和 byAccount。
+	root      context.Context       // root 控制全部登录会话生命周期。
+	accounts  *Account              // accounts 校验归属并保存加密凭据。
+	sessions  map[string]*QRSession // sessions 按会话 ID 保存状态。
+	byAccount map[[2]uint]string    // byAccount 限制每个用户账号只有一个活动会话。
+	endpoints QREndpoints           // endpoints 是可在测试中替换的闲鱼入口。
+	timeout   time.Duration         // timeout 是单个二维码会话有效期。
+	pollEvery time.Duration         // pollEvery 是远端状态轮询间隔。
 }
 
+// QRSession 保存一次二维码登录的可变状态和独立 Cookie Jar。
 type QRSession struct {
-	mu              sync.Mutex
-	id              string
-	ownerID         uint
-	accountID       uint
-	status          string
-	message         string
-	qrCodeDataURL   string
-	verificationURL string
-	params          url.Values
-	client          *http.Client
-	createdAt       time.Time
-	expiresAt       time.Time
-	cancel          context.CancelFunc
+	mu              sync.Mutex         // mu 保护会话可变字段。
+	id              string             // id 是对外会话标识。
+	ownerID         uint               // ownerID 是会话所属系统用户 ID。
+	accountID       uint               // accountID 是待登录的闲鱼账号 ID。
+	status          string             // status 是当前登录状态。
+	message         string             // message 是当前用户提示。
+	qrCodeDataURL   string             // qrCodeDataURL 是首次响应展示的二维码图片。
+	verificationURL string             // verificationURL 是额外安全验证地址。
+	params          url.Values         // params 是生成与轮询二维码所需表单参数。
+	client          *http.Client       // client 持有本会话独立 Cookie Jar。
+	createdAt       time.Time          // createdAt 是会话创建时间。
+	expiresAt       time.Time          // expiresAt 是会话到期时间。
+	cancel          context.CancelFunc // cancel 终止轮询上下文。
 }
 
+// Start 校验账号归属并创建或复用活动二维码登录会话。
 func (s *QRLogin) Start(ctx context.Context, ownerID, accountID uint) (xyResponse.QRLogin, error) {
 	if ownerID == 0 || accountID == 0 {
 		return xyResponse.QRLogin{}, errors.New("账号 ID 不能为空")
@@ -124,6 +137,7 @@ func (s *QRLogin) Start(ctx context.Context, ownerID, accountID uint) (xyRespons
 	return session.response(true), nil
 }
 
+// Status 返回 ownerID 名下二维码会话的最新状态，不重复返回二维码图片。
 func (s *QRLogin) Status(ownerID uint, sessionID string) (xyResponse.QRLogin, error) {
 	session := s.manager.get(ownerID, sessionID)
 	if session == nil {
@@ -132,6 +146,7 @@ func (s *QRLogin) Status(ownerID uint, sessionID string) (xyResponse.QRLogin, er
 	return session.response(false), nil
 }
 
+// Cancel 将 ownerID 名下会话置为取消并停止轮询。
 func (s *QRLogin) Cancel(ownerID uint, sessionID string) error {
 	session := s.manager.get(ownerID, sessionID)
 	if session == nil {
@@ -141,6 +156,7 @@ func (s *QRLogin) Cancel(ownerID uint, sessionID string) error {
 	return nil
 }
 
+// active 返回指定用户账号尚未终止且未到期的会话。
 func (m *QRLoginManager) active(ownerID, accountID uint) *QRSession {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -154,6 +170,7 @@ func (m *QRLoginManager) active(ownerID, accountID uint) *QRSession {
 	return session
 }
 
+// cleanupLocked 清理终态保留期已超过五分钟的会话索引。
 func (m *QRLoginManager) cleanupLocked(now time.Time) {
 	for id, session := range m.sessions {
 		if now.Before(session.expiresAt.Add(5 * time.Minute)) {
@@ -167,6 +184,7 @@ func (m *QRLoginManager) cleanupLocked(now time.Time) {
 	}
 }
 
+// store 同时更新会话主索引和用户账号唯一索引。
 func (m *QRLoginManager) store(session *QRSession) {
 	m.mu.Lock()
 	m.sessions[session.id] = session
@@ -174,6 +192,7 @@ func (m *QRLoginManager) store(session *QRSession) {
 	m.mu.Unlock()
 }
 
+// get 仅返回归属 ownerID 的二维码会话。
 func (m *QRLoginManager) get(ownerID uint, sessionID string) *QRSession {
 	m.mu.Lock()
 	session := m.sessions[sessionID]
@@ -184,6 +203,7 @@ func (m *QRLoginManager) get(ownerID uint, sessionID string) *QRSession {
 	return session
 }
 
+// poll 周期查询二维码状态，并完成令牌交换、Cookie 刷新和凭据保存。
 func (m *QRLoginManager) poll(ctx context.Context, session *QRSession) {
 	ticker := time.NewTicker(m.pollEvery)
 	defer ticker.Stop()
@@ -237,6 +257,7 @@ func (m *QRLoginManager) poll(ctx context.Context, session *QRSession) {
 	}
 }
 
+// saveCredential 加密保存完整 Cookie，并更新账号的闲鱼用户标识。
 func (m *QRLoginManager) saveCredential(ctx context.Context, session *QRSession) error {
 	cookie := cookieHeader(session.client, m.endpoints.h5Token, m.endpoints.miniLogin, m.endpoints.query)
 	unb := parseCookieHeader(cookie)["unb"]
@@ -251,6 +272,7 @@ func (m *QRLoginManager) saveCredential(ctx context.Context, session *QRSession)
 		Update("external_user_id", unb).Error
 }
 
+// response 生成线程安全的会话响应，includeQR 控制是否携带二维码图片。
 func (s *QRSession) response(includeQR bool) xyResponse.QRLogin {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -264,12 +286,14 @@ func (s *QRSession) response(includeQR bool) xyResponse.QRLogin {
 	return response
 }
 
+// terminal 判断会话是否已进入不可变终态。
 func (s *QRSession) terminal() bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.status == qrStatusConfirmed || s.status == qrStatusExpired || s.status == qrStatusCancelled || s.status == qrStatusVerificationRequired || s.status == qrStatusError
 }
 
+// setStatus 仅在非终态时更新会话状态和提示。
 func (s *QRSession) setStatus(status, message string) {
 	s.mu.Lock()
 	if !s.isTerminalLocked() {
@@ -279,6 +303,7 @@ func (s *QRSession) setStatus(status, message string) {
 	s.mu.Unlock()
 }
 
+// finish 原子写入终态并取消后台轮询。
 func (s *QRSession) finish(status, message, verificationURL string) {
 	s.mu.Lock()
 	if !s.isTerminalLocked() {
@@ -290,6 +315,7 @@ func (s *QRSession) finish(status, message, verificationURL string) {
 	s.mu.Unlock()
 }
 
+// isTerminalLocked 在持有会话锁时判断终态。
 func (s *QRSession) isTerminalLocked() bool {
 	return s.status == qrStatusConfirmed || s.status == qrStatusExpired || s.status == qrStatusCancelled || s.status == qrStatusVerificationRequired || s.status == qrStatusError
 }

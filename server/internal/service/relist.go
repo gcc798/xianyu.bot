@@ -15,18 +15,21 @@ import (
 	"gorm.io/gorm/clause"
 )
 
+// Relist 管理售出商品的自动重发计划与执行。
 type Relist struct {
-	db       *gorm.DB
-	events   *BusinessEvent
-	mtop     mtopCaller
-	products *Product
-	media    func(context.Context, uint, uint, map[string]any) error
+	db       *gorm.DB                                                // db 持久化续售任务和商品快照。
+	events   *BusinessEvent                                          // events 记录续售业务结果。
+	mtop     mtopCaller                                              // mtop 查询分类并发布新商品。
+	products *Product                                                // products 同步商品并刷新发布快照。
+	media    func(context.Context, uint, uint, map[string]any) error // media 重新上传发布图片。
 }
 
+// NewRelist 创建自动续售服务。
 func NewRelist(db *gorm.DB, events *BusinessEvent, products *Product) *Relist {
 	return &Relist{db: db, events: events, mtop: &MTopClient{db: db}, products: products}
 }
 
+// caller 返回注入的 MTop 调用器或默认实现。
 func (s *Relist) caller() mtopCaller {
 	if s.mtop != nil {
 		return s.mtop
@@ -34,6 +37,7 @@ func (s *Relist) caller() mtopCaller {
 	return &MTopClient{db: s.db}
 }
 
+// Plan 为已发货且启用自动续售的订单幂等创建延迟任务。
 func (s *Relist) Plan(ctx context.Context, order model.Order) error {
 	if order.Status != model.OrderStatusShipped || order.ProductID == 0 {
 		return nil
@@ -72,6 +76,7 @@ func (s *Relist) Plan(ctx context.Context, order model.Order) error {
 	return s.db.WithContext(ctx).Clauses(clause.OnConflict{DoNothing: true}).Create(&task).Error
 }
 
+// ProcessTask 原子认领续售任务，确认原商品状态后发布新商品并迁移设置。
 func (s *Relist) ProcessTask(ctx context.Context, ownerID, taskID uint) error {
 	db := s.db.WithContext(ctx)
 	claim := db.Model(&model.RelistTask{}).
@@ -160,6 +165,7 @@ func (s *Relist) ProcessTask(ctx context.Context, ownerID, taskID uint) error {
 	return txErr
 }
 
+// completePublishCategory 在快照缺少发布分类路径时向闲鱼补查并写回 payload。
 func completePublishCategory(ctx context.Context, caller mtopCaller, ownerID, accountID uint, payload map[string]any) error {
 	category, ok := payload["itemCatDTO"].(map[string]any)
 	if !ok {
@@ -198,6 +204,7 @@ func completePublishCategory(ctx context.Context, caller mtopCaller, ownerID, ac
 	return nil
 }
 
+// findRecommendedCategory 递归查找与 targetCatID 匹配且路径完整的分类。
 func findRecommendedCategory(raw json.RawMessage, targetCatID string) (map[string]string, error) {
 	var value any
 	if err := json.Unmarshal(raw, &value); err != nil {
@@ -241,6 +248,7 @@ func findRecommendedCategory(raw json.RawMessage, targetCatID string) (map[strin
 	return nil, errors.New("闲鱼分类推荐未找到与原商品匹配的分类路径")
 }
 
+// firstNonEmpty 返回第一个非空且非 nil 文本值。
 func firstNonEmpty(values ...any) string {
 	for _, value := range values {
 		if text := strings.TrimSpace(fmt.Sprint(value)); text != "" && text != "<nil>" {
@@ -250,6 +258,7 @@ func firstNonEmpty(values ...any) string {
 	return ""
 }
 
+// processDue 顺序处理账号最多十个到期续售任务。
 func (s *Relist) processDue(ctx context.Context, accountID uint) {
 	var tasks []model.RelistTask
 	if err := s.db.WithContext(ctx).Where("account_id = ? AND status IN ? AND next_attempt_at <= ?", accountID,
@@ -264,6 +273,7 @@ func (s *Relist) processDue(ctx context.Context, accountID uint) {
 	}
 }
 
+// failTask 记录失败并按尝试次数设置指数退避时间。
 func (s *Relist) failTask(db *gorm.DB, task model.RelistTask, err error) error {
 	delay := time.Duration(1<<min(task.Attempts, 6)) * time.Second
 	updateErr := db.Model(&task).Updates(map[string]any{"status": model.RelistTaskFailed, "last_error": err.Error(), "next_attempt_at": time.Now().Add(delay)}).Error
@@ -271,6 +281,7 @@ func (s *Relist) failTask(db *gorm.DB, task model.RelistTask, err error) error {
 	return errors.Join(err, updateErr)
 }
 
+// findPublishedItemID 递归提取发布响应中的新商品标识。
 func findPublishedItemID(data json.RawMessage) string {
 	var value any
 	if json.Unmarshal(data, &value) != nil {

@@ -17,8 +17,10 @@ import (
 	qrcode "github.com/skip2/go-qrcode"
 )
 
+// stringOrNumber 兼容闲鱼接口在字符串和数字间漂移的标识字段。
 type stringOrNumber string
 
+// UnmarshalJSON 将 JSON 字符串或数字统一解码为文本。
 func (value *stringOrNumber) UnmarshalJSON(data []byte) error {
 	var text string
 	if len(data) > 0 && data[0] == '"' {
@@ -36,6 +38,7 @@ func (value *stringOrNumber) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
+// prepare 初始化 Cookie、读取登录表单并生成二维码图片。
 func (m *QRLoginManager) prepare(ctx context.Context, session *QRSession) error {
 	if err := m.refreshH5Token(ctx, session); err != nil {
 		return fmt.Errorf("初始化二维码登录凭证失败: %w", err)
@@ -58,13 +61,13 @@ func (m *QRLoginManager) prepare(ctx context.Context, session *QRSession) error 
 	}
 	var payload struct {
 		Content struct {
-			Success bool `json:"success"`
+			Success bool `json:"success"` // Success 表示二维码生成成功。
 			Data    struct {
-				T           stringOrNumber `json:"t"`
-				CK          stringOrNumber `json:"ck"`
-				CodeContent string         `json:"codeContent"`
-			} `json:"data"`
-		} `json:"content"`
+				T           stringOrNumber `json:"t"`           // T 是轮询时间参数。
+				CK          stringOrNumber `json:"ck"`          // CK 是二维码校验参数。
+				CodeContent string         `json:"codeContent"` // CodeContent 是二维码原始内容。
+			} `json:"data"` // Data 包含二维码与轮询参数。
+		} `json:"content"` // Content 包含二维码业务结果。
 	}
 	if err := doJSON(session.client, request, &payload); err != nil {
 		return fmt.Errorf("生成二维码: %w", err)
@@ -82,6 +85,7 @@ func (m *QRLoginManager) prepare(ctx context.Context, session *QRSession) error 
 	return nil
 }
 
+// refreshH5Token 访问并签名 H5 首页接口，使会话 Cookie 包含有效 MTop 令牌。
 func (m *QRLoginManager) refreshH5Token(ctx context.Context, session *QRSession) error {
 	request, err := NewQRRequest(ctx, http.MethodGet, m.endpoints.h5Token, nil)
 	if err != nil {
@@ -129,6 +133,7 @@ func (m *QRLoginManager) refreshH5Token(ctx context.Context, session *QRSession)
 	return nil
 }
 
+// loginParams 从闲鱼登录页提取生成二维码所需的隐藏表单字段。
 func (m *QRLoginManager) loginParams(ctx context.Context, session *QRSession) (url.Values, error) {
 	loginURL, err := url.Parse(m.endpoints.miniLogin)
 	if err != nil {
@@ -171,6 +176,7 @@ func (m *QRLoginManager) loginParams(ctx context.Context, session *QRSession) (u
 	return params, nil
 }
 
+// loginParam 将登录页字段稳定编码为表单文本。
 func loginParam(value any) string {
 	switch typed := value.(type) {
 	case string:
@@ -186,6 +192,7 @@ func loginParam(value any) string {
 	}
 }
 
+// pollOnce 查询一次二维码状态，并返回登录令牌或安全验证地址。
 func (m *QRLoginManager) pollOnce(ctx context.Context, session *QRSession) (string, string, string, bool, error) {
 	request, err := NewQRRequest(ctx, http.MethodPost, m.endpoints.query, strings.NewReader(session.params.Encode()))
 	if err != nil {
@@ -195,13 +202,13 @@ func (m *QRLoginManager) pollOnce(ctx context.Context, session *QRSession) (stri
 	var payload struct {
 		Content struct {
 			Data struct {
-				Status            string `json:"qrCodeStatus"`
-				Token             string `json:"token"`
-				LGToken           string `json:"lgToken"`
-				IframeRedirect    bool   `json:"iframeRedirect"`
-				IframeRedirectURL string `json:"iframeRedirectUrl"`
-			} `json:"data"`
-		} `json:"content"`
+				Status            string `json:"qrCodeStatus"`      // Status 是闲鱼二维码状态。
+				Token             string `json:"token"`             // Token 是主要登录交换令牌。
+				LGToken           string `json:"lgToken"`           // LGToken 是兼容旧响应的登录令牌。
+				IframeRedirect    bool   `json:"iframeRedirect"`    // IframeRedirect 表示需要额外验证。
+				IframeRedirectURL string `json:"iframeRedirectUrl"` // IframeRedirectURL 是验证地址。
+			} `json:"data"` // Data 包含轮询状态与令牌。
+		} `json:"content"` // Content 包含二维码业务结果。
 	}
 	if err := doJSON(session.client, request, &payload); err != nil {
 		return "", "", "", false, err
@@ -216,6 +223,7 @@ func (m *QRLoginManager) pollOnce(ctx context.Context, session *QRSession) (stri
 	return payload.Content.Data.Status, loginToken, "", false, nil
 }
 
+// completeLogin 将手机确认后的 loginToken 交换为登录 Cookie。
 func (m *QRLoginManager) completeLogin(ctx context.Context, session *QRSession, loginToken string) error {
 	target, err := url.Parse(m.endpoints.loginToken)
 	if err != nil {
@@ -246,6 +254,7 @@ func (m *QRLoginManager) completeLogin(ctx context.Context, session *QRSession, 
 	return nil
 }
 
+// safeVerificationURL 仅允许 HTTPS 的 goofish.com 安全验证地址。
 func safeVerificationURL(rawURL string) string {
 	parsed, err := url.Parse(rawURL)
 	if err != nil || parsed.Scheme != "https" || (parsed.Hostname() != "goofish.com" && !strings.HasSuffix(parsed.Hostname(), ".goofish.com")) {
@@ -254,10 +263,12 @@ func safeVerificationURL(rawURL string) string {
 	return parsed.String()
 }
 
+// LoginViewData 是闲鱼登录页内嵌的二维码表单配置。
 type LoginViewData struct {
-	LoginFormData map[string]any `json:"loginFormData"`
+	LoginFormData map[string]any `json:"loginFormData"` // LoginFormData 保存生成二维码的隐藏字段。
 }
 
+// extractViewData 从登录页脚本中解码非固定前缀的 viewData。
 func extractViewData(body []byte) (LoginViewData, error) {
 	text := string(body)
 	for _, marker := range []string{"window.viewData", "var viewData"} {
@@ -278,6 +289,7 @@ func extractViewData(body []byte) (LoginViewData, error) {
 	return LoginViewData{}, errors.New("登录页缺少 loginFormData")
 }
 
+// NewQRRequest 创建带闲鱼 Passport 浏览器请求头的 HTTP 请求。
 func NewQRRequest(ctx context.Context, method, target string, body io.Reader) (*http.Request, error) {
 	request, err := http.NewRequestWithContext(ctx, method, target, body)
 	if err != nil {
@@ -291,6 +303,7 @@ func NewQRRequest(ctx context.Context, method, target string, body io.Reader) (*
 	return request, nil
 }
 
+// doJSON 限制响应大小、校验 HTTP 状态并解码 JSON。
 func doJSON(client *http.Client, request *http.Request, target any) error {
 	response, err := client.Do(request)
 	if err != nil {
@@ -307,6 +320,7 @@ func doJSON(client *http.Client, request *http.Request, target any) error {
 	return nil
 }
 
+// cookieValue 从 client 的 Cookie Jar 读取 target 域下的指定 Cookie。
 func cookieValue(client *http.Client, target, name string) string {
 	parsed, err := url.Parse(target)
 	if err != nil {
@@ -320,6 +334,7 @@ func cookieValue(client *http.Client, target, name string) string {
 	return ""
 }
 
+// cookieHeader 合并多个目标域的 Cookie 并稳定排序为请求头文本。
 func cookieHeader(client *http.Client, targets ...string) string {
 	values := make(map[string]string)
 	for _, target := range targets {

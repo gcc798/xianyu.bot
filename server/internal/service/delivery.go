@@ -17,23 +17,27 @@ import (
 	"gorm.io/gorm/clause"
 )
 
+// Delivery 管理卡密库存、发货任务和账号级后台执行器。
 type Delivery struct {
-	root      context.Context
-	db        *gorm.DB
-	events    *BusinessEvent
+	root      context.Context // root 控制账号后台执行器生命周期。
+	db        *gorm.DB        // db 持久化规则、卡密和发货任务。
+	events    *BusinessEvent  // events 记录发货业务结果。
 	consigner interface {
+		// Consign 向买家发送内容并确认闲鱼订单发货。
 		Consign(context.Context, uint, model.Order, string) error
-	}
-	rules   *DeliveryRule
-	relist  *Relist
-	mu      sync.Mutex
-	workers map[uint]context.CancelFunc
+	} // consigner 执行不可重复的远端发货动作。
+	rules   *DeliveryRule               // rules 为订单选择发货模板。
+	relist  *Relist                     // relist 在发货成功后规划自动续售。
+	mu      sync.Mutex                  // mu 保护 workers。
+	workers map[uint]context.CancelFunc // workers 保存账号后台执行器取消函数。
 }
 
+// NewDelivery 创建自动发货服务并初始化账号执行器集合。
 func NewDelivery(ctx context.Context, db *gorm.DB, events *BusinessEvent, orders *Order, rules *DeliveryRule, relist *Relist) *Delivery {
 	return &Delivery{root: contextOrBackground(ctx), db: db, events: events, consigner: orders, rules: rules, relist: relist, workers: make(map[uint]context.CancelFunc)}
 }
 
+// ImportResources 校验规则归属，去重并加密导入最多一千条卡密。
 func (s *Delivery) ImportResources(ctx context.Context, ownerID uint, input xyRequest.ImportDeliveryResources) (int, error) {
 	if ownerID == 0 || input.RuleID == 0 || len(input.Values) == 0 || len(input.Values) > 1000 {
 		return 0, errors.New("规则和 1 到 1000 条卡密不能为空")
@@ -67,6 +71,7 @@ func (s *Delivery) ImportResources(ctx context.Context, ownerID uint, input xyRe
 	return int(result.RowsAffected), result.Error
 }
 
+// Inventory 按状态汇总 ownerID 名下指定规则的卡密数量。
 func (s *Delivery) Inventory(ctx context.Context, ownerID, ruleID uint) (xyResponse.DeliveryInventory, error) {
 	if ownerID == 0 || ruleID == 0 {
 		return xyResponse.DeliveryInventory{}, errors.New("规则 ID 不能为空")
@@ -103,6 +108,7 @@ func (s *Delivery) Inventory(ctx context.Context, ownerID, ruleID uint) (xyRespo
 	return result, rows.Err()
 }
 
+// ListTasks 分页查询 ownerID 名下发货任务并补充订单、商品和账号信息。
 func (s *Delivery) ListTasks(ctx context.Context, ownerID uint, input xyRequest.DeliveryTaskSearch) ([]xyResponse.DeliveryTask, int64, error) {
 	if ownerID == 0 {
 		return nil, 0, errors.New("用户未登录")
@@ -134,6 +140,7 @@ func (s *Delivery) ListTasks(ctx context.Context, ownerID uint, input xyRequest.
 	return list, total, err
 }
 
+// Plan 为符合商品设置的待发货订单幂等创建任务并预留卡密。
 func (s *Delivery) Plan(ctx context.Context, order model.Order) error {
 	if order.Status != model.OrderStatusPendingDelivery || order.ProductID == 0 || order.ExternalOrderID == "" {
 		return nil
@@ -201,6 +208,7 @@ func (s *Delivery) Plan(ctx context.Context, order model.Order) error {
 	return err
 }
 
+// ProcessTask 原子认领任务，解密负载并执行一次可审计的远端发货。
 func (s *Delivery) ProcessTask(ctx context.Context, ownerID, taskID uint) error {
 	if ownerID == 0 || taskID == 0 {
 		return errors.New("发货任务 ID 不能为空")
@@ -266,6 +274,7 @@ func (s *Delivery) ProcessTask(ctx context.Context, ownerID, taskID uint) error 
 	return txErr
 }
 
+// Retry 仅将明确失败的任务重置为待执行并立即处理。
 func (s *Delivery) Retry(ctx context.Context, ownerID, taskID uint) error {
 	result := s.db.WithContext(ctx).Model(&model.DeliveryTask{}).
 		Where("id = ? AND owner_id = ? AND status = ?", taskID, ownerID, model.DeliveryTaskFailed).
@@ -279,6 +288,7 @@ func (s *Delivery) Retry(ctx context.Context, ownerID, taskID uint) error {
 	return s.ProcessTask(ctx, ownerID, taskID)
 }
 
+// StartAccount 为账号启动唯一的到期任务轮询器。
 func (s *Delivery) StartAccount(accountID uint) {
 	s.mu.Lock()
 	if s.workers == nil {
@@ -305,6 +315,7 @@ func (s *Delivery) StartAccount(accountID uint) {
 	}()
 }
 
+// StopAccount 停止并移除指定账号的任务轮询器。
 func (s *Delivery) StopAccount(accountID uint) {
 	s.mu.Lock()
 	cancel := s.workers[accountID]
@@ -315,6 +326,7 @@ func (s *Delivery) StopAccount(accountID uint) {
 	}
 }
 
+// processDue 顺序处理账号最多十个到期发货任务及续售任务。
 func (s *Delivery) processDue(ctx context.Context, accountID uint) {
 	var tasks []model.DeliveryTask
 	if err := s.db.WithContext(ctx).Where("account_id = ? AND status IN ? AND next_attempt_at <= ?", accountID,
@@ -332,6 +344,7 @@ func (s *Delivery) processDue(ctx context.Context, accountID uint) {
 	}
 }
 
+// failTask 记录失败、指数退避下次执行时间和业务审计事件。
 func (s *Delivery) failTask(db *gorm.DB, task model.DeliveryTask, err error) error {
 	delay := time.Duration(1<<min(task.Attempts, 6)) * time.Second
 	updateErr := db.Model(&task).Updates(map[string]any{
@@ -341,10 +354,12 @@ func (s *Delivery) failTask(db *gorm.DB, task model.DeliveryTask, err error) err
 	return errors.Join(err, updateErr)
 }
 
+// deliveryResourceAAD 生成绑定规则和内容摘要的卡密加密附加数据。
 func deliveryResourceAAD(ruleID uint, hash string) string {
 	return fmt.Sprintf("xy:delivery-resource:%d:%s", ruleID, hash)
 }
 
+// deliveryTaskAAD 生成绑定账号和外部订单的发货负载附加数据。
 func deliveryTaskAAD(accountID uint, orderID string) string {
 	return fmt.Sprintf("xy:delivery-task:%d:%s", accountID, orderID)
 }
