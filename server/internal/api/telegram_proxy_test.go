@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// TestTelegramRequestPreservesUpstreamPath 验证对应测试场景。
 func TestTelegramRequestPreservesUpstreamPath(t *testing.T) {
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		require.Equal(t, "/api/resources/tasks/7", r.URL.Path)
@@ -29,6 +30,7 @@ func TestTelegramRequestPreservesUpstreamPath(t *testing.T) {
 	require.Equal(t, http.StatusOK, result.StatusCode)
 }
 
+// TestTelegramRequestDoesNotForwardSystemCredentials 验证对应测试场景。
 func TestTelegramRequestDoesNotForwardSystemCredentials(t *testing.T) {
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		require.Empty(t, r.Header.Get("X-Token"))

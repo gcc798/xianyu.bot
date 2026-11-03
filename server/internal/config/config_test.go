@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// TestServerConfigFiles 验证对应测试场景。
 func TestServerConfigFiles(t *testing.T) {
 	for _, name := range []string{"config.yaml", "config.docker.yaml"} {
 		t.Run(name, func(t *testing.T) {

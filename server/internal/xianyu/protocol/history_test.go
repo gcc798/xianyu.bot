@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// TestParseConversationResponse 验证对应测试场景。
 func TestParseConversationResponse(t *testing.T) {
 	raw := []byte(`{"body":{"userConvs":[{"singleChatUserConversation":{"singleChatConversation":{"cid":"session-1@goofish"}}},{"singleChatUserConversation":{"singleChatConversation":{"cid":"session-1@goofish"}}}]}}`)
 	conversations, err := ParseConversationResponse(raw)
@@ -15,6 +16,7 @@ func TestParseConversationResponse(t *testing.T) {
 	require.Equal(t, []string{"session-1@goofish"}, conversations)
 }
 
+// TestParseHistoryResponse 验证对应测试场景。
 func TestParseHistoryResponse(t *testing.T) {
 	content := base64.StdEncoding.EncodeToString([]byte(`{"contentType":1,"text":{"text":"价格是什么"}}`))
 	raw, err := json.Marshal(map[string]any{"body": map[string]any{"userMessageModels": []any{map[string]any{"message": map[string]any{

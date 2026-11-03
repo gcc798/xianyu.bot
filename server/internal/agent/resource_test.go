@@ -17,32 +17,39 @@ import (
 	"gorm.io/gorm"
 )
 
+// fakeResourceObjectStore 是测试辅助类型。
 type fakeResourceObjectStore struct {
-	size          int64
-	bucketCreated bool
+	size          int64 // size 是模拟对象大小。
+	bucketCreated bool  // bucketCreated 标记存储桶已创建。
 }
 
+// PresignedPutObject 提供测试辅助能力。
 func (s *fakeResourceObjectStore) PresignedPutObject(_ context.Context, _, objectKey string, _ time.Duration) (*url.URL, error) {
 	return url.Parse("http://rustfs:9000/resources/" + objectKey)
 }
 
+// PresignedGetObject 提供测试辅助能力。
 func (s *fakeResourceObjectStore) PresignedGetObject(_ context.Context, _, objectKey string, _ time.Duration, _ url.Values) (*url.URL, error) {
 	return url.Parse("http://rustfs:9000/download/" + objectKey)
 }
 
+// StatObject 提供测试辅助能力。
 func (s *fakeResourceObjectStore) StatObject(context.Context, string, string, minio.StatObjectOptions) (minio.ObjectInfo, error) {
 	return minio.ObjectInfo{Size: s.size}, nil
 }
 
+// BucketExists 提供测试辅助能力。
 func (s *fakeResourceObjectStore) BucketExists(context.Context, string) (bool, error) {
 	return s.bucketCreated, nil
 }
 
+// MakeBucket 提供测试辅助能力。
 func (s *fakeResourceObjectStore) MakeBucket(context.Context, string, minio.MakeBucketOptions) error {
 	s.bucketCreated = true
 	return nil
 }
 
+// TestResourceCatalogScopesQueriesByOwner 验证对应测试场景。
 func TestResourceCatalogScopesQueriesByOwner(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
@@ -83,6 +90,7 @@ func TestResourceCatalogScopesQueriesByOwner(t *testing.T) {
 	require.True(t, errors.Is(err, gorm.ErrRecordNotFound))
 }
 
+// TestResourceDeliveryGrantAndCompletion 验证对应测试场景。
 func TestResourceDeliveryGrantAndCompletion(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
@@ -156,6 +164,7 @@ func TestResourceDeliveryGrantAndCompletion(t *testing.T) {
 	require.Equal(t, "failed", failed.State)
 }
 
+// TestResourceCatalogCancelsTaskThroughOwningMCPServer 验证对应测试场景。
 func TestResourceCatalogCancelsTaskThroughOwningMCPServer(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)

@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// TestManagerRunsOneCancelableRuntimePerAccount 验证对应测试场景。
 func TestManagerRunsOneCancelableRuntimePerAccount(t *testing.T) {
 	connection := newFakeConnection()
 	dialer := &fakeDialer{connections: make(chan Connection, 1)}
@@ -49,6 +50,7 @@ func TestManagerRunsOneCancelableRuntimePerAccount(t *testing.T) {
 	require.True(t, connection.isClosed())
 }
 
+// TestRuntimeReconnectsWhenQueueIsFull 验证对应测试场景。
 func TestRuntimeReconnectsWhenQueueIsFull(t *testing.T) {
 	first := newFakeConnection()
 	second := newFakeConnection()
@@ -83,6 +85,7 @@ func TestRuntimeReconnectsWhenQueueIsFull(t *testing.T) {
 	require.True(t, first.isClosed())
 }
 
+// TestRuntimeSnapshotRecordsReconnectError 验证对应测试场景。
 func TestRuntimeSnapshotRecordsReconnectError(t *testing.T) {
 	manager, err := NewManager(errorDialer{}, func(context.Context, uint, []byte) error { return nil }, testConfig())
 	require.NoError(t, err)
@@ -94,6 +97,7 @@ func TestRuntimeSnapshotRecordsReconnectError(t *testing.T) {
 	require.True(t, manager.Stop(11))
 }
 
+// TestRuntimeStopsRetryingNonRetryableError 验证对应测试场景。
 func TestRuntimeStopsRetryingNonRetryableError(t *testing.T) {
 	dialer := &permanentErrorDialer{}
 	states := make(chan State, 4)
@@ -111,6 +115,7 @@ func TestRuntimeStopsRetryingNonRetryableError(t *testing.T) {
 	require.Equal(t, StateFailed, <-states)
 }
 
+// TestRuntimeReadTimeoutClosesConnection 验证对应测试场景。
 func TestRuntimeReadTimeoutClosesConnection(t *testing.T) {
 	connection := newFakeConnection()
 	config := testConfig()
@@ -122,6 +127,7 @@ func TestRuntimeReadTimeoutClosesConnection(t *testing.T) {
 	require.True(t, connection.isClosed())
 }
 
+// TestRuntimeEmptyReadsResetTimeoutWithoutCallingHandler 验证对应测试场景。
 func TestRuntimeEmptyReadsResetTimeoutWithoutCallingHandler(t *testing.T) {
 	connection := newFakeConnection()
 	config := testConfig()
@@ -149,6 +155,7 @@ func TestRuntimeEmptyReadsResetTimeoutWithoutCallingHandler(t *testing.T) {
 	}
 }
 
+// TestRuntimeHeartbeatTimeoutClosesConnection 验证对应测试场景。
 func TestRuntimeHeartbeatTimeoutClosesConnection(t *testing.T) {
 	connection := newFakeConnection()
 	connection.blockPing.Store(true)
@@ -160,6 +167,7 @@ func TestRuntimeHeartbeatTimeoutClosesConnection(t *testing.T) {
 	require.True(t, connection.isClosed())
 }
 
+// TestBackoffDelayIsExponentialAndCapped 验证对应测试场景。
 func TestBackoffDelayIsExponentialAndCapped(t *testing.T) {
 	config := testConfig()
 	config.BackoffMin = 10 * time.Millisecond
@@ -177,6 +185,7 @@ func TestBackoffDelayIsExponentialAndCapped(t *testing.T) {
 	}
 }
 
+// testConfig 提供测试辅助能力。
 func testConfig() Config {
 	return Config{
 		QueueSize:         4,
@@ -189,30 +198,44 @@ func testConfig() Config {
 	}
 }
 
+// fakeDialer 是测试辅助类型。
 type fakeDialer struct {
-	connections chan Connection
-	calls       atomic.Int64
+	connections chan Connection // connections 提供模拟连接。
+	calls       atomic.Int64    // calls 记录拨号次数。
 }
 
+// errorDialer 是测试辅助类型。
 type errorDialer struct{}
 
+// permanentError 是测试辅助类型。
 type permanentError struct{}
 
-func (permanentError) Error() string      { return "需要人工处理" }
+// Error 提供测试辅助能力。
+func (permanentError) Error() string { return "需要人工处理" }
+
+// NonRetryable 提供测试辅助能力。
 func (permanentError) NonRetryable() bool { return true }
-func (permanentError) ActionURL() string  { return "https://example.com/verify" }
 
-type permanentErrorDialer struct{ calls atomic.Int64 }
+// ActionURL 提供测试辅助能力。
+func (permanentError) ActionURL() string { return "https://example.com/verify" }
 
+// permanentErrorDialer 是测试辅助类型。
+type permanentErrorDialer struct {
+	calls atomic.Int64 // calls 记录拨号次数。
+}
+
+// Dial 提供测试辅助能力。
 func (d *permanentErrorDialer) Dial(context.Context, uint) (Connection, error) {
 	d.calls.Add(1)
 	return nil, permanentError{}
 }
 
+// Dial 提供测试辅助能力。
 func (errorDialer) Dial(context.Context, uint) (Connection, error) {
 	return nil, errors.New("连接失败")
 }
 
+// Dial 提供测试辅助能力。
 func (d *fakeDialer) Dial(ctx context.Context, _ uint) (Connection, error) {
 	d.calls.Add(1)
 	select {
@@ -223,19 +246,22 @@ func (d *fakeDialer) Dial(ctx context.Context, _ uint) (Connection, error) {
 	}
 }
 
+// fakeConnection 是测试辅助类型。
 type fakeConnection struct {
-	reads     chan []byte
-	sends     chan []byte
-	closed    chan struct{}
-	once      sync.Once
-	pings     atomic.Int64
-	blockPing atomic.Bool
+	reads     chan []byte   // reads 提供模拟入站消息。
+	sends     chan []byte   // sends 记录模拟出站消息。
+	closed    chan struct{} // closed 标记连接关闭。
+	once      sync.Once     // once 保证连接只关闭一次。
+	pings     atomic.Int64  // pings 记录心跳次数。
+	blockPing atomic.Bool   // blockPing 控制心跳阻塞。
 }
 
+// newFakeConnection 提供测试辅助能力。
 func newFakeConnection() *fakeConnection {
 	return &fakeConnection{reads: make(chan []byte, 8), sends: make(chan []byte, 8), closed: make(chan struct{})}
 }
 
+// Read 提供测试辅助能力。
 func (c *fakeConnection) Read(ctx context.Context) ([]byte, error) {
 	select {
 	case message := <-c.reads:
@@ -247,6 +273,7 @@ func (c *fakeConnection) Read(ctx context.Context) ([]byte, error) {
 	}
 }
 
+// Send 提供测试辅助能力。
 func (c *fakeConnection) Send(ctx context.Context, payload []byte) error {
 	select {
 	case c.sends <- payload:
@@ -258,6 +285,7 @@ func (c *fakeConnection) Send(ctx context.Context, payload []byte) error {
 	}
 }
 
+// Ping 提供测试辅助能力。
 func (c *fakeConnection) Ping(ctx context.Context) error {
 	if c.blockPing.Load() {
 		<-ctx.Done()
@@ -274,11 +302,13 @@ func (c *fakeConnection) Ping(ctx context.Context) error {
 	}
 }
 
+// Close 提供测试辅助能力。
 func (c *fakeConnection) Close() error {
 	c.once.Do(func() { close(c.closed) })
 	return nil
 }
 
+// isClosed 提供测试辅助能力。
 func (c *fakeConnection) isClosed() bool {
 	select {
 	case <-c.closed:

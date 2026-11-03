@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// TestUserAPIRejectsMissingRequiredFields 验证对应测试场景。
 func TestUserAPIRejectsMissingRequiredFields(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	api := New(systemService.New(t.Context(), nil, nil), nil, nil, nil, nil, nil, nil).User

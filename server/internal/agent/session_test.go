@@ -12,6 +12,7 @@ import (
 	"gorm.io/gorm"
 )
 
+// TestAgentSessionScopesConversationByOwner 验证对应测试场景。
 func TestAgentSessionScopesConversationByOwner(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
@@ -81,6 +82,7 @@ func TestAgentSessionScopesConversationByOwner(t *testing.T) {
 	require.True(t, errors.Is(err, gorm.ErrRecordNotFound))
 }
 
+// TestAgentSessionDeleteRejectsRunningAndRemovesConversation 验证对应测试场景。
 func TestAgentSessionDeleteRejectsRunningAndRemovesConversation(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)

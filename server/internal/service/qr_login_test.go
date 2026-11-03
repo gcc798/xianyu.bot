@@ -15,6 +15,7 @@ import (
 	"gorm.io/gorm"
 )
 
+// TestQRLoginSavesCredentialWithoutReturningIt 验证对应测试场景。
 func TestQRLoginSavesCredentialWithoutReturningIt(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		switch request.URL.Path {
@@ -88,6 +89,7 @@ func TestQRLoginSavesCredentialWithoutReturningIt(t *testing.T) {
 	require.Equal(t, "user-demo", updated.ExternalUserID)
 }
 
+// TestSafeVerificationURLOnlyAllowsGoofishHTTPS 验证对应测试场景。
 func TestSafeVerificationURLOnlyAllowsGoofishHTTPS(t *testing.T) {
 	require.Equal(t, "https://passport.goofish.com/verify?id=demo", safeVerificationURL("https://passport.goofish.com/verify?id=demo"))
 	require.Empty(t, safeVerificationURL("http://passport.goofish.com/verify"))
@@ -95,6 +97,7 @@ func TestSafeVerificationURLOnlyAllowsGoofishHTTPS(t *testing.T) {
 	require.Empty(t, safeVerificationURL("javascript:alert(1)"))
 }
 
+// TestStringOrNumberPreservesLoginParameter 验证对应测试场景。
 func TestStringOrNumberPreservesLoginParameter(t *testing.T) {
 	for input, expected := range map[string]string{
 		`"time-demo"`:   "time-demo",

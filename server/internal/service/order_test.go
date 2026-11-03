@@ -13,26 +13,36 @@ import (
 	"gorm.io/gorm"
 )
 
+// fakeMTopCaller 是测试辅助类型。
 type fakeMTopCaller struct {
-	data json.RawMessage
-	err  error
+	data json.RawMessage // data 是模拟响应。
+	err  error           // err 是模拟错误。
 }
 
+// recordedMTopCall 是测试辅助类型。
 type recordedMTopCall struct {
-	api    string
-	data   any
-	seller bool
+	api    string // api 是调用接口名。
+	data   any    // data 是调用参数。
+	seller bool   // seller 标记卖家接口调用。
 }
 
-type recordingMTopCaller struct{ calls []recordedMTopCall }
+// recordingMTopCaller 是测试辅助类型。
+type recordingMTopCaller struct {
+	calls []recordedMTopCall // calls 记录 MTop 调用。
+}
 
+// Call 提供测试辅助能力。
 func (f *recordingMTopCaller) Call(_ context.Context, _, _ uint, api string, data any, seller bool) (json.RawMessage, error) {
 	f.calls = append(f.calls, recordedMTopCall{api: api, data: data, seller: seller})
 	return json.RawMessage(`{}`), nil
 }
 
-type recordingTextSender struct{ texts []string }
+// recordingTextSender 是测试辅助类型。
+type recordingTextSender struct {
+	texts []string // texts 记录已发送文本。
+}
 
+// SendText 提供测试辅助能力。
 func (s *recordingTextSender) SendText(_ context.Context, _, _ uint, sessionID, toUserID, text string) error {
 	if sessionID == "" || toUserID == "" {
 		return errors.New("缺少会话信息")
@@ -41,10 +51,12 @@ func (s *recordingTextSender) SendText(_ context.Context, _, _ uint, sessionID, 
 	return nil
 }
 
+// Call 提供测试辅助能力。
 func (f fakeMTopCaller) Call(context.Context, uint, uint, string, any, bool) (json.RawMessage, error) {
 	return f.data, f.err
 }
 
+// TestOrderEventsAreIdempotentAndOwnerScoped 验证对应测试场景。
 func TestOrderEventsAreIdempotentAndOwnerScoped(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
@@ -78,6 +90,7 @@ func TestOrderEventsAreIdempotentAndOwnerScoped(t *testing.T) {
 	require.EqualValues(t, 1, events)
 }
 
+// TestSyncPendingOrdersUpsertsRemoteData 验证对应测试场景。
 func TestSyncPendingOrdersUpsertsRemoteData(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
@@ -102,6 +115,7 @@ func TestSyncPendingOrdersUpsertsRemoteData(t *testing.T) {
 	require.Equal(t, model.OrderStatusPendingDelivery, orders[0].Status)
 }
 
+// TestConsignSendsMessageThenConfirmsPlatformDelivery 验证对应测试场景。
 func TestConsignSendsMessageThenConfirmsPlatformDelivery(t *testing.T) {
 	mtop := new(recordingMTopCaller)
 	sender := new(recordingTextSender)

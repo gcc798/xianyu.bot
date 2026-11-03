@@ -17,6 +17,7 @@ import (
 	"gorm.io/gorm"
 )
 
+// TestWebSocketTokenIsEncryptedAndCached 验证对应测试场景。
 func TestWebSocketTokenIsEncryptedAndCached(t *testing.T) {
 	var calls atomic.Int64
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
@@ -78,6 +79,7 @@ func TestWebSocketTokenIsEncryptedAndCached(t *testing.T) {
 	require.Error(t, err)
 }
 
+// TestWebSocketTokenMarksAccountWhenVerificationIsRequired 验证对应测试场景。
 func TestWebSocketTokenMarksAccountWhenVerificationIsRequired(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
 		http.SetCookie(writer, &http.Cookie{Name: "x5sec", Value: "challenge-cookie", Path: "/"})

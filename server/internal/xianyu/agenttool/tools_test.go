@@ -12,39 +12,51 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-type accountReaderStub struct{ ownerID uint }
+// accountReaderStub 是测试辅助类型。
+type accountReaderStub struct {
+	ownerID uint // ownerID 记录调用用户。
+}
 
+// List 提供测试辅助能力。
 func (s *accountReaderStub) List(_ context.Context, ownerID uint, _ xyRequest.AccountSearch) ([]model.Account, int64, error) {
 	s.ownerID = ownerID
 	return []model.Account{{Label: "主账号"}}, 1, nil
 }
 
+// productReaderStub 是测试辅助类型。
 type productReaderStub struct{}
 
+// List 提供测试辅助能力。
 func (*productReaderStub) List(context.Context, uint, xyRequest.ProductSearch) ([]xyResponse.Product, int64, error) {
 	return nil, 0, nil
 }
 
+// orderReaderStub 是测试辅助类型。
 type orderReaderStub struct{}
 
+// List 提供测试辅助能力。
 func (*orderReaderStub) List(context.Context, uint, xyRequest.OrderSearch) ([]xyResponse.Order, int64, error) {
 	return nil, 0, nil
 }
 
+// messageServiceStub 是测试辅助类型。
 type messageServiceStub struct {
-	ownerID uint
-	reply   xyRequest.SendMessage
+	ownerID uint                  // ownerID 记录调用用户。
+	reply   xyRequest.SendMessage // reply 记录回复请求。
 }
 
+// List 提供测试辅助能力。
 func (*messageServiceStub) List(context.Context, uint, xyRequest.MessageSearch) ([]xyResponse.Message, int64, error) {
 	return nil, 0, nil
 }
 
+// Reply 提供测试辅助能力。
 func (s *messageServiceStub) Reply(_ context.Context, ownerID uint, input xyRequest.SendMessage) error {
 	s.ownerID, s.reply = ownerID, input
 	return nil
 }
 
+// TestRegisterAddsStableXianyuToolDefinitions 验证对应测试场景。
 func TestRegisterAddsStableXianyuToolDefinitions(t *testing.T) {
 	registry := agenttool.NewRegistry()
 	require.NoError(t, Register(registry, new(accountReaderStub), new(productReaderStub), new(orderReaderStub), new(messageServiceStub)))
@@ -63,6 +75,7 @@ func TestRegisterAddsStableXianyuToolDefinitions(t *testing.T) {
 	require.False(t, reply.Definition().ReadOnly)
 }
 
+// TestAccountToolUsesAuthenticatedOwner 验证对应测试场景。
 func TestAccountToolUsesAuthenticatedOwner(t *testing.T) {
 	accounts := new(accountReaderStub)
 	registry := agenttool.NewRegistry()
@@ -76,6 +89,7 @@ func TestAccountToolUsesAuthenticatedOwner(t *testing.T) {
 	require.JSONEq(t, `{"list":[{"ID":0,"CreatedAt":"0001-01-01T00:00:00Z","UpdatedAt":"0001-01-01T00:00:00Z","externalUserId":"","label":"主账号","note":"","status":"","enabled":false,"hasCredential":false}],"total":1}`, output)
 }
 
+// TestMessageReplyToolDoesNotAcceptOwnerFromArguments 验证对应测试场景。
 func TestMessageReplyToolDoesNotAcceptOwnerFromArguments(t *testing.T) {
 	messages := new(messageServiceStub)
 	tool := newMessageReply(messages)

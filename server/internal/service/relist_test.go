@@ -13,6 +13,7 @@ import (
 	"gorm.io/gorm"
 )
 
+// TestRelistPublishesOnceAndMovesProductRules 验证对应测试场景。
 func TestRelistPublishesOnceAndMovesProductRules(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
@@ -69,11 +70,13 @@ func TestRelistPublishesOnceAndMovesProductRules(t *testing.T) {
 	require.Equal(t, "tb-1", category["tbCatId"])
 }
 
+// mtopResultCaller 是测试辅助类型。
 type mtopResultCaller struct {
-	*recordingMTopCaller
-	data json.RawMessage
+	*recordingMTopCaller                 // recordingMTopCaller 记录 MTop 调用。
+	data                 json.RawMessage // data 是模拟响应。
 }
 
+// Call 提供测试辅助能力。
 func (f mtopResultCaller) Call(ctx context.Context, ownerID, accountID uint, api string, data any, seller bool) (json.RawMessage, error) {
 	f.recordingMTopCaller.Call(ctx, ownerID, accountID, api, data, seller)
 	if strings.HasSuffix(api, "/2.0") {
@@ -82,6 +85,7 @@ func (f mtopResultCaller) Call(ctx context.Context, ownerID, accountID uint, api
 	return f.data, nil
 }
 
+// TestFindRecommendedCategoryRequiresExactOriginalCategory 验证对应测试场景。
 func TestFindRecommendedCategoryRequiresExactOriginalCategory(t *testing.T) {
 	fields, err := findRecommendedCategory(json.RawMessage(`{"data":{"cardList":[{"valuesList":[{"catId":"cat-1","channelCatId":"channel-1","tbCatId":"tb-1"}]}]}}`), "cat-1")
 	require.NoError(t, err)

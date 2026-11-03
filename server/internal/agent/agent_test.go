@@ -10,6 +10,7 @@ import (
 	"gorm.io/gorm"
 )
 
+// TestInitializeSeedsAgentConfig 验证对应测试场景。
 func TestInitializeSeedsAgentConfig(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
@@ -20,10 +21,12 @@ func TestInitializeSeedsAgentConfig(t *testing.T) {
 	require.NoError(t, db.First(&config, 1).Error)
 }
 
+// TestInitializeRejectsMissingConnection 验证对应测试场景。
 func TestInitializeRejectsMissingConnection(t *testing.T) {
 	require.ErrorContains(t, Initialize(t.Context(), nil), "database is not initialized")
 }
 
+// TestNewRunnerUsesRootContext 验证对应测试场景。
 func TestNewRunnerUsesRootContext(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()

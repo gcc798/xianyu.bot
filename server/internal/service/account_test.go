@@ -11,6 +11,7 @@ import (
 	"gorm.io/gorm"
 )
 
+// TestAccountOwnerIsolationAndCredentialEncryption 验证对应测试场景。
 func TestAccountOwnerIsolationAndCredentialEncryption(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)

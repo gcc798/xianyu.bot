@@ -16,6 +16,7 @@ import (
 	"gorm.io/gorm"
 )
 
+// Run 提供测试辅助能力。
 func (s *Runner) Run(ctx context.Context, ownerID, sessionID uint, content, idempotencyKey string, directives ...xyRequest.AgentDirective) (RunResult, error) {
 	prepared, existing, err := s.prepare(ctx, ownerID, sessionID, content, idempotencyKey, directives)
 	if err != nil {
@@ -28,6 +29,7 @@ func (s *Runner) Run(ctx context.Context, ownerID, sessionID uint, content, idem
 	return s.execute(ctx, prepared)
 }
 
+// TestAgentRunnerPersistsConversationAndDeduplicatesRequest 验证对应测试场景。
 func TestAgentRunnerPersistsConversationAndDeduplicatesRequest(t *testing.T) {
 	db := agentRunnerTestDB(t)
 	session := model.AgentSession{OwnerID: 11, Title: "测试会话"}
@@ -62,6 +64,7 @@ func TestAgentRunnerPersistsConversationAndDeduplicatesRequest(t *testing.T) {
 	require.True(t, errors.Is(err, gorm.ErrRecordNotFound))
 }
 
+// TestAgentRunnerRecordsModelFailure 验证对应测试场景。
 func TestAgentRunnerRecordsModelFailure(t *testing.T) {
 	db := agentRunnerTestDB(t)
 	session := model.AgentSession{OwnerID: 11, Title: "失败会话"}
@@ -83,6 +86,7 @@ func TestAgentRunnerRecordsModelFailure(t *testing.T) {
 	require.EqualValues(t, 1, failedEvents)
 }
 
+// TestAgentRunnerSubmitPublishesStreamingEvents 验证对应测试场景。
 func TestAgentRunnerSubmitPublishesStreamingEvents(t *testing.T) {
 	db := agentRunnerTestDB(t)
 	session := model.AgentSession{OwnerID: 11, Title: "异步会话"}
@@ -121,6 +125,7 @@ func TestAgentRunnerSubmitPublishesStreamingEvents(t *testing.T) {
 	}
 }
 
+// TestAgentRunnerPersistsAuditableModelSnapshot 验证对应测试场景。
 func TestAgentRunnerPersistsAuditableModelSnapshot(t *testing.T) {
 	db := agentRunnerTestDB(t)
 	session := model.AgentSession{OwnerID: 11, Title: "模型轨迹"}
@@ -146,6 +151,7 @@ func TestAgentRunnerPersistsAuditableModelSnapshot(t *testing.T) {
 	require.Equal(t, result.Run.ID, *events[len(events)-1].RunID)
 }
 
+// TestAgentRunnerCancelsOwnedRun 验证对应测试场景。
 func TestAgentRunnerCancelsOwnedRun(t *testing.T) {
 	db := agentRunnerTestDB(t)
 	session := model.AgentSession{OwnerID: 11, Title: "取消会话"}
@@ -181,6 +187,7 @@ func TestAgentRunnerCancelsOwnedRun(t *testing.T) {
 	}
 }
 
+// TestValidateAgentDirectives 验证对应测试场景。
 func TestValidateAgentDirectives(t *testing.T) {
 	directives := []xyRequest.AgentDirective{
 		{Type: " skill ", Name: " resource-discovery "},
@@ -194,6 +201,7 @@ func TestValidateAgentDirectives(t *testing.T) {
 	require.ErrorContains(t, validateAgentDirectives([]xyRequest.AgentDirective{{Type: "tool", Name: "task_get"}, {Type: "tool", Name: "message_search"}}), "只能指定一次")
 }
 
+// TestLoadAgentHistoryIncludesRecentToolTrace 验证对应测试场景。
 func TestLoadAgentHistoryIncludesRecentToolTrace(t *testing.T) {
 	db := agentRunnerTestDB(t)
 	session := model.AgentSession{OwnerID: 11, Title: "轨迹会话"}
@@ -214,6 +222,7 @@ func TestLoadAgentHistoryIncludesRecentToolTrace(t *testing.T) {
 	require.Equal(t, schema.User, history[1].Role)
 }
 
+// agentRunnerTestDB 提供测试辅助能力。
 func agentRunnerTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
@@ -236,27 +245,33 @@ func agentRunnerTestDB(t *testing.T) *gorm.DB {
 	return db
 }
 
+// stubAgentModel 是测试辅助类型。
 type stubAgentModel struct {
-	answer string
-	err    error
-	calls  atomic.Int64
+	answer string       // answer 是模拟模型回复。
+	err    error        // err 是模拟模型错误。
+	calls  atomic.Int64 // calls 记录模型调用次数。
 }
 
+// cancelAwareAgentModel 是测试辅助类型。
 type cancelAwareAgentModel struct{}
 
+// Generate 提供测试辅助能力。
 func (cancelAwareAgentModel) Generate(context.Context, []*schema.Message, ...einomodel.Option) (*schema.Message, error) {
 	return nil, errors.New("unexpected non-streaming call")
 }
 
+// Stream 提供测试辅助能力。
 func (cancelAwareAgentModel) Stream(ctx context.Context, _ []*schema.Message, _ ...einomodel.Option) (*schema.StreamReader[*schema.Message], error) {
 	<-ctx.Done()
 	return nil, ctx.Err()
 }
 
+// Generate 提供测试辅助能力。
 func (m *stubAgentModel) Generate(_ context.Context, _ []*schema.Message, _ ...einomodel.Option) (*schema.Message, error) {
 	return nil, errors.New("unexpected non-streaming call")
 }
 
+// Stream 提供测试辅助能力。
 func (m *stubAgentModel) Stream(context.Context, []*schema.Message, ...einomodel.Option) (*schema.StreamReader[*schema.Message], error) {
 	m.calls.Add(1)
 	if m.err != nil {

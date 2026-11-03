@@ -16,6 +16,7 @@ import (
 	"gorm.io/gorm"
 )
 
+// TestProductSyncUsesRemoteDataAndIsOwnerScoped 验证对应测试场景。
 func TestProductSyncUsesRemoteDataAndIsOwnerScoped(t *testing.T) {
 	t.Setenv(credentialKeyEnvironment, base64.StdEncoding.EncodeToString([]byte("0123456789abcdef0123456789abcdef")))
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
@@ -76,6 +77,7 @@ func TestProductSyncUsesRemoteDataAndIsOwnerScoped(t *testing.T) {
 	require.True(t, list[0].VirtualProduct)
 }
 
+// TestProductListFiltersByTitleOrIDAndStatus 验证对应测试场景。
 func TestProductListFiltersByTitleOrIDAndStatus(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
@@ -108,6 +110,7 @@ func TestProductListFiltersByTitleOrIDAndStatus(t *testing.T) {
 	require.ErrorContains(t, err, "商品状态无效")
 }
 
+// TestProductImageURLsReadsSavedImageInfosAndFallsBackToCover 验证对应测试场景。
 func TestProductImageURLsReadsSavedImageInfosAndFallsBackToCover(t *testing.T) {
 	images := productImageURLs(`{"detailParams":{"imageInfos":"[{\"url\":\"https://img.example/1.jpg\"},{\"url\":\"https://img.example/2.jpg\"},{\"url\":\"https://img.example/1.jpg\"}]"}}`, "https://img.example/cover.jpg")
 	require.Equal(t, []string{"https://img.example/1.jpg", "https://img.example/2.jpg"}, images)
@@ -115,6 +118,7 @@ func TestProductImageURLsReadsSavedImageInfosAndFallsBackToCover(t *testing.T) {
 	require.Nil(t, productImageURLs("{}", ""))
 }
 
+// TestParseProductPageRejectsFailedOrInvalidPrice 验证对应测试场景。
 func TestParseProductPageRejectsFailedOrInvalidPrice(t *testing.T) {
 	_, err := parseProductPage([]byte(`{"ret":["FAIL_SYS_TOKEN_EXOIRED::令牌过期"]}`))
 	require.EqualError(t, err, "闲鱼商品同步失败：FAIL_SYS_TOKEN_EXOIRED")
@@ -125,6 +129,7 @@ func TestParseProductPageRejectsFailedOrInvalidPrice(t *testing.T) {
 	require.True(t, strings.Contains(err.Error(), "价格无效"))
 }
 
+// TestLocalPublishPayloadPreservesCategoryAndResolvesAddress 验证对应测试场景。
 func TestLocalPublishPayloadPreservesCategoryAndResolvesAddress(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		require.Equal(t, "西湖区", r.URL.Query().Get("keywords"))
@@ -145,6 +150,7 @@ func TestLocalPublishPayloadPreservesCategoryAndResolvesAddress(t *testing.T) {
 	require.Equal(t, "30.25961,120.13026", payload["itemAddrDTO"].(map[string]any)["gps"])
 }
 
+// TestLocalPublishPayloadInheritsOriginalAddress 验证对应测试场景。
 func TestLocalPublishPayloadInheritsOriginalAddress(t *testing.T) {
 	item := model.Product{
 		Title: "测试商品", PriceCent: 100,
@@ -156,6 +162,7 @@ func TestLocalPublishPayloadInheritsOriginalAddress(t *testing.T) {
 	require.Equal(t, "西湖区", payload["itemAddrDTO"].(map[string]any)["poiName"])
 }
 
+// TestLocalPublishPayloadRejectsEmptyInheritedAddress 验证对应测试场景。
 func TestLocalPublishPayloadRejectsEmptyInheritedAddress(t *testing.T) {
 	item := model.Product{
 		Title: "测试商品", PriceCent: 100,
@@ -166,6 +173,7 @@ func TestLocalPublishPayloadRejectsEmptyInheritedAddress(t *testing.T) {
 	require.EqualError(t, err, "无法从闲鱼读取原商品的发布所在地，请重新登录后重试")
 }
 
+// TestCapturePublishSnapshotAdaptsDetailResponseAndUsesLatestImages 验证对应测试场景。
 func TestCapturePublishSnapshotAdaptsDetailResponseAndUsesLatestImages(t *testing.T) {
 	item := model.Product{
 		OwnerID: 10, AccountID: 20, ExternalProductID: "item-1", Title: "测试商品", PriceCent: 100,
@@ -182,6 +190,7 @@ func TestCapturePublishSnapshotAdaptsDetailResponseAndUsesLatestImages(t *testin
 	require.Equal(t, "https://img.example/new.jpg", images[0].(map[string]any)["url"])
 }
 
+// TestUpdateSettingUsesOriginalDescriptionUnlessCustomized 验证对应测试场景。
 func TestUpdateSettingUsesOriginalDescriptionUnlessCustomized(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)

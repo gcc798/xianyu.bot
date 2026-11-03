@@ -14,6 +14,7 @@ import (
 	"gorm.io/gorm"
 )
 
+// TestEinoMCPToolHidesDeliveryFieldsAndRequiresApproval 验证对应测试场景。
 func TestEinoMCPToolHidesDeliveryFieldsAndRequiresApproval(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
@@ -58,6 +59,7 @@ func TestEinoMCPToolHidesDeliveryFieldsAndRequiresApproval(t *testing.T) {
 	require.NotContains(t, call.Arguments, "must-not-persist")
 }
 
+// TestEinoMCPToolCallsReadCapability 验证对应测试场景。
 func TestEinoMCPToolCallsReadCapability(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
@@ -102,6 +104,7 @@ func TestEinoMCPToolCallsReadCapability(t *testing.T) {
 	require.Contains(t, events[1].Payload, `"resultRef"`)
 }
 
+// TestEinoMCPToolPersistsMessageCandidates 验证对应测试场景。
 func TestEinoMCPToolPersistsMessageCandidates(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
@@ -140,6 +143,7 @@ func TestEinoMCPToolPersistsMessageCandidates(t *testing.T) {
 	require.NotNil(t, candidate.ExpiresAt)
 }
 
+// newTestMCPTool 提供测试辅助能力。
 func newTestMCPTool(db *gorm.DB, connection *mcpConnection, definition mcp.Tool) (*governedTool, error) {
 	implementation, err := newMCPAgentTool(db, connection, definition)
 	if err != nil {
@@ -148,15 +152,17 @@ func newTestMCPTool(db *gorm.DB, connection *mcpConnection, definition mcp.Tool)
 	return &governedTool{db: db, implementation: implementation, harness: newAgentHarness(model.DefaultAgentConfig())}, nil
 }
 
+// recordingMCPClient 是测试辅助类型。
 type recordingMCPClient struct {
-	fakeMCPClient
-	calls         atomic.Int64
-	lastName      string
-	lastArguments map[string]any
-	result        any
-	textResult    bool
+	fakeMCPClient                // fakeMCPClient 提供默认模拟行为。
+	calls         atomic.Int64   // calls 记录调用次数。
+	lastName      string         // lastName 记录最近工具名。
+	lastArguments map[string]any // lastArguments 记录最近调用参数。
+	result        any            // result 是模拟结构化结果。
+	textResult    bool           // textResult 控制返回文本结果。
 }
 
+// CallTool 提供测试辅助能力。
 func (c *recordingMCPClient) CallTool(_ context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	c.calls.Add(1)
 	c.lastName = request.Params.Name

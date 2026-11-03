@@ -21,8 +21,10 @@ import (
 	"gorm.io/gorm"
 )
 
+// fixedWebSocketToken 是测试辅助类型。
 type fixedWebSocketToken struct{}
 
+// TestWebSocketMIDIsUnique 验证对应测试场景。
 func TestWebSocketMIDIsUnique(t *testing.T) {
 	seen := make(map[string]struct{}, 10000)
 	for range 10000 {
@@ -34,10 +36,12 @@ func TestWebSocketMIDIsUnique(t *testing.T) {
 	}
 }
 
+// Get 提供测试辅助能力。
 func (fixedWebSocketToken) Get(context.Context, uint, uint) (string, string, error) {
 	return "websocket-token", "DEVICE-user-demo", nil
 }
 
+// TestXyDialerRegistersAndRoutesSyncMessages 验证对应测试场景。
 func TestXyDialerRegistersAndRoutesSyncMessages(t *testing.T) {
 	fixture, err := os.ReadFile("../xianyu/protocol/testdata/sync_message.json")
 	require.NoError(t, err)
@@ -145,6 +149,7 @@ func TestXyDialerRegistersAndRoutesSyncMessages(t *testing.T) {
 	require.NoError(t, <-serverResult)
 }
 
+// mustJSON 提供测试辅助能力。
 func mustJSON(t *testing.T, value any) []byte {
 	t.Helper()
 	data, err := json.Marshal(value)
@@ -152,12 +157,14 @@ func mustJSON(t *testing.T, value any) []byte {
 	return data
 }
 
+// TestIsSyncChangeSignal 验证对应测试场景。
 func TestIsSyncChangeSignal(t *testing.T) {
 	require.True(t, isSyncChangeSignal([]byte(`{"lwp":"/s/sync","body":{"syncExtraType":{"type":2}}}`)))
 	require.False(t, isSyncChangeSignal([]byte(`{"lwp":"/s/vulcan","body":{"syncExtraType":{"type":3}}}`)))
 	require.False(t, isSyncChangeSignal([]byte(`not-json`)))
 }
 
+// TestWebSocketStatusIsOwnerIsolated 验证对应测试场景。
 func TestWebSocketStatusIsOwnerIsolated(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
@@ -173,6 +180,7 @@ func TestWebSocketStatusIsOwnerIsolated(t *testing.T) {
 	require.Error(t, err)
 }
 
+// TestConnectionStateChangedAlertsOnlyWhenUnavailableAtWindowEnd 验证对应测试场景。
 func TestConnectionStateChangedAlertsOnlyWhenUnavailableAtWindowEnd(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open("file:websocket-alert?mode=memory&cache=shared"), &gorm.Config{})
 	require.NoError(t, err)
@@ -224,6 +232,7 @@ func TestConnectionStateChangedAlertsOnlyWhenUnavailableAtWindowEnd(t *testing.T
 	require.Contains(t, failedEvent.Summary, "发送闲鱼消息连接故障邮件失败")
 }
 
+// TestConnectionStateChangedSuppressesAlertWhenConnectedAtWindowEnd 验证对应测试场景。
 func TestConnectionStateChangedSuppressesAlertWhenConnectedAtWindowEnd(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open("file:websocket-alert-suppressed?mode=memory&cache=shared"), &gorm.Config{})
 	require.NoError(t, err)
@@ -259,6 +268,7 @@ func TestConnectionStateChangedSuppressesAlertWhenConnectedAtWindowEnd(t *testin
 	require.Contains(t, event.Summary, "未发送告警")
 }
 
+// receiveSubject 提供测试辅助能力。
 func receiveSubject(t *testing.T, subjects <-chan string) string {
 	t.Helper()
 	select {

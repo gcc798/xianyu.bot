@@ -18,6 +18,7 @@ import (
 	"gorm.io/gorm"
 )
 
+// TestMessageHandleIsIdempotentAndOwnerIsolated 验证对应测试场景。
 func TestMessageHandleIsIdempotentAndOwnerIsolated(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
@@ -57,6 +58,7 @@ func TestMessageHandleIsIdempotentAndOwnerIsolated(t *testing.T) {
 	require.Empty(t, other)
 }
 
+// TestMessageListFiltersByExplicitFields 验证对应测试场景。
 func TestMessageListFiltersByExplicitFields(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
@@ -85,6 +87,7 @@ func TestMessageListFiltersByExplicitFields(t *testing.T) {
 	require.ErrorContains(t, err, "结束时间不能早于开始时间")
 }
 
+// TestMessageHandleMarksOwnRemoteMessageOutbound 验证对应测试场景。
 func TestMessageHandleMarksOwnRemoteMessageOutbound(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
@@ -113,6 +116,7 @@ func TestMessageHandleMarksOwnRemoteMessageOutbound(t *testing.T) {
 	require.Equal(t, "outbound", saved.Direction)
 }
 
+// TestManualReplyTakesOverAndRecordsConfirmedMessage 验证对应测试场景。
 func TestManualReplyTakesOverAndRecordsConfirmedMessage(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
@@ -145,17 +149,20 @@ func TestManualReplyTakesOverAndRecordsConfirmedMessage(t *testing.T) {
 	require.False(t, list[0].TakeoverActive)
 }
 
+// fakeTextSender 是测试辅助类型。
 type fakeTextSender struct {
-	sessionID string
-	toUserID  string
+	sessionID string // sessionID 是会话标识。
+	toUserID  string // toUserID 是接收方标识。
 }
 
+// SendText 提供测试辅助能力。
 func (s *fakeTextSender) SendText(_ context.Context, _, _ uint, sessionID, toUserID, _ string) error {
 	s.sessionID = sessionID
 	s.toUserID = toUserID
 	return nil
 }
 
+// TestAutoReplyMergesMessagesAndSendsOnlyLatest 验证对应测试场景。
 func TestAutoReplyMergesMessagesAndSendsOnlyLatest(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
@@ -200,6 +207,7 @@ func TestAutoReplyMergesMessagesAndSendsOnlyLatest(t *testing.T) {
 	require.Equal(t, model.ReplyTaskSent, tasks[1].Status)
 }
 
+// TestVirtualProductUsesDefaultFallbackReply 验证对应测试场景。
 func TestVirtualProductUsesDefaultFallbackReply(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
@@ -229,6 +237,7 @@ func TestVirtualProductUsesDefaultFallbackReply(t *testing.T) {
 	}
 }
 
+// TestHandleHistoryRepliesOnlyToLatestRecentMessage 验证对应测试场景。
 func TestHandleHistoryRepliesOnlyToLatestRecentMessage(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
@@ -267,6 +276,7 @@ func TestHandleHistoryRepliesOnlyToLatestRecentMessage(t *testing.T) {
 	}
 }
 
+// TestHandleHistoryMergesConfirmedOutboundEcho 验证对应测试场景。
 func TestHandleHistoryMergesConfirmedOutboundEcho(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
@@ -289,6 +299,7 @@ func TestHandleHistoryMergesConfirmedOutboundEcho(t *testing.T) {
 	require.Equal(t, "remote", saved[0].Source)
 }
 
+// historyMessage 提供测试辅助能力。
 func historyMessage(t *testing.T, id, sender, content, itemID string, timestamp int64) map[string]any {
 	t.Helper()
 	contentJSON, err := json.Marshal(map[string]any{"contentType": 1, "text": map[string]string{"text": content}})
@@ -301,6 +312,7 @@ func historyMessage(t *testing.T, id, sender, content, itemID string, timestamp 
 	}}
 }
 
+// historyResponse 提供测试辅助能力。
 func historyResponse(t *testing.T, messages []map[string]any) []byte {
 	t.Helper()
 	raw, err := json.Marshal(map[string]any{"body": map[string]any{"userMessageModels": messages}})
@@ -308,8 +320,10 @@ func historyResponse(t *testing.T, messages []map[string]any) []byte {
 	return raw
 }
 
+// channelTextSender 是测试辅助类型。
 type channelTextSender chan string
 
+// SendText 提供测试辅助能力。
 func (s channelTextSender) SendText(_ context.Context, _, _ uint, _, _, text string) error {
 	s <- text
 	return nil

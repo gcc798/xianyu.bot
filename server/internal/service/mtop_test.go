@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// TestMTopSellerRequestCarriesFishShopContext 验证对应测试场景。
 func TestMTopSellerRequestCarriesFishShopContext(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		require.Equal(t, "COMMONPRO", r.URL.Query().Get("idle_site_biz_code"))
@@ -23,6 +24,7 @@ func TestMTopSellerRequestCarriesFishShopContext(t *testing.T) {
 	require.JSONEq(t, `{"itemId":"1"}`, string(envelope.Data))
 }
 
+// TestMTopSupportsCategoryRecommendationVersion 验证对应测试场景。
 func TestMTopSupportsCategoryRecommendationVersion(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		require.Equal(t, "/mtop.taobao.idle.kgraph.pc.property.recommend/2.0/", r.URL.Path)

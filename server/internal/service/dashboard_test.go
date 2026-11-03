@@ -11,6 +11,7 @@ import (
 	"gorm.io/gorm"
 )
 
+// TestDashboardOverviewIsOwnerAndAccountScoped 验证对应测试场景。
 func TestDashboardOverviewIsOwnerAndAccountScoped(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
@@ -76,6 +77,7 @@ func TestDashboardOverviewIsOwnerAndAccountScoped(t *testing.T) {
 	require.Equal(t, "自动发货失败", overview.RecentEvents[0].Summary)
 }
 
+// TestDashboardOverviewRejectsMoreThanNinetyDays 验证对应测试场景。
 func TestDashboardOverviewRejectsMoreThanNinetyDays(t *testing.T) {
 	start := time.Now()
 	_, err := new(Status).Overview(t.Context(), 1, xyRequest.DashboardOverview{

@@ -12,6 +12,7 @@ import (
 	"gorm.io/gorm"
 )
 
+// TestAIConfigUpdatePreservesSecrets 验证对应测试场景。
 func TestAIConfigUpdatePreservesSecrets(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
@@ -55,6 +56,7 @@ func TestAIConfigUpdatePreservesSecrets(t *testing.T) {
 	require.True(t, servers[0].HasAuthToken)
 }
 
+// TestAIConfigRejectsUnusableDefaultModel 验证对应测试场景。
 func TestAIConfigRejectsUnusableDefaultModel(t *testing.T) {
 	input := validModelInput()
 	input.IsDefault = true
@@ -68,6 +70,7 @@ func TestAIConfigRejectsUnusableDefaultModel(t *testing.T) {
 	require.ErrorContains(t, err, "必须已启用")
 }
 
+// TestMCPCodeValidation 验证对应测试场景。
 func TestMCPCodeValidation(t *testing.T) {
 	input := validMCPInput()
 	input.Code = "Telegram Resource"
@@ -79,6 +82,7 @@ func TestMCPCodeValidation(t *testing.T) {
 	require.ErrorContains(t, err, "编码必须")
 }
 
+// validModelInput 提供测试辅助能力。
 func validModelInput() xyRequest.SaveAIModel {
 	return xyRequest.SaveAIModel{
 		Name: "OpenAI", Provider: "openai", BaseURL: "https://api.openai.com/v1", Model: "gpt-4.1",
@@ -87,6 +91,7 @@ func validModelInput() xyRequest.SaveAIModel {
 	}
 }
 
+// validMCPInput 提供测试辅助能力。
 func validMCPInput() xyRequest.SaveMCPServer {
 	return xyRequest.SaveMCPServer{
 		Name: "Telegram", Code: "telegram", BaseURL: "http://telegram:8080/mcp", Enabled: true,

@@ -13,6 +13,7 @@ import (
 	"gorm.io/gorm"
 )
 
+// TestLiveQRLoginCanGenerateAndCancel 验证对应测试场景。
 func TestLiveQRLoginCanGenerateAndCancel(t *testing.T) {
 	if os.Getenv("XY_LIVE_TEST") != "1" {
 		t.Skip("set XY_LIVE_TEST=1 to call the public Xy login endpoints")

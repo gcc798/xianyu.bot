@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// TestUploadPublishImageContent 验证对应测试场景。
 func TestUploadPublishImageContent(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		require.NoError(t, request.ParseMultipartForm(1<<20))
@@ -32,6 +33,7 @@ func TestUploadPublishImageContent(t *testing.T) {
 	require.Equal(t, 10, result["heightSize"])
 }
 
+// TestAllowedPublishImageHost 验证对应测试场景。
 func TestAllowedPublishImageHost(t *testing.T) {
 	require.True(t, allowedPublishImageHost("img.alicdn.com"))
 	require.True(t, allowedPublishImageHost("stream-upload.goofish.com"))

@@ -14,6 +14,7 @@ import (
 	"gorm.io/gorm"
 )
 
+// TestLiveWebSocketTokenCanBeFetched 验证对应测试场景。
 func TestLiveWebSocketTokenCanBeFetched(t *testing.T) {
 	db, ownerID, accountID := liveAccount(t)
 	tokenService := NewWebSocketToken(db, &BusinessEvent{db: db})
@@ -23,6 +24,7 @@ func TestLiveWebSocketTokenCanBeFetched(t *testing.T) {
 	require.NotEmpty(t, deviceID)
 }
 
+// TestLiveWebSocketCanRegister 验证对应测试场景。
 func TestLiveWebSocketCanRegister(t *testing.T) {
 	db, _, accountID := liveAccount(t)
 	dialer := &XYDialer{db: db, token: func() webSocketTokenGetter {
@@ -37,6 +39,7 @@ func TestLiveWebSocketCanRegister(t *testing.T) {
 	require.NoError(t, connection.Close())
 }
 
+// liveAccount 提供测试辅助能力。
 func liveAccount(t *testing.T) (*gorm.DB, uint, uint) {
 	t.Helper()
 	if os.Getenv("XY_LIVE_TEST") != "1" {

@@ -15,10 +15,12 @@ import (
 	"gorm.io/gorm"
 )
 
+// approvalToolStub 是测试辅助类型。
 type approvalToolStub struct {
-	ownerID uint
+	ownerID uint // ownerID 记录工具调用用户。
 }
 
+// Definition 提供测试辅助能力。
 func (*approvalToolStub) Definition() agenttool.Definition {
 	return agenttool.Definition{
 		Code: "xianyu_message_reply", Name: "回复闲鱼消息", Source: "local",
@@ -27,11 +29,13 @@ func (*approvalToolStub) Definition() agenttool.Definition {
 	}
 }
 
+// Invoke 提供测试辅助能力。
 func (s *approvalToolStub) Invoke(_ context.Context, scope agenttool.Scope, _ json.RawMessage) (string, error) {
 	s.ownerID = scope.OwnerID
 	return `{"ok":true}`, nil
 }
 
+// TestAgentRunnerApprovesResourceAcquisitionWithoutPersistingDeliveryToken 验证对应测试场景。
 func TestAgentRunnerApprovesResourceAcquisitionWithoutPersistingDeliveryToken(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
@@ -89,6 +93,7 @@ func TestAgentRunnerApprovesResourceAcquisitionWithoutPersistingDeliveryToken(t 
 	require.Equal(t, "running", task.State)
 }
 
+// TestAgentRunnerApprovesLocalToolWithRunOwner 验证对应测试场景。
 func TestAgentRunnerApprovesLocalToolWithRunOwner(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)

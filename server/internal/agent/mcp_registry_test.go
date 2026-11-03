@@ -12,6 +12,7 @@ import (
 	"gorm.io/gorm"
 )
 
+// TestMCPRegistryDiscoversEnabledServersAndKeepsAvailableOnes 验证对应测试场景。
 func TestMCPRegistryDiscoversEnabledServersAndKeepsAvailableOnes(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
@@ -45,6 +46,7 @@ func TestMCPRegistryDiscoversEnabledServersAndKeepsAvailableOnes(t *testing.T) {
 	require.NotEmpty(t, broken.LastError)
 }
 
+// TestMCPRegistryFailsWhenNoEnabledServerIsAvailable 验证对应测试场景。
 func TestMCPRegistryFailsWhenNoEnabledServerIsAvailable(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
@@ -59,16 +61,26 @@ func TestMCPRegistryFailsWhenNoEnabledServerIsAvailable(t *testing.T) {
 	require.ErrorContains(t, err, "MCP broken")
 }
 
+// fakeMCPClient 是测试辅助类型。
 type fakeMCPClient struct{}
 
+// Start 提供测试辅助能力。
 func (*fakeMCPClient) Start(context.Context) error { return nil }
+
+// Initialize 提供测试辅助能力。
 func (*fakeMCPClient) Initialize(context.Context, mcp.InitializeRequest) (*mcp.InitializeResult, error) {
 	return new(mcp.InitializeResult), nil
 }
+
+// ListTools 提供测试辅助能力。
 func (*fakeMCPClient) ListTools(context.Context, mcp.ListToolsRequest) (*mcp.ListToolsResult, error) {
 	return new(mcp.ListToolsResult), nil
 }
+
+// CallTool 提供测试辅助能力。
 func (*fakeMCPClient) CallTool(context.Context, mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return new(mcp.CallToolResult), nil
 }
+
+// Close 提供测试辅助能力。
 func (*fakeMCPClient) Close() error { return nil }

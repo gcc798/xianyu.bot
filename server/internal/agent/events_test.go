@@ -9,6 +9,7 @@ import (
 	"gorm.io/gorm"
 )
 
+// TestAgentEventHubReplaysAfterLastEventID 验证对应测试场景。
 func TestAgentEventHubReplaysAfterLastEventID(t *testing.T) {
 	hub := NewEventHub()
 	first, err := hub.Publish(11, "run.started", map[string]any{"runId": 1})
@@ -32,6 +33,7 @@ func TestAgentEventHubReplaysAfterLastEventID(t *testing.T) {
 	require.False(t, open)
 }
 
+// TestAgentEventHubSeparatesSessionsAndRejectsOversizedData 验证对应测试场景。
 func TestAgentEventHubSeparatesSessionsAndRejectsOversizedData(t *testing.T) {
 	hub := NewEventHub()
 	_, stream, cancel, err := hub.Subscribe(t.Context(), 22, 0)
@@ -48,6 +50,7 @@ func TestAgentEventHubSeparatesSessionsAndRejectsOversizedData(t *testing.T) {
 	require.ErrorContains(t, err, "内容过大")
 }
 
+// TestAgentEventHubPersistsAndReplaysAfterRestart 验证对应测试场景。
 func TestAgentEventHubPersistsAndReplaysAfterRestart(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
@@ -75,6 +78,7 @@ func TestAgentEventHubPersistsAndReplaysAfterRestart(t *testing.T) {
 	require.Equal(t, new(1), event.TurnNo)
 }
 
+// TestAgentEventHubDoesNotPersistStreamingDelta 验证对应测试场景。
 func TestAgentEventHubDoesNotPersistStreamingDelta(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)

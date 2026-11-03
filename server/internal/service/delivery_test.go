@@ -16,11 +16,13 @@ import (
 	"gorm.io/gorm"
 )
 
+// blockingDeliverySender 是测试辅助类型。
 type blockingDeliverySender struct {
-	payload chan string
-	release chan struct{}
+	payload chan string   // payload 记录发货内容。
+	release chan struct{} // release 控制模拟发货完成。
 }
 
+// Consign 提供测试辅助能力。
 func (s *blockingDeliverySender) Consign(ctx context.Context, _ uint, _ model.Order, text string) error {
 	s.payload <- text
 	select {
@@ -31,6 +33,7 @@ func (s *blockingDeliverySender) Consign(ctx context.Context, _ uint, _ model.Or
 	}
 }
 
+// TestDeliveryReservesEncryptedCardOnce 验证对应测试场景。
 func TestDeliveryReservesEncryptedCardOnce(t *testing.T) {
 	key := make([]byte, 32)
 	_, err := rand.Read(key)

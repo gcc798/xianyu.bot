@@ -17,6 +17,7 @@ import (
 	"gorm.io/gorm"
 )
 
+// TestHTTPLoginCheckerMergesResponseCookies 验证对应测试场景。
 func TestHTTPLoginCheckerMergesResponseCookies(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		if request.Method != http.MethodPost || !strings.Contains(request.Header.Get("Cookie"), "unb=user-demo") {
@@ -39,6 +40,7 @@ func TestHTTPLoginCheckerMergesResponseCookies(t *testing.T) {
 	require.Contains(t, result.cookie, "cookie2=value=with=equals")
 }
 
+// TestCheckLoginSerializesRefreshAndUpdatesEncryptedVersion 验证对应测试场景。
 func TestCheckLoginSerializesRefreshAndUpdatesEncryptedVersion(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
@@ -78,13 +80,16 @@ func TestCheckLoginSerializesRefreshAndUpdatesEncryptedVersion(t *testing.T) {
 	require.Equal(t, "ready", updated.Status)
 }
 
+// serializedLoginChecker 是测试辅助类型。
 type serializedLoginChecker struct {
-	active    atomic.Int64
-	maxActive atomic.Int64
+	active    atomic.Int64 // active 记录当前并发数。
+	maxActive atomic.Int64 // maxActive 记录最大并发数。
 }
 
+// newSerializedLoginChecker 提供测试辅助能力。
 func newSerializedLoginChecker() *serializedLoginChecker { return new(serializedLoginChecker) }
 
+// Check 提供测试辅助能力。
 func (c *serializedLoginChecker) Check(ctx context.Context, cookie string) (LoginCheck, error) {
 	active := c.active.Add(1)
 	defer c.active.Add(-1)

@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// TestAgentHarnessEnforcesIndependentBudgets 验证对应测试场景。
 func TestAgentHarnessEnforcesIndependentBudgets(t *testing.T) {
 	config := model.DefaultAgentConfig()
 	config.MaxToolCalls = 3
@@ -36,6 +37,7 @@ func TestAgentHarnessEnforcesIndependentBudgets(t *testing.T) {
 	require.Equal(t, 1, usage.Writes)
 }
 
+// TestAgentHarnessKeepsConcurrentToolCallsWithinLimit 验证对应测试场景。
 func TestAgentHarnessKeepsConcurrentToolCallsWithinLimit(t *testing.T) {
 	config := model.DefaultAgentConfig()
 	config.MaxToolCalls = 5
@@ -56,6 +58,7 @@ func TestAgentHarnessKeepsConcurrentToolCallsWithinLimit(t *testing.T) {
 	require.Equal(t, 5, harness.Usage().ToolCalls)
 }
 
+// TestAgentHarnessLimitsActiveToolCalls 验证对应测试场景。
 func TestAgentHarnessLimitsActiveToolCalls(t *testing.T) {
 	config := model.DefaultAgentConfig()
 	config.MaxConcurrentToolCalls = 2
@@ -70,6 +73,7 @@ func TestAgentHarnessLimitsActiveToolCalls(t *testing.T) {
 	harness.ReleaseToolSlot()
 }
 
+// TestMCPToolPoliciesClassifyUnknownToolsConservatively 验证对应测试场景。
 func TestMCPToolPoliciesClassifyUnknownToolsConservatively(t *testing.T) {
 	readOnly := true
 	require.False(t, mcpToolRequiresApproval(mcp.Tool{Name: "custom_read", Annotations: mcp.ToolAnnotation{ReadOnlyHint: &readOnly}}))
@@ -83,6 +87,7 @@ func TestMCPToolPoliciesClassifyUnknownToolsConservatively(t *testing.T) {
 	require.Equal(t, 30*time.Second, mcpToolTimeout(mcp.Tool{Name: "dialog_join"}))
 }
 
+// TestAgentHarnessAppliesWallTime 验证对应测试场景。
 func TestAgentHarnessAppliesWallTime(t *testing.T) {
 	config := model.DefaultAgentConfig()
 	config.MaxWallTimeSeconds = 1

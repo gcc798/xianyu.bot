@@ -10,10 +10,12 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// stubTool 是测试辅助类型。
 type stubTool struct {
-	definition Definition
+	definition Definition // definition 是模拟工具定义。
 }
 
+// definition 提供测试辅助能力。
 func definition(code, name string, parameters *jsonschema.Schema) Definition {
 	return Definition{
 		Code: code, Name: name, Description: "测试工具", Source: "local",
@@ -21,12 +23,15 @@ func definition(code, name string, parameters *jsonschema.Schema) Definition {
 	}
 }
 
+// Definition 提供测试辅助能力。
 func (s stubTool) Definition() Definition { return s.definition }
 
+// Invoke 提供测试辅助能力。
 func (stubTool) Invoke(context.Context, Scope, json.RawMessage) (string, error) {
 	return "ok", nil
 }
 
+// TestRegistryRejectsInvalidAndDuplicateCodes 验证对应测试场景。
 func TestRegistryRejectsInvalidAndDuplicateCodes(t *testing.T) {
 	registry := NewRegistry()
 	parameters := &jsonschema.Schema{Type: "object"}
@@ -35,6 +40,7 @@ func TestRegistryRejectsInvalidAndDuplicateCodes(t *testing.T) {
 	require.Error(t, registry.Register(stubTool{definition: definition("xianyu_order_list", "重复订单", parameters)}))
 }
 
+// TestRegistryListsToolsByCode 验证对应测试场景。
 func TestRegistryListsToolsByCode(t *testing.T) {
 	registry := NewRegistry()
 	parameters := &jsonschema.Schema{Type: "object"}

@@ -9,12 +9,14 @@ import (
 	"gorm.io/gorm"
 )
 
+// TestCredentialKeyFailsWithoutEnvironmentOrDatabase 验证对应测试场景。
 func TestCredentialKeyFailsWithoutEnvironmentOrDatabase(t *testing.T) {
 	t.Setenv(credentialKeyEnvironment, "")
 	_, err := credentialKey(nil)
 	require.Error(t, err)
 }
 
+// TestValidateCredentialKeyInitializesEmptyDatabase 验证对应测试场景。
 func TestValidateCredentialKeyInitializesEmptyDatabase(t *testing.T) {
 	t.Setenv(credentialKeyEnvironment, "")
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})

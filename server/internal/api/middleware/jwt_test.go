@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// TestAdminOnly 验证对应测试场景。
 func TestAdminOnly(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	for _, test := range []struct {

@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// TestParseLastEventID 验证对应测试场景。
 func TestParseLastEventID(t *testing.T) {
 	id, err := parseLastEventID(" 42 ")
 	require.NoError(t, err)
@@ -16,6 +17,7 @@ func TestParseLastEventID(t *testing.T) {
 	require.Error(t, err)
 }
 
+// TestWriteAgentSSE 验证对应测试场景。
 func TestWriteAgentSSE(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	recorder := httptest.NewRecorder()

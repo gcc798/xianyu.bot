@@ -7,6 +7,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// TestNormalizeAuthorityID 验证对应测试场景。
 func TestNormalizeAuthorityID(t *testing.T) {
 	require.Equal(t, model.AdministratorAuthorityID, normalizeAuthorityID(model.AdministratorAuthorityID))
 	require.Equal(t, model.UserAuthorityID, normalizeAuthorityID(0))
