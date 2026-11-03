@@ -14,48 +14,58 @@ import (
 )
 
 const (
-	SyncPara   = "/s/para"
-	SyncPush   = "/s/sync"
+	// SyncPara 是参数同步协议方法。
+	SyncPara = "/s/para"
+	// SyncPush 是消息同步推送协议方法。
+	SyncPush = "/s/sync"
+	// SyncVulcan 是 Vulcan 同步协议方法。
 	SyncVulcan = "/s/vulcan"
 
-	maxEnvelopeBytes   = 2 << 20
-	maxSyncItems       = 100
+	// maxEnvelopeBytes 是单个同步外层帧大小上限。
+	maxEnvelopeBytes = 2 << 20
+	// maxSyncItems 是单帧允许的同步条目上限。
+	maxSyncItems = 100
+	// maxEncodedItemSize 是单条 Base64 数据大小上限。
 	maxEncodedItemSize = 1 << 20
 )
 
 var (
+	// ErrMalformedSync 表示同步帧不满足协议或安全边界。
 	ErrMalformedSync = errors.New("闲鱼同步消息格式错误")
-	msgpackHandle    = newMsgpackHandle()
+	// msgpackHandle 是协议 MessagePack 解码配置模板。
+	msgpackHandle = newMsgpackHandle()
 )
 
-// ChatMessage 是协议层输出，不直接映射数据库模型。
+// ChatMessage 是实时与历史协议统一输出的聊天事件。
 type ChatMessage struct {
-	LWP              string
-	PNMID            string
-	SessionID        string
-	ContentType      int
-	Content          string
-	SenderUserName   string
-	SenderUserID     string
-	SenderAppVersion string
-	SenderPlatform   string
-	ReminderURL      string
-	ProductID        string
-	OrderID          string
-	MessageTime      int64
+	LWP              string // LWP 是来源协议方法。
+	PNMID            string // PNMID 是消息去重标识。
+	SessionID        string // SessionID 是闲鱼会话标识。
+	ContentType      int    // ContentType 是闲鱼内容类型编码。
+	Content          string // Content 是归一化文本或图片地址。
+	SenderUserName   string // SenderUserName 是发送方显示名称。
+	SenderUserID     string // SenderUserID 是闲鱼发送方标识。
+	SenderAppVersion string // SenderAppVersion 是发送方客户端版本。
+	SenderPlatform   string // SenderPlatform 是发送方平台。
+	ReminderURL      string // ReminderURL 是消息携带的提醒链接。
+	ProductID        string // ProductID 是关联的闲鱼商品标识。
+	OrderID          string // OrderID 是关联的闲鱼订单标识。
+	MessageTime      int64  // MessageTime 是闲鱼侧毫秒时间戳。
 }
 
+// syncEnvelope 是闲鱼同步推送的最小 JSON 外层结构。
 type syncEnvelope struct {
-	LWP  string `json:"lwp"`
+	LWP  string `json:"lwp"` // LWP 是同步协议方法。
 	Body struct {
 		SyncPushPackage *struct {
 			Data []struct {
-				Data string `json:"data"`
-			} `json:"data"`
-		} `json:"syncPushPackage"`
-	} `json:"body"`
+				Data string `json:"data"` // Data 是 Base64 编码的同步条目。
+			} `json:"data"` // Data 是当前推送包含的条目列表。
+		} `json:"syncPushPackage"` // SyncPushPackage 是消息同步包。
+	} `json:"body"` // Body 是协议业务负载。
 }
 
+// newMsgpackHandle 创建带深度和初始容量限制的安全解码配置。
 func newMsgpackHandle() *codec.MsgpackHandle {
 	handle := new(codec.MsgpackHandle)
 	handle.MapType = reflect.TypeFor[map[string]any]()
@@ -103,6 +113,7 @@ func ParseSyncEnvelope(raw []byte) ([]ChatMessage, error) {
 	return messages, nil
 }
 
+// parseSyncItem 解码单条 JSON 或 MessagePack 数据，并过滤回执与游标。
 func parseSyncItem(lwp, encoded string) (ChatMessage, bool, error) {
 	if encoded == "" || len(encoded) > maxEncodedItemSize {
 		return ChatMessage{}, false, errors.New("MessagePack 数据为空或过大")
@@ -178,6 +189,7 @@ func parseSyncItem(lwp, encoded string) (ChatMessage, bool, error) {
 	return message, true, nil
 }
 
+// decodeMessageContent 从协议候选路径中解析实际消息内容。
 func decodeMessageContent(messageInfo map[string]any) (map[string]any, bool) {
 	for _, key := range []string{"5", "1"} {
 		raw, ok := nestedString(messageInfo, "6", "3", key)
@@ -194,6 +206,7 @@ func decodeMessageContent(messageInfo map[string]any) (map[string]any, bool) {
 	return nil, false
 }
 
+// contentCandidates 返回原文及可成功 Base64 解码的内容候选。
 func contentCandidates(raw string) [][]byte {
 	candidates := [][]byte{[]byte(raw)}
 	if decoded, err := base64.StdEncoding.DecodeString(raw); err == nil {
@@ -204,6 +217,7 @@ func contentCandidates(raw string) [][]byte {
 	return candidates
 }
 
+// looksLikeContent 判断对象是否包含已知消息内容字段。
 func looksLikeContent(content map[string]any) bool {
 	if _, ok := content["contentType"]; ok {
 		return true
@@ -216,6 +230,7 @@ func looksLikeContent(content map[string]any) bool {
 	return false
 }
 
+// contentText 兼容字符串和对象两种文本结构。
 func contentText(content map[string]any) string {
 	switch text := content["text"].(type) {
 	case string:
@@ -228,6 +243,7 @@ func contentText(content map[string]any) string {
 	}
 }
 
+// contentImages 提取单图或多图消息中的图片地址。
 func contentImages(content map[string]any) []string {
 	if raw, ok := content["picUrl"].(string); ok && raw != "" {
 		return []string{raw}
@@ -253,6 +269,7 @@ func contentImages(content map[string]any) []string {
 	return urls
 }
 
+// decodeMsgpackMap 解码顶层对象并返回实际消费字节数。
 func decodeMsgpackMap(raw []byte) (map[string]any, int, error) {
 	handle := newMsgpackHandle()
 	handle.MapType = reflect.TypeFor[map[any]any]()
@@ -268,6 +285,7 @@ func decodeMsgpackMap(raw []byte) (map[string]any, int, error) {
 	return payload, decoder.NumBytesRead(), nil
 }
 
+// normalizeMsgpack 递归把 MessagePack 任意键对象转换为字符串键对象。
 func normalizeMsgpack(value any) any {
 	switch current := value.(type) {
 	case map[any]any:
@@ -284,6 +302,7 @@ func normalizeMsgpack(value any) any {
 	return value
 }
 
+// parseCardUpdate 将无标准消息体的订单卡片更新归一为聊天事件。
 func parseCardUpdate(lwp string, payload map[string]any, raw []byte) (ChatMessage, bool, error) {
 	metadata, ok := payload["4"].(map[string]any)
 	if !ok {
@@ -307,6 +326,7 @@ func parseCardUpdate(lwp string, payload map[string]any, raw []byte) (ChatMessag
 	return message, true, nil
 }
 
+// messageID 按显式字段、内嵌字段、内容摘要的顺序生成去重标识。
 func messageID(messageInfo, metadata map[string]any, raw []byte) string {
 	if messageInfo != nil {
 		if id, ok := stringField(messageInfo, "3"); ok && id != "" {
@@ -325,6 +345,7 @@ func messageID(messageInfo, metadata map[string]any, raw []byte) string {
 	return fmt.Sprintf("%x", sha256.Sum256(raw))
 }
 
+// isSyncCursor 判断同步条目是否仅用于推进游标。
 func isSyncCursor(payload map[string]any) bool {
 	_, hasUser := payload["1"].(string)
 	_, hasCursor := payload["3"].(string)
@@ -332,11 +353,13 @@ func isSyncCursor(payload map[string]any) bool {
 	return hasUser && hasCursor && hasTime
 }
 
+// stringField 从对象读取严格字符串字段。
 func stringField(values map[string]any, key string) (string, bool) {
 	value, ok := values[key].(string)
 	return value, ok
 }
 
+// integer 将协议中的常见整数表示安全转换为 int64。
 func integer(value any) (int64, bool) {
 	switch number := value.(type) {
 	case int64:
@@ -353,6 +376,7 @@ func integer(value any) (int64, bool) {
 	return 0, false
 }
 
+// nestedString 沿 path 读取嵌套对象中的字符串。
 func nestedString(root map[string]any, path ...string) (string, bool) {
 	var current any = root
 	for _, key := range path {
@@ -369,6 +393,7 @@ func nestedString(root map[string]any, path ...string) (string, bool) {
 	return value, ok
 }
 
+// senderName 优先从提醒正文提取发送方名称，失败时使用标题。
 func senderName(title, content string) string {
 	if name, _, ok := strings.Cut(content, " 向你发送了一条新消息"); ok && name != "" {
 		return name
@@ -379,6 +404,7 @@ func senderName(title, content string) string {
 	return title
 }
 
+// orderID 从已知卡片跳转路径中提取订单标识。
 func orderID(content map[string]any) string {
 	if target, ok := nestedString(content, "dxCard", "item", "main", "exContent", "button", "targetUrl"); ok {
 		if id := queryValue(target, "orderId", "id"); id != "" {
@@ -389,6 +415,7 @@ func orderID(content map[string]any) string {
 	return queryValue(target, "orderId", "id")
 }
 
+// queryValue 按 keys 顺序返回 URL 中第一个非空查询值。
 func queryValue(rawURL string, keys ...string) string {
 	parsed, err := url.Parse(rawURL)
 	if err != nil {
