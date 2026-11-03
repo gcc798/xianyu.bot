@@ -34,6 +34,7 @@ type governedTool struct {
 	runID          uint            // runID 是 Agent 运行标识。
 }
 
+// 确保 governedTool 实现 Eino 可调用工具接口。
 var _ tool.InvokableTool = (*governedTool)(nil)
 
 // newGovernedTool 创建受治理的 Eino 工具适配器。

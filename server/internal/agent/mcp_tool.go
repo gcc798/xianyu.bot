@@ -23,6 +23,7 @@ type mcpAgentTool struct {
 	definition agenttool.Definition // definition 是 Agent 可见的工具定义。
 }
 
+// 确保 mcpAgentTool 实现 Agent 工具接口。
 var _ agenttool.Tool = (*mcpAgentTool)(nil)
 
 // newMCPAgentTool 创建 MCP 工具适配器。
