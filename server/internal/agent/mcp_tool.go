@@ -15,15 +15,17 @@ import (
 	"gorm.io/gorm"
 )
 
+// mcpAgentTool 将远端 MCP 工具适配为 Agent 工具。
 type mcpAgentTool struct {
-	db         *gorm.DB
-	connection *mcpConnection
-	remote     mcp.Tool
-	definition agenttool.Definition
+	db         *gorm.DB             // db 持久化工具产生的资源候选。
+	connection *mcpConnection       // connection 是工具所属 MCP 连接。
+	remote     mcp.Tool             // remote 是远端工具定义。
+	definition agenttool.Definition // definition 是 Agent 可见的工具定义。
 }
 
 var _ agenttool.Tool = (*mcpAgentTool)(nil)
 
+// newMCPAgentTool 创建 MCP 工具适配器。
 func newMCPAgentTool(db *gorm.DB, connection *mcpConnection, remote mcp.Tool) (*mcpAgentTool, error) {
 	parameters, err := agentVisibleToolSchema(remote)
 	if err != nil {
@@ -49,8 +51,10 @@ func newMCPAgentTool(db *gorm.DB, connection *mcpConnection, remote mcp.Tool) (*
 	}, nil
 }
 
+// Definition 返回 Agent 工具定义。
 func (t *mcpAgentTool) Definition() agenttool.Definition { return t.definition }
 
+// Invoke 调用远端 MCP 工具并保存资源候选。
 func (t *mcpAgentTool) Invoke(ctx context.Context, scope agenttool.Scope, arguments json.RawMessage) (string, error) {
 	var input map[string]any
 	if err := json.Unmarshal(arguments, &input); err != nil {
@@ -75,6 +79,7 @@ func (t *mcpAgentTool) Invoke(ctx context.Context, scope agenttool.Scope, argume
 	return string(payload), nil
 }
 
+// filterArguments 移除资源领取工具的服务端受控参数。
 func (t *mcpAgentTool) filterArguments(arguments json.RawMessage) (json.RawMessage, error) {
 	if t.remote.Name != "resource_acquire" {
 		return arguments, nil
@@ -89,26 +94,30 @@ func (t *mcpAgentTool) filterArguments(arguments json.RawMessage) (json.RawMessa
 	return json.Marshal(input)
 }
 
+// resourceMessageFile 描述消息中的资源候选文件。
 type resourceMessageFile struct {
-	CandidateID string `json:"candidate_id"`
-	Name        string `json:"name"`
-	Size        int64  `json:"size"`
-	MIMEType    string `json:"mime_type"`
+	CandidateID string `json:"candidate_id"` // CandidateID 是外部候选标识。
+	Name        string `json:"name"`         // Name 是文件名。
+	Size        int64  `json:"size"`         // Size 是文件字节数。
+	MIMEType    string `json:"mime_type"`    // MIMEType 是文件媒体类型。
 }
 
+// resourceMessage 描述可能携带资源文件的消息。
 type resourceMessage struct {
-	File *resourceMessageFile `json:"file"`
-	Text string               `json:"text"`
+	File *resourceMessageFile `json:"file"` // File 是资源候选文件。
+	Text string               `json:"text"` // Text 是消息文本。
 }
 
+// resourceToolResult 描述资源类 MCP 工具结果。
 type resourceToolResult struct {
-	Status string `json:"status"`
+	Status string `json:"status"` // Status 标识工具执行状态。
 	Data   struct {
-		Dialog   json.RawMessage   `json:"dialog"`
-		Messages []resourceMessage `json:"messages"`
-	} `json:"data"`
+		Dialog   json.RawMessage   `json:"dialog"`   // Dialog 是来源会话信息。
+		Messages []resourceMessage `json:"messages"` // Messages 是资源消息列表。
+	} `json:"data"` // Data 承载资源结果。
 }
 
+// persistResourceCandidates 保存消息工具返回的资源候选。
 func (t *mcpAgentTool) persistResourceCandidates(ctx context.Context, ownerID uint, input map[string]any, result *mcp.CallToolResult) error {
 	if !slices.Contains([]string{"message_list", "message_search"}, t.remote.Name) || result == nil || result.IsError || ownerID == 0 {
 		return nil
@@ -156,6 +165,7 @@ func (t *mcpAgentTool) persistResourceCandidates(ctx context.Context, ownerID ui
 	})
 }
 
+// mcpToolResultValue 提取 MCP 工具的结构化结果。
 func mcpToolResultValue(result *mcp.CallToolResult) any {
 	if result == nil {
 		return nil
@@ -182,6 +192,7 @@ func mcpToolResultValue(result *mcp.CallToolResult) any {
 	return nil
 }
 
+// mcpToolRequiresApproval 判断 MCP 工具是否需要用户确认。
 func mcpToolRequiresApproval(remote mcp.Tool) bool {
 	switch remote.Name {
 	case "channel_get_info", "channel_get_status", "dialog_list", "dialog_resolve", "message_send", "message_list", "message_search", "resource_search", "resource_inspect", "task_get":
@@ -193,6 +204,7 @@ func mcpToolRequiresApproval(remote mcp.Tool) bool {
 	}
 }
 
+// mcpToolReadOnly 判断 MCP 工具是否只读。
 func mcpToolReadOnly(remote mcp.Tool) bool {
 	if remote.Annotations.ReadOnlyHint != nil {
 		return *remote.Annotations.ReadOnlyHint
@@ -205,6 +217,7 @@ func mcpToolReadOnly(remote mcp.Tool) bool {
 	}
 }
 
+// mcpToolTimeout 返回 MCP 工具的默认执行时限。
 func mcpToolTimeout(remote mcp.Tool) time.Duration {
 	switch remote.Name {
 	case "dialog_join":
@@ -220,6 +233,7 @@ func mcpToolTimeout(remote mcp.Tool) time.Duration {
 	return 15 * time.Second
 }
 
+// agentVisibleToolSchema 构造 Agent 可见的工具参数结构。
 func agentVisibleToolSchema(definition mcp.Tool) (*jsonschema.Schema, error) {
 	var raw []byte
 	var err error

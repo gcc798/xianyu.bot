@@ -12,6 +12,7 @@ import (
 	"github.com/mark3labs/mcp-go/mcp"
 )
 
+// Approve 确认并执行指定运行中的首个待审批工具调用。
 func (s *Runner) Approve(ctx context.Context, ownerID, runID uint) (model.AgentRunTool, error) {
 	if ownerID == 0 || runID == 0 {
 		return model.AgentRunTool{}, errors.New("运行标识不能为空")
@@ -59,6 +60,7 @@ func (s *Runner) Approve(ctx context.Context, ownerID, runID uint) (model.AgentR
 	return call, nil
 }
 
+// executeApproval 执行已认领的审批调用并同步资源任务状态。
 func (s *Runner) executeApproval(ctx context.Context, run model.AgentRun, call *model.AgentRunTool) error {
 	implementation, closeTool, err := s.approvalTool(ctx, call)
 	if err != nil {
@@ -112,6 +114,7 @@ func (s *Runner) executeApproval(ctx context.Context, run model.AgentRun, call *
 	return nil
 }
 
+// approvalTool 根据调用来源解析本地或 MCP 工具，并返回释放函数。
 func (s *Runner) approvalTool(ctx context.Context, call *model.AgentRunTool) (agenttool.Tool, func(), error) {
 	if call.ToolSource == "local" {
 		if s.tools == nil {
@@ -141,6 +144,7 @@ func (s *Runner) approvalTool(ctx context.Context, call *model.AgentRunTool) (ag
 	return implementation, closeTool, nil
 }
 
+// approvedOutputValue 将工具输出解析为可判断的结果值。
 func approvedOutputValue(output, source string) any {
 	if source == "mcp" || source == "" {
 		var result mcp.CallToolResult
@@ -153,15 +157,17 @@ func approvedOutputValue(output, source string) any {
 	return value
 }
 
+// approvedResultSucceeded 判断审批工具结果是否成功。
 func approvedResultSucceeded(value any) bool {
 	payload, _ := json.Marshal(value)
 	var result struct {
-		Status string `json:"status"`
+		Status string `json:"status"` // Status 标识工具执行状态。
 	}
 	_ = json.Unmarshal(payload, &result)
 	return result.Status == "" || result.Status == "success"
 }
 
+// failApprovedResourceTask 将审批关联的资源任务标记为失败。
 func (s *Runner) failApprovedResourceTask(ctx context.Context, task *model.ResourceTask) {
 	if task == nil {
 		return
@@ -173,6 +179,7 @@ func (s *Runner) failApprovedResourceTask(ctx context.Context, task *model.Resou
 	}).Error
 }
 
+// approvedTool 在已发现的 MCP 连接中查找目标工具。
 func approvedTool(connections []*mcpConnection, serverCode, toolName string) (*mcpConnection, mcp.Tool) {
 	for _, connection := range connections {
 		if connection.Server.Code != serverCode {
@@ -187,6 +194,7 @@ func approvedTool(connections []*mcpConnection, serverCode, toolName string) (*m
 	return nil, mcp.Tool{}
 }
 
+// prepareResourceApproval 创建资源交付任务并补齐工具调用参数。
 func (s *Runner) prepareResourceApproval(ctx context.Context, ownerID uint, call *model.AgentRunTool, input map[string]any) (*model.ResourceTask, error) {
 	externalID, _ := input["candidate_id"].(string)
 	if externalID == "" {
@@ -214,17 +222,19 @@ func (s *Runner) prepareResourceApproval(ctx context.Context, ownerID uint, call
 	return &grant.Task, nil
 }
 
+// approvedExternalTaskID 从工具结果中提取外部任务标识。
 func approvedExternalTaskID(value any) string {
 	payload, _ := json.Marshal(value)
 	var result struct {
 		Data struct {
-			TaskID string `json:"task_id"`
-		} `json:"data"`
+			TaskID string `json:"task_id"` // TaskID 是外部任务标识。
+		} `json:"data"` // Data 承载工具返回数据。
 	}
 	_ = json.Unmarshal(payload, &result)
 	return result.Data.TaskID
 }
 
+// finishApproval 持久化审批调用的最终状态。
 func (s *Runner) finishApproval(ctx context.Context, call *model.AgentRunTool, status, errorCode, errorMessage string) error {
 	completedAt := time.Now()
 	finishContext, cancel := agentFinishContext(ctx)

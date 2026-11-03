@@ -12,14 +12,17 @@ import (
 	"gorm.io/gorm"
 )
 
+// Session 管理用户 Agent 会话、轨迹和工具审计查询。
 type Session struct {
-	db *gorm.DB
+	db *gorm.DB // db 持久化会话及关联执行记录。
 }
 
+// NewSession 创建 Agent 会话服务。
 func NewSession(db *gorm.DB) *Session {
 	return &Session{db: db}
 }
 
+// Create 为 ownerID 创建 Agent 会话，空标题使用默认值。
 func (s *Session) Create(ctx context.Context, ownerID uint, input xyRequest.CreateAgentSession) (model.AgentSession, error) {
 	if ownerID == 0 {
 		return model.AgentSession{}, errors.New("用户未登录")
@@ -33,6 +36,7 @@ func (s *Session) Create(ctx context.Context, ownerID uint, input xyRequest.Crea
 	return session, err
 }
 
+// List 分页查询 ownerID 名下会话并按最近消息排序。
 func (s *Session) List(ctx context.Context, ownerID uint, input xyRequest.AgentSessionSearch) ([]model.AgentSession, int64, error) {
 	if ownerID == 0 {
 		return nil, 0, errors.New("用户未登录")
@@ -47,6 +51,7 @@ func (s *Session) List(ctx context.Context, ownerID uint, input xyRequest.AgentS
 	return sessions, total, err
 }
 
+// Get 查询归属会话及消息、工具轨迹、待审批和资源任务。
 func (s *Session) Get(ctx context.Context, ownerID, sessionID uint) (xyResponse.AgentSessionDetail, error) {
 	if ownerID == 0 || sessionID == 0 {
 		return xyResponse.AgentSessionDetail{}, errors.New("会话 ID 不能为空")
@@ -86,6 +91,7 @@ func (s *Session) Get(ctx context.Context, ownerID, sessionID uint) (xyResponse.
 	return xyResponse.AgentSessionDetail{AgentSession: session, Messages: messages, ToolTraces: toolTraces, PendingApprovals: approvals, Tasks: tasks}, nil
 }
 
+// Trajectory 按事件游标增量读取归属会话轨迹。
 func (s *Session) Trajectory(ctx context.Context, ownerID, sessionID uint, input xyRequest.AgentTrajectorySearch) (xyResponse.AgentTrajectoryPage, error) {
 	if ownerID == 0 || sessionID == 0 {
 		return xyResponse.AgentTrajectoryPage{}, errors.New("会话 ID 不能为空")
@@ -128,6 +134,7 @@ func (s *Session) Trajectory(ctx context.Context, ownerID, sessionID uint, input
 	return xyResponse.AgentTrajectoryPage{Events: items, NextAfterID: nextAfterID, HasMore: hasMore}, nil
 }
 
+// ToolCall 按 callID 查询归属会话的完整工具审计记录。
 func (s *Session) ToolCall(ctx context.Context, ownerID, sessionID uint, callID string) (xyResponse.AgentToolCallDetail, error) {
 	callID = strings.TrimSpace(callID)
 	if ownerID == 0 || sessionID == 0 || callID == "" || len(callID) > 200 {
@@ -148,6 +155,7 @@ func (s *Session) ToolCall(ctx context.Context, ownerID, sessionID uint, callID 
 	}, nil
 }
 
+// rawJSON 保留有效 JSON，无效或空值统一返回 null。
 func rawJSON(value string) json.RawMessage {
 	if json.Valid([]byte(value)) {
 		return json.RawMessage(value)
@@ -155,6 +163,7 @@ func rawJSON(value string) json.RawMessage {
 	return json.RawMessage("null")
 }
 
+// Delete 在无运行与资源任务时事务删除归属会话及执行记录。
 func (s *Session) Delete(ctx context.Context, ownerID, sessionID uint) error {
 	if ownerID == 0 || sessionID == 0 {
 		return errors.New("会话 ID 不能为空")

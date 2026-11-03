@@ -13,16 +13,20 @@ import (
 	"gorm.io/gorm"
 )
 
+// mcpCodePattern 限制 MCP 服务编码为稳定的小写标识。
 var mcpCodePattern = regexp.MustCompile(`^[a-z][a-z0-9_-]{1,63}$`)
 
+// AIConfig 管理模型、MCP 服务和 Agent 全局运行限制。
 type AIConfig struct {
-	db *gorm.DB
+	db *gorm.DB // db 持久化 Agent 配置。
 }
 
+// NewAIConfig 创建 Agent 配置服务。
 func NewAIConfig(db *gorm.DB) *AIConfig {
 	return &AIConfig{db: db}
 }
 
+// affected 将零行更新转换为记录不存在错误。
 func affected(result *gorm.DB) error {
 	if result.Error != nil {
 		return result.Error
@@ -33,6 +37,7 @@ func affected(result *gorm.DB) error {
 	return nil
 }
 
+// ListModels 按默认优先级列出模型，并仅暴露凭据是否存在。
 func (s *AIConfig) ListModels(ctx context.Context) ([]model.AIModel, error) {
 	items := make([]model.AIModel, 0)
 	err := s.db.WithContext(ctx).Order("is_default DESC, id DESC").Find(&items).Error
@@ -42,6 +47,7 @@ func (s *AIConfig) ListModels(ctx context.Context) ([]model.AIModel, error) {
 	return items, err
 }
 
+// CreateModel 校验 input，并在设置默认项时清除旧默认模型。
 func (s *AIConfig) CreateModel(ctx context.Context, input xyRequest.SaveAIModel) (model.AIModel, error) {
 	item, err := buildAIModel(input)
 	if err != nil {
@@ -59,6 +65,7 @@ func (s *AIConfig) CreateModel(ctx context.Context, input xyRequest.SaveAIModel)
 	return item, err
 }
 
+// UpdateModel 更新模型配置，空 API Key 保留现有凭据。
 func (s *AIConfig) UpdateModel(ctx context.Context, id uint, input xyRequest.SaveAIModel) error {
 	if id == 0 {
 		return errors.New("模型 ID 不能为空")
@@ -91,6 +98,7 @@ func (s *AIConfig) UpdateModel(ctx context.Context, id uint, input xyRequest.Sav
 	})
 }
 
+// DeleteModel 删除指定模型配置。
 func (s *AIConfig) DeleteModel(ctx context.Context, id uint) error {
 	if id == 0 {
 		return errors.New("模型 ID 不能为空")
@@ -99,6 +107,7 @@ func (s *AIConfig) DeleteModel(ctx context.Context, id uint) error {
 	return affected(result)
 }
 
+// SetDefaultModel 仅允许启用且支持工具调用的模型成为唯一默认项。
 func (s *AIConfig) SetDefaultModel(ctx context.Context, id uint) error {
 	if id == 0 {
 		return errors.New("模型 ID 不能为空")
@@ -118,6 +127,7 @@ func (s *AIConfig) SetDefaultModel(ctx context.Context, id uint) error {
 	})
 }
 
+// ListMCPServers 列出 MCP 服务，并仅暴露认证令牌是否存在。
 func (s *AIConfig) ListMCPServers(ctx context.Context) ([]model.MCPServer, error) {
 	items := make([]model.MCPServer, 0)
 	err := s.db.WithContext(ctx).Order("id DESC").Find(&items).Error
@@ -127,6 +137,7 @@ func (s *AIConfig) ListMCPServers(ctx context.Context) ([]model.MCPServer, error
 	return items, err
 }
 
+// CreateMCPServer 校验并创建 MCP 服务配置。
 func (s *AIConfig) CreateMCPServer(ctx context.Context, input xyRequest.SaveMCPServer) (model.MCPServer, error) {
 	item, err := buildMCPServer(input)
 	if err != nil {
@@ -137,6 +148,7 @@ func (s *AIConfig) CreateMCPServer(ctx context.Context, input xyRequest.SaveMCPS
 	return item, err
 }
 
+// UpdateMCPServer 更新 MCP 服务，空认证令牌保留现有凭据。
 func (s *AIConfig) UpdateMCPServer(ctx context.Context, id uint, input xyRequest.SaveMCPServer) error {
 	if id == 0 {
 		return errors.New("MCP 服务 ID 不能为空")
@@ -156,6 +168,7 @@ func (s *AIConfig) UpdateMCPServer(ctx context.Context, id uint, input xyRequest
 	return affected(s.db.WithContext(ctx).Model(&model.MCPServer{}).Where("id = ?", id).Updates(updates))
 }
 
+// DeleteMCPServer 删除指定 MCP 服务配置。
 func (s *AIConfig) DeleteMCPServer(ctx context.Context, id uint) error {
 	if id == 0 {
 		return errors.New("MCP 服务 ID 不能为空")
@@ -163,12 +176,14 @@ func (s *AIConfig) DeleteMCPServer(ctx context.Context, id uint) error {
 	return affected(s.db.WithContext(ctx).Where("id = ?", id).Delete(&model.MCPServer{}))
 }
 
+// GetAgentConfig 返回唯一运行限制，不存在时创建默认值。
 func (s *AIConfig) GetAgentConfig(ctx context.Context) (model.AgentConfig, error) {
 	item := model.DefaultAgentConfig()
 	err := s.db.WithContext(ctx).FirstOrCreate(&item, model.AgentConfig{ID: 1}).Error
 	return item, err
 }
 
+// UpdateAgentConfig 校验并覆盖唯一 Agent 运行限制。
 func (s *AIConfig) UpdateAgentConfig(ctx context.Context, item model.AgentConfig) error {
 	item.ID = 1
 	if err := validateAgentConfig(item); err != nil {
@@ -177,6 +192,7 @@ func (s *AIConfig) UpdateAgentConfig(ctx context.Context, item model.AgentConfig
 	return s.db.WithContext(ctx).Save(&item).Error
 }
 
+// buildAIModel 规范化并校验模型地址、能力、令牌限制和扩展 JSON。
 func buildAIModel(input xyRequest.SaveAIModel) (model.AIModel, error) {
 	item := model.AIModel{
 		Name: strings.TrimSpace(input.Name), Provider: strings.TrimSpace(input.Provider), BaseURL: strings.TrimSpace(input.BaseURL),
@@ -203,6 +219,7 @@ func buildAIModel(input xyRequest.SaveAIModel) (model.AIModel, error) {
 	return item, nil
 }
 
+// buildMCPServer 规范化并校验 MCP 编码、地址和超时。
 func buildMCPServer(input xyRequest.SaveMCPServer) (model.MCPServer, error) {
 	item := model.MCPServer{
 		Name: strings.TrimSpace(input.Name), Code: strings.TrimSpace(input.Code), BaseURL: strings.TrimSpace(input.BaseURL),
@@ -221,6 +238,7 @@ func buildMCPServer(input xyRequest.SaveMCPServer) (model.MCPServer, error) {
 	return item, nil
 }
 
+// validateHTTPURL 仅接受带主机的 HTTP 或 HTTPS URL。
 func validateHTTPURL(value string) error {
 	parsed, err := url.ParseRequestURI(value)
 	if err != nil || parsed.Host == "" || (parsed.Scheme != "http" && parsed.Scheme != "https") {
@@ -229,6 +247,7 @@ func validateHTTPURL(value string) error {
 	return nil
 }
 
+// validateAgentConfig 校验运行限制为正数且不超过服务安全上限。
 func validateAgentConfig(item model.AgentConfig) error {
 	values := []int{item.MaxWallTimeSeconds, item.MaxIterations, item.MaxModelCalls, item.MaxToolCalls, item.MaxConcurrentToolCalls, item.MaxSearchCalls, item.MaxWriteToolCalls, item.MaxOutputTokens, item.ConversationHistoryLimit, item.SummaryTriggerTokens}
 	for _, value := range values {

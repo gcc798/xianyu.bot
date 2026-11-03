@@ -25,38 +25,51 @@ import (
 )
 
 const (
+	// resourceDeliveryTTL 是资源交付授权的有效期。
 	resourceDeliveryTTL = 10 * time.Minute
+	// resourceDownloadTTL 是资源下载地址的有效期。
 	resourceDownloadTTL = 10 * time.Minute
 )
 
+// sha256Pattern 校验小写十六进制 SHA-256。
 var sha256Pattern = regexp.MustCompile(`^[a-f0-9]{64}$`)
 
+// resourceObjectStore 定义资源对象存储所需能力。
 type resourceObjectStore interface {
+	// PresignedPutObject 生成对象上传地址。
 	PresignedPutObject(ctx context.Context, bucket, objectKey string, expiry time.Duration) (*url.URL, error)
+	// PresignedGetObject 生成对象下载地址。
 	PresignedGetObject(ctx context.Context, bucket, objectKey string, expiry time.Duration, reqParams url.Values) (*url.URL, error)
+	// StatObject 查询对象元数据。
 	StatObject(ctx context.Context, bucket, objectKey string, opts minio.StatObjectOptions) (minio.ObjectInfo, error)
+	// BucketExists 判断存储桶是否存在。
 	BucketExists(ctx context.Context, bucket string) (bool, error)
+	// MakeBucket 创建存储桶。
 	MakeBucket(ctx context.Context, bucket string, opts minio.MakeBucketOptions) error
 }
 
+// ResourceCatalog 管理资源目录、交付任务和对象存储。
 type ResourceCatalog struct {
-	db          *gorm.DB
-	objectStore resourceObjectStore
-	bucket      string
-	events      *EventHub
-	registry    *MCPRegistry
+	db          *gorm.DB            // db 持久化资源及交付任务。
+	objectStore resourceObjectStore // objectStore 保存资源文件。
+	bucket      string              // bucket 是资源存储桶。
+	events      *EventHub           // events 发布资源任务事件。
+	registry    *MCPRegistry        // registry 提供资源任务 MCP 能力。
 }
 
+// NewResourceCatalog 创建资源目录服务。
 func NewResourceCatalog(db *gorm.DB, events *EventHub, registry *MCPRegistry) *ResourceCatalog {
 	return &ResourceCatalog{db: db, events: events, registry: registry}
 }
 
+// ResourceDeliveryGrant 表示一次资源交付授权。
 type ResourceDeliveryGrant struct {
-	Task      model.ResourceTask
-	Token     string
-	ExpiresAt time.Time
+	Task      model.ResourceTask // Task 是资源交付任务。
+	Token     string             // Token 是一次性交付凭证。
+	ExpiresAt time.Time          // ExpiresAt 是凭证失效时间。
 }
 
+// List 按所有者和筛选条件分页查询资源。
 func (s *ResourceCatalog) List(ctx context.Context, ownerID uint, input xyRequest.ResourceSearch) ([]model.Resource, int64, error) {
 	if ownerID == 0 {
 		return nil, 0, errors.New("用户未登录")
@@ -80,6 +93,7 @@ func (s *ResourceCatalog) List(ctx context.Context, ownerID uint, input xyReques
 	return resources, total, err
 }
 
+// Get 查询所有者名下的资源详情和来源。
 func (s *ResourceCatalog) Get(ctx context.Context, ownerID, resourceID uint) (xyResponse.ResourceDetail, error) {
 	if ownerID == 0 || resourceID == 0 {
 		return xyResponse.ResourceDetail{}, errors.New("资源 ID 不能为空")
@@ -95,6 +109,7 @@ func (s *ResourceCatalog) Get(ctx context.Context, ownerID, resourceID uint) (xy
 	return xyResponse.ResourceDetail{Resource: resource, Sources: sources}, nil
 }
 
+// GetTask 查询所有者名下的资源交付任务。
 func (s *ResourceCatalog) GetTask(ctx context.Context, ownerID, taskID uint) (model.ResourceTask, error) {
 	if ownerID == 0 || taskID == 0 {
 		return model.ResourceTask{}, errors.New("任务 ID 不能为空")
@@ -104,6 +119,7 @@ func (s *ResourceCatalog) GetTask(ctx context.Context, ownerID, taskID uint) (mo
 	return task, err
 }
 
+// CancelTask 取消仍在执行的外部资源任务。
 func (s *ResourceCatalog) CancelTask(ctx context.Context, ownerID, taskID uint) (model.ResourceTask, error) {
 	task, err := s.GetTask(ctx, ownerID, taskID)
 	if err != nil {
@@ -147,6 +163,7 @@ func (s *ResourceCatalog) CancelTask(ctx context.Context, ownerID, taskID uint) 
 	return task, nil
 }
 
+// Download 为可用资源生成短期下载地址。
 func (s *ResourceCatalog) Download(ctx context.Context, ownerID, resourceID uint) (string, time.Time, error) {
 	if ownerID == 0 || resourceID == 0 {
 		return "", time.Time{}, errors.New("资源 ID 不能为空")
@@ -169,6 +186,7 @@ func (s *ResourceCatalog) Download(ctx context.Context, ownerID, resourceID uint
 	return downloadURL.String(), expiresAt, nil
 }
 
+// CreateDeliveryTask 幂等创建资源交付任务和短期授权。
 func (s *ResourceCatalog) CreateDeliveryTask(ctx context.Context, ownerID, candidateID uint, idempotencyKey string) (ResourceDeliveryGrant, error) {
 	idempotencyKey = strings.TrimSpace(idempotencyKey)
 	if ownerID == 0 || candidateID == 0 || idempotencyKey == "" || len(idempotencyKey) > 100 {
@@ -224,6 +242,7 @@ func (s *ResourceCatalog) CreateDeliveryTask(ctx context.Context, ownerID, candi
 	return ResourceDeliveryGrant{Task: task, Token: token, ExpiresAt: expiresAt}, nil
 }
 
+// PresignDelivery 为有效交付任务生成短期上传地址。
 func (s *ResourceCatalog) PresignDelivery(ctx context.Context, taskID uint, token string) (string, time.Time, error) {
 	task, err := s.deliveryTask(ctx, taskID, token)
 	if err != nil {
@@ -253,6 +272,7 @@ func (s *ResourceCatalog) PresignDelivery(ctx context.Context, taskID uint, toke
 	return uploadURL.String(), expiresAt, nil
 }
 
+// CompleteDelivery 校验上传对象并生成可用资源记录。
 func (s *ResourceCatalog) CompleteDelivery(ctx context.Context, taskID uint, token string, size int64, checksum string) (model.Resource, error) {
 	task, err := s.deliveryTask(ctx, taskID, token)
 	if err != nil {
@@ -300,8 +320,8 @@ func (s *ResourceCatalog) CompleteDelivery(ctx context.Context, taskID uint, tok
 			return err
 		}
 		var source struct {
-			Name     string `json:"name"`
-			Username string `json:"username"`
+			Name     string `json:"name"`     // Name 是来源名称。
+			Username string `json:"username"` // Username 是来源账号。
 		}
 		_ = json.Unmarshal([]byte(candidate.Source), &source)
 		resourceSource := model.ResourceSource{
@@ -330,6 +350,7 @@ func (s *ResourceCatalog) CompleteDelivery(ctx context.Context, taskID uint, tok
 	return resource, err
 }
 
+// UpdateDelivery 更新资源交付进度。
 func (s *ResourceCatalog) UpdateDelivery(ctx context.Context, taskID uint, token string, input xyRequest.UpdateResourceDelivery) (model.ResourceTask, error) {
 	task, err := s.deliveryTask(ctx, taskID, token)
 	if err != nil {
@@ -355,6 +376,7 @@ func (s *ResourceCatalog) UpdateDelivery(ctx context.Context, taskID uint, token
 	return task, nil
 }
 
+// FailDelivery 将资源交付任务标记为失败。
 func (s *ResourceCatalog) FailDelivery(ctx context.Context, taskID uint, token string, input xyRequest.FailResourceDelivery) (model.ResourceTask, error) {
 	task, err := s.deliveryTask(ctx, taskID, token)
 	if err != nil {
@@ -375,6 +397,7 @@ func (s *ResourceCatalog) FailDelivery(ctx context.Context, taskID uint, token s
 	return task, nil
 }
 
+// publishResourceTaskEvent 发布关联 Agent 运行的资源任务事件。
 func (s *ResourceCatalog) publishResourceTaskEvent(ctx context.Context, task model.ResourceTask, eventType string, extra map[string]any) {
 	if task.AgentRunID == nil || s.events == nil {
 		return
@@ -394,6 +417,7 @@ func (s *ResourceCatalog) publishResourceTaskEvent(ctx context.Context, task mod
 	_, _ = s.events.Publish(run.SessionID, eventType, data)
 }
 
+// deliveryTask 校验交付令牌并返回有效任务。
 func (s *ResourceCatalog) deliveryTask(ctx context.Context, taskID uint, token string) (model.ResourceTask, error) {
 	if taskID == 0 || token == "" {
 		return model.ResourceTask{}, errors.New("交付授权无效")
@@ -413,6 +437,7 @@ func (s *ResourceCatalog) deliveryTask(ctx context.Context, taskID uint, token s
 	return task, nil
 }
 
+// ensureResourceBucket 确保存储桶存在。
 func ensureResourceBucket(ctx context.Context, store resourceObjectStore, bucket string) error {
 	exists, err := store.BucketExists(ctx, bucket)
 	if err != nil {
@@ -430,6 +455,7 @@ func ensureResourceBucket(ctx context.Context, store resourceObjectStore, bucket
 	return nil
 }
 
+// storage 返回已注入或按环境配置创建的对象存储。
 func (s *ResourceCatalog) storage() (resourceObjectStore, string, error) {
 	if s.objectStore != nil {
 		return s.objectStore, s.bucket, nil

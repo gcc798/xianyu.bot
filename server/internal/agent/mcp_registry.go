@@ -15,31 +15,42 @@ import (
 	"gorm.io/gorm"
 )
 
+// connectedMCPClient 描述 MCP 发现和调用所需的客户端能力。
 type connectedMCPClient interface {
+	// Start 建立 MCP 传输。
 	Start(context.Context) error
+	// Initialize 协商 MCP 协议与客户端身份。
 	Initialize(context.Context, mcp.InitializeRequest) (*mcp.InitializeResult, error)
+	// ListTools 获取服务端工具目录。
 	ListTools(context.Context, mcp.ListToolsRequest) (*mcp.ListToolsResult, error)
+	// CallTool 调用远程工具。
 	CallTool(context.Context, mcp.CallToolRequest) (*mcp.CallToolResult, error)
+	// Close 释放 MCP 传输资源。
 	Close() error
 }
 
+// mcpConnection 保存已初始化服务、客户端和工具目录。
 type mcpConnection struct {
-	Server model.MCPServer
-	Client connectedMCPClient
-	Tools  []mcp.Tool
+	Server model.MCPServer    // Server 是持久化服务配置。
+	Client connectedMCPClient // Client 是活动 MCP 客户端。
+	Tools  []mcp.Tool         // Tools 是发现时返回的工具目录。
 }
 
+// Close 关闭底层 MCP 客户端。
 func (c *mcpConnection) Close() error { return c.Client.Close() }
 
+// MCPRegistry 发现所有启用的 MCP 服务并记录健康状态。
 type MCPRegistry struct {
-	db      *gorm.DB
-	connect func(context.Context, model.MCPServer) (*mcpConnection, error)
+	db      *gorm.DB                                                       // db 读取服务配置并写入检查状态。
+	connect func(context.Context, model.MCPServer) (*mcpConnection, error) // connect 是可测试替换的连接函数。
 }
 
+// NewMCPRegistry 创建 MCP 服务注册表。
 func NewMCPRegistry(db *gorm.DB) *MCPRegistry {
 	return &MCPRegistry{db: db}
 }
 
+// Discover 连接启用服务并返回成功连接；全部失败时合并错误。
 func (r *MCPRegistry) Discover(ctx context.Context) ([]*mcpConnection, error) {
 	servers := make([]model.MCPServer, 0)
 	if err := r.db.WithContext(ctx).Where("enabled = ?", true).Order("id").Find(&servers).Error; err != nil {
@@ -67,6 +78,7 @@ func (r *MCPRegistry) Discover(ctx context.Context) ([]*mcpConnection, error) {
 	return connections, nil
 }
 
+// updateStatus 保存服务最近检查时间、状态和截断后的错误。
 func (r *MCPRegistry) updateStatus(ctx context.Context, serverID uint, status string, cause error) {
 	now := time.Now()
 	message := ""
@@ -81,6 +93,7 @@ func (r *MCPRegistry) updateStatus(ctx context.Context, serverID uint, status st
 	}).Error
 }
 
+// connectMCPServer 建立 HTTP 传输、初始化协议并获取工具目录。
 func connectMCPServer(ctx context.Context, server model.MCPServer) (*mcpConnection, error) {
 	headers := make(map[string]string)
 	if header := strings.TrimSpace(server.AuthHeader); header != "" && server.AuthToken != "" {
@@ -116,6 +129,7 @@ func connectMCPServer(ctx context.Context, server model.MCPServer) (*mcpConnecti
 	return &mcpConnection{Server: server, Client: mcpClient, Tools: tools.Tools}, nil
 }
 
+// closeMCPConnections 关闭全部连接并合并关闭错误。
 func closeMCPConnections(connections []*mcpConnection) error {
 	errs := make([]error, 0)
 	for _, connection := range connections {

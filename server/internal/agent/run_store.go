@@ -16,6 +16,7 @@ import (
 	"gorm.io/gorm/clause"
 )
 
+// loadAgentRunConfig 加载默认工具模型和运行限制，并生成不可变配置快照。
 func loadAgentRunConfig(ctx context.Context, db *gorm.DB) (model.AIModel, model.AgentConfig, string, error) {
 	var aiModel model.AIModel
 	if err := db.WithContext(ctx).Where("enabled = ? AND is_default = ? AND supports_tools = ?", true, true, true).First(&aiModel).Error; err != nil {
@@ -29,8 +30,8 @@ func loadAgentRunConfig(ctx context.Context, db *gorm.DB) (model.AIModel, model.
 		return model.AIModel{}, model.AgentConfig{}, "", err
 	}
 	snapshot, err := json.Marshal(struct {
-		Model  model.AIModel     `json:"model"`
-		Limits model.AgentConfig `json:"limits"`
+		Model  model.AIModel     `json:"model"`  // Model 是本次运行使用的模型配置。
+		Limits model.AgentConfig `json:"limits"` // Limits 是本次运行使用的治理上限。
 	}{Model: aiModel, Limits: config})
 	if err != nil {
 		return model.AIModel{}, model.AgentConfig{}, "", err
@@ -38,6 +39,7 @@ func loadAgentRunConfig(ctx context.Context, db *gorm.DB) (model.AIModel, model.
 	return aiModel, config, string(snapshot), nil
 }
 
+// validateAgentDirectives 限制每轮最多一个已知 Skill 和一个合法 Tool。
 func validateAgentDirectives(directives []xyRequest.AgentDirective) error {
 	if len(directives) > 2 {
 		return errors.New("每轮最多指定一个 Skill 和一个 Tool")
@@ -66,6 +68,7 @@ func validateAgentDirectives(directives []xyRequest.AgentDirective) error {
 	return nil
 }
 
+// createAgentRun 校验幂等键与会话归属，并事务创建运行和用户消息。
 func createAgentRun(ctx context.Context, db *gorm.DB, ownerID, sessionID uint, content, directives, idempotencyKey string, aiModel model.AIModel, snapshot string) (model.AgentRun, bool, error) {
 	var run model.AgentRun
 	existing := false
@@ -119,6 +122,7 @@ func createAgentRun(ctx context.Context, db *gorm.DB, ownerID, sessionID uint, c
 	return run, existing, err
 }
 
+// existingAgentRunResult 返回幂等命中运行及已有助手消息。
 func existingAgentRunResult(ctx context.Context, db *gorm.DB, run model.AgentRun) (RunResult, error) {
 	var assistant model.AgentMessage
 	err := db.WithContext(ctx).Where("run_id = ? AND role = ?", run.ID, "assistant").First(&assistant).Error
@@ -131,6 +135,7 @@ func existingAgentRunResult(ctx context.Context, db *gorm.DB, run model.AgentRun
 	return RunResult{Run: run, Assistant: &assistant}, nil
 }
 
+// loadAgentHistory 加载最近对话，并把有限工具轨迹作为不可信执行事实插入。
 func loadAgentHistory(ctx context.Context, db *gorm.DB, ownerID, sessionID uint, limit int) ([]*schema.Message, error) {
 	messages := make([]model.AgentMessage, 0)
 	if err := db.WithContext(ctx).Where("owner_id = ? AND session_id = ?", ownerID, sessionID).Order("sequence DESC").Limit(limit).Find(&messages).Error; err != nil {
@@ -160,6 +165,7 @@ func loadAgentHistory(ctx context.Context, db *gorm.DB, ownerID, sessionID uint,
 	return history, nil
 }
 
+// recentToolTrace 生成最多十条且不超过 12KB 的工具执行摘要。
 func recentToolTrace(ctx context.Context, db *gorm.DB, ownerID, sessionID uint) (string, error) {
 	var calls []model.AgentRunTool
 	if err := db.WithContext(ctx).Table("xy_agent_run_tools AS t").
@@ -180,12 +186,14 @@ func recentToolTrace(ctx context.Context, db *gorm.DB, ownerID, sessionID uint) 
 	return strings.TrimSpace(trace.String()), nil
 }
 
+// nextAgentMessageSequence 返回会话内下一个严格递增消息序号。
 func nextAgentMessageSequence(tx *gorm.DB, sessionID uint) (int64, error) {
 	var sequence int64
 	err := tx.Model(&model.AgentMessage{}).Where("session_id = ?", sessionID).Select("COALESCE(MAX(sequence), 0)").Scan(&sequence).Error
 	return sequence + 1, err
 }
 
+// completeAgentRun 在独立收尾上下文中保存助手消息、用量和运行终态。
 func completeAgentRun(ctx context.Context, db *gorm.DB, run model.AgentRun, harness *agentHarness, started time.Time, inputTokens, outputTokens int, content string) (RunResult, error) {
 	usage := harness.Usage()
 	completedAt := time.Now()

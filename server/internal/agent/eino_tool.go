@@ -17,22 +17,26 @@ import (
 	"gorm.io/gorm"
 )
 
+// argumentFilter 允许工具在调用前过滤模型提供的参数。
 type argumentFilter interface {
+	// filterArguments 返回允许传给工具的参数。
 	filterArguments(json.RawMessage) (json.RawMessage, error)
 }
 
+// governedTool 为 Eino 工具调用提供预算、审批、审计和并发治理。
 type governedTool struct {
-	db             *gorm.DB
-	implementation agenttool.Tool
-	harness        *agentHarness
-	events         *EventHub
-	scope          agenttool.Scope
-	sessionID      uint
-	runID          uint
+	db             *gorm.DB        // db 持久化工具调用记录。
+	implementation agenttool.Tool  // implementation 是实际工具实现。
+	harness        *agentHarness   // harness 控制运行预算和并发。
+	events         *EventHub       // events 发布工具生命周期事件。
+	scope          agenttool.Scope // scope 限定工具调用主体。
+	sessionID      uint            // sessionID 是 Agent 会话标识。
+	runID          uint            // runID 是 Agent 运行标识。
 }
 
 var _ tool.InvokableTool = (*governedTool)(nil)
 
+// newGovernedTool 创建受治理的 Eino 工具适配器。
 func newGovernedTool(db *gorm.DB, implementation agenttool.Tool, harness *agentHarness, events *EventHub, run model.AgentRun) *governedTool {
 	return &governedTool{
 		db: db, implementation: implementation, harness: harness, events: events,
@@ -40,6 +44,7 @@ func newGovernedTool(db *gorm.DB, implementation agenttool.Tool, harness *agentH
 	}
 }
 
+// Info 返回 Eino 所需的工具元数据。
 func (t *governedTool) Info(context.Context) (*schema.ToolInfo, error) {
 	definition := t.implementation.Definition()
 	return &schema.ToolInfo{
@@ -48,6 +53,7 @@ func (t *governedTool) Info(context.Context) (*schema.ToolInfo, error) {
 	}, nil
 }
 
+// InvokableRun 执行一次受预算、审批和审计约束的工具调用。
 func (t *governedTool) InvokableRun(ctx context.Context, arguments string, _ ...tool.Option) (string, error) {
 	call, err := t.startToolCall(ctx)
 	if err != nil {
@@ -117,6 +123,7 @@ func (t *governedTool) InvokableRun(ctx context.Context, arguments string, _ ...
 	return output, nil
 }
 
+// failBeforeExecution 记录未进入实际执行阶段的工具失败。
 func (t *governedTool) failBeforeExecution(ctx context.Context, call *model.AgentRunTool, code, message string) (string, error) {
 	if err := t.finishToolCall(ctx, call, "failed", code, message); err != nil {
 		return "", err
@@ -125,6 +132,7 @@ func (t *governedTool) failBeforeExecution(ctx context.Context, call *model.Agen
 	return toolFailure(code, message), nil
 }
 
+// queueApproval 将工具调用置为等待用户确认。
 func (t *governedTool) queueApproval(ctx context.Context, call *model.AgentRunTool, arguments json.RawMessage) error {
 	if call == nil {
 		return nil
@@ -139,6 +147,7 @@ func (t *governedTool) queueApproval(ctx context.Context, call *model.AgentRunTo
 	}).Error
 }
 
+// startToolCall 创建工具调用记录。
 func (t *governedTool) startToolCall(ctx context.Context) (*model.AgentRunTool, error) {
 	if t.runID == 0 {
 		return nil, nil
@@ -159,6 +168,7 @@ func (t *governedTool) startToolCall(ctx context.Context) (*model.AgentRunTool, 
 	return call, nil
 }
 
+// saveToolArguments 保存实际提交的工具参数。
 func (t *governedTool) saveToolArguments(ctx context.Context, call *model.AgentRunTool, arguments json.RawMessage) error {
 	if call == nil {
 		return nil
@@ -166,6 +176,7 @@ func (t *governedTool) saveToolArguments(ctx context.Context, call *model.AgentR
 	return t.db.WithContext(ctx).Model(call).Update("arguments", string(arguments)).Error
 }
 
+// saveToolResult 保存工具输出。
 func (t *governedTool) saveToolResult(ctx context.Context, call *model.AgentRunTool, output string) error {
 	if call == nil {
 		return nil
@@ -183,6 +194,7 @@ func (t *governedTool) saveToolResult(ctx context.Context, call *model.AgentRunT
 	return t.db.WithContext(finishContext).Model(call).Update("result", string(payload)).Error
 }
 
+// compactToolOutput 压缩事件中的工具输出，避免事件过大。
 func compactToolOutput(output string) any {
 	var value any
 	if json.Unmarshal([]byte(output), &value) != nil {
@@ -196,6 +208,7 @@ func compactToolOutput(output string) any {
 	return map[string]any{"truncated": true, "message": "工具结果过大，请根据游标分批读取"}
 }
 
+// compactTraceValue 递归限制轨迹中的集合和文本长度。
 func compactTraceValue(value any) any {
 	switch current := value.(type) {
 	case map[string]any:
@@ -221,6 +234,7 @@ func compactTraceValue(value any) any {
 	}
 }
 
+// finishToolCall 持久化工具调用的最终状态。
 func (t *governedTool) finishToolCall(ctx context.Context, call *model.AgentRunTool, status, errorCode, errorMessage string) error {
 	if call == nil {
 		return nil
@@ -234,6 +248,7 @@ func (t *governedTool) finishToolCall(ctx context.Context, call *model.AgentRunT
 	}).Error
 }
 
+// publish 发布工具生命周期事件。
 func (t *governedTool) publish(eventType string, data any) {
 	if t.events != nil {
 		if _, err := t.events.Publish(t.sessionID, eventType, data); err != nil {
@@ -242,6 +257,7 @@ func (t *governedTool) publish(eventType string, data any) {
 	}
 }
 
+// toolEvent 补齐工具事件的运行和调用上下文。
 func (t *governedTool) toolEvent(call *model.AgentRunTool, data map[string]any) map[string]any {
 	definition := t.implementation.Definition()
 	data["runId"] = t.runID
@@ -256,6 +272,7 @@ func (t *governedTool) toolEvent(call *model.AgentRunTool, data map[string]any) 
 	return data
 }
 
+// toolCallID 返回工具调用业务标识。
 func toolCallID(call *model.AgentRunTool) string {
 	if call == nil {
 		return ""
@@ -263,6 +280,7 @@ func toolCallID(call *model.AgentRunTool) string {
 	return call.CallID
 }
 
+// toolCallRecordID 返回工具调用记录标识。
 func toolCallRecordID(call *model.AgentRunTool) uint {
 	if call == nil {
 		return 0
@@ -270,6 +288,7 @@ func toolCallRecordID(call *model.AgentRunTool) uint {
 	return call.ID
 }
 
+// toolFailure 序列化模型可识别的工具失败结果。
 func toolFailure(code, message string) string {
 	payload, _ := json.Marshal(map[string]any{
 		"ok": false, "error": map[string]string{"code": code, "message": message},
