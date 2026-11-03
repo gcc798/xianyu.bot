@@ -20,31 +20,44 @@ import (
 )
 
 const (
+	// webSocketTokenEndpoint 是闲鱼消息令牌的 MTop 入口。
 	webSocketTokenEndpoint = "https://h5api.m.goofish.com/h5/mtop.taobao.idlemessage.pc.login.token/1.0/"
-	deviceCookieEndpoint   = "https://log.mmstat.com/eg.js"
-	webSocketAppKey        = "444e9908a51d1cb236a27862abc769c9"
-	mtopAppKey             = "34839810"
+	// deviceCookieEndpoint 是获取 cna 设备 Cookie 的入口。
+	deviceCookieEndpoint = "https://log.mmstat.com/eg.js"
+	// webSocketAppKey 是闲鱼消息协议应用标识。
+	webSocketAppKey = "444e9908a51d1cb236a27862abc769c9"
+	// mtopAppKey 是闲鱼 Web MTop 应用标识。
+	mtopAppKey = "34839810"
+	// webSocketTokenLifetime 是本地缓存消息令牌的保守有效期。
 	webSocketTokenLifetime = 20 * time.Hour
 )
 
+// VerificationRequiredError 表示闲鱼要求用户完成网页安全验证。
 type VerificationRequiredError struct {
-	URL string
+	URL string // URL 是经过域名校验的验证地址。
 }
 
+// Error 返回不含敏感信息的用户提示。
 func (e *VerificationRequiredError) Error() string {
 	return "消息接口需要网页安全验证并更新 Cookie"
 }
-func (e *VerificationRequiredError) NonRetryable() bool { return true }
-func (e *VerificationRequiredError) ActionURL() string  { return e.URL }
 
+// NonRetryable 表明自动重连无法消除安全验证要求。
+func (e *VerificationRequiredError) NonRetryable() bool { return true }
+
+// ActionURL 返回用户需要访问的安全验证地址。
+func (e *VerificationRequiredError) ActionURL() string { return e.URL }
+
+// WebSocketToken 获取、缓存并加密保存闲鱼消息连接令牌。
 type WebSocketToken struct {
-	db                   *gorm.DB
-	events               *BusinessEvent
-	client               *http.Client
-	endpoint             string
-	deviceCookieEndpoint string
+	db                   *gorm.DB       // db 读取账号凭据并保存刷新结果。
+	events               *BusinessEvent // events 记录安全验证等业务结果。
+	client               *http.Client   // client 是可在测试中替换的 HTTP 客户端。
+	endpoint             string         // endpoint 是可在测试中替换的令牌入口。
+	deviceCookieEndpoint string         // deviceCookieEndpoint 是可替换的设备 Cookie 入口。
 }
 
+// NewWebSocketToken 创建使用官方端点的消息令牌服务。
 func NewWebSocketToken(db *gorm.DB, events *BusinessEvent) WebSocketToken {
 	return WebSocketToken{
 		db:                   db,
@@ -55,6 +68,7 @@ func NewWebSocketToken(db *gorm.DB, events *BusinessEvent) WebSocketToken {
 	}
 }
 
+// Get 返回 ownerID 名下账号的有效令牌和设备标识，必要时刷新并原子保存。
 func (s *WebSocketToken) Get(ctx context.Context, ownerID, accountID uint) (string, string, error) {
 	if ownerID == 0 || accountID == 0 {
 		return "", "", errors.New("账号 ID 不能为空")
@@ -163,6 +177,7 @@ func (s *WebSocketToken) Get(ctx context.Context, ownerID, accountID uint) (stri
 	return token, deviceID, err
 }
 
+// ensureDeviceCookie 在原 Cookie 缺少 cna 时从统计入口获取并合并。
 func (s *WebSocketToken) ensureDeviceCookie(ctx context.Context, cookie string) (string, error) {
 	if parseCookieHeader(cookie)["cna"] != "" {
 		return cookie, nil
@@ -186,11 +201,12 @@ func (s *WebSocketToken) ensureDeviceCookie(ctx context.Context, cookie string) 
 	return "", errors.New("闲鱼设备 Cookie 获取失败")
 }
 
+// fetch 签名调用消息令牌接口，并返回令牌与响应合并后的 Cookie。
 func (s *WebSocketToken) fetch(ctx context.Context, cookie, deviceID string) (string, string, error) {
 	timestamp := fmt.Sprintf("%d", time.Now().UnixMilli())
 	data, err := json.Marshal(struct {
-		AppKey   string `json:"appKey"`
-		DeviceID string `json:"deviceId"`
+		AppKey   string `json:"appKey"`   // AppKey 是消息协议应用标识。
+		DeviceID string `json:"deviceId"` // DeviceID 是当前账号设备标识。
 	}{AppKey: webSocketAppKey, DeviceID: deviceID})
 	if err != nil {
 		return "", cookie, err
@@ -245,11 +261,11 @@ func (s *WebSocketToken) fetch(ctx context.Context, cookie, deviceID string) (st
 	}
 	mergedCookie := mergeResponseCookies(parseCookieHeader(cookie), response.Cookies())
 	var payload struct {
-		Ret  []string `json:"ret"`
+		Ret  []string `json:"ret"` // Ret 包含 MTop 状态码与消息。
 		Data struct {
-			AccessToken string `json:"accessToken"`
-			URL         string `json:"url"`
-		} `json:"data"`
+			AccessToken string `json:"accessToken"` // AccessToken 是消息连接令牌。
+			URL         string `json:"url"`         // URL 是安全验证地址。
+		} `json:"data"` // Data 包含令牌或验证信息。
 	}
 	if err := json.Unmarshal(body, &payload); err != nil {
 		return "", mergedCookie, errors.New("闲鱼 Token 响应格式无法识别")

@@ -10,15 +10,17 @@ import (
 	"go.uber.org/zap"
 )
 
+// ConnectionAlertWindow 聚合一个账号在固定周期内的连接不可用状态。
 type ConnectionAlertWindow struct {
-	startedAt        time.Time
-	unavailable      bool
-	unavailableCount uint
-	alerted          bool
-	lastFailure      connection.Snapshot
-	notificationDone chan struct{}
+	startedAt        time.Time           // startedAt 是聚合窗口开始时间。
+	unavailable      bool                // unavailable 表示窗口结束时仍不可用。
+	unavailableCount uint                // unavailableCount 是从可用转不可用的次数。
+	alerted          bool                // alerted 表示故障通知已开始发送。
+	lastFailure      connection.Snapshot // lastFailure 保存最近一次失败详情。
+	notificationDone chan struct{}       // notificationDone 协调故障通知先于恢复通知完成。
 }
 
+// connectionStateChanged 记录状态变化、更新告警窗口并停止失败账号任务。
 func (s *WebSocketService) connectionStateChanged(snapshot connection.Snapshot) {
 	fields := []zap.Field{
 		zap.Uint("accountID", snapshot.AccountID), zap.String("state", string(snapshot.State)),
@@ -36,6 +38,7 @@ func (s *WebSocketService) connectionStateChanged(snapshot connection.Snapshot) 
 	}
 }
 
+// trackConnectionAlertWindow 聚合重连和失败，并在恢复时安排恢复通知。
 func (s *WebSocketService) trackConnectionAlertWindow(snapshot connection.Snapshot) {
 	if snapshot.State != connection.StateConnected && snapshot.State != connection.StateReconnecting && snapshot.State != connection.StateFailed {
 		return
@@ -88,6 +91,7 @@ func (s *WebSocketService) trackConnectionAlertWindow(snapshot connection.Snapsh
 	s.alertMu.Unlock()
 }
 
+// finishConnectionAlertWindow 在窗口结束时发送故障通知或记录已恢复抖动。
 func (s *WebSocketService) finishConnectionAlertWindow(accountID uint, target *ConnectionAlertWindow) {
 	s.alertMu.Lock()
 	window := s.alertWindows[accountID]
@@ -109,6 +113,7 @@ func (s *WebSocketService) finishConnectionAlertWindow(accountID uint, target *C
 	close(window.notificationDone)
 }
 
+// recordSuppressedConnectionAlert 记录窗口内已自行恢复且未告警的连接抖动。
 func (s *WebSocketService) recordSuppressedConnectionAlert(accountID uint, window *ConnectionAlertWindow) {
 	var account model.Account
 	if err := s.db.Where("id = ?", accountID).First(&account).Error; err != nil {
@@ -122,12 +127,14 @@ func (s *WebSocketService) recordSuppressedConnectionAlert(accountID uint, windo
 	})
 }
 
+// cancelConnectionAlertWindow 在主动停止账号时清除聚合状态。
 func (s *WebSocketService) cancelConnectionAlertWindow(accountID uint) {
 	s.alertMu.Lock()
 	delete(s.alertWindows, accountID)
 	s.alertMu.Unlock()
 }
 
+// sendConnectionNotification 发送经过 HTML 转义的故障或恢复邮件并记录审计事件。
 func (s *WebSocketService) sendConnectionNotification(snapshot connection.Snapshot, recovered bool, startedAt time.Time, unavailableCount uint) {
 	var account model.Account
 	if err := s.db.Where("id = ?", snapshot.AccountID).First(&account).Error; err != nil {

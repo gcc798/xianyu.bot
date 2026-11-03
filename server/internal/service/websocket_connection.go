@@ -17,6 +17,7 @@ import (
 	"golang.org/x/net/websocket"
 )
 
+// Dial 获取账号消息令牌和 Cookie，建立并注册闲鱼 WebSocket 连接。
 func (d *XYDialer) Dial(ctx context.Context, accountID uint) (connection.Connection, error) {
 	var account model.Account
 	if err := d.db.WithContext(ctx).Where("id = ?", accountID).First(&account).Error; err != nil {
@@ -59,6 +60,7 @@ func (d *XYDialer) Dial(ctx context.Context, accountID uint) (connection.Connect
 	return connection, nil
 }
 
+// register 发送客户端能力并等待闲鱼返回有效注册会话。
 func (c *XYConnection) register(ctx context.Context, token, deviceID string) error {
 	registration := map[string]any{
 		"lwp": "/reg",
@@ -77,8 +79,8 @@ func (c *XYConnection) register(ctx context.Context, token, deviceID string) err
 			return fmt.Errorf("等待闲鱼 WebSocket 注册响应: %w", err)
 		}
 		var envelope struct {
-			Code    int            `json:"code"`
-			Headers map[string]any `json:"headers"`
+			Code    int            `json:"code"`    // Code 是注册响应状态码。
+			Headers map[string]any `json:"headers"` // Headers 包含注册会话标识。
 		}
 		if json.Unmarshal(message, &envelope) != nil {
 			continue
@@ -100,6 +102,7 @@ func (c *XYConnection) register(ctx context.Context, token, deviceID string) err
 	})
 }
 
+// Read 持续读取协议帧，路由请求响应、确认推送并返回业务消息。
 func (c *XYConnection) Read(ctx context.Context) ([]byte, error) {
 	for {
 		message, err := c.receive(ctx)
@@ -107,17 +110,17 @@ func (c *XYConnection) Read(ctx context.Context) ([]byte, error) {
 			return nil, err
 		}
 		var envelope struct {
-			LWP     string          `json:"lwp"`
-			Code    int             `json:"code"`
-			Headers map[string]any  `json:"headers"`
-			Body    json.RawMessage `json:"body"`
+			LWP     string          `json:"lwp"`     // LWP 是协议方法名。
+			Code    int             `json:"code"`    // Code 是协议状态码。
+			Headers map[string]any  `json:"headers"` // Headers 包含消息关联字段。
+			Body    json.RawMessage `json:"body"`    // Body 是协议业务负载。
 		}
 		if err := json.Unmarshal(message, &envelope); err != nil {
 			zap.L().Warn("闲鱼 WebSocket 收到无法解析的协议帧", zap.Uint("accountID", c.accountID), zap.Int("bytes", len(message)), zap.Error(err))
 			continue
 		}
 		var pushBody struct {
-			SyncPushPackage json.RawMessage `json:"syncPushPackage"`
+			SyncPushPackage json.RawMessage `json:"syncPushPackage"` // SyncPushPackage 是消息同步包。
 		}
 		_ = json.Unmarshal(envelope.Body, &pushBody)
 		if envelope.LWP != "" && envelope.LWP != "/!" {
@@ -161,22 +164,25 @@ func (c *XYConnection) Read(ctx context.Context) ([]byte, error) {
 	}
 }
 
+// hasPending 判断消息 ID 是否对应一个等待中的请求。
 func (c *XYConnection) hasPending(mid string) bool {
 	c.pendingMu.Lock()
 	defer c.pendingMu.Unlock()
 	return c.pending[mid] != nil
 }
 
+// Send 发送请求并等待成功响应，忽略响应正文。
 func (c *XYConnection) Send(ctx context.Context, payload []byte) error {
 	_, err := c.Request(ctx, payload)
 	return err
 }
 
+// Request 按 payload 中的消息 ID 关联并等待对应响应。
 func (c *XYConnection) Request(ctx context.Context, payload []byte) ([]byte, error) {
 	var envelope struct {
 		Headers struct {
-			MID string `json:"mid"`
-		} `json:"headers"`
+			MID string `json:"mid"` // MID 是请求关联标识。
+		} `json:"headers"` // Headers 包含协议请求头。
 	}
 	if err := json.Unmarshal(payload, &envelope); err != nil || envelope.Headers.MID == "" {
 		return nil, errors.New("闲鱼发送消息缺少请求标识")
@@ -208,6 +214,7 @@ func (c *XYConnection) Request(ctx context.Context, payload []byte) ([]byte, err
 	}
 }
 
+// resolve 非阻塞地把 response 交付给指定消息 ID 的等待者。
 func (c *XYConnection) resolve(mid string, response WebSocketResponse) {
 	c.pendingMu.Lock()
 	result := c.pending[mid]
@@ -220,16 +227,19 @@ func (c *XYConnection) resolve(mid string, response WebSocketResponse) {
 	}
 }
 
+// Ping 发送闲鱼协议心跳帧。
 func (c *XYConnection) Ping(ctx context.Context) error {
 	return c.writeJSON(ctx, map[string]any{"lwp": "/!", "headers": map[string]any{"mid": webSocketMID()}})
 }
 
+// Close 幂等关闭底层 WebSocket 连接。
 func (c *XYConnection) Close() error {
 	var err error
 	c.closeOnce.Do(func() { err = c.conn.Close() })
 	return err
 }
 
+// ack 回传协议要求的关联请求头和成功状态。
 func (c *XYConnection) ack(ctx context.Context, headers map[string]any) error {
 	if len(headers) == 0 {
 		return nil
@@ -246,6 +256,7 @@ func (c *XYConnection) ack(ctx context.Context, headers map[string]any) error {
 	return c.writeJSON(ctx, map[string]any{"code": http.StatusOK, "headers": ackHeaders})
 }
 
+// receive 将上下文取消或截止时间映射为 WebSocket 读截止时间。
 func (c *XYConnection) receive(ctx context.Context) ([]byte, error) {
 	stop := context.AfterFunc(ctx, func() { _ = c.conn.SetReadDeadline(time.Now()) })
 	defer stop()
@@ -261,6 +272,7 @@ func (c *XYConnection) receive(ctx context.Context) ([]byte, error) {
 	return message, err
 }
 
+// writeJSON 串行发送 JSON 帧并遵守上下文截止时间。
 func (c *XYConnection) writeJSON(ctx context.Context, payload any) error {
 	c.writeMu.Lock()
 	defer c.writeMu.Unlock()
@@ -277,6 +289,7 @@ func (c *XYConnection) writeJSON(ctx context.Context, payload any) error {
 	return err
 }
 
+// writeText 串行发送文本帧并遵守上下文截止时间。
 func (c *XYConnection) writeText(ctx context.Context, payload []byte) error {
 	c.writeMu.Lock()
 	defer c.writeMu.Unlock()
@@ -293,8 +306,10 @@ func (c *XYConnection) writeText(ctx context.Context, payload []byte) error {
 	return err
 }
 
+// webSocketMIDSequence 避免同毫秒生成重复消息 ID。
 var webSocketMIDSequence atomic.Uint64
 
+// webSocketMID 生成闲鱼协议要求的近似单调消息 ID。
 func webSocketMID() string {
 	return strconv.FormatInt(time.Now().UnixMilli(), 10) + strconv.FormatUint(webSocketMIDSequence.Add(1), 10) + " 0"
 }
