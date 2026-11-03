@@ -9,12 +9,17 @@ import (
 	"gorm.io/gorm"
 )
 
-type DictionaryDetailService struct{ db *gorm.DB }
+// DictionaryDetailService 管理字典条目的层级、路径和排序。
+type DictionaryDetailService struct {
+	db *gorm.DB // db 持久化字典条目树。
+}
 
+// NewDictionaryDetailService 创建字典条目服务。
 func NewDictionaryDetailService(db *gorm.DB) *DictionaryDetailService {
 	return &DictionaryDetailService{db: db}
 }
 
+// Create 根据父节点计算层级和路径后创建条目。
 func (dictionaryDetailService *DictionaryDetailService) Create(detail model.DictionaryDetail) error {
 	if detail.ParentID != nil {
 		var parent model.DictionaryDetail
@@ -30,6 +35,7 @@ func (dictionaryDetailService *DictionaryDetailService) Create(detail model.Dict
 	return dictionaryDetailService.db.Create(&detail).Error
 }
 
+// Delete 仅删除没有子节点的字典条目。
 func (dictionaryDetailService *DictionaryDetailService) Delete(detail model.DictionaryDetail) error {
 	var childCount int64
 	if err := dictionaryDetailService.db.Model(&model.DictionaryDetail{}).Where("parent_id = ?", detail.ID).Count(&childCount).Error; err != nil {
@@ -41,6 +47,7 @@ func (dictionaryDetailService *DictionaryDetailService) Delete(detail model.Dict
 	return dictionaryDetailService.db.Delete(&detail).Error
 }
 
+// Update 校验父级环路并递归刷新后代路径。
 func (dictionaryDetailService *DictionaryDetailService) Update(detail *model.DictionaryDetail) error {
 	if detail.ParentID != nil {
 		var parent model.DictionaryDetail
@@ -62,6 +69,7 @@ func (dictionaryDetailService *DictionaryDetailService) Update(detail *model.Dic
 	return dictionaryDetailService.updateChildrenPath(detail.ID)
 }
 
+// hasCircularReference 判断把 id 挂到 parentID 下是否形成环路。
 func (dictionaryDetailService *DictionaryDetailService) hasCircularReference(id, parentID uint) bool {
 	if id == parentID {
 		return true
@@ -73,6 +81,7 @@ func (dictionaryDetailService *DictionaryDetailService) hasCircularReference(id,
 	return dictionaryDetailService.hasCircularReference(id, *parent.ParentID)
 }
 
+// updateChildrenPath 递归重算 parentID 全部后代的层级和路径。
 func (dictionaryDetailService *DictionaryDetailService) updateChildrenPath(parentID uint) error {
 	var parent model.DictionaryDetail
 	if err := dictionaryDetailService.db.First(&parent, parentID).Error; err != nil {
@@ -95,6 +104,7 @@ func (dictionaryDetailService *DictionaryDetailService) updateChildrenPath(paren
 	return nil
 }
 
+// dictionaryPath 生成包含 parent 自身 ID 的祖先路径。
 func dictionaryPath(parent model.DictionaryDetail) string {
 	parentID := strconv.FormatUint(uint64(parent.ID), 10)
 	if parent.Path == "" {
@@ -103,6 +113,7 @@ func dictionaryPath(parent model.DictionaryDetail) string {
 	return parent.Path + "," + parentID
 }
 
+// List 按 search 分页筛选字典条目并按业务顺序返回。
 func (dictionaryDetailService *DictionaryDetailService) List(search request.DictionaryDetailSearch) ([]model.DictionaryDetail, int64, error) {
 	query := dictionaryDetailService.db.Model(&model.DictionaryDetail{})
 	if search.Label != "" {

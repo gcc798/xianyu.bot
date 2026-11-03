@@ -12,12 +12,17 @@ import (
 	"gorm.io/gorm"
 )
 
-type UserService struct{ db *gorm.DB }
+// UserService 管理系统用户、密码和固定角色边界。
+type UserService struct {
+	db *gorm.DB // db 持久化系统用户。
+}
 
+// NewUserService 创建系统用户服务。
 func NewUserService(db *gorm.DB) *UserService {
 	return &UserService{db: db}
 }
 
+// Register 创建唯一登录名用户，并生成 UUID 和密码摘要。
 func (userService *UserService) Register(user model.User) (model.User, error) {
 	var existing model.User
 	err := userService.db.Where("username = ?", user.Username).First(&existing).Error
@@ -36,6 +41,7 @@ func (userService *UserService) Register(user model.User) (model.User, error) {
 	return user, userService.db.Create(&user).Error
 }
 
+// Login 校验 input 中的登录名和明文密码。
 func (userService *UserService) Login(input *model.User) (*model.User, error) {
 	if userService.db == nil {
 		return nil, fmt.Errorf("db not init")
@@ -50,6 +56,7 @@ func (userService *UserService) Login(input *model.User) (*model.User, error) {
 	return &user, nil
 }
 
+// ChangePassword 校验 user 的原密码后保存 newPassword 摘要。
 func (userService *UserService) ChangePassword(user *model.User, newPassword string) error {
 	var stored model.User
 	if err := userService.db.Select("id, password").Where("id = ?", user.ID).First(&stored).Error; err != nil {
@@ -61,6 +68,7 @@ func (userService *UserService) ChangePassword(user *model.User, newPassword str
 	return userService.db.Model(&stored).Update("password", security.BcryptHash(newPassword)).Error
 }
 
+// List 按 info 分页、筛选和白名单字段排序系统用户。
 func (userService *UserService) List(info systemReq.UserSearch) ([]model.User, int64, error) {
 	db := userService.db.Model(&model.User{})
 	for column, value := range map[string]string{
@@ -92,10 +100,12 @@ func (userService *UserService) List(info systemReq.UserSearch) ([]model.User, i
 	return users, total, nil
 }
 
+// DeleteUser 软删除指定系统用户。
 func (userService *UserService) DeleteUser(id int) error {
 	return userService.db.Delete(&model.User{}, id).Error
 }
 
+// SetUserInfo 更新管理员可编辑的用户资料、状态和固定角色。
 func (userService *UserService) SetUserInfo(user model.User) error {
 	user.AuthorityID = normalizeAuthorityID(user.AuthorityID)
 	return userService.db.Model(&model.User{}).Where("id = ?", user.ID).Updates(map[string]any{
@@ -104,6 +114,7 @@ func (userService *UserService) SetUserInfo(user model.User) error {
 	}).Error
 }
 
+// normalizeAuthorityID 仅保留固定管理员角色，其余值归一为普通用户。
 func normalizeAuthorityID(authorityID uint) uint {
 	if authorityID == model.AdministratorAuthorityID {
 		return authorityID
@@ -111,6 +122,7 @@ func normalizeAuthorityID(authorityID uint) uint {
 	return model.UserAuthorityID
 }
 
+// SetSelfInfo 更新当前用户可自行修改的资料，不允许改变角色和状态。
 func (userService *UserService) SetSelfInfo(user model.User) error {
 	return userService.db.Model(&model.User{}).Where("id = ?", user.ID).Updates(map[string]any{
 		"updated_at": time.Now(), "nick_name": user.NickName, "header_img": user.HeaderImage,
@@ -118,11 +130,13 @@ func (userService *UserService) SetSelfInfo(user model.User) error {
 	}).Error
 }
 
+// GetUserInfo 按对外 UUID 查询系统用户。
 func (userService *UserService) GetUserInfo(userUUID uuid.UUID) (user model.User, err error) {
 	err = userService.db.First(&user, "uuid = ?", userUUID).Error
 	return user, err
 }
 
+// ResetPassword 由管理员直接替换指定用户的密码摘要。
 func (userService *UserService) ResetPassword(id uint, password string) error {
 	return userService.db.Model(&model.User{}).Where("id = ?", id).Update("password", security.BcryptHash(password)).Error
 }

@@ -11,17 +11,20 @@ import (
 	"gorm.io/gorm"
 )
 
+// Account 管理用户拥有的闲鱼账号与加密凭据。
 type Account struct {
-	db           *gorm.DB
-	events       *BusinessEvent
-	loginChecker loginChecker
-	webSocket    *WebSocketService
+	db           *gorm.DB          // db 持久化账号和凭据。
+	events       *BusinessEvent    // events 记录账号业务结果。
+	loginChecker loginChecker      // loginChecker 检查远端登录状态。
+	webSocket    *WebSocketService // webSocket 在禁用或删除账号时停止连接。
 }
 
+// NewAccount 创建账号服务。
 func NewAccount(db *gorm.DB, events *BusinessEvent) *Account {
 	return &Account{db: db, events: events}
 }
 
+// Create 为 ownerID 创建尚未配置凭据的闲鱼账号。
 func (s *Account) Create(ctx context.Context, ownerID uint, input xyRequest.CreateAccount) (model.Account, error) {
 	label := strings.TrimSpace(input.Label)
 	if err := validateAccount(ownerID, label, input.Note); err != nil {
@@ -31,6 +34,7 @@ func (s *Account) Create(ctx context.Context, ownerID uint, input xyRequest.Crea
 	return item, s.db.WithContext(ctx).Create(&item).Error
 }
 
+// Update 修改 ownerID 名下账号的显示信息和启用状态。
 func (s *Account) Update(ctx context.Context, ownerID uint, input xyRequest.UpdateAccount) error {
 	label := strings.TrimSpace(input.Label)
 	if input.ID == 0 {
@@ -51,6 +55,7 @@ func (s *Account) Update(ctx context.Context, ownerID uint, input xyRequest.Upda
 	return nil
 }
 
+// Delete 删除 ownerID 名下账号及其加密凭据，并停止活动连接。
 func (s *Account) Delete(ctx context.Context, ownerID, id uint) error {
 	if ownerID == 0 || id == 0 {
 		return errors.New("账号 ID 不能为空")
@@ -70,6 +75,7 @@ func (s *Account) Delete(ctx context.Context, ownerID, id uint) error {
 	})
 }
 
+// List 分页查询 ownerID 名下账号，并投影凭据是否存在。
 func (s *Account) List(ctx context.Context, ownerID uint, input xyRequest.AccountSearch) ([]model.Account, int64, error) {
 	if ownerID == 0 {
 		return nil, 0, errors.New("用户未登录")
@@ -95,6 +101,7 @@ func (s *Account) List(ctx context.Context, ownerID uint, input xyRequest.Accoun
 	return list, total, err
 }
 
+// SaveCredential 校验账号归属后加密保存 Cookie 和可选令牌。
 func (s *Account) SaveCredential(ctx context.Context, ownerID uint, input xyRequest.SaveCredential) error {
 	if ownerID == 0 || input.ID == 0 {
 		return errors.New("账号 ID 不能为空")
@@ -145,6 +152,7 @@ func (s *Account) SaveCredential(ctx context.Context, ownerID uint, input xyRequ
 	})
 }
 
+// validateAccount 校验账号归属标识及可编辑文本长度。
 func validateAccount(ownerID uint, label, note string) error {
 	if ownerID == 0 {
 		return errors.New("用户未登录")
@@ -158,10 +166,12 @@ func validateAccount(ownerID uint, label, note string) error {
 	return nil
 }
 
+// credentialAAD 生成绑定账号和凭据类型的加密附加数据。
 func credentialAAD(accountID uint, kind string) string {
 	return fmt.Sprintf("xy/account/%d/%s", accountID, kind)
 }
 
+// affected 将零行更新转换为记录不存在错误。
 func affected(result *gorm.DB) error {
 	if result.Error != nil {
 		return result.Error

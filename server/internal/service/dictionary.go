@@ -9,12 +9,17 @@ import (
 	"gorm.io/gorm"
 )
 
-type DictionaryService struct{ db *gorm.DB }
+// DictionaryService 管理可分层的系统字典。
+type DictionaryService struct {
+	db *gorm.DB // db 持久化字典及层级关系。
+}
 
+// NewDictionaryService 创建系统字典服务。
 func NewDictionaryService(db *gorm.DB) *DictionaryService {
 	return &DictionaryService{db: db}
 }
 
+// Create 在类型编码唯一时创建字典。
 func (dictionaryService *DictionaryService) Create(dictionary model.Dictionary) error {
 	if !errors.Is(dictionaryService.db.First(&model.Dictionary{}, "type = ?", dictionary.Type).Error, gorm.ErrRecordNotFound) {
 		return errors.New("存在相同的type，不允许创建")
@@ -22,6 +27,7 @@ func (dictionaryService *DictionaryService) Create(dictionary model.Dictionary) 
 	return dictionaryService.db.Create(&dictionary).Error
 }
 
+// Delete 删除字典及其直属条目；不存在时返回明确错误。
 func (dictionaryService *DictionaryService) Delete(dictionary model.Dictionary) error {
 	err := dictionaryService.db.Where("id = ?", dictionary.ID).Preload("Details").First(&dictionary).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -39,6 +45,7 @@ func (dictionaryService *DictionaryService) Delete(dictionary model.Dictionary) 
 	return nil
 }
 
+// Update 校验类型唯一性和父级环路后更新字典。
 func (dictionaryService *DictionaryService) Update(dictionary *model.Dictionary) error {
 	var stored model.Dictionary
 	if err := dictionaryService.db.Where("id = ?", dictionary.ID).First(&stored).Error; err != nil {
@@ -58,6 +65,7 @@ func (dictionaryService *DictionaryService) Update(dictionary *model.Dictionary)
 	}).Error
 }
 
+// List 按名称或类型检索字典并预加载直接子节点。
 func (dictionaryService *DictionaryService) List(ctx context.Context, search request.DictionarySearch) ([]model.Dictionary, error) {
 	var dictionaries []model.Dictionary
 	query := dictionaryService.db.WithContext(ctx)
@@ -68,6 +76,7 @@ func (dictionaryService *DictionaryService) List(ctx context.Context, search req
 	return dictionaries, err
 }
 
+// checkCircularReference 沿父链检查 currentID 是否会形成字典环路。
 func (dictionaryService *DictionaryService) checkCircularReference(currentID, parentID uint) error {
 	if currentID == parentID {
 		return errors.New("不能将字典设置为自己的父级")

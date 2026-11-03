@@ -12,14 +12,17 @@ import (
 	"gorm.io/gorm"
 )
 
+// BusinessEvent 记录并查询用户可见的闲鱼业务审计事件。
 type BusinessEvent struct {
-	db *gorm.DB
+	db *gorm.DB // db 持久化审计事件。
 }
 
+// NewBusinessEvent 创建业务事件服务。
 func NewBusinessEvent(db *gorm.DB) *BusinessEvent {
 	return &BusinessEvent{db: db}
 }
 
+// Record 写入结构化日志，并在 event 带 ownerID 时持久化审计记录。
 func (s *BusinessEvent) Record(ctx context.Context, event model.BusinessEvent) {
 	fields := []zap.Field{
 		zap.Uint("ownerID", event.OwnerID), zap.Uint("accountID", event.AccountID),
@@ -42,6 +45,7 @@ func (s *BusinessEvent) Record(ctx context.Context, event model.BusinessEvent) {
 	}
 }
 
+// List 分页查询 ownerID 名下事件并补充账号、商品和订单名称。
 func (s *BusinessEvent) List(ctx context.Context, ownerID uint, input xyRequest.BusinessEventSearch) ([]xyResponse.BusinessEvent, int64, error) {
 	if ownerID == 0 {
 		return nil, 0, errors.New("用户未登录")

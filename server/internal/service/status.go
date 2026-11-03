@@ -9,14 +9,17 @@ import (
 	"gorm.io/gorm"
 )
 
+// Status 提供数据库健康检查和用户业务概览。
 type Status struct {
-	db *gorm.DB
+	db *gorm.DB // db 用于健康检查和聚合统计。
 }
 
+// NewStatus 创建状态查询服务。
 func NewStatus(db *gorm.DB) *Status {
 	return &Status{db: db}
 }
 
+// Get 检查数据库并汇总 ownerID 名下的关键业务数量。
 func (s *Status) Get(ctx context.Context, ownerID uint) (xyResponse.Status, error) {
 	if s.db == nil {
 		return xyResponse.Status{}, errors.New("database is not initialized")
@@ -27,10 +30,10 @@ func (s *Status) Get(ctx context.Context, ownerID uint) (xyResponse.Status, erro
 	result := xyResponse.Status{Database: "postgresql"}
 	db := s.db.WithContext(ctx)
 	for _, count := range []struct {
-		model any
-		query string
-		args  []any
-		value *int64
+		model any    // model 指定 GORM 统计表。
+		query string // query 是带占位符的归属与状态条件。
+		args  []any  // args 是 query 对应参数。
+		value *int64 // value 接收统计结果。
 	}{
 		{&model.Account{}, "owner_id = ?", []any{ownerID}, &result.Accounts},
 		{&model.Account{}, "owner_id = ? AND status = ? AND enabled = ?", []any{ownerID, "ready", true}, &result.ReadyAccounts},
