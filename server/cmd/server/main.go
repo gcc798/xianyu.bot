@@ -11,7 +11,6 @@ import (
 	agenttool "github.com/gcc798/xianyu.bot/internal/agent/tool"
 	"github.com/gcc798/xianyu.bot/internal/api"
 	"github.com/gcc798/xianyu.bot/internal/api/router"
-	"github.com/gcc798/xianyu.bot/internal/app"
 	"github.com/gcc798/xianyu.bot/internal/config"
 	"github.com/gcc798/xianyu.bot/internal/infra"
 	"github.com/gcc798/xianyu.bot/internal/infra/mail"
@@ -75,5 +74,5 @@ func run() error {
 	}
 	runner := agent.NewRunner(ctx, db, mcpRegistry, resources, events, localTools)
 	routes := router.New(api.New(services, jwt, aiConfig, resources, sessions, runner, events))
-	return infra.RunServer(ctx, app.Routers(routes, jwt), settings.HTTP.Port)
+	return infra.RunServer(ctx, routes.Engine(jwt), settings.HTTP.Port)
 }

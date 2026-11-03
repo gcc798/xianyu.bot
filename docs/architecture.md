@@ -9,9 +9,8 @@
 | 路径 | 职责 | 状态 |
 | --- | --- | --- |
 | `server/` | Go HTTP 服务和通用后台基础能力 | 主动维护 |
-| `server/internal/app/` | HTTP 路由注册 | 主动维护 |
 | `server/internal/infra/` | PostgreSQL、日志、HTTP 和 Goose 迁移等运行基础设施 | 主动维护 |
-| `server/internal/api/` | 平铺的 HTTP Handler；`router/` 注册路径和中间件 | 主动维护 |
+| `server/internal/api/` | 平铺的 HTTP Handler；`router/` 创建 Gin 引擎并注册路径和中间件 | 主动维护 |
 | `server/internal/service/` | 平铺的通用基础和闲鱼业务服务 | 主动维护 |
 | `server/internal/model/` | 平铺的持久化实体，`request/` 和 `response/` 存放 API 契约 | 主动维护 |
 | `server/internal/agent/` | Agent 运行、会话、事件、Tool 契约、MCP 和资源能力 | 主动维护 |
