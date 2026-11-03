@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	agenttool "github.com/gcc798/xianyu.bot/internal/agent/tool"
 	"github.com/gcc798/xianyu.bot/internal/model"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/stretchr/testify/require"
@@ -20,11 +21,13 @@ func TestAgentHarnessEnforcesIndependentBudgets(t *testing.T) {
 	config.MaxWriteToolCalls = 1
 	harness := newAgentHarness(config)
 
-	require.NoError(t, harness.BeforeToolCall(mcp.Tool{Name: "resource_search"}))
-	err := harness.BeforeToolCall(mcp.Tool{Name: "resource_search"})
+	search := agenttool.Definition{Code: "resource_search", BudgetClass: agenttool.BudgetSearch}
+	write := agenttool.Definition{Code: "resource_acquire", RequiresApproval: true}
+	require.NoError(t, harness.BeforeToolCall(search))
+	err := harness.BeforeToolCall(search)
 	require.True(t, errors.Is(err, ErrAgentBudgetExceeded))
-	require.NoError(t, harness.BeforeToolCall(mcp.Tool{Name: "resource_acquire"}))
-	err = harness.BeforeToolCall(mcp.Tool{Name: "task_cancel"})
+	require.NoError(t, harness.BeforeToolCall(write))
+	err = harness.BeforeToolCall(write)
 	require.True(t, errors.Is(err, ErrAgentBudgetExceeded))
 
 	usage := harness.Usage()
@@ -37,13 +40,13 @@ func TestAgentHarnessKeepsConcurrentToolCallsWithinLimit(t *testing.T) {
 	config := model.DefaultAgentConfig()
 	config.MaxToolCalls = 5
 	harness := newAgentHarness(config)
-	tool := mcp.Tool{Name: "channel_get_status"}
+	definition := agenttool.Definition{Code: "channel_get_status"}
 
 	var accepted atomic.Int64
 	var workers sync.WaitGroup
 	for range 20 {
 		workers.Go(func() {
-			if harness.BeforeToolCall(tool) == nil {
+			if harness.BeforeToolCall(definition) == nil {
 				accepted.Add(1)
 			}
 		})
@@ -67,15 +70,15 @@ func TestAgentHarnessLimitsActiveToolCalls(t *testing.T) {
 	harness.ReleaseToolSlot()
 }
 
-func TestAgentHarnessClassifiesUnknownToolsConservatively(t *testing.T) {
+func TestMCPToolPoliciesClassifyUnknownToolsConservatively(t *testing.T) {
 	readOnly := true
-	require.False(t, toolRequiresApproval(mcp.Tool{Name: "custom_read", Annotations: mcp.ToolAnnotation{ReadOnlyHint: &readOnly}}))
-	require.True(t, toolRequiresApproval(mcp.Tool{Name: "custom_unknown"}))
-	require.Equal(t, 5*time.Second, toolTimeout(mcp.Tool{Name: "resource_acquire"}))
-	require.Equal(t, 35*time.Second, toolTimeout(mcp.Tool{Name: "message_list"}))
-	require.False(t, toolRequiresApproval(mcp.Tool{Name: "message_send"}))
-	require.True(t, toolRequiresApproval(mcp.Tool{Name: "dialog_join"}))
-	require.Equal(t, 30*time.Second, toolTimeout(mcp.Tool{Name: "dialog_join"}))
+	require.False(t, mcpToolRequiresApproval(mcp.Tool{Name: "custom_read", Annotations: mcp.ToolAnnotation{ReadOnlyHint: &readOnly}}))
+	require.True(t, mcpToolRequiresApproval(mcp.Tool{Name: "custom_unknown"}))
+	require.Equal(t, 5*time.Second, mcpToolTimeout(mcp.Tool{Name: "resource_acquire"}))
+	require.Equal(t, 35*time.Second, mcpToolTimeout(mcp.Tool{Name: "message_list"}))
+	require.False(t, mcpToolRequiresApproval(mcp.Tool{Name: "message_send"}))
+	require.True(t, mcpToolRequiresApproval(mcp.Tool{Name: "dialog_join"}))
+	require.Equal(t, 30*time.Second, mcpToolTimeout(mcp.Tool{Name: "dialog_join"}))
 }
 
 func TestAgentHarnessAppliesWallTime(t *testing.T) {

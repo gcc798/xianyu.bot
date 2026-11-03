@@ -2,172 +2,91 @@ package agent
 
 import (
 	"context"
-	"crypto/rand"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"slices"
 	"time"
 
-	"github.com/cloudwego/eino/components/tool"
-	"github.com/cloudwego/eino/compose"
-	"github.com/cloudwego/eino/schema"
 	"github.com/eino-contrib/jsonschema"
+	agenttool "github.com/gcc798/xianyu.bot/internal/agent/tool"
 	"github.com/gcc798/xianyu.bot/internal/model"
 	"github.com/mark3labs/mcp-go/mcp"
-	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
 
-type einoMCPTool struct {
+type mcpAgentTool struct {
 	db         *gorm.DB
 	connection *mcpConnection
-	definition mcp.Tool
-	alias      string
-	harness    *agentHarness
-	parameters *jsonschema.Schema
-	events     *EventHub
-	ownerID    uint
-	sessionID  uint
-	runID      uint
+	remote     mcp.Tool
+	definition agenttool.Definition
 }
 
-var _ tool.InvokableTool = (*einoMCPTool)(nil)
+var _ agenttool.Tool = (*mcpAgentTool)(nil)
 
-func newEinoMCPTool(db *gorm.DB, connection *mcpConnection, definition mcp.Tool, harness *agentHarness) (*einoMCPTool, error) {
-	parameters, err := agentVisibleToolSchema(definition)
+func newMCPAgentTool(db *gorm.DB, connection *mcpConnection, remote mcp.Tool) (*mcpAgentTool, error) {
+	parameters, err := agentVisibleToolSchema(remote)
 	if err != nil {
-		return nil, fmt.Errorf("解析 MCP 工具 %s 参数: %w", definition.Name, err)
+		return nil, fmt.Errorf("解析 MCP 工具 %s 参数: %w", remote.Name, err)
 	}
-	return &einoMCPTool{
-		db:         db,
-		connection: connection, definition: definition,
-		alias:   connection.Server.Code + "__" + definition.Name,
-		harness: harness, parameters: parameters,
+	requiresApproval := mcpToolRequiresApproval(remote)
+	budgetClass := agenttool.BudgetGeneral
+	if remote.Name == "resource_search" {
+		budgetClass = agenttool.BudgetSearch
+	}
+	timeout := mcpToolTimeout(remote)
+	if serverTimeout := time.Duration(connection.Server.RequestTimeoutSeconds) * time.Second; serverTimeout > 0 {
+		timeout = min(timeout, serverTimeout)
+	}
+	return &mcpAgentTool{
+		db: db, connection: connection, remote: remote,
+		definition: agenttool.Definition{
+			Code: connection.Server.Code + "__" + remote.Name, Name: remote.Name,
+			Description: remote.Description, Source: "mcp", ProviderCode: connection.Server.Code,
+			Parameters: parameters, ReadOnly: !requiresApproval, RequiresApproval: requiresApproval,
+			Timeout: timeout, BudgetClass: budgetClass,
+		},
 	}, nil
 }
 
-func (t *einoMCPTool) Info(context.Context) (*schema.ToolInfo, error) {
-	return &schema.ToolInfo{
-		Name: t.alias, Desc: t.definition.Description,
-		ParamsOneOf: schema.NewParamsOneOfByJSONSchema(t.parameters),
-	}, nil
-}
+func (t *mcpAgentTool) Definition() agenttool.Definition { return t.definition }
 
-func (t *einoMCPTool) InvokableRun(ctx context.Context, arguments string, _ ...tool.Option) (string, error) {
-	call, err := t.startToolCall(ctx)
-	if err != nil {
-		return "", err
-	}
+func (t *mcpAgentTool) Invoke(ctx context.Context, scope agenttool.Scope, arguments json.RawMessage) (string, error) {
 	var input map[string]any
-	if err := json.Unmarshal([]byte(arguments), &input); err != nil {
-		if err := t.finishToolCall(ctx, call, "failed", "invalid_arguments", "工具参数无效"); err != nil {
-			return "", err
-		}
-		t.publish("tool.failed", t.toolEvent(call, map[string]any{"error": map[string]any{"code": "invalid_arguments", "message": "工具参数无效"}}))
-		return toolFailure("invalid_arguments", "工具参数无效"), nil
+	if err := json.Unmarshal(arguments, &input); err != nil {
+		return "", &agenttool.ExecutionError{Code: "invalid_arguments", Message: "工具参数无效", Cause: err}
 	}
-	if t.definition.Name == "resource_acquire" {
-		delete(input, "task_id")
-		delete(input, "idempotency_key")
-		delete(input, "delivery_token")
-	}
-	t.publish("tool.started", t.toolEvent(call, map[string]any{"arguments": input}))
-	if err := t.harness.BeforeToolCall(t.definition); err != nil {
-		if err := t.finishToolCall(ctx, call, "failed", "budget_exceeded", "工具调用次数已达到限制"); err != nil {
-			return "", err
-		}
-		t.publish("tool.failed", t.toolEvent(call, map[string]any{"error": map[string]any{"code": "budget_exceeded", "message": "工具调用次数已达到限制"}}))
-		return toolFailure("budget_exceeded", "本轮工具调用次数已达到限制"), nil
-	}
-	if toolRequiresApproval(t.definition) {
-		if err := t.queueApproval(ctx, call, input); err != nil {
-			return "", err
-		}
-		t.publish("approval.required", t.toolEvent(call, map[string]any{"arguments": input}))
-		return toolFailure("approval_required", "此操作需要用户确认后执行"), nil
-	}
-	if err := t.saveToolArguments(ctx, call, input); err != nil {
-		return "", err
-	}
-	callContext, cancel := context.WithTimeout(ctx, min(toolTimeout(t.definition), time.Duration(t.connection.Server.RequestTimeoutSeconds)*time.Second))
-	defer cancel()
-	if err := t.harness.AcquireToolSlot(callContext); err != nil {
-		if finishErr := t.finishToolCall(ctx, call, "failed", "capability_unavailable", "等待工具执行超时"); finishErr != nil {
-			return "", errors.Join(err, finishErr)
-		}
-		t.publish("tool.failed", t.toolEvent(call, map[string]any{"error": map[string]any{"code": "capability_unavailable", "message": "等待工具执行超时"}}))
-		return toolFailure("capability_unavailable", "MCP 能力暂不可用"), nil
-	}
-	defer t.harness.ReleaseToolSlot()
-	result, err := t.connection.Client.CallTool(callContext, mcp.CallToolRequest{Params: mcp.CallToolParams{
-		Name: t.definition.Name, Arguments: input,
+	result, err := t.connection.Client.CallTool(ctx, mcp.CallToolRequest{Params: mcp.CallToolParams{
+		Name: t.remote.Name, Arguments: input,
 	}})
 	if err != nil {
-		if err := t.finishToolCall(ctx, call, "failed", "capability_unavailable", "MCP 能力暂不可用"); err != nil {
-			return "", err
-		}
-		t.publish("tool.failed", t.toolEvent(call, map[string]any{"error": map[string]any{"code": "capability_unavailable", "message": "MCP 能力暂不可用"}}))
-		return toolFailure("capability_unavailable", "MCP 能力暂不可用"), nil
+		return "", &agenttool.ExecutionError{Code: "capability_unavailable", Message: "MCP 能力暂不可用", Cause: err}
 	}
-	if err := t.persistResourceCandidates(ctx, input, result); err != nil {
-		if finishErr := t.finishToolCall(ctx, call, "failed", "metadata_persistence_failed", "保存资源候选失败"); finishErr != nil {
-			return "", errors.Join(err, finishErr)
-		}
-		t.publish("tool.failed", t.toolEvent(call, map[string]any{"error": map[string]any{"code": "metadata_persistence_failed", "message": "保存资源候选失败"}}))
-		return toolFailure("metadata_persistence_failed", "资源候选暂时无法保存"), nil
+	if err := t.persistResourceCandidates(ctx, scope.OwnerID, input, result); err != nil {
+		return "", &agenttool.ExecutionError{Code: "metadata_persistence_failed", Message: "保存资源候选失败", Cause: err}
 	}
 	payload, err := json.Marshal(result)
 	if err != nil {
-		if finishErr := t.finishToolCall(ctx, call, "failed", "invalid_result", "MCP 工具结果无效"); finishErr != nil {
-			return "", errors.Join(err, finishErr)
-		}
-		return "", fmt.Errorf("编码 MCP 工具结果: %w", err)
+		return "", &agenttool.ExecutionError{Code: "invalid_result", Message: "MCP 工具结果无效", Cause: err}
 	}
-	status, errorCode := "completed", ""
 	if result.IsError {
-		status, errorCode = "failed", "mcp_error"
-	}
-	trace := compactToolTrace(mcpToolResultValue(result))
-	if err := t.saveToolResult(ctx, call, json.RawMessage(payload)); err != nil {
-		return "", err
-	}
-	if err := t.finishToolCall(ctx, call, status, errorCode, ""); err != nil {
-		return "", err
-	}
-	eventData := map[string]any{
-		"status": status, "trace": trace, "resultRef": map[string]any{"type": "agent_run_tool", "id": toolCallRecordID(call)},
-	}
-	if status == "failed" {
-		eventData["error"] = map[string]any{"code": errorCode, "message": "MCP 工具返回错误"}
-		t.publish("tool.failed", t.toolEvent(call, eventData))
-	} else {
-		t.publish("tool.completed", t.toolEvent(call, eventData))
+		return string(payload), &agenttool.ExecutionError{Code: "mcp_error", Message: "MCP 工具返回错误"}
 	}
 	return string(payload), nil
 }
 
-func (t *einoMCPTool) queueApproval(ctx context.Context, call *model.AgentRunTool, input map[string]any) error {
-	if call == nil {
-		return nil
+func (t *mcpAgentTool) filterArguments(arguments json.RawMessage) (json.RawMessage, error) {
+	if t.remote.Name != "resource_acquire" {
+		return arguments, nil
 	}
-	if t.definition.Name == "resource_acquire" {
-		delete(input, "task_id")
-		delete(input, "idempotency_key")
-		delete(input, "delivery_token")
+	var input map[string]any
+	if err := json.Unmarshal(arguments, &input); err != nil {
+		return nil, err
 	}
-	arguments, err := json.Marshal(input)
-	if err != nil {
-		return err
-	}
-	completedAt := time.Now()
-	finishContext, cancel := agentFinishContext(ctx)
-	defer cancel()
-	return t.db.WithContext(finishContext).Model(call).Updates(map[string]any{
-		"arguments": string(arguments), "status": "waiting_approval", "error_code": "approval_required",
-		"error_message": "等待用户确认", "completed_at": completedAt,
-		"duration_millis": time.Since(call.StartedAt).Milliseconds(),
-	}).Error
+	delete(input, "task_id")
+	delete(input, "idempotency_key")
+	delete(input, "delivery_token")
+	return json.Marshal(input)
 }
 
 type resourceMessageFile struct {
@@ -190,8 +109,8 @@ type resourceToolResult struct {
 	} `json:"data"`
 }
 
-func (t *einoMCPTool) persistResourceCandidates(ctx context.Context, input map[string]any, result *mcp.CallToolResult) error {
-	if !slices.Contains([]string{"message_list", "message_search"}, t.definition.Name) || result == nil || result.IsError || t.ownerID == 0 {
+func (t *mcpAgentTool) persistResourceCandidates(ctx context.Context, ownerID uint, input map[string]any, result *mcp.CallToolResult) error {
+	if !slices.Contains([]string{"message_list", "message_search"}, t.remote.Name) || result == nil || result.IsError || ownerID == 0 {
 		return nil
 	}
 	payload, err := json.Marshal(mcpToolResultValue(result))
@@ -202,16 +121,13 @@ func (t *einoMCPTool) persistResourceCandidates(ctx context.Context, input map[s
 	if err := json.Unmarshal(payload, &toolResult); err != nil {
 		return err
 	}
-	if toolResult.Status != "success" {
-		return nil
-	}
-	if !slices.ContainsFunc(toolResult.Data.Messages, func(message resourceMessage) bool { return message.File != nil }) {
+	if toolResult.Status != "success" || !slices.ContainsFunc(toolResult.Data.Messages, func(message resourceMessage) bool { return message.File != nil }) {
 		return nil
 	}
 	query, _ := input["query"].(string)
 	expiresAt := time.Now().Add(24 * time.Hour)
 	return t.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		search := model.ResourceSearch{OwnerID: t.ownerID, Query: query, Status: "completed"}
+		search := model.ResourceSearch{OwnerID: ownerID, Query: query, Status: "completed"}
 		if err := tx.Create(&search).Error; err != nil {
 			return err
 		}
@@ -266,126 +182,30 @@ func mcpToolResultValue(result *mcp.CallToolResult) any {
 	return nil
 }
 
-func (t *einoMCPTool) startToolCall(ctx context.Context) (*model.AgentRunTool, error) {
-	if t.runID == 0 {
-		return nil, nil
-	}
-	callID := compose.GetToolCallID(ctx)
-	if callID == "" {
-		callID = fmt.Sprintf("run-%d-%s", t.runID, rand.Text())
-	}
-	call := &model.AgentRunTool{
-		RunID: t.runID, CallID: callID, MCPServerCode: t.connection.Server.Code,
-		ToolName: t.definition.Name, Status: "running", StartedAt: time.Now(),
-	}
-	if err := t.db.WithContext(ctx).Create(call).Error; err != nil {
-		return nil, err
-	}
-	return call, nil
-}
-
-func (t *einoMCPTool) saveToolArguments(ctx context.Context, call *model.AgentRunTool, input map[string]any) error {
-	if call == nil {
-		return nil
-	}
-	arguments, err := json.Marshal(input)
-	if err != nil {
-		return err
-	}
-	return t.db.WithContext(ctx).Model(call).Update("arguments", string(arguments)).Error
-}
-
-func (t *einoMCPTool) saveToolResult(ctx context.Context, call *model.AgentRunTool, result any) error {
-	if call == nil {
-		return nil
-	}
-	payload, err := json.Marshal(result)
-	if err != nil {
-		return err
-	}
-	finishContext, cancel := agentFinishContext(ctx)
-	defer cancel()
-	return t.db.WithContext(finishContext).Model(call).Update("result", string(payload)).Error
-}
-
-func compactToolTrace(value any) any {
-	compacted := compactTraceValue(value)
-	payload, err := json.Marshal(compacted)
-	if err == nil && len(payload) <= agentEventMaxBytes/2 {
-		return compacted
-	}
-	return map[string]any{"truncated": true, "message": "工具结果过大，请根据游标分批读取"}
-}
-
-func compactTraceValue(value any) any {
-	switch current := value.(type) {
-	case map[string]any:
-		compacted := make(map[string]any, len(current))
-		for key, nested := range current {
-			compacted[key] = compactTraceValue(nested)
-		}
-		return compacted
-	case []any:
-		compacted := make([]any, 0, min(len(current), 100))
-		for _, nested := range current[:min(len(current), 100)] {
-			compacted = append(compacted, compactTraceValue(nested))
-		}
-		return compacted
-	case string:
-		runes := []rune(current)
-		if len(runes) > 500 {
-			return string(runes[:500]) + "…"
-		}
-		return current
+func mcpToolRequiresApproval(remote mcp.Tool) bool {
+	switch remote.Name {
+	case "channel_get_info", "channel_get_status", "dialog_list", "dialog_resolve", "message_send", "message_list", "message_search", "resource_search", "resource_inspect", "task_get":
+		return false
+	case "source_sync", "dialog_join", "resource_acquire", "task_cancel":
+		return true
 	default:
-		return value
+		return remote.Annotations.ReadOnlyHint == nil || !*remote.Annotations.ReadOnlyHint
 	}
 }
 
-func (t *einoMCPTool) finishToolCall(ctx context.Context, call *model.AgentRunTool, status, errorCode, errorMessage string) error {
-	if call == nil {
-		return nil
+func mcpToolTimeout(remote mcp.Tool) time.Duration {
+	switch remote.Name {
+	case "dialog_join":
+		return 30 * time.Second
+	case "message_list":
+		return 35 * time.Second
+	case "task_get":
+		return 5 * time.Second
 	}
-	completedAt := time.Now()
-	finishContext, cancel := agentFinishContext(ctx)
-	defer cancel()
-	return t.db.WithContext(finishContext).Model(call).Updates(map[string]any{
-		"status": status, "duration_millis": time.Since(call.StartedAt).Milliseconds(),
-		"error_code": errorCode, "error_message": errorMessage, "completed_at": completedAt,
-	}).Error
-}
-
-func (t *einoMCPTool) publish(eventType string, data any) {
-	if t.events != nil {
-		if _, err := t.events.Publish(t.sessionID, eventType, data); err != nil {
-			zap.L().Error("保存 Agent 工具事件失败", zap.Uint("sessionID", t.sessionID), zap.String("eventType", eventType), zap.Error(err))
-		}
+	if mcpToolRequiresApproval(remote) {
+		return 5 * time.Second
 	}
-}
-
-func (t *einoMCPTool) toolEvent(call *model.AgentRunTool, data map[string]any) map[string]any {
-	data["runId"] = t.runID
-	data["callId"] = toolCallID(call)
-	data["server"] = t.connection.Server.Code
-	data["tool"] = t.definition.Name
-	if call != nil {
-		data["durationMillis"] = time.Since(call.StartedAt).Milliseconds()
-	}
-	return data
-}
-
-func toolCallID(call *model.AgentRunTool) string {
-	if call == nil {
-		return ""
-	}
-	return call.CallID
-}
-
-func toolCallRecordID(call *model.AgentRunTool) uint {
-	if call == nil {
-		return 0
-	}
-	return call.ID
+	return 15 * time.Second
 }
 
 func agentVisibleToolSchema(definition mcp.Tool) (*jsonschema.Schema, error) {
@@ -425,11 +245,4 @@ func agentVisibleToolSchema(definition mcp.Tool) (*jsonschema.Schema, error) {
 		return nil, err
 	}
 	return parameters, nil
-}
-
-func toolFailure(code, message string) string {
-	payload, _ := json.Marshal(map[string]any{
-		"ok": false, "error": map[string]string{"code": code, "message": message},
-	})
-	return string(payload)
 }

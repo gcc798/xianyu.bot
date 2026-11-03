@@ -18,6 +18,7 @@ import (
 	"github.com/cloudwego/eino/components/tool"
 	"github.com/cloudwego/eino/compose"
 	"github.com/cloudwego/eino/schema"
+	agenttool "github.com/gcc798/xianyu.bot/internal/agent/tool"
 	"github.com/gcc798/xianyu.bot/internal/model"
 	xyRequest "github.com/gcc798/xianyu.bot/internal/model/request"
 	"go.uber.org/zap"
@@ -388,15 +389,14 @@ func buildEinoMCPTools(db *gorm.DB, connections []*mcpConnection, harness *agent
 	tools := make([]tool.BaseTool, 0)
 	for _, connection := range connections {
 		for _, definition := range connection.Tools {
-			adapted, err := newEinoMCPTool(db, connection, definition, harness)
+			implementation, err := newMCPAgentTool(db, connection, definition)
 			if err != nil {
 				return nil, err
 			}
-			adapted.events = events
-			adapted.ownerID = run.OwnerID
-			adapted.sessionID = run.SessionID
-			adapted.runID = run.ID
-			tools = append(tools, adapted)
+			tools = append(tools, &governedTool{
+				db: db, implementation: implementation, harness: harness, events: events,
+				scope: agenttool.Scope{OwnerID: run.OwnerID}, sessionID: run.SessionID, runID: run.ID,
+			})
 		}
 	}
 	return tools, nil

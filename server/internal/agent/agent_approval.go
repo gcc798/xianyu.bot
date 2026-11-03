@@ -77,7 +77,7 @@ func (s *Runner) executeApproval(ctx context.Context, run model.AgentRun, call *
 			return err
 		}
 	}
-	requestContext, cancel := context.WithTimeout(ctx, min(toolTimeout(definition), time.Duration(connection.Server.RequestTimeoutSeconds)*time.Second))
+	requestContext, cancel := context.WithTimeout(ctx, min(mcpToolTimeout(definition), time.Duration(connection.Server.RequestTimeoutSeconds)*time.Second))
 	defer cancel()
 	result, err := connection.Client.CallTool(requestContext, mcp.CallToolRequest{Params: mcp.CallToolParams{Name: call.ToolName, Arguments: input}})
 	if err != nil {

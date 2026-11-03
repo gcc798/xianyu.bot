@@ -7,8 +7,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	agenttool "github.com/gcc798/xianyu.bot/internal/agent/tool"
 	"github.com/gcc798/xianyu.bot/internal/model"
-	"github.com/mark3labs/mcp-go/mcp"
 )
 
 var (
@@ -72,17 +72,17 @@ func (h *agentHarness) BeforeModelCall() error {
 	return reserveAgentBudget(&h.modelCalls, int64(h.config.MaxModelCalls), "模型调用次数")
 }
 
-func (h *agentHarness) BeforeToolCall(tool mcp.Tool) error {
+func (h *agentHarness) BeforeToolCall(definition agenttool.Definition) error {
 	if err := reserveAgentBudget(&h.toolCalls, int64(h.config.MaxToolCalls), "工具调用次数"); err != nil {
 		return err
 	}
-	if tool.Name == "resource_search" {
+	if definition.BudgetClass == agenttool.BudgetSearch {
 		if err := reserveAgentBudget(&h.searches, int64(h.config.MaxSearchCalls), "资源检索次数"); err != nil {
 			h.toolCalls.Add(-1)
 			return err
 		}
 	}
-	if toolRequiresApproval(tool) {
+	if definition.RequiresApproval {
 		if err := reserveAgentBudget(&h.writes, int64(h.config.MaxWriteToolCalls), "写工具调用次数"); err != nil {
 			h.toolCalls.Add(-1)
 			return err
@@ -108,28 +108,4 @@ func reserveAgentBudget(counter *atomic.Int64, limit int64, name string) error {
 			return nil
 		}
 	}
-}
-
-func toolRequiresApproval(tool mcp.Tool) bool {
-	switch tool.Name {
-	case "channel_get_info", "channel_get_status", "dialog_list", "dialog_resolve", "message_send", "message_list", "message_search", "resource_search", "resource_inspect", "task_get":
-		return false
-	case "source_sync", "dialog_join", "resource_acquire", "task_cancel":
-		return true
-	default:
-		return tool.Annotations.ReadOnlyHint == nil || !*tool.Annotations.ReadOnlyHint
-	}
-}
-
-func toolTimeout(tool mcp.Tool) time.Duration {
-	if tool.Name == "dialog_join" {
-		return 30 * time.Second
-	}
-	if tool.Name == "message_list" {
-		return 35 * time.Second
-	}
-	if toolRequiresApproval(tool) || tool.Name == "task_get" {
-		return 5 * time.Second
-	}
-	return 15 * time.Second
 }

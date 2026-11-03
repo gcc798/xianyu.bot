@@ -6,6 +6,7 @@ import (
 	"sync/atomic"
 	"testing"
 
+	agenttool "github.com/gcc798/xianyu.bot/internal/agent/tool"
 	"github.com/gcc798/xianyu.bot/internal/model"
 	"github.com/glebarez/sqlite"
 	"github.com/mark3labs/mcp-go/mcp"
@@ -33,7 +34,7 @@ func TestEinoMCPToolHidesDeliveryFieldsAndRequiresApproval(t *testing.T) {
 			Required: []string{"candidate_id", "task_id", "idempotency_key", "delivery_token"},
 		},
 	}
-	target, err := newEinoMCPTool(db, connection, definition, newAgentHarness(model.DefaultAgentConfig()))
+	target, err := newTestMCPTool(db, connection, definition)
 	require.NoError(t, err)
 	info, err := target.Info(t.Context())
 	require.NoError(t, err)
@@ -71,7 +72,7 @@ func TestEinoMCPToolCallsReadCapability(t *testing.T) {
 			"query": map[string]any{"type": "string"},
 		}},
 	}
-	target, err := newEinoMCPTool(db, connection, definition, newAgentHarness(model.DefaultAgentConfig()))
+	target, err := newTestMCPTool(db, connection, definition)
 	require.NoError(t, err)
 	session := model.AgentSession{OwnerID: 11, Title: "工具轨迹"}
 	require.NoError(t, db.Create(&session).Error)
@@ -118,9 +119,9 @@ func TestEinoMCPToolPersistsMessageCandidates(t *testing.T) {
 	definition := mcp.Tool{Name: "message_search", InputSchema: mcp.ToolInputSchema{Type: "object", Properties: map[string]any{
 		"query": map[string]any{"type": "string"},
 	}}}
-	target, err := newEinoMCPTool(db, connection, definition, newAgentHarness(model.DefaultAgentConfig()))
+	target, err := newTestMCPTool(db, connection, definition)
 	require.NoError(t, err)
-	target.ownerID = 11
+	target.scope = agenttool.Scope{OwnerID: 11}
 	target.runID = 9
 
 	_, err = target.InvokableRun(t.Context(), `{"query":"Go"}`)
@@ -137,6 +138,14 @@ func TestEinoMCPToolPersistsMessageCandidates(t *testing.T) {
 	require.JSONEq(t, `{"id":7,"name":"Go 资料"}`, candidate.Source)
 	require.Equal(t, "preview", candidate.Preview)
 	require.NotNil(t, candidate.ExpiresAt)
+}
+
+func newTestMCPTool(db *gorm.DB, connection *mcpConnection, definition mcp.Tool) (*governedTool, error) {
+	implementation, err := newMCPAgentTool(db, connection, definition)
+	if err != nil {
+		return nil, err
+	}
+	return &governedTool{db: db, implementation: implementation, harness: newAgentHarness(model.DefaultAgentConfig())}, nil
 }
 
 type recordingMCPClient struct {
