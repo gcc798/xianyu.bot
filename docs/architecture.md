@@ -11,10 +11,11 @@
 | `server/` | Go HTTP 服务和通用后台基础能力 | 主动维护 |
 | `server/internal/app/` | HTTP 路由组合根 | 主动维护 |
 | `server/internal/infra/` | PostgreSQL、日志、HTTP 和 Goose 迁移等运行基础设施 | 主动维护 |
-| `server/internal/api/{router/,}xianyu/` | 闲鱼、Agent、MCP 和资源 HTTP 适配层 | 主动维护 |
-| `server/internal/service/xianyu/` | 闲鱼、Agent、MCP 和资源业务服务 | 主动维护 |
-| `server/internal/model/xianyu/` | 闲鱼、Agent、MCP 和资源持久化与 API 契约 | 主动维护 |
-| `server/internal/xianyu/` | 闲鱼模块装配、通信协议与连接运行时 | 主动维护 |
+| `server/internal/api/` | 平铺的 HTTP Handler；`router/` 注册路径和中间件 | 主动维护 |
+| `server/internal/service/` | 平铺的通用基础和闲鱼业务服务 | 主动维护 |
+| `server/internal/model/` | 平铺的持久化实体，`request/` 和 `response/` 存放 API 契约 | 主动维护 |
+| `server/internal/agent/` | Agent 运行、会话、事件、MCP 和资源能力 | 主动维护 |
+| `server/internal/xianyu/` | 闲鱼通信协议、连接运行时与启动检查 | 主动维护 |
 | `agent-web/` | React 18 + TypeScript 后台与 Agent 前端 | 主动维护 |
 | `script/tel-bot/` | Telegram 资源渠道和 MCP 支撑服务 | 辅助服务 |
 | `web/` | Vue 旧后台，只用于迁移对照和回滚 | 已废弃 |
@@ -35,7 +36,8 @@ router -> api -> service -> model
 - Service 负责 owner 校验、状态机、事务和外部调用策略。
 - Model 定义持久化结构及请求/响应契约。
 - Protocol 和 Connection 隔离闲鱼通信细节。
-- Initialize 只负责数据库连接、稳定路由和必要的 Agent 默认配置，不是插件入口。
+- `service.New` 是唯一业务服务组合根；API 和 Router 直接依赖 `service.Service`，不使用额外的 Dependencies 包装。
+- Agent 和闲鱼启动检查分别由各自包的 `Initialize` 负责，不是插件入口。
 - `cmd/server` 创建进程信号上下文并持有数据库、日志和 HTTP 生命周期；业务 worker 从同一个根上下文派生。
 - 数据库通过组合根显式注入，不使用包级数据库或日志变量；日志使用 Zap 的标准全局入口。
 - Go module 路径固定为 `github.com/gcc798/xianyu.bot`。
@@ -52,7 +54,7 @@ router -> api -> service -> model
 - `{ code, data, msg }` 统一响应；
 - 从登录用户获得 owner 身份。
 
-通用后台只承担基础设施；闲鱼业务规则和 Agent 执行留在 `server/internal/service/xianyu/`，`server/internal/xianyu/` 只负责模块装配、通信协议和连接运行时。
+通用后台能力与闲鱼业务服务在 `server/internal/service/` 平铺管理；Agent 执行与 MCP/资源能力留在 `server/internal/agent/`，`server/internal/xianyu/` 只负责闲鱼通信协议、连接和启动检查。
 
 ## 前端
 

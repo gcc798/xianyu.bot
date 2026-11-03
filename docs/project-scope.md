@@ -44,7 +44,7 @@
 
 ## 已完成基础
 
-- 闲鱼后端从插件路径迁入 `server/internal/xianyu/`。
+- 闲鱼后端从插件路径迁入平铺的 `server/internal/service/` 和协议边界 `server/internal/xianyu/`。
 - 演示、插件、代码生成、参数和 API Token 管理已移出保留范围。
 - 复制的 PostgreSQL 结构已形成 Goose 基线，并接入启动迁移。
 - React 已具备登录、用户、字典和登录日志页面。

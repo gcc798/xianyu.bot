@@ -5,7 +5,8 @@
 ## 当前架构
 
 - `server/` 是 Go 后端，通用能力仅保留登录、管理员/普通用户、字典和登录审计。
-- `server/internal/xianyu/` 承载闲鱼自动化和 Agent 业务，是正式领域模块，不是插件。
+- `server/internal/service/` 平铺通用基础能力和闲鱼业务服务，不再区分 `system` 和 `xianyu` 子包。
+- `server/internal/agent/` 独立承载 Agent、MCP 和资源能力；`server/internal/xianyu/` 只承载闲鱼协议、连接与启动逻辑。
 - `agent-web/` 是唯一维护的前端，使用 React 18 和 TypeScript。
 - `web/` 是已废弃的 Gin-Vue-Admin/Vue 前端，只暂时用于行为对照、迁移验收和回滚。
 - `server/internal/infra/migrations/` 是 PostgreSQL 生产表结构的唯一事实源，服务启动时使用 Goose 执行迁移。
@@ -28,7 +29,7 @@
 
 - API 层处理 HTTP 参数和响应，Service 层处理业务决策，`model/` 定义持久化与契约，`router/` 注册路由。
 - Service 不依赖 `gin.Context`。
-- 闲鱼依赖必须收敛在 `server/internal/xianyu/`；不得恢复 `server/plugin/xy` 或设计新的通用插件框架。
+- 闲鱼协议和连接依赖必须收敛在 `server/internal/xianyu/`，Agent 依赖必须收敛在 `server/internal/agent/`；不得恢复 `server/plugin/xy` 或设计新的通用插件框架。
 - 使用有领域语义的名称。除非职责确实准确，否则避免 `platform`、`runtime`、`manager`、`processor` 等宽泛命名。
 - 复用系统登录、固定管理员边界、统一响应、字典和登录审计能力，不建立平行基础设施。
 - 用户业务数据必须在 Service 层校验 `owner_id`。

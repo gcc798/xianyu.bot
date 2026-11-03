@@ -6,7 +6,7 @@ Xianyu Assistant 是面向闲鱼自动化和可审计 Agent 工作流的 Go 模�
 
 项目正在迁移中：
 
-- 闲鱼与 Agent 后端位于 `server/internal/xianyu/`。
+- 闲鱼业务服务位于 `server/internal/service/`，Agent 能力位于 `server/internal/agent/`。
 - PostgreSQL 表结构由 Goose 管理。
 - `agent-web/` 是目标 React 18 + TypeScript 前端。
 - `web/` 是冻结的 Vue 旧前端，只暂时用于迁移对照和回滚。
@@ -26,8 +26,12 @@ Xianyu Assistant 是面向闲鱼自动化和可审计 Agent 工作流的 Go 模�
 
 ```text
 server/
+  internal/agent/       Agent、MCP 与资源能力
+  internal/api/         HTTP Handler 和 Router
+  internal/service/     通用基础与闲鱼业务服务
+  internal/model/       持久化实体与请求/响应契约
   internal/infra/       PostgreSQL、Goose、日志与 HTTP 基础设施
-  internal/xianyu/      闲鱼自动化与 Agent 领域模块
+  internal/xianyu/      闲鱼协议、连接与启动逻辑
 
 agent-web/              主动维护的 React 前端
 web/                    已废弃的 Vue 迁移对照
@@ -62,7 +66,7 @@ docker compose up -d --build
 
 ```bash
 cd server
-go test ./internal/infra/... ./internal/xianyu/...
+go test ./internal/agent/... ./internal/service/... ./internal/xianyu/...
 
 cd ../agent-web
 npm run build

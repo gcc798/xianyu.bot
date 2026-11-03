@@ -2,7 +2,7 @@
 
 ## 职责
 
-`server/internal/xianyu/` 负责闲鱼自动化。它不是插件，也不负责通用用户、登录、字典或登录审计基础设施。
+`server/internal/service/` 中的闲鱼服务负责业务规则，`server/internal/xianyu/` 负责协议和连接运行时。它们不是插件，也不建立平行的用户、登录、字典或登录审计基础设施。
 
 ## 能力分组
 

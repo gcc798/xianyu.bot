@@ -1,6 +1,6 @@
 # 当前数据模型
 
-本文件只记录当前 `server/internal/xianyu/model/` 已存在的业务表。字段、索引和约束的最终事实以 Go Model 和 Goose 迁移为准。
+本文件只记录当前 `server/internal/model/` 已存在的业务表。字段、索引和约束的最终事实以 Go Model 和 Goose 迁移为准。
 
 ## 账号与运行状态
 
