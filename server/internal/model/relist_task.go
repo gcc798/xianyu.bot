@@ -5,24 +5,41 @@ import (
 )
 
 const (
-	RelistTaskPending    = "pending"
+	// RelistTaskPending 表示重发任务等待执行。
+	RelistTaskPending = "pending"
+	// RelistTaskPublishing 表示正在发布新商品。
 	RelistTaskPublishing = "publishing"
-	RelistTaskFailed     = "failed"
-	RelistTaskUnknown    = "unknown"
-	RelistTaskSucceeded  = "succeeded"
+	// RelistTaskFailed 表示重发明确失败。
+	RelistTaskFailed = "failed"
+	// RelistTaskUnknown 表示执行结果尚未确认。
+	RelistTaskUnknown = "unknown"
+	// RelistTaskSucceeded 表示新商品发布成功。
+	RelistTaskSucceeded = "succeeded"
 )
 
+// RelistTask 记录售出商品的自动重发进度。
 type RelistTask struct {
+	// Timestamps 保存任务记录的生命周期字段。
 	Timestamps
-	OwnerID              uint      `json:"-" gorm:"not null;index:idx_xy_relist_tasks_owner"`
-	AccountID            uint      `json:"accountId" gorm:"not null;index"`
-	OrderID              uint      `json:"orderId" gorm:"not null;uniqueIndex"`
-	ProductID            uint      `json:"productId" gorm:"not null;index"`
-	Status               string    `json:"status" gorm:"size:32;not null;index"`
-	Attempts             int       `json:"attempts" gorm:"not null;default:0"`
-	NextAttemptAt        time.Time `json:"nextAttemptAt" gorm:"not null;index"`
-	NewExternalProductID string    `json:"newExternalProductId" gorm:"size:128"`
-	LastError            string    `json:"lastError" gorm:"size:500"`
+	// OwnerID 是任务所属的系统用户 ID。
+	OwnerID uint `json:"-" gorm:"not null;index:idx_xy_relist_tasks_owner"`
+	// AccountID 是执行重发的闲鱼账号 ID。
+	AccountID uint `json:"accountId" gorm:"not null;index"`
+	// OrderID 是触发任务的订单 ID。
+	OrderID uint `json:"orderId" gorm:"not null;uniqueIndex"`
+	// ProductID 是待重发的本地商品 ID。
+	ProductID uint `json:"productId" gorm:"not null;index"`
+	// Status 是任务执行状态。
+	Status string `json:"status" gorm:"size:32;not null;index"`
+	// Attempts 是已执行次数。
+	Attempts int `json:"attempts" gorm:"not null;default:0"`
+	// NextAttemptAt 是下次允许执行的时间。
+	NextAttemptAt time.Time `json:"nextAttemptAt" gorm:"not null;index"`
+	// NewExternalProductID 是成功发布后的闲鱼商品标识。
+	NewExternalProductID string `json:"newExternalProductId" gorm:"size:128"`
+	// LastError 是最近一次执行失败原因。
+	LastError string `json:"lastError" gorm:"size:500"`
 }
 
+// TableName 返回商品重发任务表名。
 func (RelistTask) TableName() string { return "xy_relist_tasks" }
