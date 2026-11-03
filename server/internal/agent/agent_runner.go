@@ -54,6 +54,13 @@ type Runner struct {
 	workers   map[uint]context.CancelFunc
 }
 
+func NewRunner(ctx context.Context, db *gorm.DB, registry *MCPRegistry, resources *ResourceCatalog, events *EventHub) *Runner {
+	return &Runner{
+		root: rootContext(ctx), db: db, registry: registry, resources: resources, events: events,
+		workers: make(map[uint]context.CancelFunc),
+	}
+}
+
 type RunResult struct {
 	Run       model.AgentRun      `json:"run"`
 	Assistant *model.AgentMessage `json:"assistant,omitempty"`

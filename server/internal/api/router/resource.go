@@ -7,6 +7,10 @@ import (
 
 type ResourceRouter struct{ handlers *api.API }
 
+func NewResourceRouter(handlers *api.API) *ResourceRouter {
+	return &ResourceRouter{handlers: handlers}
+}
+
 func (r *ResourceRouter) Init(private *gin.RouterGroup) {
 	private.GET("xy/resources", r.handlers.Resource.List)
 	private.GET("xy/resources/:id", r.handlers.Resource.Get)

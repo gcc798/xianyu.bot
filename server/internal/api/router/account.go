@@ -7,6 +7,10 @@ import (
 
 type AccountRouter struct{ handlers *api.API }
 
+func NewAccountRouter(handlers *api.API) *AccountRouter {
+	return &AccountRouter{handlers: handlers}
+}
+
 func (r *AccountRouter) Init(private *gin.RouterGroup) {
 	read := private.Group("xy/account")
 	write := private.Group("xy/account")

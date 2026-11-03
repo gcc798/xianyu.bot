@@ -19,6 +19,10 @@ type AIConfig struct {
 	db *gorm.DB
 }
 
+func NewAIConfig(db *gorm.DB) *AIConfig {
+	return &AIConfig{db: db}
+}
+
 func affected(result *gorm.DB) error {
 	if result.Error != nil {
 		return result.Error

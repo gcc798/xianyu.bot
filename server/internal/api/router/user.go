@@ -8,6 +8,8 @@ import (
 
 type UserRouter struct{ handlers *api.API }
 
+func NewUserRouter(handlers *api.API) *UserRouter { return &UserRouter{handlers: handlers} }
+
 func (s *UserRouter) Init(router *gin.RouterGroup) {
 	user := router.Group("user")
 	user.POST("changePassword", s.handlers.User.ChangePassword)

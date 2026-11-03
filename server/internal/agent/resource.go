@@ -47,6 +47,10 @@ type ResourceCatalog struct {
 	registry    *MCPRegistry
 }
 
+func NewResourceCatalog(db *gorm.DB, events *EventHub, registry *MCPRegistry) *ResourceCatalog {
+	return &ResourceCatalog{db: db, events: events, registry: registry}
+}
+
 type ResourceDeliveryGrant struct {
 	Task      model.ResourceTask
 	Token     string

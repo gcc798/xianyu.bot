@@ -15,6 +15,10 @@ type ReplyRule struct {
 	db *gorm.DB
 }
 
+func NewReplyRule(db *gorm.DB) *ReplyRule {
+	return &ReplyRule{db: db}
+}
+
 func (s *ReplyRule) List(ctx context.Context, ownerID uint, input xyRequest.ReplyRuleSearch) ([]xyResponse.ReplyRule, int64, error) {
 	if ownerID == 0 {
 		return nil, 0, errors.New("用户未登录")

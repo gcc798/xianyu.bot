@@ -24,6 +24,10 @@ type Order struct {
 	sender  textSender
 }
 
+func NewOrder(db *gorm.DB, events *BusinessEvent) *Order {
+	return &Order{db: db, events: events, mtop: &MTopClient{db: db}}
+}
+
 type PendingOrderPage struct {
 	Module struct {
 		Items []struct {

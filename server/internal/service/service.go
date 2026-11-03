@@ -66,36 +66,6 @@ func New(ctx context.Context, db *gorm.DB, sendNotificationEmail func(string, st
 	}
 }
 
-func NewRevokedTokenService(db *gorm.DB) *RevokedTokenService { return &RevokedTokenService{db: db} }
-func NewUserService(db *gorm.DB) *UserService                 { return &UserService{db: db} }
-func NewDictionaryService(db *gorm.DB) *DictionaryService     { return &DictionaryService{db: db} }
-func NewDictionaryDetailService(db *gorm.DB) *DictionaryDetailService {
-	return &DictionaryDetailService{db: db}
-}
-func NewLoginLogService(db *gorm.DB) *LoginLogService { return &LoginLogService{db: db} }
-func NewStatus(db *gorm.DB) *Status                   { return &Status{db: db} }
-func NewBusinessEvent(db *gorm.DB) *BusinessEvent     { return &BusinessEvent{db: db} }
-func NewAccount(db *gorm.DB, events *BusinessEvent) *Account {
-	return &Account{db: db, events: events}
-}
-func NewProduct(db *gorm.DB, events *BusinessEvent) *Product {
-	return &Product{db: db, events: events}
-}
-func NewReplyRule(db *gorm.DB) *ReplyRule       { return &ReplyRule{db: db} }
-func NewDeliveryRule(db *gorm.DB) *DeliveryRule { return &DeliveryRule{db: db} }
-func NewOrder(db *gorm.DB, events *BusinessEvent) *Order {
-	return &Order{db: db, events: events, mtop: &MTopClient{db: db}}
-}
-func NewRelist(db *gorm.DB, events *BusinessEvent, products *Product) *Relist {
-	return &Relist{db: db, events: events, mtop: &MTopClient{db: db}, products: products}
-}
-func NewDelivery(ctx context.Context, db *gorm.DB, events *BusinessEvent, orders *Order, rules *DeliveryRule, relist *Relist) *Delivery {
-	return &Delivery{root: contextOrBackground(ctx), db: db, events: events, consigner: orders, rules: rules, relist: relist, workers: make(map[uint]context.CancelFunc)}
-}
-func NewMessage(ctx context.Context, db *gorm.DB, events *BusinessEvent, rules *ReplyRule, orders *Order, delivery *Delivery) *Message {
-	return &Message{root: contextOrBackground(ctx), db: db, events: events, rules: rules, orders: orders, delivery: delivery, pending: make(map[string]PendingReply)}
-}
-
 func contextOrBackground(ctx context.Context) context.Context {
 	if ctx != nil {
 		return ctx

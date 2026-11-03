@@ -19,16 +19,6 @@ type JWT struct {
 	issuer     string
 }
 
-var (
-	TokenValid            = errors.New("未知错误")
-	TokenExpired          = errors.New("token已过期")
-	TokenNotValidYet      = errors.New("token尚未激活")
-	TokenMalformed        = errors.New("这不是一个token")
-	TokenSignatureInvalid = errors.New("无效签名")
-	TokenInvalid          = errors.New("无法处理此token")
-	tokenRefresh          singleflight.Group
-)
-
 func NewJWT(settings config.JWT) (*JWT, error) {
 	expires, err := ParseDuration(settings.ExpiresTime)
 	if err != nil {
@@ -40,6 +30,16 @@ func NewJWT(settings config.JWT) (*JWT, error) {
 	}
 	return &JWT{signingKey: []byte(settings.SigningKey), expires: expires, buffer: buffer, issuer: settings.Issuer}, nil
 }
+
+var (
+	TokenValid            = errors.New("未知错误")
+	TokenExpired          = errors.New("token已过期")
+	TokenNotValidYet      = errors.New("token尚未激活")
+	TokenMalformed        = errors.New("这不是一个token")
+	TokenSignatureInvalid = errors.New("无效签名")
+	TokenInvalid          = errors.New("无法处理此token")
+	tokenRefresh          singleflight.Group
+)
 
 func (j *JWT) CreateClaims(baseClaims request.BaseClaims) request.CustomClaims {
 	claims := request.CustomClaims{

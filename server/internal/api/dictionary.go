@@ -11,6 +11,10 @@ import (
 
 type DictionaryAPI struct{ service *service.Service }
 
+func NewDictionaryAPI(services *service.Service) *DictionaryAPI {
+	return &DictionaryAPI{service: services}
+}
+
 func (s *DictionaryAPI) Create(c *gin.Context) {
 	var dictionary model.Dictionary
 	if err := c.ShouldBindJSON(&dictionary); err != nil {

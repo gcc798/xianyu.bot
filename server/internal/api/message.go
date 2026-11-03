@@ -10,6 +10,8 @@ import (
 
 type MessageAPI struct{ service *service.Service }
 
+func NewMessageAPI(services *service.Service) *MessageAPI { return &MessageAPI{service: services} }
+
 // List 分页获取当前用户的闲鱼消息
 // @Tags XyMessage
 // @Summary 分页获取当前用户的闲鱼消息

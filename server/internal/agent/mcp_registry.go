@@ -36,6 +36,10 @@ type MCPRegistry struct {
 	connect func(context.Context, model.MCPServer) (*mcpConnection, error)
 }
 
+func NewMCPRegistry(db *gorm.DB) *MCPRegistry {
+	return &MCPRegistry{db: db}
+}
+
 func (r *MCPRegistry) Discover(ctx context.Context) ([]*mcpConnection, error) {
 	servers := make([]model.MCPServer, 0)
 	if err := r.db.WithContext(ctx).Where("enabled = ?", true).Order("id").Find(&servers).Error; err != nil {

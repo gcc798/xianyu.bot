@@ -16,6 +16,10 @@ type Session struct {
 	db *gorm.DB
 }
 
+func NewSession(db *gorm.DB) *Session {
+	return &Session{db: db}
+}
+
 func (s *Session) Create(ctx context.Context, ownerID uint, input xyRequest.CreateAgentSession) (model.AgentSession, error) {
 	if ownerID == 0 {
 		return model.AgentSession{}, errors.New("用户未登录")

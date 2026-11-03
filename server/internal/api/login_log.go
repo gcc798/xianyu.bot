@@ -11,6 +11,10 @@ import (
 
 type LoginLogAPI struct{ service *service.Service }
 
+func NewLoginLogAPI(services *service.Service) *LoginLogAPI {
+	return &LoginLogAPI{service: services}
+}
+
 func (s *LoginLogAPI) Delete(c *gin.Context) {
 	var loginLog model.LoginLog
 	err := c.ShouldBindJSON(&loginLog)

@@ -14,6 +14,10 @@ import (
 
 type UserService struct{ db *gorm.DB }
 
+func NewUserService(db *gorm.DB) *UserService {
+	return &UserService{db: db}
+}
+
 func (userService *UserService) Register(user model.User) (model.User, error) {
 	var existing model.User
 	err := userService.db.Where("username = ?", user.Username).First(&existing).Error

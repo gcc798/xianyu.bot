@@ -33,6 +33,10 @@ type Product struct {
 	mtop     mtopCaller
 }
 
+func NewProduct(db *gorm.DB, events *BusinessEvent) *Product {
+	return &Product{db: db, events: events}
+}
+
 type RemoteProduct struct {
 	ExternalProductID string
 	Title             string

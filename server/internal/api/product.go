@@ -10,6 +10,10 @@ import (
 
 type ProductAPI struct{ service *service.Service }
 
+func NewProductAPI(services *service.Service) *ProductAPI {
+	return &ProductAPI{service: services}
+}
+
 // List 分页获取当前用户的商品
 // @Tags XyProduct
 // @Summary 分页获取当前用户的商品

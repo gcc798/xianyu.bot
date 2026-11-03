@@ -8,6 +8,10 @@ import (
 
 type DictionaryDetailRouter struct{ handlers *api.API }
 
+func NewDictionaryDetailRouter(handlers *api.API) *DictionaryDetailRouter {
+	return &DictionaryDetailRouter{handlers: handlers}
+}
+
 func (s *DictionaryDetailRouter) Init(router *gin.RouterGroup) {
 	detail := router.Group("sysDictionaryDetail").Use(middleware.AdminOnly())
 	detail.POST("createSysDictionaryDetail", s.handlers.DictionaryDetail.Create)

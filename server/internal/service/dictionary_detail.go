@@ -11,6 +11,10 @@ import (
 
 type DictionaryDetailService struct{ db *gorm.DB }
 
+func NewDictionaryDetailService(db *gorm.DB) *DictionaryDetailService {
+	return &DictionaryDetailService{db: db}
+}
+
 func (dictionaryDetailService *DictionaryDetailService) Create(detail model.DictionaryDetail) error {
 	if detail.ParentID != nil {
 		var parent model.DictionaryDetail

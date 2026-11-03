@@ -10,6 +10,10 @@ import (
 
 type BusinessEventAPI struct{ service *service.Service }
 
+func NewBusinessEventAPI(services *service.Service) *BusinessEventAPI {
+	return &BusinessEventAPI{service: services}
+}
+
 func (a *BusinessEventAPI) List(c *gin.Context) {
 	var input xyRequest.BusinessEventSearch
 	if err := c.ShouldBindQuery(&input); err != nil {

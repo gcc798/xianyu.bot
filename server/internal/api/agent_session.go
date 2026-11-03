@@ -17,6 +17,10 @@ import (
 
 type AgentSessionAPI struct{ service *service.Service }
 
+func NewAgentSessionAPI(services *service.Service) *AgentSessionAPI {
+	return &AgentSessionAPI{service: services}
+}
+
 func (a *AgentSessionAPI) Create(c *gin.Context) {
 	var input xyRequest.CreateAgentSession
 	if err := c.ShouldBindJSON(&input); err != nil {

@@ -7,6 +7,8 @@ import (
 
 type OrderRouter struct{ handlers *api.API }
 
+func NewOrderRouter(handlers *api.API) *OrderRouter { return &OrderRouter{handlers: handlers} }
+
 func (r *OrderRouter) Init(group *gin.RouterGroup) {
 	read := group.Group("xy/order")
 	write := group.Group("xy/order")

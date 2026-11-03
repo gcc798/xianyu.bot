@@ -7,6 +7,8 @@ import (
 
 type StatusRouter struct{ handlers *api.API }
 
+func NewStatusRouter(handlers *api.API) *StatusRouter { return &StatusRouter{handlers: handlers} }
+
 func (r *StatusRouter) Init(private *gin.RouterGroup) {
 	group := private.Group("xy")
 	group.GET("status", r.handlers.Status.GetStatus)

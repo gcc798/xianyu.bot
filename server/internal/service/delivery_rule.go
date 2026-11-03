@@ -15,6 +15,10 @@ type DeliveryRule struct {
 	db *gorm.DB
 }
 
+func NewDeliveryRule(db *gorm.DB) *DeliveryRule {
+	return &DeliveryRule{db: db}
+}
+
 func (s *DeliveryRule) List(ctx context.Context, ownerID uint, input xyRequest.DeliveryRuleSearch) ([]xyResponse.DeliveryRule, int64, error) {
 	if ownerID == 0 {
 		return nil, 0, errors.New("用户未登录")

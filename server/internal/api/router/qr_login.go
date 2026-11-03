@@ -7,6 +7,10 @@ import (
 
 type QRLoginRouter struct{ handlers *api.API }
 
+func NewQRLoginRouter(handlers *api.API) *QRLoginRouter {
+	return &QRLoginRouter{handlers: handlers}
+}
+
 func (r *QRLoginRouter) Init(private *gin.RouterGroup) {
 	read := private.Group("xy/qr-login")
 	write := private.Group("xy/qr-login")

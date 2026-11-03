@@ -13,6 +13,10 @@ type Status struct {
 	db *gorm.DB
 }
 
+func NewStatus(db *gorm.DB) *Status {
+	return &Status{db: db}
+}
+
 func (s *Status) Get(ctx context.Context, ownerID uint) (xyResponse.Status, error) {
 	if s.db == nil {
 		return xyResponse.Status{}, errors.New("database is not initialized")

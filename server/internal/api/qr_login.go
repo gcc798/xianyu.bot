@@ -10,6 +10,10 @@ import (
 
 type QRLoginAPI struct{ service *service.Service }
 
+func NewQRLoginAPI(services *service.Service) *QRLoginAPI {
+	return &QRLoginAPI{service: services}
+}
+
 // Start 创建账号二维码登录会话
 // @Tags XyQRLogin
 // @Summary 创建账号二维码登录会话

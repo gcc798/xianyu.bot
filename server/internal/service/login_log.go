@@ -8,6 +8,10 @@ import (
 
 type LoginLogService struct{ db *gorm.DB }
 
+func NewLoginLogService(db *gorm.DB) *LoginLogService {
+	return &LoginLogService{db: db}
+}
+
 func (loginLogService *LoginLogService) Create(loginLog model.LoginLog) error {
 	return loginLogService.db.Create(&loginLog).Error
 }

@@ -11,6 +11,8 @@ import (
 
 type JWTAPI struct{ service *service.Service }
 
+func NewJWTAPI(services *service.Service) *JWTAPI { return &JWTAPI{service: services} }
+
 // Revoke
 // @Tags      Jwt
 // @Summary   jwt加入黑名单

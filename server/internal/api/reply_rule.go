@@ -10,6 +10,10 @@ import (
 
 type ReplyRuleAPI struct{ service *service.Service }
 
+func NewReplyRuleAPI(services *service.Service) *ReplyRuleAPI {
+	return &ReplyRuleAPI{service: services}
+}
+
 // ListReplyRules 分页获取回复规则
 // @Tags XyReplyRule
 // @Summary 分页获取回复规则

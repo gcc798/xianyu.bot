@@ -10,6 +10,10 @@ import (
 
 type DeliveryRuleAPI struct{ service *service.Service }
 
+func NewDeliveryRuleAPI(services *service.Service) *DeliveryRuleAPI {
+	return &DeliveryRuleAPI{service: services}
+}
+
 // ListDeliveryRules 分页获取发货规则
 // @Tags XyDeliveryRule
 // @Summary 分页获取发货规则

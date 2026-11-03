@@ -37,6 +37,24 @@ type QRLogin struct {
 	manager *QRLoginManager
 }
 
+func NewQRLogin(root context.Context, accounts *Account) *QRLogin {
+	return &QRLogin{manager: &QRLoginManager{
+		root:      contextOrBackground(root),
+		accounts:  accounts,
+		sessions:  make(map[string]*QRSession),
+		byAccount: make(map[[2]uint]string),
+		endpoints: QREndpoints{
+			h5Token:    "https://h5api.m.goofish.com/h5/mtop.gaia.nodejs.gaia.idle.data.gw.v2.index.get/1.0/",
+			miniLogin:  "https://passport.goofish.com/mini_login.htm",
+			generate:   "https://passport.goofish.com/newlogin/qrcode/generate.do",
+			query:      "https://passport.goofish.com/newlogin/qrcode/query.do",
+			loginToken: "https://passport.goofish.com/login_token/login.do",
+		},
+		timeout:   5 * time.Minute,
+		pollEvery: time.Second,
+	}}
+}
+
 type QRLoginManager struct {
 	mu        sync.Mutex
 	root      context.Context
@@ -62,24 +80,6 @@ type QRSession struct {
 	createdAt       time.Time
 	expiresAt       time.Time
 	cancel          context.CancelFunc
-}
-
-func NewQRLogin(root context.Context, accounts *Account) *QRLogin {
-	return &QRLogin{manager: &QRLoginManager{
-		root:      contextOrBackground(root),
-		accounts:  accounts,
-		sessions:  make(map[string]*QRSession),
-		byAccount: make(map[[2]uint]string),
-		endpoints: QREndpoints{
-			h5Token:    "https://h5api.m.goofish.com/h5/mtop.gaia.nodejs.gaia.idle.data.gw.v2.index.get/1.0/",
-			miniLogin:  "https://passport.goofish.com/mini_login.htm",
-			generate:   "https://passport.goofish.com/newlogin/qrcode/generate.do",
-			query:      "https://passport.goofish.com/newlogin/qrcode/query.do",
-			loginToken: "https://passport.goofish.com/login_token/login.do",
-		},
-		timeout:   5 * time.Minute,
-		pollEvery: time.Second,
-	}}
 }
 
 func (s *QRLogin) Start(ctx context.Context, ownerID, accountID uint) (xyResponse.QRLogin, error) {

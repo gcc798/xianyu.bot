@@ -10,6 +10,10 @@ import (
 
 type WebSocketAPI struct{ service *service.Service }
 
+func NewWebSocketAPI(services *service.Service) *WebSocketAPI {
+	return &WebSocketAPI{service: services}
+}
+
 // Start 启动闲鱼账号消息连接
 // @Tags XyWebSocket
 // @Summary 启动闲鱼账号消息连接

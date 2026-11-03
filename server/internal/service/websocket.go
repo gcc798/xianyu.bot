@@ -48,26 +48,6 @@ type WebSocketService struct {
 	}
 }
 
-type XYDialer struct {
-	db       *gorm.DB
-	token    webSocketTokenGetter
-	endpoint string
-}
-
-type XYConnection struct {
-	accountID uint
-	conn      *websocket.Conn
-	writeMu   sync.Mutex
-	pendingMu sync.Mutex
-	pending   map[string]chan WebSocketResponse
-	closeOnce sync.Once
-}
-
-type WebSocketResponse struct {
-	code int
-	raw  []byte
-}
-
 func NewWebSocketService(root context.Context, db *gorm.DB, events *BusinessEvent, messages *Message, sendNotificationEmail func(string, string, string) error) *WebSocketService {
 	token := NewWebSocketToken(db, events)
 	dialer := &XYDialer{db: db, token: &token, endpoint: webSocketEndpoint}
@@ -88,6 +68,26 @@ func NewWebSocketService(root context.Context, db *gorm.DB, events *BusinessEven
 	}
 	service.manager = manager
 	return service
+}
+
+type XYDialer struct {
+	db       *gorm.DB
+	token    webSocketTokenGetter
+	endpoint string
+}
+
+type XYConnection struct {
+	accountID uint
+	conn      *websocket.Conn
+	writeMu   sync.Mutex
+	pendingMu sync.Mutex
+	pending   map[string]chan WebSocketResponse
+	closeOnce sync.Once
+}
+
+type WebSocketResponse struct {
+	code int
+	raw  []byte
 }
 
 func (s *WebSocketService) handleRuntimeMessage(ctx context.Context, accountID uint, raw []byte) error {

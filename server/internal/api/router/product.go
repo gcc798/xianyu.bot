@@ -7,6 +7,10 @@ import (
 
 type ProductRouter struct{ handlers *api.API }
 
+func NewProductRouter(handlers *api.API) *ProductRouter {
+	return &ProductRouter{handlers: handlers}
+}
+
 func (r *ProductRouter) Init(private *gin.RouterGroup) {
 	read := private.Group("xy/product")
 	write := private.Group("xy/product")

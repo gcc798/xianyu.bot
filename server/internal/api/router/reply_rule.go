@@ -7,6 +7,10 @@ import (
 
 type ReplyRuleRouter struct{ handlers *api.API }
 
+func NewReplyRuleRouter(handlers *api.API) *ReplyRuleRouter {
+	return &ReplyRuleRouter{handlers: handlers}
+}
+
 func (r *ReplyRuleRouter) Init(private *gin.RouterGroup) {
 	read := private.Group("xy/reply-rule")
 	write := private.Group("xy/reply-rule")

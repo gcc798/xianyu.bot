@@ -52,6 +52,10 @@ type Message struct {
 	pending  map[string]PendingReply
 }
 
+func NewMessage(ctx context.Context, db *gorm.DB, events *BusinessEvent, rules *ReplyRule, orders *Order, delivery *Delivery) *Message {
+	return &Message{root: contextOrBackground(ctx), db: db, events: events, rules: rules, orders: orders, delivery: delivery, pending: make(map[string]PendingReply)}
+}
+
 func (s *Message) StartAccount(accountID uint) {
 	var tasks []model.ReplyTask
 	db := s.db

@@ -11,6 +11,10 @@ import (
 
 type AccountAPI struct{ service *service.Service }
 
+func NewAccountAPI(services *service.Service) *AccountAPI {
+	return &AccountAPI{service: services}
+}
+
 // Create 创建闲鱼账号档案
 // @Tags XyAccount
 // @Summary 创建闲鱼账号档案

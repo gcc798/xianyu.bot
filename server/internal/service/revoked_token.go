@@ -10,6 +10,10 @@ import (
 
 type RevokedTokenService struct{ db *gorm.DB }
 
+func NewRevokedTokenService(db *gorm.DB) *RevokedTokenService {
+	return &RevokedTokenService{db: db}
+}
+
 func (revokedTokens *RevokedTokenService) Revoke(token model.RevokedToken) error {
 	if err := revokedTokens.db.Create(&token).Error; err != nil {
 		return err

@@ -7,6 +7,8 @@ import (
 
 type MessageRouter struct{ handlers *api.API }
 
+func NewMessageRouter(handlers *api.API) *MessageRouter { return &MessageRouter{handlers: handlers} }
+
 func (r *MessageRouter) Init(group *gin.RouterGroup) {
 	read := group.Group("xy/message")
 	write := group.Group("xy/message")

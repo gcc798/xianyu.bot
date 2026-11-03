@@ -15,6 +15,8 @@ import (
 
 type TelegramProxyAPI struct{}
 
+func NewTelegramProxyAPI() *TelegramProxyAPI { return new(TelegramProxyAPI) }
+
 var telegramHTTPClient = &http.Client{Timeout: 15 * time.Minute}
 
 // Proxy preserves the Telegram service method, path, query, status, headers, and body behind system authentication.

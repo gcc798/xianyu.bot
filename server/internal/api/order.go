@@ -10,6 +10,8 @@ import (
 
 type OrderAPI struct{ service *service.Service }
 
+func NewOrderAPI(services *service.Service) *OrderAPI { return &OrderAPI{service: services} }
+
 // List 分页获取当前用户的闲鱼订单
 // @Tags XyOrder
 // @Summary 分页获取当前用户的闲鱼订单

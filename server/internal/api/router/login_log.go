@@ -8,6 +8,10 @@ import (
 
 type LoginLogRouter struct{ handlers *api.API }
 
+func NewLoginLogRouter(handlers *api.API) *LoginLogRouter {
+	return &LoginLogRouter{handlers: handlers}
+}
+
 func (s *LoginLogRouter) Init(router *gin.RouterGroup) {
 	loginLog := router.Group("sysLoginLog").Use(middleware.AdminOnly())
 	loginLog.DELETE("deleteLoginLog", s.handlers.LoginLog.Delete)

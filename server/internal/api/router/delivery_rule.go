@@ -7,6 +7,10 @@ import (
 
 type DeliveryRuleRouter struct{ handlers *api.API }
 
+func NewDeliveryRuleRouter(handlers *api.API) *DeliveryRuleRouter {
+	return &DeliveryRuleRouter{handlers: handlers}
+}
+
 func (r *DeliveryRuleRouter) Init(private *gin.RouterGroup) {
 	read := private.Group("xy/delivery-rule")
 	write := private.Group("xy/delivery-rule")

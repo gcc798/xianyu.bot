@@ -7,6 +7,10 @@ import (
 
 type AgentSessionRouter struct{ handlers *api.API }
 
+func NewAgentSessionRouter(handlers *api.API) *AgentSessionRouter {
+	return &AgentSessionRouter{handlers: handlers}
+}
+
 func (r *AgentSessionRouter) Init(private *gin.RouterGroup) {
 	private.POST("xy/ai/agent/runs/:id/approve", r.handlers.AgentSession.ApproveRun)
 	group := private.Group("xy/ai/agent/sessions")

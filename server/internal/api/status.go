@@ -12,6 +12,8 @@ import (
 
 type StatusAPI struct{ service *service.Service }
 
+func NewStatusAPI(services *service.Service) *StatusAPI { return &StatusAPI{service: services} }
+
 // GetStatus 获取闲鱼助手基础服务状态
 // @Tags Xy
 // @Summary 获取闲鱼助手基础服务状态

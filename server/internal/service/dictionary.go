@@ -11,6 +11,10 @@ import (
 
 type DictionaryService struct{ db *gorm.DB }
 
+func NewDictionaryService(db *gorm.DB) *DictionaryService {
+	return &DictionaryService{db: db}
+}
+
 func (dictionaryService *DictionaryService) Create(dictionary model.Dictionary) error {
 	if !errors.Is(dictionaryService.db.First(&model.Dictionary{}, "type = ?", dictionary.Type).Error, gorm.ErrRecordNotFound) {
 		return errors.New("存在相同的type，不允许创建")

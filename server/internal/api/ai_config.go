@@ -13,6 +13,10 @@ import (
 
 type AIConfigAPI struct{ service *service.Service }
 
+func NewAIConfigAPI(services *service.Service) *AIConfigAPI {
+	return &AIConfigAPI{service: services}
+}
+
 func (a *AIConfigAPI) ListModels(c *gin.Context) {
 	items, err := a.service.AIConfig.ListModels(c.Request.Context())
 	if err != nil {

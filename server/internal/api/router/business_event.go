@@ -7,6 +7,10 @@ import (
 
 type BusinessEventRouter struct{ handlers *api.API }
 
+func NewBusinessEventRouter(handlers *api.API) *BusinessEventRouter {
+	return &BusinessEventRouter{handlers: handlers}
+}
+
 func (r *BusinessEventRouter) Init(group *gin.RouterGroup) {
 	group.Group("xy/event").GET("list", r.handlers.BusinessEvent.List)
 }

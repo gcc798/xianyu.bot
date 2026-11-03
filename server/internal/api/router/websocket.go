@@ -7,6 +7,10 @@ import (
 
 type WebSocketRouter struct{ handlers *api.API }
 
+func NewWebSocketRouter(handlers *api.API) *WebSocketRouter {
+	return &WebSocketRouter{handlers: handlers}
+}
+
 func (r *WebSocketRouter) Init(private *gin.RouterGroup) {
 	read := private.Group("xy/websocket")
 	write := private.Group("xy/websocket")

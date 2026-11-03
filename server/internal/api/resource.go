@@ -10,6 +10,10 @@ import (
 
 type ResourceAPI struct{ service *service.Service }
 
+func NewResourceAPI(services *service.Service) *ResourceAPI {
+	return &ResourceAPI{service: services}
+}
+
 func (a *ResourceAPI) List(c *gin.Context) {
 	var input xyRequest.ResourceSearch
 	if err := c.ShouldBindQuery(&input); err != nil {

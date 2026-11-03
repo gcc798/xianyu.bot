@@ -18,6 +18,10 @@ type Account struct {
 	webSocket    *WebSocketService
 }
 
+func NewAccount(db *gorm.DB, events *BusinessEvent) *Account {
+	return &Account{db: db, events: events}
+}
+
 func (s *Account) Create(ctx context.Context, ownerID uint, input xyRequest.CreateAccount) (model.Account, error) {
 	label := strings.TrimSpace(input.Label)
 	if err := validateAccount(ownerID, label, input.Note); err != nil {

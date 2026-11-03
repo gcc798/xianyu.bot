@@ -30,6 +30,10 @@ type Delivery struct {
 	workers map[uint]context.CancelFunc
 }
 
+func NewDelivery(ctx context.Context, db *gorm.DB, events *BusinessEvent, orders *Order, rules *DeliveryRule, relist *Relist) *Delivery {
+	return &Delivery{root: contextOrBackground(ctx), db: db, events: events, consigner: orders, rules: rules, relist: relist, workers: make(map[uint]context.CancelFunc)}
+}
+
 func (s *Delivery) ImportResources(ctx context.Context, ownerID uint, input xyRequest.ImportDeliveryResources) (int, error) {
 	if ownerID == 0 || input.RuleID == 0 || len(input.Values) == 0 || len(input.Values) > 1000 {
 		return 0, errors.New("规则和 1 到 1000 条卡密不能为空")

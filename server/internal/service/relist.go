@@ -23,6 +23,10 @@ type Relist struct {
 	media    func(context.Context, uint, uint, map[string]any) error
 }
 
+func NewRelist(db *gorm.DB, events *BusinessEvent, products *Product) *Relist {
+	return &Relist{db: db, events: events, mtop: &MTopClient{db: db}, products: products}
+}
+
 func (s *Relist) caller() mtopCaller {
 	if s.mtop != nil {
 		return s.mtop

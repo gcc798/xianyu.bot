@@ -11,6 +11,10 @@ const administratorAuthorityID = 888
 
 type AIConfigRouter struct{ handlers *api.API }
 
+func NewAIConfigRouter(handlers *api.API) *AIConfigRouter {
+	return &AIConfigRouter{handlers: handlers}
+}
+
 func (r *AIConfigRouter) Init(private *gin.RouterGroup) {
 	group := private.Group("xy/ai").Use(adminOnly())
 	group.GET("models", r.handlers.AIConfig.ListModels)
