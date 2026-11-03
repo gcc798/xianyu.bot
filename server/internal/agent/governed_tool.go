@@ -143,7 +143,8 @@ func (t *governedTool) startToolCall(ctx context.Context) (*model.AgentRunTool, 
 	definition := t.implementation.Definition()
 	call := &model.AgentRunTool{
 		RunID: t.runID, CallID: callID, MCPServerCode: definition.ProviderCode,
-		ToolName: definition.Name, Status: "running", StartedAt: time.Now(),
+		ToolCode: definition.Code, ToolName: definition.Name, ToolSource: definition.Source,
+		Status: "running", StartedAt: time.Now(),
 	}
 	if err := t.db.WithContext(ctx).Create(call).Error; err != nil {
 		return nil, err
@@ -240,6 +241,8 @@ func (t *governedTool) toolEvent(call *model.AgentRunTool, data map[string]any) 
 	data["callId"] = toolCallID(call)
 	data["server"] = definition.ProviderCode
 	data["tool"] = definition.Name
+	data["toolCode"] = definition.Code
+	data["toolName"] = definition.Name
 	if call != nil {
 		data["durationMillis"] = time.Since(call.StartedAt).Milliseconds()
 	}

@@ -27,6 +27,9 @@ func TestMigratePostgres(t *testing.T) {
 	var userSettingColumns int64
 	require.NoError(t, db.Raw(`SELECT count(*) FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'sys_users' AND column_name = 'origin_setting'`).Scan(&userSettingColumns).Error)
 	require.Zero(t, userSettingColumns)
+	var toolIdentityColumns int64
+	require.NoError(t, db.Raw(`SELECT count(*) FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'xy_agent_run_tools' AND column_name IN ('tool_code', 'tool_source')`).Scan(&toolIdentityColumns).Error)
+	require.EqualValues(t, 2, toolIdentityColumns)
 }
 
 func TestMigrateRejectsUninitializedDatabase(t *testing.T) {

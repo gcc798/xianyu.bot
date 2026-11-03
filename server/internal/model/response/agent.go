@@ -19,7 +19,9 @@ type AgentToolTrace struct {
 	ID             uint      `json:"id"`
 	RunID          uint      `json:"runId"`
 	CallID         string    `json:"callId"`
+	ToolCode       string    `json:"toolCode"`
 	ToolName       string    `json:"toolName"`
+	ToolSource     string    `json:"toolSource"`
 	Arguments      string    `json:"arguments"`
 	Result         string    `json:"result"`
 	Status         string    `json:"status"`
@@ -39,9 +41,11 @@ type AgentTask struct {
 }
 
 type AgentApproval struct {
-	RunID     uint      `json:"runId"`
-	ToolName  string    `json:"toolName"`
-	CreatedAt time.Time `json:"createdAt"`
+	RunID      uint      `json:"runId"`
+	ToolCode   string    `json:"toolCode"`
+	ToolName   string    `json:"toolName"`
+	ToolSource string    `json:"toolSource"`
+	CreatedAt  time.Time `json:"createdAt"`
 }
 
 type AgentRunAccepted struct {
@@ -75,7 +79,9 @@ type AgentToolCallDetail struct {
 	RunID          uint            `json:"runId"`
 	CallID         string          `json:"callId"`
 	MCPServerCode  string          `json:"mcpServerCode"`
+	ToolCode       string          `json:"toolCode"`
 	ToolName       string          `json:"toolName"`
+	ToolSource     string          `json:"toolSource"`
 	Arguments      json.RawMessage `json:"arguments"`
 	Result         json.RawMessage `json:"result"`
 	Status         string          `json:"status"`

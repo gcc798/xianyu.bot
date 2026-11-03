@@ -61,7 +61,7 @@ func (s *Session) Get(ctx context.Context, ownerID, sessionID uint) (xyResponse.
 	}
 	toolTraces := make([]xyResponse.AgentToolTrace, 0)
 	if err := s.db.WithContext(ctx).Table("xy_agent_run_tools AS t").
-		Select("t.id, t.run_id, t.call_id, t.tool_name, t.arguments, t.result, t.status, t.duration_millis, t.created_at").
+		Select("t.id, t.run_id, t.call_id, t.tool_code, t.tool_name, t.tool_source, t.arguments, t.result, t.status, t.duration_millis, t.created_at").
 		Joins("JOIN xy_agent_runs AS r ON r.id = t.run_id AND r.deleted_at IS NULL").
 		Where("r.session_id = ? AND r.owner_id = ? AND t.deleted_at IS NULL", sessionID, ownerID).
 		Order("t.id").Limit(200).Scan(&toolTraces).Error; err != nil {
@@ -69,7 +69,7 @@ func (s *Session) Get(ctx context.Context, ownerID, sessionID uint) (xyResponse.
 	}
 	approvals := make([]xyResponse.AgentApproval, 0)
 	if err := s.db.WithContext(ctx).Table("xy_agent_run_tools AS t").
-		Select("t.run_id, t.tool_name, t.created_at").
+		Select("t.run_id, t.tool_code, t.tool_name, t.tool_source, t.created_at").
 		Joins("JOIN xy_agent_runs AS r ON r.id = t.run_id AND r.deleted_at IS NULL").
 		Where("r.session_id = ? AND r.owner_id = ? AND t.status = ? AND t.deleted_at IS NULL", sessionID, ownerID, "waiting_approval").
 		Order("t.id").Scan(&approvals).Error; err != nil {
@@ -141,7 +141,8 @@ func (s *Session) ToolCall(ctx context.Context, ownerID, sessionID uint, callID 
 		return xyResponse.AgentToolCallDetail{}, err
 	}
 	return xyResponse.AgentToolCallDetail{
-		ID: call.ID, RunID: call.RunID, CallID: call.CallID, MCPServerCode: call.MCPServerCode, ToolName: call.ToolName,
+		ID: call.ID, RunID: call.RunID, CallID: call.CallID, MCPServerCode: call.MCPServerCode,
+		ToolCode: call.ToolCode, ToolName: call.ToolName, ToolSource: call.ToolSource,
 		Arguments: rawJSON(call.Arguments), Result: rawJSON(call.Result), Status: call.Status, DurationMillis: call.DurationMillis,
 		ErrorCode: call.ErrorCode, ErrorMessage: call.ErrorMessage, StartedAt: call.StartedAt, CompletedAt: call.CompletedAt,
 	}, nil

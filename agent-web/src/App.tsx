@@ -83,7 +83,11 @@ export default function App() {
         durationMillis: Number(data.durationMillis || 0), summary: String((data.error as { message?: string } | undefined)?.message || '')
       } : item))
     } else if (event.type === 'approval.required') {
-      setApprovals((items) => [...items, { runId: Number(data.runId), toolName: String(data.tool), createdAt: new Date().toISOString() }])
+      setApprovals((items) => [...items, {
+        runId: Number(data.runId), toolCode: String(data.toolCode || data.tool),
+        toolName: String(data.toolName || data.tool), toolSource: String(data.server ? 'mcp' : 'local'),
+        createdAt: new Date().toISOString(),
+      }])
     }
     if (terminalEvents.has(event.type)) {
       setRunning(false)

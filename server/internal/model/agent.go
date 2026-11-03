@@ -56,7 +56,9 @@ type AgentRunTool struct {
 	RunID          uint       `json:"runId" gorm:"not null;index"`
 	CallID         string     `json:"callId" gorm:"size:200;not null;uniqueIndex"`
 	MCPServerCode  string     `json:"mcpServerCode" gorm:"size:64"`
+	ToolCode       string     `json:"toolCode" gorm:"size:120;not null"`
 	ToolName       string     `json:"toolName" gorm:"size:120;not null"`
+	ToolSource     string     `json:"toolSource" gorm:"size:16;not null;default:mcp"`
 	Arguments      string     `json:"-" gorm:"type:text"`
 	Result         string     `json:"-" gorm:"type:text"`
 	Status         string     `json:"status" gorm:"size:32;not null"`
