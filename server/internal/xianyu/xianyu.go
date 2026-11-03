@@ -9,20 +9,18 @@ import (
 	api "github.com/gcc798/xianyu.bot/internal/api/xianyu"
 	"github.com/gcc798/xianyu.bot/internal/model"
 	"github.com/gcc798/xianyu.bot/internal/security"
-	service "github.com/gcc798/xianyu.bot/internal/service/xianyu"
+	"github.com/gcc798/xianyu.bot/internal/service"
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 )
 
-func Initialize(ctx context.Context, engine *gin.Engine, jwt *security.JWT, deps service.Dependencies) error {
-	deps.Context = ctx
-	if err := initializeDatabase(ctx, deps.DB); err != nil {
+func Initialize(ctx context.Context, engine *gin.Engine, jwt *security.JWT, services *service.Service) error {
+	if err := initializeDatabase(ctx, services.DB); err != nil {
 		return err
 	}
-	if err := service.ValidateCredentialKey(deps.DB); err != nil {
+	if err := service.ValidateCredentialKey(services.DB); err != nil {
 		return err
 	}
-	services := service.New(deps)
 	handlers := api.New(services)
 	private := engine.Group("")
 	private.Use(middleware.JWTAuth(jwt))

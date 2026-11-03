@@ -14,8 +14,7 @@ import (
 	"github.com/gcc798/xianyu.bot/internal/infra"
 	"github.com/gcc798/xianyu.bot/internal/infra/mail"
 	"github.com/gcc798/xianyu.bot/internal/security"
-	systemService "github.com/gcc798/xianyu.bot/internal/service/system"
-	xianyuService "github.com/gcc798/xianyu.bot/internal/service/xianyu"
+	"github.com/gcc798/xianyu.bot/internal/service"
 	_ "go.uber.org/automaxprocs"
 	"go.uber.org/zap"
 )
@@ -49,10 +48,9 @@ func run() error {
 		return fmt.Errorf("database migration: %w", err)
 	}
 
-	systemServices := systemService.New(db)
-	systemServices.RevokedTokens.Load()
-	systemRoutes := systemRouter.New(systemAPI.New(systemServices, jwt))
 	mailSender := mail.NewSender(settings.Email)
-	xianyuDeps := xianyuService.Dependencies{DB: db, SendNotificationEmail: mailSender.Send}
-	return infra.RunServer(ctx, app.Routers(ctx, systemRoutes, jwt, xianyuDeps), settings.HTTP.Port)
+	services := service.New(ctx, db, mailSender.Send)
+	services.RevokedTokens.Load()
+	systemRoutes := systemRouter.New(systemAPI.New(services, jwt))
+	return infra.RunServer(ctx, app.Routers(ctx, systemRoutes, jwt, services), settings.HTTP.Port)
 }

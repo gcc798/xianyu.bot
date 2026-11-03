@@ -7,13 +7,13 @@ import (
 	"github.com/gcc798/xianyu.bot/internal/api/middleware"
 	systemRouter "github.com/gcc798/xianyu.bot/internal/api/router/system"
 	"github.com/gcc798/xianyu.bot/internal/security"
-	xianyuService "github.com/gcc798/xianyu.bot/internal/service/xianyu"
+	"github.com/gcc798/xianyu.bot/internal/service"
 	"github.com/gcc798/xianyu.bot/internal/xianyu"
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 )
 
-func Routers(ctx context.Context, systemRoutes *systemRouter.RouterGroup, jwt *security.JWT, xianyuDeps xianyuService.Dependencies) *gin.Engine {
+func Routers(ctx context.Context, systemRoutes *systemRouter.RouterGroup, jwt *security.JWT, services *service.Service) *gin.Engine {
 	engine := gin.New()
 	engine.Use(middleware.GinRecovery(true))
 	if gin.Mode() == gin.DebugMode {
@@ -34,7 +34,7 @@ func Routers(ctx context.Context, systemRoutes *systemRouter.RouterGroup, jwt *s
 	systemRoutes.DictionaryRouter.Init(private)
 	systemRoutes.DictionaryDetailRouter.Init(private)
 	systemRoutes.LoginLogRouter.Init(private)
-	if err := xianyu.Initialize(ctx, engine, jwt, xianyuDeps); err != nil {
+	if err := xianyu.Initialize(ctx, engine, jwt, services); err != nil {
 		zap.L().Error("初始化闲鱼业务失败", zap.Error(err))
 		panic(err)
 	}

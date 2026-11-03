@@ -7,14 +7,14 @@ import (
 	"strings"
 	"testing"
 
-	systemService "github.com/gcc798/xianyu.bot/internal/service/system"
+	systemService "github.com/gcc798/xianyu.bot/internal/service"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )
 
 func TestUserAPIRejectsMissingRequiredFields(t *testing.T) {
 	gin.SetMode(gin.TestMode)
-	api := New(systemService.New(nil), nil).User
+	api := New(systemService.New(t.Context(), nil, nil), nil).User
 	tests := []struct {
 		name    string
 		body    string

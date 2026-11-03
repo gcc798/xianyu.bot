@@ -1,9 +1,9 @@
 package api
 
-import service "github.com/gcc798/xianyu.bot/internal/service/xianyu"
+import service "github.com/gcc798/xianyu.bot/internal/service"
 
 type dependencies struct {
-	services *service.Services
+	services *service.Service
 }
 
 type API struct {
@@ -23,7 +23,7 @@ type API struct {
 	AgentSession  agentSession
 }
 
-func New(services *service.Services) *API {
+func New(services *service.Service) *API {
 	deps := &dependencies{services: services}
 	return &API{
 		Status: status{deps}, Account: account{deps}, Product: product{deps},
