@@ -16,42 +16,46 @@ import (
 	"gorm.io/gorm/clause"
 )
 
+// Order 管理闲鱼订单同步、查询和虚拟发货确认。
 type Order struct {
-	db      *gorm.DB
-	events  *BusinessEvent
-	mtop    mtopCaller
-	planner deliveryPlanner
-	sender  textSender
+	db      *gorm.DB        // db 持久化订单及订单事件。
+	events  *BusinessEvent  // events 记录订单业务结果。
+	mtop    mtopCaller      // mtop 调用闲鱼订单与发货接口。
+	planner deliveryPlanner // planner 为新订单规划自动发货。
+	sender  textSender      // sender 向买家发送发货文本。
 }
 
+// NewOrder 创建订单服务。
 func NewOrder(db *gorm.DB, events *BusinessEvent) *Order {
 	return &Order{db: db, events: events, mtop: &MTopClient{db: db}}
 }
 
+// PendingOrderPage 是闲鱼待发货订单接口的业务响应。
 type PendingOrderPage struct {
 	Module struct {
 		Items []struct {
 			CommonData struct {
-				OrderID        string `json:"orderId"`
-				ItemID         string `json:"itemId"`
-				OrderStatus    string `json:"orderStatus"`
-				CreateTime     string `json:"createTime"`
-				PaySuccessTime string `json:"paySuccessTime"`
-			} `json:"commonData"`
+				OrderID        string `json:"orderId"`        // OrderID 是闲鱼订单标识。
+				ItemID         string `json:"itemId"`         // ItemID 是闲鱼商品标识。
+				OrderStatus    string `json:"orderStatus"`    // OrderStatus 是闲鱼原始订单状态。
+				CreateTime     string `json:"createTime"`     // CreateTime 是订单创建时间文本。
+				PaySuccessTime string `json:"paySuccessTime"` // PaySuccessTime 是支付成功时间文本。
+			} `json:"commonData"` // CommonData 保存订单公共字段。
 			BuyerInfo struct {
-				UserNick string `json:"userNick"`
-				UserID   string `json:"userId"`
-			} `json:"buyerInfoVO"`
+				UserNick string `json:"userNick"` // UserNick 是买家显示名称。
+				UserID   string `json:"userId"`   // UserID 是闲鱼买家标识。
+			} `json:"buyerInfoVO"` // BuyerInfo 保存买家信息。
 			Item struct {
-				Title string `json:"title"`
-			} `json:"itemVO"`
+				Title string `json:"title"` // Title 是成交商品标题。
+			} `json:"itemVO"` // Item 保存成交商品信息。
 			Price struct {
-				TotalPrice string `json:"totalPrice"`
-			} `json:"priceVO"`
-		} `json:"items"`
-	} `json:"module"`
+				TotalPrice string `json:"totalPrice"` // TotalPrice 是订单金额文本。
+			} `json:"priceVO"` // Price 保存订单价格信息。
+		} `json:"items"` // Items 是当前页待发货订单。
+	} `json:"module"` // Module 包含订单列表模块。
 }
 
+// caller 返回注入的 MTop 调用器或默认实现。
 func (s *Order) caller() mtopCaller {
 	if s.mtop != nil {
 		return s.mtop
@@ -59,6 +63,7 @@ func (s *Order) caller() mtopCaller {
 	return &MTopClient{db: s.db}
 }
 
+// SyncPending 同步账号待发货订单并为每条新订单规划自动发货。
 func (s *Order) SyncPending(ctx context.Context, ownerID, accountID uint) (int, error) {
 	if _, err := ownedAccount(ctx, s.db, ownerID, accountID); err != nil {
 		return 0, err
@@ -111,6 +116,7 @@ func (s *Order) SyncPending(ctx context.Context, ownerID, accountID uint) (int, 
 	return count, nil
 }
 
+// Consign 先向买家发送 text，再调用闲鱼虚拟发货确认接口。
 func (s *Order) Consign(ctx context.Context, ownerID uint, item model.Order, text string) error {
 	if s.sender == nil {
 		return errors.New("闲鱼消息发送服务不可用")
@@ -130,6 +136,7 @@ func (s *Order) Consign(ctx context.Context, ownerID uint, item model.Order, tex
 	return err
 }
 
+// List 分页查询 ownerID 名下订单并补充账号显示名称。
 func (s *Order) List(ctx context.Context, ownerID uint, input xyRequest.OrderSearch) ([]xyResponse.Order, int64, error) {
 	if ownerID == 0 {
 		return nil, 0, errors.New("用户未登录")
@@ -158,6 +165,7 @@ func (s *Order) List(ctx context.Context, ownerID uint, input xyRequest.OrderSea
 	return list, total, err
 }
 
+// UpsertFromMessage 从订单消息幂等更新本地订单并触发发货规划。
 func (s *Order) UpsertFromMessage(ctx context.Context, account model.Account, item model.Message) (*model.Order, error) {
 	if item.ExternalOrderID == "" {
 		return nil, nil

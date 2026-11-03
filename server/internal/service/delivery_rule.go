@@ -11,14 +11,17 @@ import (
 	"gorm.io/gorm"
 )
 
+// DeliveryRule 管理商品 SKU 的文本或卡密发货规则。
 type DeliveryRule struct {
-	db *gorm.DB
+	db *gorm.DB // db 持久化自动发货规则。
 }
 
+// NewDeliveryRule 创建自动发货规则服务。
 func NewDeliveryRule(db *gorm.DB) *DeliveryRule {
 	return &DeliveryRule{db: db}
 }
 
+// List 分页查询 ownerID 名下规则并补充商品标题。
 func (s *DeliveryRule) List(ctx context.Context, ownerID uint, input xyRequest.DeliveryRuleSearch) ([]xyResponse.DeliveryRule, int64, error) {
 	if ownerID == 0 {
 		return nil, 0, errors.New("用户未登录")
@@ -46,6 +49,7 @@ func (s *DeliveryRule) List(ctx context.Context, ownerID uint, input xyRequest.D
 	return list, total, err
 }
 
+// Save 校验商品归属、模式和模板后创建或更新发货规则。
 func (s *DeliveryRule) Save(ctx context.Context, ownerID uint, input xyRequest.SaveDeliveryRule) error {
 	input.SKUKey = strings.TrimSpace(input.SKUKey)
 	input.SKUName = strings.TrimSpace(input.SKUName)
@@ -78,6 +82,7 @@ func (s *DeliveryRule) Save(ctx context.Context, ownerID uint, input xyRequest.S
 	return db.Save(&rule).Error
 }
 
+// Delete 校验 ownerID 归属后物理删除发货规则。
 func (s *DeliveryRule) Delete(ctx context.Context, ownerID, id uint) error {
 	if ownerID == 0 || id == 0 {
 		return errors.New("发货规则 ID 不能为空")
@@ -86,6 +91,7 @@ func (s *DeliveryRule) Delete(ctx context.Context, ownerID, id uint) error {
 	return affected(result)
 }
 
+// Resolve 优先匹配 skuKey，未命中时回退到商品默认规则。
 func (s *DeliveryRule) Resolve(ctx context.Context, ownerID, productID uint, skuKey string) (*xyResponse.DeliveryRule, error) {
 	skuKey = strings.TrimSpace(skuKey)
 	var rule xyResponse.DeliveryRule
@@ -104,6 +110,7 @@ func (s *DeliveryRule) Resolve(ctx context.Context, ownerID, productID uint, sku
 	return &rule, err
 }
 
+// validateDeliveryRule 校验发货模式、SKU 长度和卡密占位符。
 func validateDeliveryRule(ownerID uint, input xyRequest.SaveDeliveryRule) error {
 	if ownerID == 0 || input.ProductID == 0 {
 		return errors.New("商品 ID 不能为空")

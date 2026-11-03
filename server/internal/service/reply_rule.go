@@ -11,14 +11,17 @@ import (
 	"gorm.io/gorm"
 )
 
+// ReplyRule 管理商品级自动回复规则和回复内容。
 type ReplyRule struct {
-	db *gorm.DB
+	db *gorm.DB // db 持久化规则与回复内容。
 }
 
+// NewReplyRule 创建自动回复规则服务。
 func NewReplyRule(db *gorm.DB) *ReplyRule {
 	return &ReplyRule{db: db}
 }
 
+// List 分页查询 ownerID 名下规则并补充商品标题和回复内容。
 func (s *ReplyRule) List(ctx context.Context, ownerID uint, input xyRequest.ReplyRuleSearch) ([]xyResponse.ReplyRule, int64, error) {
 	if ownerID == 0 {
 		return nil, 0, errors.New("用户未登录")
@@ -52,6 +55,7 @@ func (s *ReplyRule) List(ctx context.Context, ownerID uint, input xyRequest.Repl
 	return list, total, err
 }
 
+// Save 校验商品归属并在事务中保存规则及其唯一回复内容。
 func (s *ReplyRule) Save(ctx context.Context, ownerID uint, input xyRequest.SaveReplyRule) error {
 	input.Type = strings.TrimSpace(input.Type)
 	input.Keyword = strings.TrimSpace(input.Keyword)
@@ -104,6 +108,7 @@ func (s *ReplyRule) Save(ctx context.Context, ownerID uint, input xyRequest.Save
 	})
 }
 
+// Delete 校验 ownerID 归属后物理删除规则及回复内容。
 func (s *ReplyRule) Delete(ctx context.Context, ownerID, id uint) error {
 	if ownerID == 0 || id == 0 {
 		return errors.New("规则 ID 不能为空")
@@ -120,6 +125,7 @@ func (s *ReplyRule) Delete(ctx context.Context, ownerID, id uint) error {
 	})
 }
 
+// Resolve 按优先级匹配 message，未命中关键词时回退到兜底规则。
 func (s *ReplyRule) Resolve(ctx context.Context, ownerID, productID uint, message string) (*xyResponse.ReplyRule, error) {
 	rules := make([]xyResponse.ReplyRule, 0)
 	err := s.db.WithContext(ctx).Table("xy_reply_rules AS r").
@@ -149,6 +155,7 @@ func (s *ReplyRule) Resolve(ctx context.Context, ownerID, productID uint, messag
 	return nil, nil
 }
 
+// validateReplyRule 校验回复类型、关键词、内容和优先级边界。
 func validateReplyRule(ownerID uint, input xyRequest.SaveReplyRule) error {
 	if ownerID == 0 || input.ProductID == 0 {
 		return errors.New("商品 ID 不能为空")

@@ -13,10 +13,13 @@ import (
 )
 
 const (
+	// dashboardHour 是小时级趋势桶的毫秒数。
 	dashboardHour = int64(time.Hour / time.Millisecond)
-	dashboardDay  = int64(24 * time.Hour / time.Millisecond)
+	// dashboardDay 是天级趋势桶的毫秒数。
+	dashboardDay = int64(24 * time.Hour / time.Millisecond)
 )
 
+// Overview 校验统计范围并汇总 ownerID 的经营与自动化指标。
 func (s *Status) Overview(ctx context.Context, ownerID uint, input xyRequest.DashboardOverview) (xyResponse.DashboardOverview, error) {
 	if ownerID == 0 {
 		return xyResponse.DashboardOverview{}, errors.New("用户未登录")
@@ -57,14 +60,15 @@ func (s *Status) Overview(ctx context.Context, ownerID uint, input xyRequest.Das
 	return overview, nil
 }
 
+// loadDashboardMetrics 填充账号、商品、消息、订单和自动化汇总指标。
 func loadDashboardMetrics(db *gorm.DB, ownerID uint, input xyRequest.DashboardOverview, overview *xyResponse.DashboardOverview) error {
 	start, end := time.UnixMilli(input.StartTime), time.UnixMilli(input.EndTime)
 	counts := []struct {
-		model         any
-		accountColumn string
-		query         string
-		args          []any
-		value         *int64
+		model         any    // model 指定 GORM 统计表。
+		accountColumn string // accountColumn 是按账号筛选时使用的列。
+		query         string // query 是统计条件。
+		args          []any  // args 是 query 对应参数。
+		value         *int64 // value 接收统计结果。
 	}{
 		{&model.Account{}, "id", "owner_id = ?", []any{ownerID}, &overview.Metrics.Accounts},
 		{&model.Account{}, "id", "owner_id = ? AND status = ? AND enabled = ?", []any{ownerID, "ready", true}, &overview.Metrics.ReadyAccounts},
@@ -103,11 +107,12 @@ func loadDashboardMetrics(db *gorm.DB, ownerID uint, input xyRequest.DashboardOv
 	return nil
 }
 
+// loadMessageTrend 按时间桶填充收发消息和自动回复趋势。
 func loadMessageTrend(db *gorm.DB, ownerID uint, input xyRequest.DashboardOverview, overview *xyResponse.DashboardOverview) error {
 	type messageBucket struct {
-		BucketIndex int64
-		Inbound     int64
-		Outbound    int64
+		BucketIndex int64 // BucketIndex 是相对统计起点的桶序号。
+		Inbound     int64 // Inbound 是桶内入站消息数。
+		Outbound    int64 // Outbound 是桶内出站消息数。
 	}
 	var messageBuckets []messageBucket
 	query := db.Model(&model.Message{}).
@@ -125,7 +130,9 @@ func loadMessageTrend(db *gorm.DB, ownerID uint, input xyRequest.DashboardOvervi
 			overview.MessageTrend[bucket.BucketIndex].Outbound = bucket.Outbound
 		}
 	}
-	var autoReplies []struct{ CompletedAt time.Time }
+	var autoReplies []struct {
+		CompletedAt time.Time // CompletedAt 是自动回复完成时间。
+	}
 	autoQuery := db.Model(&model.ReplyTask{}).Select("completed_at").
 		Where("owner_id = ? AND status = ? AND completed_at >= ? AND completed_at < ?", ownerID, model.ReplyTaskSent, time.UnixMilli(input.StartTime), time.UnixMilli(input.EndTime))
 	if input.AccountID != 0 {
@@ -143,9 +150,12 @@ func loadMessageTrend(db *gorm.DB, ownerID uint, input xyRequest.DashboardOvervi
 	return nil
 }
 
+// loadOrderTrend 按时间桶填充新增订单和发货结果趋势。
 func loadOrderTrend(db *gorm.DB, ownerID uint, input xyRequest.DashboardOverview, overview *xyResponse.DashboardOverview) error {
 	start, end := time.UnixMilli(input.StartTime), time.UnixMilli(input.EndTime)
-	var orders []struct{ CreatedAt time.Time }
+	var orders []struct {
+		CreatedAt time.Time // CreatedAt 是订单创建时间。
+	}
 	orderQuery := db.Model(&model.Order{}).Select("created_at").Where("owner_id = ? AND created_at >= ? AND created_at < ?", ownerID, start, end)
 	if input.AccountID != 0 {
 		orderQuery = orderQuery.Where("account_id = ?", input.AccountID)
@@ -159,8 +169,8 @@ func loadOrderTrend(db *gorm.DB, ownerID uint, input xyRequest.DashboardOverview
 		}
 	}
 	var deliveries []struct {
-		UpdatedAt time.Time
-		Status    string
+		UpdatedAt time.Time // UpdatedAt 是发货任务最后状态时间。
+		Status    string    // Status 是发货任务结果状态。
 	}
 	deliveryQuery := db.Model(&model.DeliveryTask{}).Select("updated_at", "status").
 		Where("owner_id = ? AND updated_at >= ? AND updated_at < ?", ownerID, start, end)
@@ -185,6 +195,7 @@ func loadOrderTrend(db *gorm.DB, ownerID uint, input xyRequest.DashboardOverview
 	return nil
 }
 
+// loadRecentEvents 查询统计范围内最近八条业务审计事件。
 func loadRecentEvents(db *gorm.DB, ownerID uint, input xyRequest.DashboardOverview, events *[]xyResponse.BusinessEvent) error {
 	query := db.Table("xy_business_events AS e").
 		Select(`e.id, e.created_at, e.account_id, COALESCE(a.label, '') AS account_label,
@@ -203,6 +214,7 @@ func loadRecentEvents(db *gorm.DB, ownerID uint, input xyRequest.DashboardOvervi
 	return nil
 }
 
+// makeMessageTrend 创建覆盖半开区间的空消息时间桶。
 func makeMessageTrend(start, end, bucket int64) []xyResponse.DashboardMessagePoint {
 	count := (end - start + bucket - 1) / bucket
 	points := make([]xyResponse.DashboardMessagePoint, count)
@@ -212,6 +224,7 @@ func makeMessageTrend(start, end, bucket int64) []xyResponse.DashboardMessagePoi
 	return points
 }
 
+// makeOrderTrend 创建覆盖半开区间的空订单时间桶。
 func makeOrderTrend(start, end, bucket int64) []xyResponse.DashboardOrderPoint {
 	count := (end - start + bucket - 1) / bucket
 	points := make([]xyResponse.DashboardOrderPoint, count)

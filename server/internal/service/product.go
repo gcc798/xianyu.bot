@@ -23,46 +23,52 @@ import (
 	"gorm.io/gorm/clause"
 )
 
+// productListEndpoint 是闲鱼在售商品分页接口。
 const productListEndpoint = "https://h5api.m.goofish.com/h5/mtop.idle.web.xyh.item.list/1.0/"
 
+// Product 管理闲鱼商品同步、查询和自动化设置。
 type Product struct {
-	db       *gorm.DB
-	events   *BusinessEvent
-	client   *http.Client
-	endpoint string
-	mtop     mtopCaller
+	db       *gorm.DB       // db 持久化商品和自动化设置。
+	events   *BusinessEvent // events 记录商品同步结果。
+	client   *http.Client   // client 是可在测试中替换的 HTTP 客户端。
+	endpoint string         // endpoint 是可在测试中替换的商品列表地址。
+	mtop     mtopCaller     // mtop 读取详情并生成续售快照。
 }
 
+// NewProduct 创建商品服务。
 func NewProduct(db *gorm.DB, events *BusinessEvent) *Product {
 	return &Product{db: db, events: events}
 }
 
+// RemoteProduct 是闲鱼在售列表归一化后的商品快照。
 type RemoteProduct struct {
-	ExternalProductID string
-	Title             string
-	PriceCent         int64
-	ImageURL          string
-	SourceJSON        string
+	ExternalProductID string // ExternalProductID 是闲鱼侧商品标识。
+	Title             string // Title 是商品标题。
+	PriceCent         int64  // PriceCent 是以分为单位的商品价格。
+	ImageURL          string // ImageURL 是商品主图地址。
+	SourceJSON        string // SourceJSON 是原始商品卡片 JSON。
 }
 
+// ProductCardData 是闲鱼商品卡片中本服务使用的字段。
 type ProductCardData struct {
-	ID        string `json:"id"`
-	Title     string `json:"title"`
+	ID        string `json:"id"`    // ID 是卡片级商品标识。
+	Title     string `json:"title"` // Title 是卡片级商品标题。
 	PriceInfo struct {
-		Price string `json:"price"`
-	} `json:"priceInfo"`
+		Price string `json:"price"` // Price 是卡片级价格文本。
+	} `json:"priceInfo"` // PriceInfo 保存卡片价格。
 	PicInfo struct {
-		PicURL string `json:"picUrl"`
-	} `json:"picInfo"`
+		PicURL string `json:"picUrl"` // PicURL 是卡片级主图地址。
+	} `json:"picInfo"` // PicInfo 保存卡片主图。
 	DetailParams struct {
-		ItemID    string `json:"itemId"`
-		Title     string `json:"title"`
-		PicURL    string `json:"picUrl"`
-		SoldPrice string `json:"soldPrice"`
-	} `json:"detailParams"`
-	Raw json.RawMessage `json:"-"`
+		ItemID    string `json:"itemId"`    // ItemID 是详情级商品标识。
+		Title     string `json:"title"`     // Title 是详情级商品标题。
+		PicURL    string `json:"picUrl"`    // PicURL 是详情级主图地址。
+		SoldPrice string `json:"soldPrice"` // SoldPrice 是详情级价格文本。
+	} `json:"detailParams"` // DetailParams 保存卡片携带的详情字段。
+	Raw json.RawMessage `json:"-"` // Raw 保留完整卡片 JSON 供后续发布使用。
 }
 
+// UnmarshalJSON 解码商品卡片并保留原始 JSON。
 func (c *ProductCardData) UnmarshalJSON(data []byte) error {
 	type card ProductCardData
 	if err := json.Unmarshal(data, (*card)(c)); err != nil {
@@ -72,6 +78,7 @@ func (c *ProductCardData) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
+// List 分页查询 ownerID 名下商品并合并自动化设置与图片列表。
 func (s *Product) List(ctx context.Context, ownerID uint, input xyRequest.ProductSearch) ([]xyResponse.Product, int64, error) {
 	if ownerID == 0 {
 		return nil, 0, errors.New("用户未登录")
@@ -115,11 +122,12 @@ func (s *Product) List(ctx context.Context, ownerID uint, input xyRequest.Produc
 	return list, total, err
 }
 
+// productImageURLs 从原始卡片提取去重图片，失败时回退到封面。
 func productImageURLs(sourceJSON, coverURL string) []string {
 	var source struct {
 		DetailParams struct {
-			ImageInfos json.RawMessage `json:"imageInfos"`
-		} `json:"detailParams"`
+			ImageInfos json.RawMessage `json:"imageInfos"` // ImageInfos 是图片列表或其 JSON 字符串。
+		} `json:"detailParams"` // DetailParams 保存卡片详情字段。
 	}
 	if err := json.Unmarshal([]byte(sourceJSON), &source); err == nil && len(source.DetailParams.ImageInfos) > 0 {
 		imageInfos := source.DetailParams.ImageInfos
@@ -130,7 +138,7 @@ func productImageURLs(sourceJSON, coverURL string) []string {
 			}
 		}
 		var images []struct {
-			URL string `json:"url"`
+			URL string `json:"url"` // URL 是单张商品图片地址。
 		}
 		if json.Unmarshal(imageInfos, &images) == nil {
 			urls := make([]string, 0, len(images))
@@ -157,6 +165,7 @@ func productImageURLs(sourceJSON, coverURL string) []string {
 	return nil
 }
 
+// Sync 拉取账号全部在售商品，更新本地快照并下线远端已消失商品。
 func (s *Product) Sync(ctx context.Context, ownerID uint, input xyRequest.ProductSync) (count int, err error) {
 	if ownerID == 0 || input.AccountID == 0 {
 		return 0, errors.New("账号 ID 不能为空")
@@ -255,6 +264,7 @@ func (s *Product) Sync(ctx context.Context, ownerID uint, input xyRequest.Produc
 	return len(all), err
 }
 
+// fetchPage 签名并请求一页在售商品，同时返回响应合并后的 Cookie。
 func (s *Product) fetchPage(ctx context.Context, cookie string, page, pageSize int) ([]RemoteProduct, string, error) {
 	cookies := parseCookieHeader(cookie)
 	token := strings.Split(cookies["_m_h5_tk"], "_")[0]
@@ -311,6 +321,7 @@ func (s *Product) fetchPage(ctx context.Context, cookie string, page, pageSize i
 	return items, mergedCookie, err
 }
 
+// httpClient 返回注入的客户端或带默认超时的客户端。
 func (s *Product) httpClient() *http.Client {
 	if s.client != nil {
 		return s.client
@@ -318,6 +329,7 @@ func (s *Product) httpClient() *http.Client {
 	return &http.Client{Timeout: 30 * time.Second}
 }
 
+// endpointURL 返回注入地址或官方商品列表入口。
 func (s *Product) endpointURL() string {
 	if s.endpoint != "" {
 		return s.endpoint
@@ -325,14 +337,15 @@ func (s *Product) endpointURL() string {
 	return productListEndpoint
 }
 
+// parseProductPage 校验 MTop 状态并归一化商品卡片。
 func parseProductPage(body []byte) ([]RemoteProduct, error) {
 	var payload struct {
-		Ret  []string `json:"ret"`
+		Ret  []string `json:"ret"` // Ret 包含 MTop 状态码与消息。
 		Data struct {
 			CardList []struct {
-				CardData ProductCardData `json:"cardData"`
-			} `json:"cardList"`
-		} `json:"data"`
+				CardData ProductCardData `json:"cardData"` // CardData 是单个商品卡片。
+			} `json:"cardList"` // CardList 是当前页商品卡片。
+		} `json:"data"` // Data 包含商品列表业务结果。
 	}
 	if err := json.Unmarshal(body, &payload); err != nil {
 		return nil, errors.New("闲鱼商品响应格式无法识别")
@@ -381,6 +394,7 @@ func parseProductPage(body []byte) ([]RemoteProduct, error) {
 	return items, nil
 }
 
+// UpdateSetting 校验 ownerID 归属并保存商品自动化设置与续售快照。
 func (s *Product) UpdateSetting(ctx context.Context, ownerID uint, input xyRequest.UpdateProductSetting) error {
 	if ownerID == 0 || input.ProductID == 0 {
 		return errors.New("商品 ID 不能为空")
