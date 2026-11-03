@@ -4,11 +4,15 @@ import (
 	"gorm.io/gorm"
 )
 
+// Pagination 描述统一分页参数。
 type Pagination struct {
-	Page     int `json:"page" form:"page"`         // 页码
-	PageSize int `json:"pageSize" form:"pageSize"` // 每页大小
+	// Page 是从 1 开始的页码。
+	Page int `json:"page" form:"page"`
+	// PageSize 是每页数量，最大为 100。
+	PageSize int `json:"pageSize" form:"pageSize"`
 }
 
+// Paginate 规范化分页参数并返回对应的 GORM 查询作用域。
 func (r *Pagination) Paginate() func(db *gorm.DB) *gorm.DB {
 	return func(db *gorm.DB) *gorm.DB {
 		if r.Page <= 0 {
@@ -25,12 +29,16 @@ func (r *Pagination) Paginate() func(db *gorm.DB) *gorm.DB {
 	}
 }
 
+// PageInfo 在统一分页参数上增加关键词检索。
 type PageInfo struct {
+	// Pagination 提供页码与每页数量。
 	Pagination
-	Keyword string `json:"keyword" form:"keyword"` // 关键字
+	// Keyword 是列表模糊检索关键词。
+	Keyword string `json:"keyword" form:"keyword"`
 }
 
-// GetById Find by id structure
+// GetById 标识一个使用整数主键的目标记录。
 type GetById struct {
-	ID int `json:"id" form:"id"` // 主键ID
+	// ID 是目标记录主键。
+	ID int `json:"id" form:"id"`
 }

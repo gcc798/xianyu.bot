@@ -1,11 +1,19 @@
 package request
 
+// BusinessEventSearch 描述业务事件列表的筛选条件。
 type BusinessEventSearch struct {
+	// PageInfo 提供分页和关键词条件。
 	PageInfo
-	AccountID uint   `form:"accountId"`
-	ProductID uint   `form:"productId"`
-	OrderID   uint   `form:"orderId"`
-	Type      string `form:"type"`
-	Status    string `form:"status"`
-	Keyword   string `form:"keyword"`
+	// AccountID 仅返回指定账号的事件。
+	AccountID uint `form:"accountId"`
+	// ProductID 仅返回指定商品的事件。
+	ProductID uint `form:"productId"`
+	// OrderID 仅返回指定订单的事件。
+	OrderID uint `form:"orderId"`
+	// Type 仅返回指定业务类别的事件。
+	Type string `form:"type"`
+	// Status 仅返回指定结果状态的事件。
+	Status string `form:"status"`
+	// Keyword 在事件摘要和错误信息中检索。
+	Keyword string `form:"keyword"`
 }
