@@ -23,8 +23,10 @@ import (
 	"gorm.io/gorm"
 )
 
+// publishImageUploadURL 是闲鱼商品图片上传入口。
 const publishImageUploadURL = "https://stream-upload.goofish.com/api/upload.api?floderId=0&appkey=fleamarket&_input_charset=utf-8"
 
+// reuploadPublishImages 下载并重新上传 payload 中的远端商品图片。
 func reuploadPublishImages(ctx context.Context, db *gorm.DB, ownerID, accountID uint, payload map[string]any) error {
 	if _, err := ownedAccount(ctx, db, ownerID, accountID); err != nil {
 		return err
@@ -63,6 +65,7 @@ func reuploadPublishImages(ctx context.Context, db *gorm.DB, ownerID, accountID 
 	return nil
 }
 
+// downloadPublishImage 仅从可信闲鱼或阿里域名下载不超过 15MB 的图片。
 func downloadPublishImage(ctx context.Context, client *http.Client, source string) ([]byte, string, error) {
 	target, err := url.Parse(source)
 	if err == nil && target.Scheme == "http" && allowedPublishImageHost(target.Hostname()) {
@@ -100,6 +103,7 @@ func downloadPublishImage(ctx context.Context, client *http.Client, source strin
 	return content, name, nil
 }
 
+// allowedPublishImageHost 判断图片主机是否属于允许的闲鱼或阿里域名。
 func allowedPublishImageHost(host string) bool {
 	host = strings.ToLower(strings.TrimSuffix(host, "."))
 	for _, suffix := range []string{"alicdn.com", "goofish.com", "tbcdn.cn", "taobaocdn.com"} {
@@ -110,6 +114,7 @@ func allowedPublishImageHost(host string) bool {
 	return false
 }
 
+// uploadPublishImageContent 校验图片尺寸并上传，返回闲鱼发布协议的图片对象。
 func uploadPublishImageContent(ctx context.Context, client *http.Client, endpoint, cookie string, content []byte, name string) (map[string]any, error) {
 	config, format, err := image.DecodeConfig(bytes.NewReader(content))
 	if err != nil || config.Width <= 0 || config.Height <= 0 {
@@ -152,11 +157,11 @@ func uploadPublishImageContent(ctx context.Context, client *http.Client, endpoin
 		return nil, fmt.Errorf("闲鱼图片上传 HTTP 状态 %d", response.StatusCode)
 	}
 	var result struct {
-		Success bool `json:"success"`
+		Success bool `json:"success"` // Success 表示上传已被闲鱼接受。
 		Object  struct {
-			URL string `json:"url"`
-			Pix string `json:"pix"`
-		} `json:"object"`
+			URL string `json:"url"` // URL 是上传后的图片地址。
+			Pix string `json:"pix"` // Pix 是服务端识别的宽高文本。
+		} `json:"object"` // Object 包含上传后的图片元数据。
 	}
 	if json.Unmarshal(raw, &result) != nil || !result.Success || strings.TrimSpace(result.Object.URL) == "" {
 		return nil, errors.New("闲鱼图片上传未返回有效地址")

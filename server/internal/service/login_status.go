@@ -19,25 +19,32 @@ import (
 	"gorm.io/gorm"
 )
 
+// hasLoginEndpoint 是闲鱼 Web 登录态检查入口。
 const hasLoginEndpoint = "https://passport.goofish.com/newlogin/hasLogin.do"
 
+// credentialRefreshLocks 串行化同一账号的 Cookie 刷新与持久化。
 var credentialRefreshLocks sync.Map
 
+// LoginCheck 是一次远端登录态检查结果。
 type LoginCheck struct {
-	valid  bool
-	risk   bool
-	cookie string
+	valid  bool   // valid 表示凭据仍可直接使用。
+	risk   bool   // risk 表示需要用户完成安全验证。
+	cookie string // cookie 是服务端更新后的完整 Cookie。
 }
 
+// loginChecker 描述账号服务依赖的登录态检查能力。
 type loginChecker interface {
+	// Check 使用完整 Cookie 检查远端登录态。
 	Check(context.Context, string) (LoginCheck, error)
 }
 
+// HTTPLoginChecker 通过闲鱼 Passport HTTP 接口检查登录态。
 type HTTPLoginChecker struct {
-	client   *http.Client
-	endpoint string
+	client   *http.Client // client 执行带超时的登录态请求。
+	endpoint string       // endpoint 是可在测试中替换的检查地址。
 }
 
+// NewHTTPLoginChecker 创建使用官方 Passport 入口的检查器。
 func NewHTTPLoginChecker() *HTTPLoginChecker {
 	return &HTTPLoginChecker{
 		client:   &http.Client{Timeout: 20 * time.Second},
@@ -45,6 +52,7 @@ func NewHTTPLoginChecker() *HTTPLoginChecker {
 	}
 }
 
+// CheckLogin 检查 ownerID 名下账号并原子保存远端刷新后的 Cookie。
 func (s *Account) CheckLogin(ctx context.Context, ownerID, accountID uint) (xyResponse.LoginStatus, error) {
 	if ownerID == 0 || accountID == 0 {
 		return xyResponse.LoginStatus{}, errors.New("账号 ID 不能为空")
@@ -127,6 +135,7 @@ func (s *Account) CheckLogin(ctx context.Context, ownerID, accountID uint) (xyRe
 	return xyResponse.LoginStatus{Status: status, CookieUpdated: cookieUpdated, CredentialVersion: credential.Version}, nil
 }
 
+// Check 调用 Passport 接口并合并响应中的 Cookie 更新。
 func (c *HTTPLoginChecker) Check(ctx context.Context, cookie string) (LoginCheck, error) {
 	cookies := parseCookieHeader(cookie)
 	form := url.Values{
@@ -182,8 +191,8 @@ func (c *HTTPLoginChecker) Check(ctx context.Context, cookie string) (LoginCheck
 	}
 	var payload struct {
 		Content struct {
-			Success bool `json:"success"`
-		} `json:"content"`
+			Success bool `json:"success"` // Success 表示远端确认已登录。
+		} `json:"content"` // Content 包含 Passport 业务结果。
 	}
 	if err := json.Unmarshal(body, &payload); err != nil {
 		return LoginCheck{}, errors.New("hasLogin 响应格式无法识别")
@@ -191,6 +200,7 @@ func (c *HTTPLoginChecker) Check(ctx context.Context, cookie string) (LoginCheck
 	return LoginCheck{valid: payload.Content.Success, cookie: merged}, nil
 }
 
+// parseCookieHeader 将 Cookie 请求头解析为名称和值映射。
 func parseCookieHeader(header string) map[string]string {
 	cookies := make(map[string]string)
 	for part := range strings.SplitSeq(header, ";") {
@@ -202,6 +212,7 @@ func parseCookieHeader(header string) map[string]string {
 	return cookies
 }
 
+// mergeResponseCookies 应用响应 Cookie 的新增、更新和删除后稳定排序输出。
 func mergeResponseCookies(current map[string]string, updates []*http.Cookie) string {
 	for _, cookie := range updates {
 		if cookie.MaxAge < 0 {
@@ -218,6 +229,7 @@ func mergeResponseCookies(current map[string]string, updates []*http.Cookie) str
 	return strings.Join(parts, "; ")
 }
 
+// waitContext 等待 duration，ctx 取消时提前返回 false。
 func waitContext(ctx context.Context, duration time.Duration) bool {
 	timer := time.NewTimer(duration)
 	defer timer.Stop()

@@ -13,12 +13,14 @@ import (
 	xyRequest "github.com/gcc798/xianyu.bot/internal/model/request"
 )
 
+// PublishSnapshot 保存自动重发商品所需的 MTop API 与完整负载。
 type PublishSnapshot struct {
-	API     string         `json:"api"`
-	Seller  bool           `json:"seller"`
-	Payload map[string]any `json:"payload"`
+	API     string         `json:"api"`     // API 是发布商品使用的 MTop 方法。
+	Seller  bool           `json:"seller"`  // Seller 决定使用卖家端请求参数。
+	Payload map[string]any `json:"payload"` // Payload 是经过清理的商品发布参数。
 }
 
+// capturePublishSnapshot 从闲鱼详情或本地快照生成可重放的商品发布参数。
 func (s *Product) capturePublishSnapshot(ctx context.Context, ownerID uint, item model.Product, input xyRequest.UpdateProductSetting) (string, error) {
 	caller := s.mtop
 	if caller == nil {
@@ -93,6 +95,7 @@ func (s *Product) capturePublishSnapshot(ctx context.Context, ownerID uint, item
 	return marshalPublishSnapshot(payload)
 }
 
+// marshalPublishSnapshot 将发布负载包装为固定 API 的持久化快照。
 func marshalPublishSnapshot(payload map[string]any) (string, error) {
 	snapshot, err := json.Marshal(PublishSnapshot{API: "mtop.idle.pc.idleitem.publish", Payload: payload})
 	if err != nil {
@@ -101,6 +104,7 @@ func marshalPublishSnapshot(payload map[string]any) (string, error) {
 	return string(snapshot), nil
 }
 
+// publishSnapshotDescription 提取已有快照中的商品描述。
 func publishSnapshotDescription(raw string) string {
 	var snapshot PublishSnapshot
 	if json.Unmarshal([]byte(raw), &snapshot) != nil {
@@ -111,6 +115,7 @@ func publishSnapshotDescription(raw string) string {
 	return strings.TrimSpace(description)
 }
 
+// localPublishPayload 使用本地商品快照和用户设置补齐最小发布负载。
 func localPublishPayload(item model.Product, input xyRequest.UpdateProductSetting) (map[string]any, error) {
 	description := strings.TrimSpace(input.RelistDescription)
 	if description == "" {
@@ -118,11 +123,11 @@ func localPublishPayload(item model.Product, input xyRequest.UpdateProductSettin
 		description = item.Title
 	}
 	var source struct {
-		CategoryID   json.RawMessage `json:"categoryId"`
+		CategoryID   json.RawMessage `json:"categoryId"` // CategoryID 是闲鱼平台类目。
 		DetailParams struct {
-			ImageInfos string `json:"imageInfos"`
-			PostInfo   string `json:"postInfo"`
-		} `json:"detailParams"`
+			ImageInfos string `json:"imageInfos"` // ImageInfos 是原商品图片列表的序列化值。
+			PostInfo   string `json:"postInfo"`   // PostInfo 是原商品发布附加信息。
+		} `json:"detailParams"` // DetailParams 保存列表接口携带的详情字段。
 	}
 	if json.Unmarshal([]byte(item.SourceJSON), &source) != nil {
 		return nil, errors.New("请先同步闲鱼商品")
@@ -166,6 +171,7 @@ func localPublishPayload(item model.Product, input xyRequest.UpdateProductSettin
 	}, nil
 }
 
+// configuredPublishImages 将换行分隔地址转换为最多九张发布图片。
 func configuredPublishImages(rawURLs string) []any {
 	images := make([]any, 0, 9)
 	for line := range strings.SplitSeq(strings.TrimSpace(rawURLs), "\n") {
@@ -181,6 +187,7 @@ func configuredPublishImages(rawURLs string) []any {
 	return images
 }
 
+// detailPublishImages 从商品详情响应提取最多九张发布图片。
 func detailPublishImages(payload map[string]any) []any {
 	item, ok := payload["itemDO"].(map[string]any)
 	if !ok {
@@ -208,6 +215,7 @@ func detailPublishImages(payload map[string]any) []any {
 	return images
 }
 
+// inheritedPublishAddress 从已有快照提取完整有效的发布所在地。
 func inheritedPublishAddress(snapshot string) map[string]any {
 	var saved PublishSnapshot
 	if json.Unmarshal([]byte(snapshot), &saved) != nil {
@@ -223,6 +231,7 @@ func inheritedPublishAddress(snapshot string) map[string]any {
 	return address
 }
 
+// validPublishAddress 校验闲鱼发布要求的行政区、坐标和地点字段。
 func validPublishAddress(address map[string]any) bool {
 	for _, key := range []string{"divisionId", "gps", "poiId", "poiName"} {
 		value, exists := address[key]
@@ -233,6 +242,7 @@ func validPublishAddress(address map[string]any) bool {
 	return true
 }
 
+// sortedMapKeys 返回稳定排序的映射键，用于可复现错误信息。
 func sortedMapKeys(values map[string]any) []string {
 	keys := make([]string, 0, len(values))
 	for key := range values {

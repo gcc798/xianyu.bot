@@ -16,10 +16,13 @@ import (
 	"gorm.io/gorm/logger"
 )
 
+// credentialKeyEnvironment 指定可覆盖数据库密钥的环境变量。
 const credentialKeyEnvironment = "XY_CREDENTIAL_KEY"
 
+// credentialKeySetting 是数据库中保存凭据密钥的配置键。
 const credentialKeySetting = "xy_credential_key"
 
+// encryptCredential 使用 AES-GCM 和 associatedData 加密敏感文本。
 func encryptCredential(db *gorm.DB, plaintext, associatedData string) (string, error) {
 	key, err := credentialKey(db)
 	if err != nil {
@@ -41,6 +44,7 @@ func encryptCredential(db *gorm.DB, plaintext, associatedData string) (string, e
 	return base64.RawStdEncoding.EncodeToString(sealed), nil
 }
 
+// decryptCredential 使用同一 associatedData 验证并解密凭据密文。
 func decryptCredential(db *gorm.DB, encoded, associatedData string) (string, error) {
 	key, err := credentialKey(db)
 	if err != nil {
@@ -68,6 +72,7 @@ func decryptCredential(db *gorm.DB, encoded, associatedData string) (string, err
 	return string(plaintext), nil
 }
 
+// credentialKey 优先读取环境变量，否则读取数据库中的 32 字节密钥。
 func credentialKey(db *gorm.DB) ([]byte, error) {
 	encoded := os.Getenv(credentialKeyEnvironment)
 	if strings.TrimSpace(encoded) == "" {
@@ -87,6 +92,7 @@ func credentialKey(db *gorm.DB) ([]byte, error) {
 	return key, nil
 }
 
+// ValidateCredentialKey 校验或首次生成凭据密钥，并确保数据库保存有效副本。
 func ValidateCredentialKey(db *gorm.DB) error {
 	encoded := strings.TrimSpace(os.Getenv(credentialKeyEnvironment))
 	if encoded == "" {

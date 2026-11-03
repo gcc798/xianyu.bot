@@ -11,10 +11,13 @@ import (
 )
 
 var (
-	amapInputTipsURL  = "https://restapi.amap.com/v3/assistant/inputtips"
+	// amapInputTipsURL 是高德地点提示查询入口。
+	amapInputTipsURL = "https://restapi.amap.com/v3/assistant/inputtips"
+	// addressHTTPClient 为地点解析设置统一请求超时。
 	addressHTTPClient = &http.Client{Timeout: 20 * time.Second}
 )
 
+// resolvePublishAddress 将用户地点关键词解析为闲鱼发布所需的行政区和坐标。
 func resolvePublishAddress(keyword string) (map[string]any, error) {
 	keyword = strings.TrimSpace(keyword)
 	if keyword == "" {
@@ -39,9 +42,9 @@ func resolvePublishAddress(keyword string) (map[string]any, error) {
 	}
 	defer resp.Body.Close()
 	var result struct {
-		Status string           `json:"status"`
-		Info   string           `json:"info"`
-		Tips   []map[string]any `json:"tips"`
+		Status string           `json:"status"` // Status 是高德业务状态码。
+		Info   string           `json:"info"`   // Info 是失败时的状态说明。
+		Tips   []map[string]any `json:"tips"`   // Tips 是匹配的地点候选。
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
 		return nil, fmt.Errorf("解析商品所在地响应: %w", err)
@@ -60,6 +63,7 @@ func resolvePublishAddress(keyword string) (map[string]any, error) {
 	return nil, errors.New("未找到有效的商品所在地，请填写更具体的地区")
 }
 
+// amapText 安全提取高德响应中的字符串字段。
 func amapText(value any) string {
 	text, _ := value.(string)
 	return strings.TrimSpace(text)

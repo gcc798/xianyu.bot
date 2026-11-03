@@ -20,23 +20,29 @@ import (
 	"gorm.io/gorm"
 )
 
+// mtopCaller 描述商品、订单和重发服务需要的闲鱼 MTop 调用能力。
 type mtopCaller interface {
+	// Call 校验账号归属后调用指定 api，seller 决定使用卖家端请求参数。
 	Call(context.Context, uint, uint, string, any, bool) (json.RawMessage, error)
 }
 
+// MTopClient 使用账号加密 Cookie 调用闲鱼 MTop API。
 type MTopClient struct {
-	db       *gorm.DB
-	client   *http.Client
-	endpoint string
+	db       *gorm.DB     // db 读取账号凭据并保存刷新后的 Cookie。
+	client   *http.Client // client 是可在测试中替换的 HTTP 客户端。
+	endpoint string       // endpoint 是可在测试中替换的 MTop 基础地址。
 }
 
+// MTopEnvelope 是 MTop 通用响应信封。
 type MTopEnvelope struct {
-	Ret  []string        `json:"ret"`
-	Data json.RawMessage `json:"data"`
+	Ret  []string        `json:"ret"`  // Ret 包含 MTop 状态码与消息。
+	Data json.RawMessage `json:"data"` // Data 是 API 专属业务结果。
 }
 
+// errMTopTransport 表示请求可能已到达闲鱼但客户端无法确认结果。
 var errMTopTransport = errors.New("闲鱼接口结果未知")
 
+// Call 串行刷新 accountID 的 Cookie，重试一次令牌错误并保存最新凭据。
 func (m *MTopClient) Call(ctx context.Context, ownerID, accountID uint, api string, data any, seller bool) (result json.RawMessage, err error) {
 	startedAt := time.Now()
 	defer func() {
@@ -102,6 +108,7 @@ func (m *MTopClient) Call(ctx context.Context, ownerID, accountID uint, api stri
 	return nil, err
 }
 
+// call 签名并执行单次 MTop 请求，同时返回响应合并后的 Cookie。
 func (m *MTopClient) call(ctx context.Context, cookie, api string, data any, seller bool) (MTopEnvelope, string, error) {
 	version := "1.0"
 	if strings.HasSuffix(api, "/2.0") {
@@ -194,6 +201,7 @@ func (m *MTopClient) call(ctx context.Context, cookie, api string, data any, sel
 	return envelope, merged, nil
 }
 
+// isMTopTokenError 判断 MTop 错误是否允许使用刷新后的 Cookie 重试。
 func isMTopTokenError(err error) bool {
 	message := err.Error()
 	return strings.Contains(message, "TOKEN_EXPIRED") || strings.Contains(message, "TOKEN_EXOIRED") || strings.Contains(message, "TOKEN_EMPTY")
