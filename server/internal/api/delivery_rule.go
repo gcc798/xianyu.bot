@@ -8,8 +8,12 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-type DeliveryRuleAPI struct{ service *service.Service }
+// DeliveryRuleAPI 处理发货规则 HTTP 请求。
+type DeliveryRuleAPI struct {
+	service *service.Service // service 提供业务能力。
+}
 
+// NewDeliveryRuleAPI 创建 DeliveryRuleAPI。
 func NewDeliveryRuleAPI(services *service.Service) *DeliveryRuleAPI {
 	return &DeliveryRuleAPI{service: services}
 }

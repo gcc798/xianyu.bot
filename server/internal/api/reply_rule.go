@@ -8,8 +8,12 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-type ReplyRuleAPI struct{ service *service.Service }
+// ReplyRuleAPI 处理回复规则 HTTP 请求。
+type ReplyRuleAPI struct {
+	service *service.Service // service 提供业务能力。
+}
 
+// NewReplyRuleAPI 创建 ReplyRuleAPI。
 func NewReplyRuleAPI(services *service.Service) *ReplyRuleAPI {
 	return &ReplyRuleAPI{service: services}
 }

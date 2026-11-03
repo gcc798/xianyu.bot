@@ -8,8 +8,12 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-type MessageAPI struct{ service *service.Service }
+// MessageAPI 处理消息 HTTP 请求。
+type MessageAPI struct {
+	service *service.Service // service 提供业务能力。
+}
 
+// NewMessageAPI 创建 MessageAPI。
 func NewMessageAPI(services *service.Service) *MessageAPI { return &MessageAPI{service: services} }
 
 // List 分页获取当前用户的闲鱼消息

@@ -8,12 +8,17 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-type BusinessEventAPI struct{ service *service.Service }
+// BusinessEventAPI 处理业务事件 HTTP 请求。
+type BusinessEventAPI struct {
+	service *service.Service // service 提供业务能力。
+}
 
+// NewBusinessEventAPI 创建 BusinessEventAPI。
 func NewBusinessEventAPI(services *service.Service) *BusinessEventAPI {
 	return &BusinessEventAPI{service: services}
 }
 
+// List 处理列表查询请求。
 func (a *BusinessEventAPI) List(c *gin.Context) {
 	var input xyRequest.BusinessEventSearch
 	if err := c.ShouldBindQuery(&input); err != nil {

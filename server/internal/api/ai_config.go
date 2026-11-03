@@ -11,12 +11,17 @@ import (
 	"go.uber.org/zap"
 )
 
-type AIConfigAPI struct{ config *agent.AIConfig }
+// AIConfigAPI 处理Agent 配置 HTTP 请求。
+type AIConfigAPI struct {
+	config *agent.AIConfig // config 提供 Agent 配置能力。
+}
 
+// NewAIConfigAPI 创建 AIConfigAPI。
 func NewAIConfigAPI(config *agent.AIConfig) *AIConfigAPI {
 	return &AIConfigAPI{config: config}
 }
 
+// ListModels 处理模型配置列表查询请求。
 func (a *AIConfigAPI) ListModels(c *gin.Context) {
 	items, err := a.config.ListModels(c.Request.Context())
 	if err != nil {
@@ -26,6 +31,7 @@ func (a *AIConfigAPI) ListModels(c *gin.Context) {
 	response.OkWithData(gin.H{"list": items}, c)
 }
 
+// CreateModel 处理模型配置创建请求。
 func (a *AIConfigAPI) CreateModel(c *gin.Context) {
 	var input xyRequest.SaveAIModel
 	if err := c.ShouldBindJSON(&input); err != nil {
@@ -40,6 +46,7 @@ func (a *AIConfigAPI) CreateModel(c *gin.Context) {
 	response.OkWithData(gin.H{"model": item}, c)
 }
 
+// UpdateModel 处理模型配置更新请求。
 func (a *AIConfigAPI) UpdateModel(c *gin.Context) {
 	id, ok := pathID(c)
 	if !ok {
@@ -57,6 +64,7 @@ func (a *AIConfigAPI) UpdateModel(c *gin.Context) {
 	response.OkWithMessage("保存成功", c)
 }
 
+// DeleteModel 处理模型配置删除请求。
 func (a *AIConfigAPI) DeleteModel(c *gin.Context) {
 	id, ok := pathID(c)
 	if !ok {
@@ -69,6 +77,7 @@ func (a *AIConfigAPI) DeleteModel(c *gin.Context) {
 	response.OkWithMessage("删除成功", c)
 }
 
+// SetDefaultModel 处理默认模型设置请求。
 func (a *AIConfigAPI) SetDefaultModel(c *gin.Context) {
 	id, ok := pathID(c)
 	if !ok {
@@ -81,6 +90,7 @@ func (a *AIConfigAPI) SetDefaultModel(c *gin.Context) {
 	response.OkWithMessage("默认模型已更新", c)
 }
 
+// ListMCPServers 处理 MCP 服务列表查询请求。
 func (a *AIConfigAPI) ListMCPServers(c *gin.Context) {
 	items, err := a.config.ListMCPServers(c.Request.Context())
 	if err != nil {
@@ -90,6 +100,7 @@ func (a *AIConfigAPI) ListMCPServers(c *gin.Context) {
 	response.OkWithData(gin.H{"list": items}, c)
 }
 
+// CreateMCPServer 处理 MCP 服务创建请求。
 func (a *AIConfigAPI) CreateMCPServer(c *gin.Context) {
 	var input xyRequest.SaveMCPServer
 	if err := c.ShouldBindJSON(&input); err != nil {
@@ -104,6 +115,7 @@ func (a *AIConfigAPI) CreateMCPServer(c *gin.Context) {
 	response.OkWithData(gin.H{"server": item}, c)
 }
 
+// UpdateMCPServer 处理 MCP 服务更新请求。
 func (a *AIConfigAPI) UpdateMCPServer(c *gin.Context) {
 	id, ok := pathID(c)
 	if !ok {
@@ -121,6 +133,7 @@ func (a *AIConfigAPI) UpdateMCPServer(c *gin.Context) {
 	response.OkWithMessage("保存成功", c)
 }
 
+// DeleteMCPServer 处理 MCP 服务删除请求。
 func (a *AIConfigAPI) DeleteMCPServer(c *gin.Context) {
 	id, ok := pathID(c)
 	if !ok {
@@ -133,6 +146,7 @@ func (a *AIConfigAPI) DeleteMCPServer(c *gin.Context) {
 	response.OkWithMessage("删除成功", c)
 }
 
+// GetAgentConfig 处理 Agent 配置查询请求。
 func (a *AIConfigAPI) GetAgentConfig(c *gin.Context) {
 	item, err := a.config.GetAgentConfig(c.Request.Context())
 	if err != nil {
@@ -142,6 +156,7 @@ func (a *AIConfigAPI) GetAgentConfig(c *gin.Context) {
 	response.OkWithData(gin.H{"config": item}, c)
 }
 
+// UpdateAgentConfig 处理 Agent 配置更新请求。
 func (a *AIConfigAPI) UpdateAgentConfig(c *gin.Context) {
 	var input model.AgentConfig
 	if err := c.ShouldBindJSON(&input); err != nil {
@@ -155,6 +170,7 @@ func (a *AIConfigAPI) UpdateAgentConfig(c *gin.Context) {
 	response.OkWithMessage("保存成功", c)
 }
 
+// pathID 解析并校验路径中的资源标识。
 func pathID(c *gin.Context) (uint, bool) {
 	value, err := strconv.ParseUint(c.Param("id"), 10, 64)
 	if err != nil || value == 0 {
@@ -164,6 +180,7 @@ func pathID(c *gin.Context) (uint, bool) {
 	return uint(value), true
 }
 
+// failAIConfig 统一返回 AI 配置操作错误。
 func failAIConfig(message string, err error, c *gin.Context) {
 	zap.L().Error(message, zap.Error(err))
 	response.FailWithMessage(message+"："+err.Error(), c)

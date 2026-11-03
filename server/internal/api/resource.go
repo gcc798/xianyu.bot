@@ -8,12 +8,17 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-type ResourceAPI struct{ resources *agent.ResourceCatalog }
+// ResourceAPI 处理资源 HTTP 请求。
+type ResourceAPI struct {
+	resources *agent.ResourceCatalog // resources 提供资源目录能力。
+}
 
+// NewResourceAPI 创建 ResourceAPI。
 func NewResourceAPI(resources *agent.ResourceCatalog) *ResourceAPI {
 	return &ResourceAPI{resources: resources}
 }
 
+// List 处理列表查询请求。
 func (a *ResourceAPI) List(c *gin.Context) {
 	var input xyRequest.ResourceSearch
 	if err := c.ShouldBindQuery(&input); err != nil {
@@ -28,6 +33,7 @@ func (a *ResourceAPI) List(c *gin.Context) {
 	response.OkWithDetailed(response.PageResult{List: resources, Total: total, Page: input.Page, PageSize: input.PageSize}, "获取成功", c)
 }
 
+// Get 处理详情查询请求。
 func (a *ResourceAPI) Get(c *gin.Context) {
 	resourceID, ok := pathID(c)
 	if !ok {
@@ -41,6 +47,7 @@ func (a *ResourceAPI) Get(c *gin.Context) {
 	response.OkWithData(gin.H{"resource": resource}, c)
 }
 
+// Download 处理资源下载请求。
 func (a *ResourceAPI) Download(c *gin.Context) {
 	resourceID, ok := pathID(c)
 	if !ok {
@@ -54,6 +61,7 @@ func (a *ResourceAPI) Download(c *gin.Context) {
 	response.OkWithData(gin.H{"downloadUrl": downloadURL, "expiresAt": expiresAt}, c)
 }
 
+// GetTask 处理资源任务查询请求。
 func (a *ResourceAPI) GetTask(c *gin.Context) {
 	taskID, ok := pathID(c)
 	if !ok {
@@ -67,6 +75,7 @@ func (a *ResourceAPI) GetTask(c *gin.Context) {
 	response.OkWithData(gin.H{"task": task}, c)
 }
 
+// CancelTask 处理资源任务取消请求。
 func (a *ResourceAPI) CancelTask(c *gin.Context) {
 	taskID, ok := pathID(c)
 	if !ok {
@@ -80,6 +89,7 @@ func (a *ResourceAPI) CancelTask(c *gin.Context) {
 	response.OkWithData(gin.H{"task": task}, c)
 }
 
+// PresignDelivery 处理资源交付预签名请求。
 func (a *ResourceAPI) PresignDelivery(c *gin.Context) {
 	taskID, ok := pathID(c)
 	if !ok {
@@ -93,6 +103,7 @@ func (a *ResourceAPI) PresignDelivery(c *gin.Context) {
 	response.OkWithData(gin.H{"uploadUrl": uploadURL, "expiresAt": expiresAt}, c)
 }
 
+// CompleteDelivery 处理资源交付完成请求。
 func (a *ResourceAPI) CompleteDelivery(c *gin.Context) {
 	taskID, ok := pathID(c)
 	if !ok {
@@ -111,6 +122,7 @@ func (a *ResourceAPI) CompleteDelivery(c *gin.Context) {
 	response.OkWithData(gin.H{"resource": resource}, c)
 }
 
+// UpdateDelivery 处理资源交付进度更新请求。
 func (a *ResourceAPI) UpdateDelivery(c *gin.Context) {
 	taskID, ok := pathID(c)
 	if !ok {
@@ -129,6 +141,7 @@ func (a *ResourceAPI) UpdateDelivery(c *gin.Context) {
 	response.OkWithData(gin.H{"task": task}, c)
 }
 
+// FailDelivery 处理资源交付失败请求。
 func (a *ResourceAPI) FailDelivery(c *gin.Context) {
 	taskID, ok := pathID(c)
 	if !ok {

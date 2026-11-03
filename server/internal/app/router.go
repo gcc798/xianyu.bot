@@ -10,6 +10,7 @@ import (
 	"go.uber.org/zap"
 )
 
+// Routers 创建并注册 HTTP 路由。
 func Routers(routes *router.Router, jwt *security.JWT) *gin.Engine {
 	engine := gin.New()
 	engine.Use(middleware.GinRecovery(true))

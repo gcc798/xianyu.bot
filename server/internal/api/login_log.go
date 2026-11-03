@@ -9,12 +9,17 @@ import (
 	"go.uber.org/zap"
 )
 
-type LoginLogAPI struct{ service *service.Service }
+// LoginLogAPI 处理登录审计 HTTP 请求。
+type LoginLogAPI struct {
+	service *service.Service // service 提供业务能力。
+}
 
+// NewLoginLogAPI 创建 LoginLogAPI。
 func NewLoginLogAPI(services *service.Service) *LoginLogAPI {
 	return &LoginLogAPI{service: services}
 }
 
+// Delete 处理删除请求。
 func (s *LoginLogAPI) Delete(c *gin.Context) {
 	var loginLog model.LoginLog
 	err := c.ShouldBindJSON(&loginLog)
@@ -31,6 +36,7 @@ func (s *LoginLogAPI) Delete(c *gin.Context) {
 	response.OkWithMessage("删除成功", c)
 }
 
+// List 处理列表查询请求。
 func (s *LoginLogAPI) List(c *gin.Context) {
 	var pageInfo systemReq.LoginLogSearch
 	err := c.ShouldBindQuery(&pageInfo)

@@ -5,12 +5,17 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-type AccountRouter struct{ handlers *api.API }
+// AccountRouter 注册闲鱼账号 HTTP 路由。
+type AccountRouter struct {
+	handlers *api.API // handlers 提供 HTTP 处理器。
+}
 
+// NewAccountRouter 创建 AccountRouter。
 func NewAccountRouter(handlers *api.API) *AccountRouter {
 	return &AccountRouter{handlers: handlers}
 }
 
+// Init 注册当前模块路由。
 func (r *AccountRouter) Init(private *gin.RouterGroup) {
 	read := private.Group("xy/account")
 	write := private.Group("xy/account")

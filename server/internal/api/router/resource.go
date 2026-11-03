@@ -5,12 +5,17 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-type ResourceRouter struct{ handlers *api.API }
+// ResourceRouter 注册资源 HTTP 路由。
+type ResourceRouter struct {
+	handlers *api.API // handlers 提供 HTTP 处理器。
+}
 
+// NewResourceRouter 创建 ResourceRouter。
 func NewResourceRouter(handlers *api.API) *ResourceRouter {
 	return &ResourceRouter{handlers: handlers}
 }
 
+// Init 注册当前模块路由。
 func (r *ResourceRouter) Init(private *gin.RouterGroup) {
 	private.GET("xy/resources", r.handlers.Resource.List)
 	private.GET("xy/resources/:id", r.handlers.Resource.Get)
@@ -19,6 +24,7 @@ func (r *ResourceRouter) Init(private *gin.RouterGroup) {
 	private.POST("xy/resource-tasks/:id/cancel", r.handlers.Resource.CancelTask)
 }
 
+// InitInternal 执行InitInternal操作。
 func (r *ResourceRouter) InitInternal(internal *gin.RouterGroup) {
 	internal.POST("resource-tasks/:id/upload", r.handlers.Resource.PresignDelivery)
 	internal.POST("resource-tasks/:id/progress", r.handlers.Resource.UpdateDelivery)

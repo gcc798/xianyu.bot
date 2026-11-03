@@ -10,8 +10,12 @@ import (
 	"go.uber.org/zap"
 )
 
-type StatusAPI struct{ service *service.Service }
+// StatusAPI 处理状态 HTTP 请求。
+type StatusAPI struct {
+	service *service.Service // service 提供业务能力。
+}
 
+// NewStatusAPI 创建 StatusAPI。
 func NewStatusAPI(services *service.Service) *StatusAPI { return &StatusAPI{service: services} }
 
 // GetStatus 获取闲鱼助手基础服务状态

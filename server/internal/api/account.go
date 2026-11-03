@@ -9,8 +9,12 @@ import (
 	"go.uber.org/zap"
 )
 
-type AccountAPI struct{ service *service.Service }
+// AccountAPI 处理闲鱼账号 HTTP 请求。
+type AccountAPI struct {
+	service *service.Service // service 提供业务能力。
+}
 
+// NewAccountAPI 创建 AccountAPI。
 func NewAccountAPI(services *service.Service) *AccountAPI {
 	return &AccountAPI{service: services}
 }
@@ -148,6 +152,7 @@ func (a *AccountAPI) CheckLogin(c *gin.Context) {
 	response.OkWithDetailed(gin.H{"login": status}, "检查完成", c)
 }
 
+// failAccount 统一返回账号操作错误。
 func failAccount(message string, err error, c *gin.Context) {
 	zap.L().Error(message, zap.Error(err))
 	response.FailWithMessage(message, c)

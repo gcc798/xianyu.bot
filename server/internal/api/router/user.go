@@ -6,10 +6,15 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-type UserRouter struct{ handlers *api.API }
+// UserRouter 注册用户 HTTP 路由。
+type UserRouter struct {
+	handlers *api.API // handlers 提供 HTTP 处理器。
+}
 
+// NewUserRouter 创建 UserRouter。
 func NewUserRouter(handlers *api.API) *UserRouter { return &UserRouter{handlers: handlers} }
 
+// Init 注册当前模块路由。
 func (s *UserRouter) Init(router *gin.RouterGroup) {
 	user := router.Group("user")
 	user.POST("changePassword", s.handlers.User.ChangePassword)

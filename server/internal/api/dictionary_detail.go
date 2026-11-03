@@ -9,12 +9,17 @@ import (
 	"go.uber.org/zap"
 )
 
-type DictionaryDetailAPI struct{ service *service.Service }
+// DictionaryDetailAPI 处理字典项 HTTP 请求。
+type DictionaryDetailAPI struct {
+	service *service.Service // service 提供业务能力。
+}
 
+// NewDictionaryDetailAPI 创建 DictionaryDetailAPI。
 func NewDictionaryDetailAPI(services *service.Service) *DictionaryDetailAPI {
 	return &DictionaryDetailAPI{service: services}
 }
 
+// Create 处理创建请求。
 func (s *DictionaryDetailAPI) Create(c *gin.Context) {
 	var detail model.DictionaryDetail
 	if err := c.ShouldBindJSON(&detail); err != nil {
@@ -29,6 +34,7 @@ func (s *DictionaryDetailAPI) Create(c *gin.Context) {
 	response.OkWithMessage("创建成功", c)
 }
 
+// Delete 处理删除请求。
 func (s *DictionaryDetailAPI) Delete(c *gin.Context) {
 	var detail model.DictionaryDetail
 	if err := c.ShouldBindJSON(&detail); err != nil {
@@ -43,6 +49,7 @@ func (s *DictionaryDetailAPI) Delete(c *gin.Context) {
 	response.OkWithMessage("删除成功", c)
 }
 
+// Update 处理更新请求。
 func (s *DictionaryDetailAPI) Update(c *gin.Context) {
 	var detail model.DictionaryDetail
 	if err := c.ShouldBindJSON(&detail); err != nil {
@@ -57,6 +64,7 @@ func (s *DictionaryDetailAPI) Update(c *gin.Context) {
 	response.OkWithMessage("更新成功", c)
 }
 
+// List 处理列表查询请求。
 func (s *DictionaryDetailAPI) List(c *gin.Context) {
 	var search request.DictionaryDetailSearch
 	if err := c.ShouldBindQuery(&search); err != nil {

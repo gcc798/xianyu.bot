@@ -8,8 +8,12 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-type OrderAPI struct{ service *service.Service }
+// OrderAPI 处理订单 HTTP 请求。
+type OrderAPI struct {
+	service *service.Service // service 提供业务能力。
+}
 
+// NewOrderAPI 创建 OrderAPI。
 func NewOrderAPI(services *service.Service) *OrderAPI { return &OrderAPI{service: services} }
 
 // List 分页获取当前用户的闲鱼订单

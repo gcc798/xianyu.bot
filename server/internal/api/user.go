@@ -13,6 +13,7 @@ import (
 	"go.uber.org/zap"
 )
 
+// Login 处理用户登录请求。
 func (b *UserAPI) Login(c *gin.Context) {
 	var input systemReq.Login
 	if err := c.ShouldBindJSON(&input); err != nil {
@@ -37,6 +38,7 @@ func (b *UserAPI) Login(c *gin.Context) {
 	b.TokenNext(c, *user)
 }
 
+// TokenNext 签发用户登录令牌。
 func (b *UserAPI) TokenNext(c *gin.Context, user model.User) {
 	token, claims, err := b.jwt.LoginToken(&user)
 	if err != nil {
@@ -51,6 +53,7 @@ func (b *UserAPI) TokenNext(c *gin.Context, user model.User) {
 	}, "登录成功", c)
 }
 
+// recordLogin 记录登录审计信息。
 func (b *UserAPI) recordLogin(c *gin.Context, username string, userID uint, status bool, message string) {
 	if err := b.service.LoginLog.Create(model.LoginLog{
 		Username: username, IP: c.ClientIP(), Agent: c.Request.UserAgent(), Status: status,
@@ -60,6 +63,7 @@ func (b *UserAPI) recordLogin(c *gin.Context, username string, userID uint, stat
 	}
 }
 
+// Register 处理用户注册请求。
 func (b *UserAPI) Register(c *gin.Context) {
 	var input systemReq.Register
 	if err := c.ShouldBindJSON(&input); err != nil {
@@ -82,6 +86,7 @@ func (b *UserAPI) Register(c *gin.Context) {
 	response.OkWithDetailed(systemRes.UserResponse{User: user}, "注册成功", c)
 }
 
+// ChangePassword 处理修改密码请求。
 func (b *UserAPI) ChangePassword(c *gin.Context) {
 	var input systemReq.ChangePasswordReq
 	if err := c.ShouldBindJSON(&input); err != nil {
@@ -102,6 +107,7 @@ func (b *UserAPI) ChangePassword(c *gin.Context) {
 	response.OkWithMessage("修改成功", c)
 }
 
+// GetUserList 处理用户列表查询请求。
 func (b *UserAPI) GetUserList(c *gin.Context) {
 	var page systemReq.UserSearch
 	if err := c.ShouldBindJSON(&page); err != nil {
@@ -120,6 +126,7 @@ func (b *UserAPI) GetUserList(c *gin.Context) {
 	response.OkWithDetailed(response.PageResult{List: list, Total: total, Page: page.Page, PageSize: page.PageSize}, "获取成功", c)
 }
 
+// DeleteUser 处理删除用户请求。
 func (b *UserAPI) DeleteUser(c *gin.Context) {
 	var input request.GetById
 	if err := c.ShouldBindJSON(&input); err != nil {
@@ -141,6 +148,7 @@ func (b *UserAPI) DeleteUser(c *gin.Context) {
 	response.OkWithMessage("删除成功", c)
 }
 
+// SetUserInfo 处理管理员更新用户请求。
 func (b *UserAPI) SetUserInfo(c *gin.Context) {
 	var input systemReq.ChangeUserInfo
 	if err := c.ShouldBindJSON(&input); err != nil {
@@ -161,6 +169,7 @@ func (b *UserAPI) SetUserInfo(c *gin.Context) {
 	response.OkWithMessage("设置成功", c)
 }
 
+// SetSelfInfo 处理当前用户更新资料请求。
 func (b *UserAPI) SetSelfInfo(c *gin.Context) {
 	var input systemReq.ChangeUserInfo
 	if err := c.ShouldBindJSON(&input); err != nil {
@@ -177,6 +186,7 @@ func (b *UserAPI) SetSelfInfo(c *gin.Context) {
 	response.OkWithMessage("设置成功", c)
 }
 
+// GetUserInfo 处理当前用户信息查询请求。
 func (b *UserAPI) GetUserInfo(c *gin.Context) {
 	user, err := b.service.User.GetUserInfo(security.GetUserUuid(c))
 	if err != nil {
@@ -186,6 +196,7 @@ func (b *UserAPI) GetUserInfo(c *gin.Context) {
 	response.OkWithDetailed(gin.H{"userInfo": user}, "获取成功", c)
 }
 
+// ResetPassword 处理管理员重置密码请求。
 func (b *UserAPI) ResetPassword(c *gin.Context) {
 	var input systemReq.ResetPassword
 	if err := c.ShouldBindJSON(&input); err != nil {

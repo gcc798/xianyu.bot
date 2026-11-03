@@ -14,6 +14,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// JWTAuth 校验访问令牌并写入用户身份。
 func JWTAuth(jwtManager *security.JWT) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// 我们这里jwt鉴权取头部信息 x-token 登录时回返回token信息 这里前端需要把token存储到cookie或者本地localStorage中 不过需要跟后端协商过期时间 可以约定刷新令牌或者重新登录
@@ -65,6 +66,7 @@ func JWTAuth(jwtManager *security.JWT) gin.HandlerFunc {
 	}
 }
 
+// AdminOnly 限制请求仅管理员访问。
 func AdminOnly() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		if security.GetUserAuthorityID(c) != model.AdministratorAuthorityID {

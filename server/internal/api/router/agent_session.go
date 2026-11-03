@@ -5,12 +5,17 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-type AgentSessionRouter struct{ handlers *api.API }
+// AgentSessionRouter 注册Agent 会话 HTTP 路由。
+type AgentSessionRouter struct {
+	handlers *api.API // handlers 提供 HTTP 处理器。
+}
 
+// NewAgentSessionRouter 创建 AgentSessionRouter。
 func NewAgentSessionRouter(handlers *api.API) *AgentSessionRouter {
 	return &AgentSessionRouter{handlers: handlers}
 }
 
+// Init 注册当前模块路由。
 func (r *AgentSessionRouter) Init(private *gin.RouterGroup) {
 	private.POST("xy/ai/agent/runs/:id/approve", r.handlers.AgentSession.ApproveRun)
 	group := private.Group("xy/ai/agent/sessions")

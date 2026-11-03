@@ -6,37 +6,41 @@ import (
 	"github.com/gcc798/xianyu.bot/internal/service"
 )
 
+// UserAPI 处理用户 HTTP 请求。
 type UserAPI struct {
-	service *service.Service
-	jwt     *security.JWT
+	service *service.Service // service 提供用户业务能力。
+	jwt     *security.JWT    // jwt 签发登录令牌。
 }
 
+// NewUserAPI 创建 UserAPI。
 func NewUserAPI(services *service.Service, jwt *security.JWT) *UserAPI {
 	return &UserAPI{service: services, jwt: jwt}
 }
 
+// API 汇总后端 HTTP 处理器。
 type API struct {
-	JWT              *JWTAPI
-	User             *UserAPI
-	Dictionary       *DictionaryAPI
-	DictionaryDetail *DictionaryDetailAPI
-	LoginLog         *LoginLogAPI
-	Status           *StatusAPI
-	Account          *AccountAPI
-	Product          *ProductAPI
-	ReplyRule        *ReplyRuleAPI
-	DeliveryRule     *DeliveryRuleAPI
-	Message          *MessageAPI
-	Order            *OrderAPI
-	QRLogin          *QRLoginAPI
-	WebSocket        *WebSocketAPI
-	BusinessEvent    *BusinessEventAPI
-	TelegramProxy    *TelegramProxyAPI
-	AIConfig         *AIConfigAPI
-	Resource         *ResourceAPI
-	AgentSession     *AgentSessionAPI
+	JWT              *JWTAPI              // JWT 处理令牌吊销请求。
+	User             *UserAPI             // User 处理用户请求。
+	Dictionary       *DictionaryAPI       // Dictionary 处理字典请求。
+	DictionaryDetail *DictionaryDetailAPI // DictionaryDetail 处理字典项请求。
+	LoginLog         *LoginLogAPI         // LoginLog 处理登录审计请求。
+	Status           *StatusAPI           // Status 处理状态请求。
+	Account          *AccountAPI          // Account 处理闲鱼账号请求。
+	Product          *ProductAPI          // Product 处理商品请求。
+	ReplyRule        *ReplyRuleAPI        // ReplyRule 处理回复规则请求。
+	DeliveryRule     *DeliveryRuleAPI     // DeliveryRule 处理发货规则请求。
+	Message          *MessageAPI          // Message 处理消息请求。
+	Order            *OrderAPI            // Order 处理订单请求。
+	QRLogin          *QRLoginAPI          // QRLogin 处理扫码登录请求。
+	WebSocket        *WebSocketAPI        // WebSocket 处理连接请求。
+	BusinessEvent    *BusinessEventAPI    // BusinessEvent 处理业务事件请求。
+	TelegramProxy    *TelegramProxyAPI    // TelegramProxy 代理 Telegram 请求。
+	AIConfig         *AIConfigAPI         // AIConfig 处理 Agent 配置请求。
+	Resource         *ResourceAPI         // Resource 处理资源请求。
+	AgentSession     *AgentSessionAPI     // AgentSession 处理 Agent 会话请求。
 }
 
+// New 创建 HTTP 处理器集合。
 func New(
 	services *service.Service,
 	jwt *security.JWT,

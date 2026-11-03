@@ -8,8 +8,12 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-type QRLoginAPI struct{ service *service.Service }
+// QRLoginAPI 处理扫码登录 HTTP 请求。
+type QRLoginAPI struct {
+	service *service.Service // service 提供业务能力。
+}
 
+// NewQRLoginAPI 创建 QRLoginAPI。
 func NewQRLoginAPI(services *service.Service) *QRLoginAPI {
 	return &QRLoginAPI{service: services}
 }

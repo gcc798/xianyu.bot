@@ -9,8 +9,12 @@ import (
 	"go.uber.org/zap"
 )
 
-type JWTAPI struct{ service *service.Service }
+// JWTAPI 处理令牌 HTTP 请求。
+type JWTAPI struct {
+	service *service.Service // service 提供业务能力。
+}
 
+// NewJWTAPI 创建 JWTAPI。
 func NewJWTAPI(services *service.Service) *JWTAPI { return &JWTAPI{service: services} }
 
 // Revoke

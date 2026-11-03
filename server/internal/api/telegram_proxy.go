@@ -13,10 +13,13 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// TelegramProxyAPI 处理Telegram 代理 HTTP 请求。
 type TelegramProxyAPI struct{}
 
+// NewTelegramProxyAPI 创建 TelegramProxyAPI。
 func NewTelegramProxyAPI() *TelegramProxyAPI { return new(TelegramProxyAPI) }
 
+// telegramHTTPClient 执行允许长轮询的 Telegram 请求。
 var telegramHTTPClient = &http.Client{Timeout: 15 * time.Minute}
 
 // Proxy preserves the Telegram service method, path, query, status, headers, and body behind system authentication.
@@ -39,6 +42,7 @@ func (a *TelegramProxyAPI) Proxy(c *gin.Context) {
 	_, _ = io.Copy(c.Writer, upstream.Body)
 }
 
+// telegramRequest 构造并发送 Telegram 上游请求。
 func telegramRequest(c *gin.Context) (*http.Response, error) {
 	base := strings.TrimRight(os.Getenv("TELEGRAM_SERVICE_URL"), "/")
 	if base == "" {
@@ -72,6 +76,7 @@ func telegramRequest(c *gin.Context) (*http.Response, error) {
 	return upstream, nil
 }
 
+// querySuffix 返回保留查询参数的路径后缀。
 func querySuffix(c *gin.Context) string {
 	if c.Request.URL.RawQuery == "" {
 		return ""
@@ -79,6 +84,7 @@ func querySuffix(c *gin.Context) string {
 	return "?" + c.Request.URL.RawQuery
 }
 
+// isHopByHopHeader 判断是否为逐跳 HTTP 头。
 func isHopByHopHeader(name string) bool {
 	switch http.CanonicalHeaderKey(name) {
 	case "Connection", "Keep-Alive", "Proxy-Authenticate", "Proxy-Authorization", "Te", "Trailer", "Transfer-Encoding", "Upgrade":

@@ -9,12 +9,17 @@ import (
 	"go.uber.org/zap"
 )
 
-type DictionaryAPI struct{ service *service.Service }
+// DictionaryAPI 处理字典 HTTP 请求。
+type DictionaryAPI struct {
+	service *service.Service // service 提供业务能力。
+}
 
+// NewDictionaryAPI 创建 DictionaryAPI。
 func NewDictionaryAPI(services *service.Service) *DictionaryAPI {
 	return &DictionaryAPI{service: services}
 }
 
+// Create 处理创建请求。
 func (s *DictionaryAPI) Create(c *gin.Context) {
 	var dictionary model.Dictionary
 	if err := c.ShouldBindJSON(&dictionary); err != nil {
@@ -29,6 +34,7 @@ func (s *DictionaryAPI) Create(c *gin.Context) {
 	response.OkWithMessage("创建成功", c)
 }
 
+// Delete 处理删除请求。
 func (s *DictionaryAPI) Delete(c *gin.Context) {
 	var dictionary model.Dictionary
 	if err := c.ShouldBindJSON(&dictionary); err != nil {
@@ -43,6 +49,7 @@ func (s *DictionaryAPI) Delete(c *gin.Context) {
 	response.OkWithMessage("删除成功", c)
 }
 
+// Update 处理更新请求。
 func (s *DictionaryAPI) Update(c *gin.Context) {
 	var dictionary model.Dictionary
 	if err := c.ShouldBindJSON(&dictionary); err != nil {
@@ -57,6 +64,7 @@ func (s *DictionaryAPI) Update(c *gin.Context) {
 	response.OkWithMessage("更新成功", c)
 }
 
+// List 处理列表查询请求。
 func (s *DictionaryAPI) List(c *gin.Context) {
 	var search request.DictionarySearch
 	if err := c.ShouldBindQuery(&search); err != nil {

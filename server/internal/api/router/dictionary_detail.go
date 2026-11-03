@@ -6,12 +6,17 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-type DictionaryDetailRouter struct{ handlers *api.API }
+// DictionaryDetailRouter 注册字典项 HTTP 路由。
+type DictionaryDetailRouter struct {
+	handlers *api.API // handlers 提供 HTTP 处理器。
+}
 
+// NewDictionaryDetailRouter 创建 DictionaryDetailRouter。
 func NewDictionaryDetailRouter(handlers *api.API) *DictionaryDetailRouter {
 	return &DictionaryDetailRouter{handlers: handlers}
 }
 
+// Init 注册当前模块路由。
 func (s *DictionaryDetailRouter) Init(router *gin.RouterGroup) {
 	detail := router.Group("sysDictionaryDetail").Use(middleware.AdminOnly())
 	detail.POST("createSysDictionaryDetail", s.handlers.DictionaryDetail.Create)

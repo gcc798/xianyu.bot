@@ -8,8 +8,12 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-type ProductAPI struct{ service *service.Service }
+// ProductAPI 处理商品 HTTP 请求。
+type ProductAPI struct {
+	service *service.Service // service 提供业务能力。
+}
 
+// NewProductAPI 创建 ProductAPI。
 func NewProductAPI(services *service.Service) *ProductAPI {
 	return &ProductAPI{service: services}
 }

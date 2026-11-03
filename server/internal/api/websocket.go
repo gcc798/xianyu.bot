@@ -8,8 +8,12 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-type WebSocketAPI struct{ service *service.Service }
+// WebSocketAPI 处理闲鱼连接 HTTP 请求。
+type WebSocketAPI struct {
+	service *service.Service // service 提供业务能力。
+}
 
+// NewWebSocketAPI 创建 WebSocketAPI。
 func NewWebSocketAPI(services *service.Service) *WebSocketAPI {
 	return &WebSocketAPI{service: services}
 }

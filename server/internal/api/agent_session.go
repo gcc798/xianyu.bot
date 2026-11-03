@@ -15,16 +15,19 @@ import (
 	"go.uber.org/zap"
 )
 
+// AgentSessionAPI 处理Agent 会话 HTTP 请求。
 type AgentSessionAPI struct {
-	sessions *agent.Session
-	runner   *agent.Runner
-	events   *agent.EventHub
+	sessions *agent.Session  // sessions 管理 Agent 会话。
+	runner   *agent.Runner   // runner 执行 Agent 运行。
+	events   *agent.EventHub // events 提供 Agent 事件流。
 }
 
+// NewAgentSessionAPI 创建 AgentSessionAPI。
 func NewAgentSessionAPI(sessions *agent.Session, runner *agent.Runner, events *agent.EventHub) *AgentSessionAPI {
 	return &AgentSessionAPI{sessions: sessions, runner: runner, events: events}
 }
 
+// Create 处理创建请求。
 func (a *AgentSessionAPI) Create(c *gin.Context) {
 	var input xyRequest.CreateAgentSession
 	if err := c.ShouldBindJSON(&input); err != nil {
@@ -39,6 +42,7 @@ func (a *AgentSessionAPI) Create(c *gin.Context) {
 	response.OkWithData(gin.H{"session": session}, c)
 }
 
+// List 处理列表查询请求。
 func (a *AgentSessionAPI) List(c *gin.Context) {
 	var input xyRequest.AgentSessionSearch
 	if err := c.ShouldBindQuery(&input); err != nil {
@@ -53,6 +57,7 @@ func (a *AgentSessionAPI) List(c *gin.Context) {
 	response.OkWithDetailed(response.PageResult{List: sessions, Total: total, Page: input.Page, PageSize: input.PageSize}, "获取成功", c)
 }
 
+// Get 处理详情查询请求。
 func (a *AgentSessionAPI) Get(c *gin.Context) {
 	sessionID, ok := pathID(c)
 	if !ok {
@@ -66,6 +71,7 @@ func (a *AgentSessionAPI) Get(c *gin.Context) {
 	response.OkWithData(gin.H{"session": session}, c)
 }
 
+// Trajectory 处理 Agent 运行轨迹查询请求。
 func (a *AgentSessionAPI) Trajectory(c *gin.Context) {
 	sessionID, ok := pathID(c)
 	if !ok {
@@ -84,6 +90,7 @@ func (a *AgentSessionAPI) Trajectory(c *gin.Context) {
 	response.OkWithData(page, c)
 }
 
+// ToolCall 处理 Agent 工具调用详情请求。
 func (a *AgentSessionAPI) ToolCall(c *gin.Context) {
 	sessionID, ok := pathID(c)
 	if !ok {
@@ -97,6 +104,7 @@ func (a *AgentSessionAPI) ToolCall(c *gin.Context) {
 	response.OkWithData(gin.H{"toolCall": call}, c)
 }
 
+// Delete 处理删除请求。
 func (a *AgentSessionAPI) Delete(c *gin.Context) {
 	sessionID, ok := pathID(c)
 	if !ok {
@@ -110,6 +118,7 @@ func (a *AgentSessionAPI) Delete(c *gin.Context) {
 	response.OkWithMessage("删除成功", c)
 }
 
+// SendMessage 处理 Agent 消息提交请求。
 func (a *AgentSessionAPI) SendMessage(c *gin.Context) {
 	sessionID, ok := pathID(c)
 	if !ok {
@@ -141,6 +150,7 @@ func (a *AgentSessionAPI) SendMessage(c *gin.Context) {
 	response.OkWithData(gin.H{"run": accepted}, c)
 }
 
+// CancelRun 处理 Agent 运行取消请求。
 func (a *AgentSessionAPI) CancelRun(c *gin.Context) {
 	sessionID, ok := pathID(c)
 	if !ok {
@@ -158,6 +168,7 @@ func (a *AgentSessionAPI) CancelRun(c *gin.Context) {
 	response.OkWithMessage("已请求取消", c)
 }
 
+// ApproveRun 处理 Agent 工具审批请求。
 func (a *AgentSessionAPI) ApproveRun(c *gin.Context) {
 	runID, ok := pathID(c)
 	if !ok {
@@ -172,6 +183,7 @@ func (a *AgentSessionAPI) ApproveRun(c *gin.Context) {
 	response.OkWithData(gin.H{"tool": call.ToolName, "status": call.Status}, c)
 }
 
+// Events 建立 Agent 事件流。
 func (a *AgentSessionAPI) Events(c *gin.Context) {
 	sessionID, ok := pathID(c)
 	if !ok {
@@ -229,6 +241,7 @@ func (a *AgentSessionAPI) Events(c *gin.Context) {
 	}
 }
 
+// parseLastEventID 解析 SSE 最后事件标识。
 func parseLastEventID(value string) (uint64, error) {
 	value = strings.TrimSpace(value)
 	if value == "" {
@@ -237,6 +250,7 @@ func parseLastEventID(value string) (uint64, error) {
 	return strconv.ParseUint(value, 10, 64)
 }
 
+// writeAgentSSE 写入一条 Agent SSE 事件。
 func writeAgentSSE(c *gin.Context, id uint64, eventType string, data []byte) error {
 	if id > 0 {
 		if _, err := fmt.Fprintf(c.Writer, "id: %d\n", id); err != nil {

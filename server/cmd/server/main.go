@@ -23,6 +23,7 @@ import (
 	"go.uber.org/zap"
 )
 
+// main 启动后端进程。
 func main() {
 	if err := run(); err != nil {
 		fmt.Fprintln(os.Stderr, err)
@@ -30,6 +31,7 @@ func main() {
 	}
 }
 
+// run 装配并运行后端服务。
 func run() error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
