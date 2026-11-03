@@ -18,6 +18,7 @@ import (
 	"github.com/gcc798/xianyu.bot/internal/security"
 	"github.com/gcc798/xianyu.bot/internal/service"
 	"github.com/gcc798/xianyu.bot/internal/xianyu"
+	xianyutool "github.com/gcc798/xianyu.bot/internal/xianyu/agenttool"
 	_ "go.uber.org/automaxprocs"
 	"go.uber.org/zap"
 )
@@ -66,7 +67,11 @@ func run() error {
 	resources := agent.NewResourceCatalog(db, events, mcpRegistry)
 	sessions := agent.NewSession(db)
 	aiConfig := agent.NewAIConfig(db)
-	runner := agent.NewRunner(ctx, db, mcpRegistry, resources, events, agenttool.NewRegistry())
+	localTools := agenttool.NewRegistry()
+	if err := xianyutool.Register(localTools, services.Account, services.Product, services.Order, services.Message); err != nil {
+		return fmt.Errorf("register Xianyu Agent tools: %w", err)
+	}
+	runner := agent.NewRunner(ctx, db, mcpRegistry, resources, events, localTools)
 	routes := router.New(api.New(services, jwt, aiConfig, resources, sessions, runner, events))
 	return infra.RunServer(ctx, app.Routers(routes, jwt), settings.HTTP.Port)
 }

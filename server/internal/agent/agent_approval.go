@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"time"
 
+	agenttool "github.com/gcc798/xianyu.bot/internal/agent/tool"
 	"github.com/gcc798/xianyu.bot/internal/model"
 	"github.com/mark3labs/mcp-go/mcp"
 )
@@ -40,7 +41,8 @@ func (s *Runner) Approve(ctx context.Context, ownerID, runID uint) (model.AgentR
 	if err := s.executeApproval(ctx, run, &call); err != nil {
 		finishErr := s.finishApproval(ctx, &call, "failed", "approval_execution_failed", "确认后的操作执行失败")
 		s.publish(run.SessionID, "tool.failed", map[string]any{
-			"runId": run.ID, "callId": call.CallID, "server": call.MCPServerCode, "tool": call.ToolName,
+			"runId": run.ID, "callId": call.CallID, "server": call.MCPServerCode,
+			"tool": call.ToolName, "toolCode": call.ToolCode, "toolName": call.ToolName,
 			"error": map[string]any{"code": "approval_execution_failed", "message": "确认后的操作执行失败"},
 		})
 		return call, errors.Join(err, finishErr)
@@ -49,7 +51,8 @@ func (s *Runner) Approve(ctx context.Context, ownerID, runID uint) (model.AgentR
 		return call, err
 	}
 	s.publish(run.SessionID, "tool.completed", map[string]any{
-		"runId": run.ID, "callId": call.CallID, "server": call.MCPServerCode, "tool": call.ToolName,
+		"runId": run.ID, "callId": call.CallID, "server": call.MCPServerCode,
+		"tool": call.ToolName, "toolCode": call.ToolCode, "toolName": call.ToolName,
 		"status": "completed", "durationMillis": time.Since(call.StartedAt).Milliseconds(),
 		"resultRef": map[string]any{"type": "agent_run_tool", "id": call.ID},
 	})
@@ -57,15 +60,11 @@ func (s *Runner) Approve(ctx context.Context, ownerID, runID uint) (model.AgentR
 }
 
 func (s *Runner) executeApproval(ctx context.Context, run model.AgentRun, call *model.AgentRunTool) error {
-	connections, err := s.mcpRegistryOrDefault().Discover(ctx)
+	implementation, closeTool, err := s.approvalTool(ctx, call)
 	if err != nil {
 		return err
 	}
-	defer func() { _ = closeMCPConnections(connections) }()
-	connection, definition := approvedTool(connections, call.MCPServerCode, call.ToolName)
-	if connection == nil {
-		return errors.New("MCP 能力暂不可用")
-	}
+	defer closeTool()
 	var input map[string]any
 	if err := json.Unmarshal([]byte(call.Arguments), &input); err != nil {
 		return errors.New("待确认参数无效")
@@ -77,22 +76,22 @@ func (s *Runner) executeApproval(ctx context.Context, run model.AgentRun, call *
 			return err
 		}
 	}
-	requestContext, cancel := context.WithTimeout(ctx, min(mcpToolTimeout(definition), time.Duration(connection.Server.RequestTimeoutSeconds)*time.Second))
+	arguments, err := json.Marshal(input)
+	if err != nil {
+		return errors.New("待确认参数无效")
+	}
+	requestContext, cancel := context.WithTimeout(ctx, implementation.Definition().Timeout)
 	defer cancel()
-	result, err := connection.Client.CallTool(requestContext, mcp.CallToolRequest{Params: mcp.CallToolParams{Name: call.ToolName, Arguments: input}})
+	output, err := implementation.Invoke(requestContext, agenttool.Scope{OwnerID: run.OwnerID}, arguments)
 	if err != nil {
 		s.failApprovedResourceTask(ctx, task)
-		return errors.New("MCP 能力暂不可用")
-	}
-	payload, err := json.Marshal(result)
-	if err != nil {
-		return errors.New("MCP 工具结果无效")
-	}
-	if err := s.db.WithContext(ctx).Model(call).Update("result", string(payload)).Error; err != nil {
 		return err
 	}
-	resultValue := mcpToolResultValue(result)
-	if result.IsError || !approvedResultSucceeded(resultValue) {
+	if err := s.db.WithContext(ctx).Model(call).Update("result", output).Error; err != nil {
+		return err
+	}
+	resultValue := approvedOutputValue(output, call.ToolSource)
+	if !approvedResultSucceeded(resultValue) {
 		s.failApprovedResourceTask(ctx, task)
 		return errors.New("MCP 操作执行失败")
 	}
@@ -111,6 +110,47 @@ func (s *Runner) executeApproval(ctx context.Context, run model.AgentRun, call *
 		s.publish(run.SessionID, "task.created", map[string]any{"runId": run.ID, "taskId": task.ID, "state": "running"})
 	}
 	return nil
+}
+
+func (s *Runner) approvalTool(ctx context.Context, call *model.AgentRunTool) (agenttool.Tool, func(), error) {
+	if call.ToolSource == "local" {
+		if s.tools == nil {
+			return nil, func() {}, errors.New("本地工具不可用")
+		}
+		implementation, exists := s.tools.Get(call.ToolCode)
+		if !exists {
+			return nil, func() {}, errors.New("本地工具不可用")
+		}
+		return implementation, func() {}, nil
+	}
+	connections, err := s.mcpRegistryOrDefault().Discover(ctx)
+	if err != nil {
+		return nil, func() {}, err
+	}
+	closeTool := func() { _ = closeMCPConnections(connections) }
+	connection, remote := approvedTool(connections, call.MCPServerCode, call.ToolName)
+	if connection == nil {
+		closeTool()
+		return nil, func() {}, errors.New("MCP 能力暂不可用")
+	}
+	implementation, err := newMCPAgentTool(s.db, connection, remote)
+	if err != nil {
+		closeTool()
+		return nil, func() {}, err
+	}
+	return implementation, closeTool, nil
+}
+
+func approvedOutputValue(output, source string) any {
+	if source == "mcp" || source == "" {
+		var result mcp.CallToolResult
+		if json.Unmarshal([]byte(output), &result) == nil {
+			return mcpToolResultValue(&result)
+		}
+	}
+	var value any
+	_ = json.Unmarshal([]byte(output), &value)
+	return value
 }
 
 func approvedResultSucceeded(value any) bool {

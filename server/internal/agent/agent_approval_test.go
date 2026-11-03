@@ -2,15 +2,34 @@ package agent
 
 import (
 	"context"
+	"encoding/json"
 	"testing"
 	"time"
 
+	"github.com/eino-contrib/jsonschema"
+	agenttool "github.com/gcc798/xianyu.bot/internal/agent/tool"
 	"github.com/gcc798/xianyu.bot/internal/model"
 	"github.com/glebarez/sqlite"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
 )
+
+type approvalToolStub struct {
+	ownerID uint
+}
+
+func (*approvalToolStub) Definition() agenttool.Definition {
+	return agenttool.Definition{
+		Code: "xianyu_message_reply", Name: "回复闲鱼消息", Source: "local",
+		Parameters: &jsonschema.Schema{Type: "object"}, RequiresApproval: true, Timeout: time.Second,
+	}
+}
+
+func (s *approvalToolStub) Invoke(_ context.Context, scope agenttool.Scope, _ json.RawMessage) (string, error) {
+	s.ownerID = scope.OwnerID
+	return `{"ok":true}`, nil
+}
 
 func TestAgentRunnerApprovesResourceAcquisitionWithoutPersistingDeliveryToken(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
@@ -67,4 +86,31 @@ func TestAgentRunnerApprovesResourceAcquisitionWithoutPersistingDeliveryToken(t 
 	require.Equal(t, candidate.ID, task.CandidateID)
 	require.Equal(t, "resource_acquire:42", task.ExternalTaskID)
 	require.Equal(t, "running", task.State)
+}
+
+func TestAgentRunnerApprovesLocalToolWithRunOwner(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	require.NoError(t, err)
+	require.NoError(t, db.AutoMigrate(&model.AgentSession{}, &model.AgentRun{}, &model.AgentRunTool{}, &model.AgentEvent{}))
+	session := model.AgentSession{OwnerID: 11, Title: "本地工具审批"}
+	require.NoError(t, db.Create(&session).Error)
+	run := model.AgentRun{OwnerID: 11, SessionID: session.ID, ModelID: 1, ModelName: "test", Status: "completed", ConfigSnapshot: `{}`, StartedAt: time.Now()}
+	require.NoError(t, db.Create(&run).Error)
+	call := model.AgentRunTool{
+		RunID: run.ID, CallID: "local-approve", ToolCode: "xianyu_message_reply", ToolName: "回复闲鱼消息", ToolSource: "local",
+		Arguments: `{"messageId":12,"text":"已处理"}`, Status: "waiting_approval", StartedAt: time.Now(),
+	}
+	require.NoError(t, db.Create(&call).Error)
+	implementation := new(approvalToolStub)
+	registry := agenttool.NewRegistry()
+	require.NoError(t, registry.Register(implementation))
+	runner := &Runner{db: db, tools: registry, events: NewEventHub(db)}
+
+	approved, err := runner.Approve(t.Context(), 11, run.ID)
+	require.NoError(t, err)
+	require.Equal(t, "completed", approved.Status)
+	require.EqualValues(t, 11, implementation.ownerID)
+	var stored model.AgentRunTool
+	require.NoError(t, db.First(&stored, call.ID).Error)
+	require.JSONEq(t, `{"ok":true}`, stored.Result)
 }
