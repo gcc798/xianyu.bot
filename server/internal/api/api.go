@@ -1,6 +1,7 @@
 package api
 
 import (
+	"github.com/gcc798/xianyu.bot/internal/agent"
 	"github.com/gcc798/xianyu.bot/internal/security"
 	"github.com/gcc798/xianyu.bot/internal/service"
 )
@@ -36,14 +37,22 @@ type API struct {
 	AgentSession     *AgentSessionAPI
 }
 
-func New(services *service.Service, jwt *security.JWT) *API {
+func New(
+	services *service.Service,
+	jwt *security.JWT,
+	aiConfig *agent.AIConfig,
+	resources *agent.ResourceCatalog,
+	sessions *agent.Session,
+	runner *agent.Runner,
+	events *agent.EventHub,
+) *API {
 	return &API{
 		JWT: NewJWTAPI(services), User: NewUserAPI(services, jwt),
 		Dictionary: NewDictionaryAPI(services), DictionaryDetail: NewDictionaryDetailAPI(services), LoginLog: NewLoginLogAPI(services),
 		Status: NewStatusAPI(services), Account: NewAccountAPI(services), Product: NewProductAPI(services),
 		ReplyRule: NewReplyRuleAPI(services), DeliveryRule: NewDeliveryRuleAPI(services), Message: NewMessageAPI(services),
 		Order: NewOrderAPI(services), QRLogin: NewQRLoginAPI(services), WebSocket: NewWebSocketAPI(services),
-		BusinessEvent: NewBusinessEventAPI(services), TelegramProxy: NewTelegramProxyAPI(), AIConfig: NewAIConfigAPI(services),
-		Resource: NewResourceAPI(services), AgentSession: NewAgentSessionAPI(services),
+		BusinessEvent: NewBusinessEventAPI(services), TelegramProxy: NewTelegramProxyAPI(), AIConfig: NewAIConfigAPI(aiConfig),
+		Resource: NewResourceAPI(resources), AgentSession: NewAgentSessionAPI(sessions, runner, events),
 	}
 }

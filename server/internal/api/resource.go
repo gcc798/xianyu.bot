@@ -1,17 +1,17 @@
 package api
 
 import (
+	"github.com/gcc798/xianyu.bot/internal/agent"
 	xyRequest "github.com/gcc798/xianyu.bot/internal/model/request"
 	"github.com/gcc798/xianyu.bot/internal/model/response"
 	"github.com/gcc798/xianyu.bot/internal/security"
-	"github.com/gcc798/xianyu.bot/internal/service"
 	"github.com/gin-gonic/gin"
 )
 
-type ResourceAPI struct{ service *service.Service }
+type ResourceAPI struct{ resources *agent.ResourceCatalog }
 
-func NewResourceAPI(services *service.Service) *ResourceAPI {
-	return &ResourceAPI{service: services}
+func NewResourceAPI(resources *agent.ResourceCatalog) *ResourceAPI {
+	return &ResourceAPI{resources: resources}
 }
 
 func (a *ResourceAPI) List(c *gin.Context) {
@@ -20,7 +20,7 @@ func (a *ResourceAPI) List(c *gin.Context) {
 		response.FailWithMessage(err.Error(), c)
 		return
 	}
-	resources, total, err := a.service.Resource.List(c.Request.Context(), security.GetUserID(c), input)
+	resources, total, err := a.resources.List(c.Request.Context(), security.GetUserID(c), input)
 	if err != nil {
 		failAccount("获取资源列表失败", err, c)
 		return
@@ -33,7 +33,7 @@ func (a *ResourceAPI) Get(c *gin.Context) {
 	if !ok {
 		return
 	}
-	resource, err := a.service.Resource.Get(c.Request.Context(), security.GetUserID(c), resourceID)
+	resource, err := a.resources.Get(c.Request.Context(), security.GetUserID(c), resourceID)
 	if err != nil {
 		failAccount("获取资源详情失败", err, c)
 		return
@@ -46,7 +46,7 @@ func (a *ResourceAPI) Download(c *gin.Context) {
 	if !ok {
 		return
 	}
-	downloadURL, expiresAt, err := a.service.Resource.Download(c.Request.Context(), security.GetUserID(c), resourceID)
+	downloadURL, expiresAt, err := a.resources.Download(c.Request.Context(), security.GetUserID(c), resourceID)
 	if err != nil {
 		failAccount("获取资源下载地址失败", err, c)
 		return
@@ -59,7 +59,7 @@ func (a *ResourceAPI) GetTask(c *gin.Context) {
 	if !ok {
 		return
 	}
-	task, err := a.service.Resource.GetTask(c.Request.Context(), security.GetUserID(c), taskID)
+	task, err := a.resources.GetTask(c.Request.Context(), security.GetUserID(c), taskID)
 	if err != nil {
 		failAccount("获取资源任务失败", err, c)
 		return
@@ -72,7 +72,7 @@ func (a *ResourceAPI) CancelTask(c *gin.Context) {
 	if !ok {
 		return
 	}
-	task, err := a.service.Resource.CancelTask(c.Request.Context(), security.GetUserID(c), taskID)
+	task, err := a.resources.CancelTask(c.Request.Context(), security.GetUserID(c), taskID)
 	if err != nil {
 		failAccount("取消资源任务失败", err, c)
 		return
@@ -85,7 +85,7 @@ func (a *ResourceAPI) PresignDelivery(c *gin.Context) {
 	if !ok {
 		return
 	}
-	uploadURL, expiresAt, err := a.service.Resource.PresignDelivery(c.Request.Context(), taskID, c.GetHeader("X-Delivery-Token"))
+	uploadURL, expiresAt, err := a.resources.PresignDelivery(c.Request.Context(), taskID, c.GetHeader("X-Delivery-Token"))
 	if err != nil {
 		response.FailWithMessage(err.Error(), c)
 		return
@@ -103,7 +103,7 @@ func (a *ResourceAPI) CompleteDelivery(c *gin.Context) {
 		response.FailWithMessage(err.Error(), c)
 		return
 	}
-	resource, err := a.service.Resource.CompleteDelivery(c.Request.Context(), taskID, c.GetHeader("X-Delivery-Token"), input.Size, input.SHA256)
+	resource, err := a.resources.CompleteDelivery(c.Request.Context(), taskID, c.GetHeader("X-Delivery-Token"), input.Size, input.SHA256)
 	if err != nil {
 		response.FailWithMessage(err.Error(), c)
 		return
@@ -121,7 +121,7 @@ func (a *ResourceAPI) UpdateDelivery(c *gin.Context) {
 		response.FailWithMessage(err.Error(), c)
 		return
 	}
-	task, err := a.service.Resource.UpdateDelivery(c.Request.Context(), taskID, c.GetHeader("X-Delivery-Token"), input)
+	task, err := a.resources.UpdateDelivery(c.Request.Context(), taskID, c.GetHeader("X-Delivery-Token"), input)
 	if err != nil {
 		response.FailWithMessage(err.Error(), c)
 		return
@@ -139,7 +139,7 @@ func (a *ResourceAPI) FailDelivery(c *gin.Context) {
 		response.FailWithMessage(err.Error(), c)
 		return
 	}
-	task, err := a.service.Resource.FailDelivery(c.Request.Context(), taskID, c.GetHeader("X-Delivery-Token"), input)
+	task, err := a.resources.FailDelivery(c.Request.Context(), taskID, c.GetHeader("X-Delivery-Token"), input)
 	if err != nil {
 		response.FailWithMessage(err.Error(), c)
 		return

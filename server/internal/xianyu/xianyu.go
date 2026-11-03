@@ -4,12 +4,13 @@ import (
 	"context"
 
 	"github.com/gcc798/xianyu.bot/internal/service"
+	"gorm.io/gorm"
 )
 
-func Initialize(ctx context.Context, services *service.Service) error {
-	if err := service.ValidateCredentialKey(services.DB); err != nil {
+func Initialize(ctx context.Context, db *gorm.DB, webSocket *service.WebSocketService) error {
+	if err := service.ValidateCredentialKey(db); err != nil {
 		return err
 	}
-	services.WebSocket.StartEnabledAccounts(ctx)
+	webSocket.StartEnabledAccounts(ctx)
 	return nil
 }

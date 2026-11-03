@@ -7,6 +7,8 @@ import (
 	"os/signal"
 	"syscall"
 
+	"github.com/gcc798/xianyu.bot/internal/agent"
+	agenttool "github.com/gcc798/xianyu.bot/internal/agent/tool"
 	"github.com/gcc798/xianyu.bot/internal/api"
 	"github.com/gcc798/xianyu.bot/internal/api/router"
 	"github.com/gcc798/xianyu.bot/internal/app"
@@ -15,6 +17,7 @@ import (
 	"github.com/gcc798/xianyu.bot/internal/infra/mail"
 	"github.com/gcc798/xianyu.bot/internal/security"
 	"github.com/gcc798/xianyu.bot/internal/service"
+	"github.com/gcc798/xianyu.bot/internal/xianyu"
 	_ "go.uber.org/automaxprocs"
 	"go.uber.org/zap"
 )
@@ -51,6 +54,19 @@ func run() error {
 	mailSender := mail.NewSender(settings.Email)
 	services := service.New(ctx, db, mailSender.Send)
 	services.RevokedTokens.Load()
-	routes := router.New(api.New(services, jwt))
-	return infra.RunServer(ctx, app.Routers(ctx, routes, jwt, services), settings.HTTP.Port)
+	if err := agent.Initialize(ctx, db); err != nil {
+		return fmt.Errorf("initialize Agent: %w", err)
+	}
+	if err := xianyu.Initialize(ctx, db, services.WebSocket); err != nil {
+		return fmt.Errorf("initialize Xianyu: %w", err)
+	}
+
+	events := agent.NewEventHub(db)
+	mcpRegistry := agent.NewMCPRegistry(db)
+	resources := agent.NewResourceCatalog(db, events, mcpRegistry)
+	sessions := agent.NewSession(db)
+	aiConfig := agent.NewAIConfig(db)
+	runner := agent.NewRunner(ctx, db, mcpRegistry, resources, events, agenttool.NewRegistry())
+	routes := router.New(api.New(services, jwt, aiConfig, resources, sessions, runner, events))
+	return infra.RunServer(ctx, app.Routers(routes, jwt), settings.HTTP.Port)
 }

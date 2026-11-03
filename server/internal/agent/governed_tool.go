@@ -33,6 +33,13 @@ type governedTool struct {
 
 var _ tool.InvokableTool = (*governedTool)(nil)
 
+func newGovernedTool(db *gorm.DB, implementation agenttool.Tool, harness *agentHarness, events *EventHub, run model.AgentRun) *governedTool {
+	return &governedTool{
+		db: db, implementation: implementation, harness: harness, events: events,
+		scope: agenttool.Scope{OwnerID: run.OwnerID}, sessionID: run.SessionID, runID: run.ID,
+	}
+}
+
 func (t *governedTool) Info(context.Context) (*schema.ToolInfo, error) {
 	definition := t.implementation.Definition()
 	return &schema.ToolInfo{

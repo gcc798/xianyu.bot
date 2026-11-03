@@ -3,22 +3,22 @@ package api
 import (
 	"strconv"
 
+	"github.com/gcc798/xianyu.bot/internal/agent"
 	"github.com/gcc798/xianyu.bot/internal/model"
 	xyRequest "github.com/gcc798/xianyu.bot/internal/model/request"
 	"github.com/gcc798/xianyu.bot/internal/model/response"
-	"github.com/gcc798/xianyu.bot/internal/service"
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 )
 
-type AIConfigAPI struct{ service *service.Service }
+type AIConfigAPI struct{ config *agent.AIConfig }
 
-func NewAIConfigAPI(services *service.Service) *AIConfigAPI {
-	return &AIConfigAPI{service: services}
+func NewAIConfigAPI(config *agent.AIConfig) *AIConfigAPI {
+	return &AIConfigAPI{config: config}
 }
 
 func (a *AIConfigAPI) ListModels(c *gin.Context) {
-	items, err := a.service.AIConfig.ListModels(c.Request.Context())
+	items, err := a.config.ListModels(c.Request.Context())
 	if err != nil {
 		failAIConfig("获取模型配置失败", err, c)
 		return
@@ -32,7 +32,7 @@ func (a *AIConfigAPI) CreateModel(c *gin.Context) {
 		response.FailWithMessage(err.Error(), c)
 		return
 	}
-	item, err := a.service.AIConfig.CreateModel(c.Request.Context(), input)
+	item, err := a.config.CreateModel(c.Request.Context(), input)
 	if err != nil {
 		failAIConfig("创建模型配置失败", err, c)
 		return
@@ -50,7 +50,7 @@ func (a *AIConfigAPI) UpdateModel(c *gin.Context) {
 		response.FailWithMessage(err.Error(), c)
 		return
 	}
-	if err := a.service.AIConfig.UpdateModel(c.Request.Context(), id, input); err != nil {
+	if err := a.config.UpdateModel(c.Request.Context(), id, input); err != nil {
 		failAIConfig("更新模型配置失败", err, c)
 		return
 	}
@@ -62,7 +62,7 @@ func (a *AIConfigAPI) DeleteModel(c *gin.Context) {
 	if !ok {
 		return
 	}
-	if err := a.service.AIConfig.DeleteModel(c.Request.Context(), id); err != nil {
+	if err := a.config.DeleteModel(c.Request.Context(), id); err != nil {
 		failAIConfig("删除模型配置失败", err, c)
 		return
 	}
@@ -74,7 +74,7 @@ func (a *AIConfigAPI) SetDefaultModel(c *gin.Context) {
 	if !ok {
 		return
 	}
-	if err := a.service.AIConfig.SetDefaultModel(c.Request.Context(), id); err != nil {
+	if err := a.config.SetDefaultModel(c.Request.Context(), id); err != nil {
 		failAIConfig("设置默认模型失败", err, c)
 		return
 	}
@@ -82,7 +82,7 @@ func (a *AIConfigAPI) SetDefaultModel(c *gin.Context) {
 }
 
 func (a *AIConfigAPI) ListMCPServers(c *gin.Context) {
-	items, err := a.service.AIConfig.ListMCPServers(c.Request.Context())
+	items, err := a.config.ListMCPServers(c.Request.Context())
 	if err != nil {
 		failAIConfig("获取 MCP 服务配置失败", err, c)
 		return
@@ -96,7 +96,7 @@ func (a *AIConfigAPI) CreateMCPServer(c *gin.Context) {
 		response.FailWithMessage(err.Error(), c)
 		return
 	}
-	item, err := a.service.AIConfig.CreateMCPServer(c.Request.Context(), input)
+	item, err := a.config.CreateMCPServer(c.Request.Context(), input)
 	if err != nil {
 		failAIConfig("创建 MCP 服务配置失败", err, c)
 		return
@@ -114,7 +114,7 @@ func (a *AIConfigAPI) UpdateMCPServer(c *gin.Context) {
 		response.FailWithMessage(err.Error(), c)
 		return
 	}
-	if err := a.service.AIConfig.UpdateMCPServer(c.Request.Context(), id, input); err != nil {
+	if err := a.config.UpdateMCPServer(c.Request.Context(), id, input); err != nil {
 		failAIConfig("更新 MCP 服务配置失败", err, c)
 		return
 	}
@@ -126,7 +126,7 @@ func (a *AIConfigAPI) DeleteMCPServer(c *gin.Context) {
 	if !ok {
 		return
 	}
-	if err := a.service.AIConfig.DeleteMCPServer(c.Request.Context(), id); err != nil {
+	if err := a.config.DeleteMCPServer(c.Request.Context(), id); err != nil {
 		failAIConfig("删除 MCP 服务配置失败", err, c)
 		return
 	}
@@ -134,7 +134,7 @@ func (a *AIConfigAPI) DeleteMCPServer(c *gin.Context) {
 }
 
 func (a *AIConfigAPI) GetAgentConfig(c *gin.Context) {
-	item, err := a.service.AIConfig.GetAgentConfig(c.Request.Context())
+	item, err := a.config.GetAgentConfig(c.Request.Context())
 	if err != nil {
 		failAIConfig("获取 Agent 配置失败", err, c)
 		return
@@ -148,7 +148,7 @@ func (a *AIConfigAPI) UpdateAgentConfig(c *gin.Context) {
 		response.FailWithMessage(err.Error(), c)
 		return
 	}
-	if err := a.service.AIConfig.UpdateAgentConfig(c.Request.Context(), input); err != nil {
+	if err := a.config.UpdateAgentConfig(c.Request.Context(), input); err != nil {
 		failAIConfig("更新 Agent 配置失败", err, c)
 		return
 	}

@@ -28,6 +28,6 @@ func TestNewRunnerUsesRootContext(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
-	runner := NewRunner(ctx, nil, nil, nil, nil)
+	runner := NewRunner(ctx, nil, nil, nil, nil, nil)
 	require.Equal(t, ctx, runner.root)
 }

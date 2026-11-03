@@ -6,19 +6,23 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gcc798/xianyu.bot/internal/agent"
 	xyRequest "github.com/gcc798/xianyu.bot/internal/model/request"
 	"github.com/gcc798/xianyu.bot/internal/model/response"
 	xyResponse "github.com/gcc798/xianyu.bot/internal/model/response"
 	"github.com/gcc798/xianyu.bot/internal/security"
-	"github.com/gcc798/xianyu.bot/internal/service"
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 )
 
-type AgentSessionAPI struct{ service *service.Service }
+type AgentSessionAPI struct {
+	sessions *agent.Session
+	runner   *agent.Runner
+	events   *agent.EventHub
+}
 
-func NewAgentSessionAPI(services *service.Service) *AgentSessionAPI {
-	return &AgentSessionAPI{service: services}
+func NewAgentSessionAPI(sessions *agent.Session, runner *agent.Runner, events *agent.EventHub) *AgentSessionAPI {
+	return &AgentSessionAPI{sessions: sessions, runner: runner, events: events}
 }
 
 func (a *AgentSessionAPI) Create(c *gin.Context) {
@@ -27,7 +31,7 @@ func (a *AgentSessionAPI) Create(c *gin.Context) {
 		response.FailWithMessage(err.Error(), c)
 		return
 	}
-	session, err := a.service.AgentSession.Create(c.Request.Context(), security.GetUserID(c), input)
+	session, err := a.sessions.Create(c.Request.Context(), security.GetUserID(c), input)
 	if err != nil {
 		failAccount("创建 Agent 会话失败", err, c)
 		return
@@ -41,7 +45,7 @@ func (a *AgentSessionAPI) List(c *gin.Context) {
 		response.FailWithMessage(err.Error(), c)
 		return
 	}
-	sessions, total, err := a.service.AgentSession.List(c.Request.Context(), security.GetUserID(c), input)
+	sessions, total, err := a.sessions.List(c.Request.Context(), security.GetUserID(c), input)
 	if err != nil {
 		failAccount("获取 Agent 会话失败", err, c)
 		return
@@ -54,7 +58,7 @@ func (a *AgentSessionAPI) Get(c *gin.Context) {
 	if !ok {
 		return
 	}
-	session, err := a.service.AgentSession.Get(c.Request.Context(), security.GetUserID(c), sessionID)
+	session, err := a.sessions.Get(c.Request.Context(), security.GetUserID(c), sessionID)
 	if err != nil {
 		failAccount("获取 Agent 会话详情失败", err, c)
 		return
@@ -72,7 +76,7 @@ func (a *AgentSessionAPI) Trajectory(c *gin.Context) {
 		response.FailWithMessage(err.Error(), c)
 		return
 	}
-	page, err := a.service.AgentSession.Trajectory(c.Request.Context(), security.GetUserID(c), sessionID, input)
+	page, err := a.sessions.Trajectory(c.Request.Context(), security.GetUserID(c), sessionID, input)
 	if err != nil {
 		failAccount("获取 Agent 轨迹失败", err, c)
 		return
@@ -85,7 +89,7 @@ func (a *AgentSessionAPI) ToolCall(c *gin.Context) {
 	if !ok {
 		return
 	}
-	call, err := a.service.AgentSession.ToolCall(c.Request.Context(), security.GetUserID(c), sessionID, c.Param("callId"))
+	call, err := a.sessions.ToolCall(c.Request.Context(), security.GetUserID(c), sessionID, c.Param("callId"))
 	if err != nil {
 		failAccount("获取工具调用详情失败", err, c)
 		return
@@ -98,11 +102,11 @@ func (a *AgentSessionAPI) Delete(c *gin.Context) {
 	if !ok {
 		return
 	}
-	if err := a.service.AgentSession.Delete(c.Request.Context(), security.GetUserID(c), sessionID); err != nil {
+	if err := a.sessions.Delete(c.Request.Context(), security.GetUserID(c), sessionID); err != nil {
 		failAccount("删除 Agent 会话失败", err, c)
 		return
 	}
-	a.service.AgentEvents.Forget(sessionID)
+	a.events.Forget(sessionID)
 	response.OkWithMessage("删除成功", c)
 }
 
@@ -124,7 +128,7 @@ func (a *AgentSessionAPI) SendMessage(c *gin.Context) {
 	if headerKey != "" {
 		input.IdempotencyKey = headerKey
 	}
-	result, err := a.service.AgentRunner.Submit(c.Request.Context(), security.GetUserID(c), sessionID, input.Message, input.IdempotencyKey, input.Directives...)
+	result, err := a.runner.Submit(c.Request.Context(), security.GetUserID(c), sessionID, input.Message, input.IdempotencyKey, input.Directives...)
 	if err != nil {
 		zap.L().Error("提交 Agent 消息失败", zap.Error(err))
 		response.FailWithMessage("消息提交失败，请检查 Agent 基础配置后重试", c)
@@ -147,7 +151,7 @@ func (a *AgentSessionAPI) CancelRun(c *gin.Context) {
 		response.FailWithMessage("运行 ID 无效", c)
 		return
 	}
-	if err := a.service.AgentRunner.Cancel(c.Request.Context(), security.GetUserID(c), sessionID, uint(runID)); err != nil {
+	if err := a.runner.Cancel(c.Request.Context(), security.GetUserID(c), sessionID, uint(runID)); err != nil {
 		response.FailWithMessage("取消 Agent 运行失败", c)
 		return
 	}
@@ -159,7 +163,7 @@ func (a *AgentSessionAPI) ApproveRun(c *gin.Context) {
 	if !ok {
 		return
 	}
-	call, err := a.service.AgentRunner.Approve(c.Request.Context(), security.GetUserID(c), runID)
+	call, err := a.runner.Approve(c.Request.Context(), security.GetUserID(c), runID)
 	if err != nil {
 		zap.L().Error("确认 Agent 操作失败", zap.Error(err))
 		response.FailWithMessage("确认操作执行失败", c)
@@ -173,7 +177,7 @@ func (a *AgentSessionAPI) Events(c *gin.Context) {
 	if !ok {
 		return
 	}
-	if _, err := a.service.AgentSession.Get(c.Request.Context(), security.GetUserID(c), sessionID); err != nil {
+	if _, err := a.sessions.Get(c.Request.Context(), security.GetUserID(c), sessionID); err != nil {
 		response.FailWithMessage("Agent 会话不存在", c)
 		return
 	}
@@ -182,7 +186,7 @@ func (a *AgentSessionAPI) Events(c *gin.Context) {
 		response.FailWithMessage("Last-Event-ID 无效", c)
 		return
 	}
-	replay, events, unsubscribe, err := a.service.AgentEvents.Subscribe(c.Request.Context(), sessionID, afterID)
+	replay, events, unsubscribe, err := a.events.Subscribe(c.Request.Context(), sessionID, afterID)
 	if err != nil {
 		response.FailWithMessage("读取 Agent 事件失败", c)
 		return

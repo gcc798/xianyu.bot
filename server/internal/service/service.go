@@ -3,12 +3,10 @@ package service
 import (
 	"context"
 
-	"github.com/gcc798/xianyu.bot/internal/agent"
 	"gorm.io/gorm"
 )
 
 type Service struct {
-	DB               *gorm.DB
 	RevokedTokens    *RevokedTokenService
 	User             *UserService
 	Dictionary       *DictionaryService
@@ -26,11 +24,6 @@ type Service struct {
 	QRLogin          *QRLogin
 	WebSocket        *WebSocketService
 	BusinessEvent    *BusinessEvent
-	AIConfig         *agent.AIConfig
-	Resource         *agent.ResourceCatalog
-	AgentSession     *agent.Session
-	AgentRunner      *agent.Runner
-	AgentEvents      *agent.EventHub
 }
 
 func New(ctx context.Context, db *gorm.DB, sendNotificationEmail func(string, string, string) error) *Service {
@@ -51,18 +44,12 @@ func New(ctx context.Context, db *gorm.DB, sendNotificationEmail func(string, st
 	messages.sender = webSocket
 	orders.sender = webSocket
 	webSocket.delivery = deliveries
-	agentEvents := agent.NewEventHub(db)
-	mcpRegistry := agent.NewMCPRegistry(db)
-	resources := agent.NewResourceCatalog(db, agentEvents, mcpRegistry)
 	return &Service{
-		DB:            db,
 		RevokedTokens: NewRevokedTokenService(db), User: NewUserService(db),
 		Dictionary: NewDictionaryService(db), DictionaryDetail: NewDictionaryDetailService(db), LoginLog: NewLoginLogService(db),
 		Status: NewStatus(db), Account: accounts, Product: products, ReplyRule: rules, DeliveryRule: deliveryRules,
 		Delivery: deliveries, Relist: relists, Order: orders, Message: messages,
 		QRLogin: NewQRLogin(root, accounts), WebSocket: webSocket, BusinessEvent: events,
-		AIConfig: agent.NewAIConfig(db), Resource: resources, AgentSession: agent.NewSession(db),
-		AgentRunner: agent.NewRunner(root, db, mcpRegistry, resources, agentEvents), AgentEvents: agentEvents,
 	}
 }
 
