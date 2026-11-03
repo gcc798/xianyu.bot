@@ -8,8 +8,8 @@ import (
 	"github.com/google/uuid"
 )
 
+// ClearToken 清除请求来源域下的 x-token Cookie。
 func ClearToken(c *gin.Context) {
-	// 增加cookie x-token 向来源的web添加
 	host, _, err := net.SplitHostPort(c.Request.Host)
 	if err != nil {
 		host = c.Request.Host
@@ -22,8 +22,8 @@ func ClearToken(c *gin.Context) {
 	}
 }
 
+// SetToken 将 token 写入请求来源域，maxAge 以秒为单位。
 func SetToken(c *gin.Context, token string, maxAge int) {
-	// 增加cookie x-token 向来源的web添加
 	host, _, err := net.SplitHostPort(c.Request.Host)
 	if err != nil {
 		host = c.Request.Host
@@ -36,6 +36,7 @@ func SetToken(c *gin.Context, token string, maxAge int) {
 	}
 }
 
+// GetToken 优先读取 x-token 请求头，缺失时回退到同名 Cookie。
 func GetToken(c *gin.Context) string {
 	token := c.Request.Header.Get("x-token")
 	if token == "" {
@@ -44,6 +45,7 @@ func GetToken(c *gin.Context) string {
 	return token
 }
 
+// claims 读取认证中间件写入 Gin 上下文的令牌声明。
 func claims(c *gin.Context) *systemReq.CustomClaims {
 	value, exists := c.Get("claims")
 	if !exists {
@@ -53,7 +55,7 @@ func claims(c *gin.Context) *systemReq.CustomClaims {
 	return claims
 }
 
-// GetUserID 从Gin的Context中获取从jwt解析出来的用户ID
+// GetUserID 返回认证用户的数据库主键，未认证时返回零。
 func GetUserID(c *gin.Context) uint {
 	if claims := claims(c); claims != nil {
 		return claims.BaseClaims.ID
@@ -61,7 +63,7 @@ func GetUserID(c *gin.Context) uint {
 	return 0
 }
 
-// GetUserUuid 从Gin的Context中获取从jwt解析出来的用户UUID
+// GetUserUuid 返回认证用户的 UUID，未认证时返回零值。
 func GetUserUuid(c *gin.Context) uuid.UUID {
 	if claims := claims(c); claims != nil {
 		return claims.UUID
@@ -69,7 +71,7 @@ func GetUserUuid(c *gin.Context) uuid.UUID {
 	return uuid.UUID{}
 }
 
-// GetUserAuthorityID 从Gin的Context中获取从jwt解析出来的用户角色id
+// GetUserAuthorityID 返回认证用户的角色 ID，未认证时返回零。
 func GetUserAuthorityID(c *gin.Context) uint {
 	if claims := claims(c); claims != nil {
 		return claims.AuthorityID

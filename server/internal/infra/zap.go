@@ -6,6 +6,7 @@ import (
 	"go.uber.org/zap/zapcore"
 )
 
+// Zap 按 settings 创建生产日志器；无效级别回退为 Info。
 func Zap(settings config.Log) *zap.Logger {
 	level, err := zapcore.ParseLevel(settings.Level)
 	if err != nil {

@@ -9,6 +9,7 @@ import (
 	"gorm.io/gorm"
 )
 
+// TestMigratePostgres 验证迁移能清理废弃表并保留当前业务结构。
 func TestMigratePostgres(t *testing.T) {
 	dsn := os.Getenv("TEST_POSTGRES_DSN")
 	if dsn == "" {
@@ -32,6 +33,7 @@ func TestMigratePostgres(t *testing.T) {
 	require.EqualValues(t, 2, toolIdentityColumns)
 }
 
+// TestMigrateRejectsUninitializedDatabase 验证未初始化数据库会被明确拒绝。
 func TestMigrateRejectsUninitializedDatabase(t *testing.T) {
 	err := Migrate(t.Context(), nil)
 	require.ErrorContains(t, err, "database is not initialized")

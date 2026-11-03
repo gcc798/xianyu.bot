@@ -10,14 +10,21 @@ import (
 	"github.com/jordan-wright/email"
 )
 
-type Sender struct{ config config.Email }
+// Sender 使用固定 SMTP 配置发送 HTML 邮件。
+type Sender struct {
+	// config 保存服务器地址与认证凭据，不对外暴露。
+	config config.Email
+}
 
+// NewSender 创建使用 settings 的邮件发送器。
 func NewSender(settings config.Email) *Sender { return &Sender{config: settings} }
 
+// Send 将逗号分隔的 recipients 作为收件人发送 HTML 正文。
 func (s *Sender) Send(recipients, subject, body string) error {
 	return s.send(strings.Split(recipients, ","), subject, body)
 }
 
+// send 组装邮件并根据配置选择普通 SMTP 或 TLS 连接。
 func (s *Sender) send(recipients []string, subject, body string) error {
 	settings := s.config
 	var auth smtp.Auth
@@ -43,15 +50,20 @@ func (s *Sender) send(recipients []string, subject, body string) error {
 	return message.Send(address, auth)
 }
 
+// loginAuth 实现部分 SMTP 服务要求的 LOGIN 认证流程。
 type loginAuth struct {
+	// username 是认证用户名。
 	username string
+	// password 是认证密码。
 	password string
 }
 
+// Start 声明使用 LOGIN 认证机制。
 func (a loginAuth) Start(*smtp.ServerInfo) (string, []byte, error) {
 	return "LOGIN", nil, nil
 }
 
+// Next 根据服务端提示依次返回用户名或密码。
 func (a loginAuth) Next(fromServer []byte, more bool) ([]byte, error) {
 	if !more {
 		return nil, nil

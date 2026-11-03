@@ -6,6 +6,7 @@ import (
 	"time"
 )
 
+// ParseDuration 解析 Go duration、带 d 的天数或纯纳秒整数。
 func ParseDuration(d string) (time.Duration, error) {
 	d = strings.TrimSpace(d)
 	dr, err := time.ParseDuration(d)

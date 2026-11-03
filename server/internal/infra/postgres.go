@@ -12,6 +12,7 @@ import (
 	"gorm.io/gorm/logger"
 )
 
+// Postgres 按 settings 建立连接池；未配置数据库名时返回 nil。
 func Postgres(settings config.Postgres) *gorm.DB {
 	if settings.Database == "" {
 		return nil
@@ -36,6 +37,7 @@ func Postgres(settings config.Postgres) *gorm.DB {
 	return db
 }
 
+// postgresLogLevel 将配置文本转换为 GORM 日志级别，未知值默认使用 Info。
 func postgresLogLevel(value string) logger.LogLevel {
 	switch strings.ToLower(value) {
 	case "silent":

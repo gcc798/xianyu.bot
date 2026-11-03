@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// TestJWTUsesValidatedConfiguration 验证令牌服务拒绝非法配置并采用有效配置。
 func TestJWTUsesValidatedConfiguration(t *testing.T) {
 	_, err := NewJWT(config.JWT{ExpiresTime: "invalid", BufferTime: "1h"})
 	require.ErrorContains(t, err, "expires-time")
@@ -28,6 +29,7 @@ func TestJWTUsesValidatedConfiguration(t *testing.T) {
 	require.WithinDuration(t, time.Now().Add(2*time.Hour), claims.ExpiresAt.Time, time.Second)
 }
 
+// TestJWTKeepsAuthorityClaimName 验证角色字段保持兼容的 JSON 名称。
 func TestJWTKeepsAuthorityClaimName(t *testing.T) {
 	payload, err := json.Marshal(request.CustomClaims{BaseClaims: request.BaseClaims{AuthorityID: 888}})
 	require.NoError(t, err)

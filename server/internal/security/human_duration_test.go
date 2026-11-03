@@ -5,14 +5,21 @@ import (
 	"time"
 )
 
+// TestParseDuration 覆盖标准时长、天数扩展及非法输入。
 func TestParseDuration(t *testing.T) {
+	// args 表示单个时长解析用例的输入。
 	type args struct {
+		// d 是待解析的时长文本。
 		d string
 	}
 	tests := []struct {
-		name    string
-		args    args
-		want    time.Duration
+		// name 是子测试名称。
+		name string
+		// args 保存本用例输入。
+		args args
+		// want 是期望时长。
+		want time.Duration
+		// wantErr 表示是否期望解析失败。
 		wantErr bool
 	}{
 		{

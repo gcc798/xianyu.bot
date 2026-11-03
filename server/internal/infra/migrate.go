@@ -11,12 +11,15 @@ import (
 	"gorm.io/gorm"
 )
 
+// baselineVersion 是旧数据库可被接管的最低迁移版本。
 const baselineVersion int64 = 202611010001
 
+// migrationFiles 内嵌生产数据库的 Goose 迁移文件。
+//
 //go:embed migrations/*.sql
 var migrationFiles embed.FS
 
-// Migrate applies all pending PostgreSQL schema migrations.
+// Migrate 接管兼容的旧库并执行全部待应用的 PostgreSQL 迁移。
 func Migrate(ctx context.Context, db *gorm.DB) error {
 	if db == nil {
 		return fmt.Errorf("migrate database: database is not initialized")
@@ -50,6 +53,7 @@ func Migrate(ctx context.Context, db *gorm.DB) error {
 	return nil
 }
 
+// adoptBaseline 为具备完整旧表结构且无迁移记录的数据库登记基线版本。
 func adoptBaseline(ctx context.Context, db *sql.DB) error {
 	var existingTables int
 	if err := db.QueryRowContext(ctx, `
