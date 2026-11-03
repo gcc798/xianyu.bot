@@ -1,74 +1,63 @@
-# 仓库协作规范
+# 仓库规则
 
-本文件是 Codex 在本仓库中的唯一项目级规则入口。稳定工程规则写在这里；架构、领域和迁移事实写入 `docs/`。
+## 工程边界
 
-## 当前架构
+- `server/`：Go 后端。
+- `agent-web/`：唯一维护的 React 前端。
+- `telegram.bot/`：Telegram 资源服务。
+- `web/`：待删除的旧 Vue 参考，不再修改或构建。
+- `docs/`：只记录当前事实，不记录迁移过程。
 
-- `server/` 是 Go 后端，通用能力仅保留登录、管理员/普通用户、字典和登录审计。
-- `server/internal/service/` 平铺通用基础能力和闲鱼业务服务，不再区分 `system` 和 `xianyu` 子包。
-- `server/internal/agent/` 独立承载 Agent、MCP 和资源能力；`server/internal/xianyu/` 只承载闲鱼协议、连接与启动逻辑。
-- `agent-web/` 是唯一维护的前端，使用 React 18 和 TypeScript。
-- `web/` 是已废弃的 Gin-Vue-Admin/Vue 前端，只暂时用于行为对照、迁移验收和回滚。
-- `server/internal/infra/migrations/init.sql` 是 PostgreSQL 表结构和基础数据的唯一初始化入口，由 PostgreSQL 容器在空数据目录执行。
-- 当前部署边界是可信内网；直接暴露公网属于范围变化，必须先补充网关、限流和认证设计。
+## 后端
 
-修改模块边界或迁移范围前，先阅读 `docs/architecture.md`、`docs/project-scope.md` 和 `docs/migration/feature-matrix.md`。
+- `api/` 处理 HTTP 输入输出，`service/` 处理业务，`model/` 定义数据，`api/router/` 注册路由。
+- `service/` 平铺基础能力和闲鱼业务，不恢复 `system`、`xianyu` 子包。
+- `agent/` 独立承载 Agent、MCP、Tool 和资源能力。
+- `xianyu/` 只承载闲鱼协议、连接和 Agent Tool 适配。
+- Service 不依赖 `gin.Context`，Agent 与 Service 不互相持有；Agent 通过 Tool 调用业务能力。
+- 直接依赖所需对象，不增加无业务价值的包装、接口或中间层。
+- 用户业务数据必须在 Service 校验 `owner_id`。
 
-## 前端归属
+## Go 风格
 
-- 所有新页面、修复、依赖、测试和设计系统修改都放在 `agent-web/`。
-- 不新增 JavaScript 或 JSX 源码，只使用 `.ts` 和 `.tsx`。
-- 标准表单、表格、弹窗、分页、反馈和导航优先使用 Ant Design；Agent 和业务专属交互可以自研。
-- 不再给 `web/` 增加功能、重构代码、升级依赖或重新生成构建产物。
-- 可以读取 `web/` 核对旧行为和接口，但结果必须实现在 `agent-web/`。
-- 对应 React 能力通过行为和权限验收后，才能删除 Vue 页面。
-- 必须保留鉴权边界、加载/空/错误状态、键盘操作、响应式布局和危险操作确认。
-- 重要 UI 修改必须在 `agent-web/` 执行 `npm run build`，并进行真实浏览器渲染检查。
+- 使用明确的领域名称，避免无实际含义的 `manager`、`processor`、`runtime`、`platform`。
+- 导出的类型、接口、方法和函数使用简短简体中文 GoDoc。
+- 结构体字段使用简短的中文尾行注释。
+- 构造函数命名为 `NewXxx`，放在对应类型附近。
+- 修改 Go 代码必须执行 `gofmt` 和受影响测试。
 
-## 后端边界
+## API 与安全
 
-- API 层处理 HTTP 参数和响应，Service 层处理业务决策，`model/` 定义持久化与契约，`router/` 注册路由。
-- Service 不依赖 `gin.Context`。
-- 闲鱼协议和连接依赖必须收敛在 `server/internal/xianyu/`，Agent 依赖必须收敛在 `server/internal/agent/`；不得恢复 `server/plugin/xy` 或设计新的通用插件框架。
-- 使用有领域语义的名称。除非职责确实准确，否则避免 `platform`、`runtime`、`manager`、`processor` 等宽泛命名。
-- 复用系统登录、固定管理员边界、统一响应、字典和登录审计能力，不建立平行基础设施。
-- 用户业务数据必须在 Service 层校验 `owner_id`。
-- Cookie、API Key、Token、卡密等敏感值不得进入普通响应、日志、SSE、Agent Prompt、轨迹或浏览器状态。
+- 响应保持 `{ code, data, msg }`，分页保持 `{ page, pageSize, total, list }`。
+- Go 与 TypeScript 的字段名和类型保持一致。
+- API 路径、方法、鉴权或响应变化必须同步调用方。
+- Cookie、Token、API Key、卡密和 MCP 凭据不得进入普通响应、日志、SSE、Prompt 或轨迹。
+- 当前部署边界是可信内网；公网部署需要另行设计网关、限流和认证。
 
-## API 契约
+## 数据库
 
-- 兼容期内保持统一响应 `{ code, data, msg }` 和分页 `{ page, pageSize, total, list }`。
-- Go 请求/响应结构与 TypeScript 类型的字段名和类型必须一致。
-- 路径、方法、鉴权和响应变化都属于契约变化，必须同时修改所有调用方和相关文档。
-- Swagger 等接口说明必须与真实行为一致。
+- PostgreSQL 结构和基础数据只维护 `server/internal/infra/migrations/init.sql`。
+- `init.sql` 只用于空库，不在服务启动时建表或执行生产 `AutoMigrate`。
+- 测试拥有的临时数据库可以使用 `AutoMigrate`。
+- 基础表使用 `s_`，闲鱼表使用 `xy_`，Telegram 表使用 `tel_`。
+- 不提交真实账号、凭据、会话或业务数据。
 
-## 数据库变更
+## 前端
 
-- 当前开源基线只维护 `server/internal/infra/migrations/init.sql`，不得新增平行建表脚本或在服务启动时动态建表。
-- `init.sql` 只面向空数据库；修改既有部署的数据结构前，必须先重新引入可审计的增量迁移方案。
-- 生产启动不得使用 `AutoMigrate` 演进表结构。
-- 只有完全由测试拥有的临时数据库可以在测试中使用 `AutoMigrate`。
-- 基础数据不得包含真实账号、凭据、会话或业务记录。
-- 完成前检查约束、索引、序列、空库初始化和启动行为。
+- 新功能只写入 `agent-web/`，使用 TypeScript 和 `.tsx`。
+- 保留鉴权、权限、加载、空、错误、响应式和危险操作确认。
+- UI 修改必须执行 `npm run build`；重要交互还需真实浏览器检查。
+- `web/` 只允许读取，待剩余页面取舍完成后整体删除。
 
-## 文档
+## 文档与验证
 
-- 架构和领域事实写入 `docs/`，不再创建 AI 专属记忆目录。
-- 功能进入保留、待迁移、删除或范围外状态时，更新 `docs/project-scope.md`。
-- 页面迁移验收后更新 `docs/migration/feature-matrix.md` 和 `docs/migration/vue-to-react.md`。
-- 只记录已经验证的行为，并区分单测、集成测试、浏览器测试和真实账号测试。
-- 遵守 `LICENSE` 和 `docs/upstream-and-licensing.md` 中的上游许可与署名边界。
+- 架构变化更新 `docs/architecture.md`，范围变化更新 `docs/project-scope.md`。
+- 不复制源码结构、表字段或历史过程到文档。
+- 先运行最小相关测试，再运行受影响应用的完整检查。
+- 不得把模拟测试写成真实账号或真实交易验收。
+- 遵守 `LICENSE` 和 `docs/upstream-and-licensing.md`。
 
 ## Skills
 
-- 修改 Go、React、TypeScript 或 Vue 业务代码时，使用 `.agents/skills/idiomatic-business-code/`。
-- 进行 UI 设计、审计、无障碍、响应式或视觉打磨时，使用 `.agents/skills/impeccable/`。
-- 仓库 Skill 统一放在 `.agents/skills/<name>/SKILL.md`，不得在 `.codex`、`.claude`、`.cursor` 等目录复制规则。
-
-## 验证
-
-- 先运行最小相关测试，再运行受影响包或应用的完整检查。
-- Go 修改必须格式化并测试受影响包。
-- React 修改必须通过 TypeScript 生产构建。
-- 数据库修改必须通过空库初始化测试。
-- 只运行模拟或隔离测试时，不得声称真实外部联调成功。
+- 修改 Go、React、TypeScript 或 Vue 业务代码时使用 `.agents/skills/idiomatic-business-code/`。
+- UI 设计、审计和视觉调整时使用 `.agents/skills/impeccable/`。

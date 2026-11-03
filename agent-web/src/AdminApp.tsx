@@ -132,7 +132,7 @@ export default function AdminApp() {
           <span className="live-dot" />
           <div>
             <strong>PostgreSQL</strong>
-            <small>GOOSE MANAGED</small>
+            <small>POSTGRESQL 19</small>
           </div>
         </div>
       </aside>
