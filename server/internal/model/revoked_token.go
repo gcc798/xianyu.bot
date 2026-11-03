@@ -2,10 +2,8 @@ package model
 
 // RevokedToken 保存需要在持久化层失效的 JWT。
 type RevokedToken struct {
-	// Timestamps 保存撤销记录的生命周期字段。
-	Timestamps
-	// Token 是已撤销的完整 JWT。
-	Token string `gorm:"column:jwt;type:text;comment:jwt"`
+	Timestamps        // Timestamps 保存撤销记录的生命周期字段。
+	Token      string `gorm:"column:jwt;type:text;comment:jwt"` // Token 是已撤销的完整 JWT。
 }
 
 // TableName 返回兼容旧系统的令牌黑名单表名。

@@ -14,14 +14,10 @@ import (
 
 // JWT 负责签发、解析和刷新本服务的 HMAC 登录令牌。
 type JWT struct {
-	// signingKey 是 HMAC 签名密钥。
-	signingKey []byte
-	// expires 是令牌有效期。
-	expires time.Duration
-	// buffer 是到期前允许刷新的时间窗口。
-	buffer time.Duration
-	// issuer 是令牌签发方声明。
-	issuer string
+	signingKey []byte        // signingKey 是 HMAC 签名密钥。
+	expires    time.Duration // expires 是令牌有效期。
+	buffer     time.Duration // buffer 是到期前允许刷新的时间窗口。
+	issuer     string        // issuer 是令牌签发方声明。
 }
 
 // NewJWT 校验 settings 中的时长并创建令牌服务。

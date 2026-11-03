@@ -12,12 +12,9 @@ import (
 
 // testServer 模拟可控的 HTTP 服务生命周期。
 type testServer struct {
-	// listenErr 是启动时应返回的错误。
-	listenErr error
-	// stopped 在模拟服务关闭时解除阻塞。
-	stopped chan struct{}
-	// shutdown 记录是否调用过关闭流程。
-	shutdown atomic.Bool
+	listenErr error         // listenErr 是启动时应返回的错误。
+	stopped   chan struct{} // stopped 在模拟服务关闭时解除阻塞。
+	shutdown  atomic.Bool   // shutdown 记录是否调用过关闭流程。
 }
 
 // ListenAndServe 模拟阻塞监听或立即返回配置的错误。

@@ -12,8 +12,7 @@ import (
 
 // Sender 使用固定 SMTP 配置发送 HTML 邮件。
 type Sender struct {
-	// config 保存服务器地址与认证凭据，不对外暴露。
-	config config.Email
+	config config.Email // config 保存服务器地址与认证凭据，不对外暴露。
 }
 
 // NewSender 创建使用 settings 的邮件发送器。
@@ -52,10 +51,8 @@ func (s *Sender) send(recipients []string, subject, body string) error {
 
 // loginAuth 实现部分 SMTP 服务要求的 LOGIN 认证流程。
 type loginAuth struct {
-	// username 是认证用户名。
-	username string
-	// password 是认证密码。
-	password string
+	username string // username 是认证用户名。
+	password string // password 是认证密码。
 }
 
 // Start 声明使用 LOGIN 认证机制。

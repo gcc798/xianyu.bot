@@ -2,10 +2,8 @@ package model
 
 // Setting 保存一个服务级键值配置。
 type Setting struct {
-	// Key 是配置项的唯一标识。
-	Key string `gorm:"primaryKey;size:128"`
-	// Value 是配置项的文本值。
-	Value string `gorm:"type:text;not null"`
+	Key   string `gorm:"primaryKey;size:128"` // Key 是配置项的唯一标识。
+	Value string `gorm:"type:text;not null"`  // Value 是配置项的文本值。
 }
 
 // TableName 返回服务设置表名。

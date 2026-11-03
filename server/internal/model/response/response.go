@@ -8,12 +8,9 @@ import (
 
 // Response 是兼容期内所有 HTTP 接口的统一响应信封。
 type Response struct {
-	// Code 是零成功、非零失败的业务状态码。
-	Code int `json:"code"`
-	// Data 是接口返回的业务数据。
-	Data any `json:"data"`
-	// Msg 是供用户查看的结果消息。
-	Msg string `json:"msg"`
+	Code int    `json:"code"` // Code 是零成功、非零失败的业务状态码。
+	Data any    `json:"data"` // Data 是接口返回的业务数据。
+	Msg  string `json:"msg"`  // Msg 是供用户查看的结果消息。
 }
 
 const (

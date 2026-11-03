@@ -9,18 +9,13 @@ import (
 func TestParseDuration(t *testing.T) {
 	// args 表示单个时长解析用例的输入。
 	type args struct {
-		// d 是待解析的时长文本。
-		d string
+		d string // d 是待解析的时长文本。
 	}
 	tests := []struct {
-		// name 是子测试名称。
-		name string
-		// args 保存本用例输入。
-		args args
-		// want 是期望时长。
-		want time.Duration
-		// wantErr 表示是否期望解析失败。
-		wantErr bool
+		name    string        // name 是子测试名称。
+		args    args          // args 保存本用例输入。
+		want    time.Duration // want 是期望时长。
+		wantErr bool          // wantErr 表示是否期望解析失败。
 	}{
 		{
 			name:    "5h20m",
