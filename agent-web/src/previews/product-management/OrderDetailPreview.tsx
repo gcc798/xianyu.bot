@@ -57,7 +57,7 @@ export default function OrderDetailPreview({ onBack }: { onBack: () => void }) {
                   <Alert
                     type="warning"
                     showIcon
-                    message="订单尚未发货"
+                    title="订单尚未发货"
                     description="请在确认交付内容无误后执行发货；预览中的操作不会写入真实订单。"
                     className="order-alert"
                   />

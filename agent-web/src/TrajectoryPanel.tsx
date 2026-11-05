@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
-import { getToolCall, getTrajectory } from './api'
-import type { AgentEvent, ToolCallDetail } from './types'
+import { getToolCall, getTrajectory } from './api/agent'
+import type { AgentEvent, ToolCallDetail } from './models/agent'
 
 type Props = { sessionId: number; onClose: () => void }
 type InspectorTab = 'overview' | 'input' | 'output' | 'prompt' | 'schema' | 'timing' | 'token' | 'raw'

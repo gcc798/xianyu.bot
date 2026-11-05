@@ -107,14 +107,14 @@ src/api/system.ts            src/models/system.ts
 
 | 页面/能力 | 方法与路径 | 请求与响应要点 | 权限 | 状态 |
 | --- | --- | --- | --- | --- |
-| 登录 | `POST /base/login` | 登录请求与 `UserResponse`、Token 返回以 `api/user.go` 为准 | 公开 | 已有，待拆分 |
-| 退出 | `POST /jwt/jsonInBlacklist` | 撤销当前 JWT，成功后无论页面缓存如何都清理本地登录态 | 登录用户 | 已有，待拆分 |
-| 当前用户 | `GET /user/getUserInfo` | 返回当前用户资料和权限标识 | 登录用户 | 已有，待拆分 |
+| 登录 | `POST /base/login` | 登录请求与 `UserResponse`、Token 返回以 `api/user.go` 为准 | 公开 | 已完成 |
+| 退出 | `POST /jwt/jsonInBlacklist` | 撤销当前 JWT，成功后无论页面缓存如何都清理本地登录态 | 登录用户 | 已完成 |
+| 当前用户 | `GET /user/getUserInfo` | 返回当前用户资料和权限标识 | 登录用户 | 已完成 |
 | 修改密码 | `POST /user/changePassword` | 成功后按后端策略处理重新登录 | 登录用户 | 已有，待拆分 |
 | 个人资料 | `PUT /user/setSelfInfo` | 只提交允许用户自改的字段 | 登录用户 | 已有，待拆分 |
-| 用户管理 | `POST /user/admin_register`、`POST /user/getUserList`、`DELETE /user/deleteUser`、`PUT /user/setUserInfo`、`POST /user/resetPassword` | 列表分页；删除、重置密码二次确认 | 管理员 | 已有，待类型化 |
-| 字典 | `/sysDictionary/*`、`/sysDictionaryDetail/*` | 路径及方法严格使用 router 定义；父字典与明细联动 | 管理员 | 已有，待类型化 |
-| 登录日志 | `GET /sysLoginLog/getLoginLogList`、`DELETE /sysLoginLog/deleteLoginLog` | 删除需确认 | 管理员 | 已有，待类型化 |
+| 用户管理 | `POST /user/admin_register`、`POST /user/getUserList`、`DELETE /user/deleteUser`、`PUT /user/setUserInfo`、`POST /user/resetPassword` | 列表分页；删除、重置密码二次确认 | 管理员 | 已完成 |
+| 字典 | `/sysDictionary/*`、`/sysDictionaryDetail/*` | 路径及方法严格使用 router 定义；父字典与明细联动 | 管理员 | 已完成 |
+| 登录日志 | `GET /sysLoginLog/getLoginLogList`、`DELETE /sysLoginLog/deleteLoginLog` | 删除需确认 | 管理员 | 已完成 |
 
 ### 4.2 总览
 

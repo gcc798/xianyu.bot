@@ -1,10 +1,12 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
-import AdminApp from "./AdminApp";
+import "antd/dist/reset.css";
+import App from "./app/App";
+import "./styles/global.css";
 import "./styles.css";
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    <AdminApp />
+    <App />
   </StrictMode>
 );

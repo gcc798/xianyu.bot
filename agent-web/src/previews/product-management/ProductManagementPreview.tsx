@@ -516,7 +516,7 @@ function ProductSettingModal({
                 className="setting-note"
                 type="info"
                 showIcon
-                message="自动续售发布时需要所在地；虚拟商品也需要填写。"
+                title="自动续售发布时需要所在地；虚拟商品也需要填写。"
               />
             </>
           )}

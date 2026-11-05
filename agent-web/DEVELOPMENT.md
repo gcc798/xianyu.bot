@@ -7,9 +7,9 @@
 ## 当前基线
 
 - `agent-web/` 是唯一维护和部署的前端。
-- 当前工程仍使用 React 18.3；正式页面开发开始前升级到 React 19。
-- 当前正式代码包含登录、总览、用户、字典、登录日志以及 Bot 对话、审批和轨迹能力。
-- `AdminApp.tsx`、`App.tsx` 和全局 CSS 文件体积过大，正式开发时按页面和职责拆分。
+- 当前工程使用 React 19、React Router 和 Ant Design 6。
+- 当前正式代码包含登录、统一控制台 Layout、用户、字典、登录日志以及 Bot 对话、审批和轨迹能力。
+- 登录、权限、API、DTO、系统页面和路由已按职责拆分；Bot 页面和轨迹组件将在对应批次继续拆分。
 - `web/` 是只读 Vue 参考，只用于确认业务流程、字段、接口和危险操作，不复制其组件体系和视觉皮肤。
 - `src/previews/` 与 `ui-preview.html` 是隔离预览，不进入正式路由。
 
@@ -86,8 +86,8 @@ src/
 
 | 页面 | 正式页面状态 | Vue 参考 | 主要接口 |
 | --- | --- | --- | --- |
-| 登录与退出 | 已有，待迁移到新结构 | `view/login` | `/base/login`、`/jwt/jsonInBlacklist` |
-| 总览 | 已有基础版本，待统一 UI | `xianyu/dashboard.vue` | `/xy/dashboard/overview` |
+| 登录与退出 | 已完成新结构迁移 | `view/login` | `/base/login`、`/jwt/jsonInBlacklist` |
+| 总览 | 待开发 | `xianyu/dashboard.vue` | `/xy/dashboard/overview` |
 | Bot | 已有业务逻辑，待按预览重构 | `xianyu/ai-agent.vue` | `/xy/ai/agent/*` |
 | 账号管理 | 待开发 | `xianyu/accounts.vue` | `/xy/account/*`、`/xy/qr-login/*`、`/xy/websocket/*` |
 | 商品列表 | 预览已确认，正式页待开发 | `xianyu/products.vue` | `/xy/product/list`、`sync`、`setting` |
@@ -103,7 +103,7 @@ src/
 | Telegram 会话 | 待开发 | `xianyu/telegram-dialogs.vue` | Telegram 代理接口 |
 | 资源任务与文件 | 待开发 | `telegram-resource-*.vue` | `/xy/telegram/*`、`/xy/resources/*` |
 | Telegram 设置 | 待开发 | `xianyu/telegram-settings.vue` | Telegram 代理接口 |
-| 用户、字典、登录日志 | 已有，待拆分和统一 UI | `superAdmin`、`systemTools` | `/user/*`、`/sysDictionary*`、`/sysLoginLog/*` |
+| 用户、字典、登录日志 | 已完成新结构迁移 | `superAdmin`、`systemTools` | `/user/*`、`/sysDictionary*`、`/sysLoginLog/*` |
 
 旧 Vue 文件只提供参考；正式接口以 `server/internal/api/router/` 和 Go 请求、响应模型为准。
 
@@ -171,6 +171,7 @@ src/
 | 2026-11-05 | 安装 Ant Design，建立隔离 UI 预览入口 | 完成 |
 | 2026-11-05 | 确认商品列表、详情信息结构、状态标签和桌面缩放规则 | 完成 |
 | 2026-11-05 | 确认采用顶层职责分层，页面私有组件就近存放 | 完成 |
-| 2026-11-05 | 确认正式开发使用 React 19 | 已确认，待升级 |
+| 2026-11-05 | 确认正式开发使用 React 19 | 完成 |
+| 2026-11-05 | 升级 React 19，完成正式 Router、鉴权、Layout 和系统页面分层 | 完成 |
 
 后续每完成一个批次，只追加已经发生的结果、验证命令和剩余问题，不在这里记录逐行修改过程。

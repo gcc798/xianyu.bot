@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { approveRun, cancelRun, createSession, deleteSession, getSession, getTrajectory, listSessions, sendMessage, streamEvents } from './api'
-import type { AgentEvent, Approval, ChatMessage, Directive, Operation, Session } from './types'
+import { approveRun, cancelRun, createSession, deleteSession, getSession, getTrajectory, listSessions, sendMessage, streamEvents } from './api/agent'
+import type { AgentEvent, Approval, ChatMessage, Directive, Operation, Session } from './models/agent'
 import TrajectoryPanel from './TrajectoryPanel'
 
 const capabilities = [
@@ -155,24 +155,21 @@ export default function App() {
   return (
     <main className="agent-app">
       <aside className="session-sidebar">
-        <div className="brand"><span className="brand-mark">XY</span><div><strong>XyAgent</strong><small>OBSERVABLE AGENT</small></div></div>
         <button className="new-chat" onClick={() => void newConversation()}><span>＋</span> 新对话</button>
         <nav className="session-list" aria-label="对话列表">{sessions.map((session) =>
           <button key={session.ID} className={`session-row ${session.ID === sessionId ? 'active' : ''}`} onClick={() => void openSession(session.ID)}>
             <span><strong>{session.title || '新对话'}</strong><small>{formatTime(session.lastMessageAt || session.CreatedAt)}</small></span>
             <i role="button" aria-label="删除对话" tabIndex={0} onClick={(event) => { event.stopPropagation(); void removeConversation(session.ID) }}>×</i>
           </button>)}</nav>
-        <div className="sidebar-foot"><span className={running ? 'status-dot busy' : 'status-dot'} />{running ? '正在执行' : '系统就绪'}</div>
       </aside>
 
       <section className="chat-stage">
         <header className="chat-header">
-          <div><strong>{activeSession?.title || '新对话'}</strong><small>{running ? 'Agent 正在思考与调用能力' : '所有执行过程均可审计'}</small></div>
+          <div><strong>{activeSession?.title || '新对话'}</strong>{running && <small>正在执行</small>}</div>
           <div className="header-actions">{running && <button className="stop-button" onClick={() => void cancelRun(sessionId, runId)}>停止</button>}<button className="trace-button" disabled={!sessionId} onClick={() => setTrajectoryOpen(true)}>轨迹 <span>⌘</span></button></div>
         </header>
         <div className="message-scroll" ref={viewportRef} aria-live="polite">
-          {!messages.length && <section className="welcome"><span className="eyebrow">XYAGENT / WORKSPACE</span><h1>今天想完成什么？</h1>
-            <p>描述目标即可。XyAgent 会选择合适的 MCP 能力，并把每一步请求、输出和错误留在可审计轨迹中。</p>
+          {!messages.length && <section className="welcome"><h1>今天想完成什么？</h1>
             <div className="prompt-grid">{['帮我检索斗破苍穹相关资源，并展示完整检索过程', '列出当前可访问的来源，优先找名称包含“搜”的群组', '检查当前 MCP 能力，只说明不可用项'].map((text) =>
               <button key={text} onClick={() => setDraft(text)}>{text}<span>↗</span></button>)}</div></section>}
           <div className="message-column">
@@ -190,7 +187,7 @@ export default function App() {
           {!!directives.length && <div className="directive-list">{directives.map((directive) => <span key={directive.type} className={directive.type}><b>{directive.type}</b>{directive.name}<button onClick={() => setDirectives((items) => items.filter((item) => item.type !== directive.type))}>×</button></span>)}</div>}
           {slashOpen && <div className="slash-picker"><header><strong>选择 Skill 或 Tool</strong><small>输入 /skill 或 /tool 筛选</small></header>{filteredCapabilities.map(([type, name, description]) =>
             <button key={`${type}-${name}`} className={type} onMouseDown={(event) => { event.preventDefault(); selectCapability(type, name) }}><span>{type === 'skill' ? '◇' : '⌘'}</span><div><strong>{name}</strong><small>{description}</small></div><em>{type}</em></button>)}</div>}
-          <div className="composer"><textarea value={draft} rows={2} disabled={running} placeholder="给 XyAgent 发送消息，输入 / 选择 Skill 或 Tool" onChange={(event) => { setDraft(event.target.value); setSlashOpen(/(?:^|\s)\/[^\n/]*$/.test(event.target.value)) }} onKeyDown={(event) => {
+          <div className="composer"><textarea value={draft} rows={2} disabled={running} placeholder="输入运营问题或任务，输入 / 选择 Skill 或 Tool" onChange={(event) => { setDraft(event.target.value); setSlashOpen(/(?:^|\s)\/[^\n/]*$/.test(event.target.value)) }} onKeyDown={(event) => {
             if (event.key === 'Escape') setSlashOpen(false)
             if (event.key === 'Enter' && !event.shiftKey && !slashOpen) { event.preventDefault(); void submit() }
           }} /><div className="composer-meta"><span className="model-chip"><i /> 默认模型</span><small>Enter 发送 · Shift + Enter 换行</small><button className="send-button" disabled={!draft.trim() || running} onClick={() => void submit()} aria-label="发送">↑</button></div></div>
