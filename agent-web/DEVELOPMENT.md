@@ -101,8 +101,8 @@ src/
 | 业务事件 | 已完成 | `xianyu/business-events.vue` | `/xy/event/list` |
 | AI 与 MCP 设置 | 已完成 | `xianyu/ai-settings.vue` | `/xy/ai/models`、`mcp-servers`、`agent-config` |
 | 资源管理 | 已完成 | 资源页面 | `/xy/resources`、详情、下载 |
-| Telegram 总览 | 待开发 | `xianyu/telegram-overview.vue` | Telegram 代理接口 |
-| Telegram 会话 | 待开发 | `xianyu/telegram-dialogs.vue` | Telegram 代理接口 |
+| Telegram 总览 | 已开发，待联调 | `xianyu/telegram-overview.vue` | Telegram 代理接口 |
+| Telegram 会话 | 已开发，待联调 | `xianyu/telegram-dialogs.vue` | Telegram 代理接口 |
 | 资源任务与文件 | 待开发 | `telegram-resource-*.vue` | `/xy/telegram/*`、`/xy/resources/*` |
 | Telegram 设置 | 待开发 | `xianyu/telegram-settings.vue` | Telegram 代理接口 |
 | 用户、字典、登录日志 | 已完成新结构迁移 | `superAdmin`、`systemTools` | `/user/*`、`/sysDictionary*`、`/sysLoginLog/*` |
@@ -180,5 +180,6 @@ src/
 | 2026-11-05 | 完成管理员模型、MCP Server 和 Agent 运行边界配置 | 完成 |
 | 2026-11-05 | Bot 工作区与轨迹组件归位到页面目录，保持既有会话行为 | 完成 |
 | 2026-11-05 | 完成统一资源列表、来源详情和安全下载地址获取 | 完成 |
+| 2026-11-05 | 完成 Telegram 状态、扫码登录、扫描和会话管理页面，等待运行服务联调 | 完成开发 |
 
 后续每完成一个批次，只追加已经发生的结果、验证命令和剩余问题，不在这里记录逐行修改过程。

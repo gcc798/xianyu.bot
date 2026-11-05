@@ -267,12 +267,12 @@ Vue 参考：`telegram-overview.vue`、`telegram-dialogs.vue`、`telegram-settin
 
 | 页面/能力 | 上游方法与路径 | 关键请求 | 状态 |
 | --- | --- | --- | --- |
-| 状态 | `GET /api/admin/status` | 无 | 需核验 |
-| 扫码登录 | `POST /api/admin/login/qr`、`GET /api/admin/login/status` | 轮询生命周期 | 需核验 |
-| 2FA | `POST /api/admin/login/2fa` | `{ password }` | 需核验 |
-| 扫描 | `POST /api/admin/scan`、`GET /api/admin/scan/status` | 启动与轮询 | 需核验 |
-| 会话列表 | `GET /api/admin/dialogs` | 上游分页/筛选 | 需核验 |
-| 退出会话 | `POST /api/admin/dialogs/leave` | `{ dialog_ids, confirm: '退出' }`，必须二次确认 | 需核验 |
+| 状态 | `GET /api/admin/status` | 无 | 已开发，待联调 |
+| 扫码登录 | `POST /api/admin/login/qr`、`GET /api/admin/login/status` | 轮询生命周期 | 已开发，待联调 |
+| 2FA | `POST /api/admin/login/2fa` | `{ password }` | 已开发，待联调 |
+| 扫描 | `POST /api/admin/scan`、`GET /api/admin/scan/status` | 启动与轮询 | 已开发，待联调 |
+| 会话列表 | `GET /api/admin/dialogs` | 上游分页/筛选 | 已开发，待联调 |
+| 退出会话 | `POST /api/admin/dialogs/leave` | `{ dialog_ids, confirm: '退出' }`，必须二次确认 | 已开发，待联调 |
 | 导出会话 | `GET /api/admin/dialogs/export` | Blob 下载 | 需核验 |
 | 设置 | `GET /api/admin/settings` | 不接入明文凭据读取 | 需核验 |
 | 成人内容开关 | `POST /api/admin/settings/adult-mode` | `{ adult_mode }` | 需核验 |

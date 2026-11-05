@@ -10,6 +10,8 @@ const { Header, Sider, Content } = Layout;
 const routeTitles: Record<string, string> = {
   "/bot": "Bot",
   "/resources": "资源管理",
+  "/telegram/overview": "Telegram 总览",
+  "/telegram/dialogs": "Telegram 会话",
   "/xianyu/accounts": "账号管理",
   "/xianyu/products": "商品管理",
   "/xianyu/orders": "订单管理",
@@ -33,6 +35,14 @@ export default function ConsoleLayout() {
   const menu: MenuProps["items"] = [
     { key: "/bot", label: "Bot" },
     { key: "/resources", label: "资源管理" },
+    {
+      key: "telegram",
+      label: "Telegram",
+      children: [
+        { key: "/telegram/overview", label: "总览" },
+        { key: "/telegram/dialogs", label: "会话" },
+      ],
+    },
     {
       key: "xianyu",
       label: "闲鱼自动化",
@@ -82,7 +92,7 @@ export default function ConsoleLayout() {
           mode="inline"
           items={menu}
           selectedKeys={[location.pathname]}
-          defaultOpenKeys={["xianyu", "system"]}
+          defaultOpenKeys={["telegram", "xianyu", "system"]}
           onClick={({ key }) => navigate(key)}
           className={styles.menu}
         />
@@ -90,7 +100,7 @@ export default function ConsoleLayout() {
       <Layout className={styles.workspace}>
         <Header className={styles.header}>
           <div className={styles.breadcrumb}>
-            <span>{location.pathname.startsWith("/system") ? "系统设置" : "闲鱼自动化"}</span>
+            <span>{location.pathname.startsWith("/system") ? "系统设置" : location.pathname.startsWith("/telegram") ? "Telegram" : "闲鱼自动化"}</span>
             <i>/</i>
             <strong>{routeTitles[location.pathname] || "控制台"}</strong>
           </div>
