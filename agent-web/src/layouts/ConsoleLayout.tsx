@@ -9,6 +9,7 @@ const { Header, Sider, Content } = Layout;
 
 const routeTitles: Record<string, string> = {
   "/bot": "Bot",
+  "/resources": "资源管理",
   "/xianyu/accounts": "账号管理",
   "/xianyu/products": "商品管理",
   "/xianyu/orders": "订单管理",
@@ -31,6 +32,7 @@ export default function ConsoleLayout() {
   const isAdmin = session?.user.authorityId === ADMIN_AUTHORITY_ID;
   const menu: MenuProps["items"] = [
     { key: "/bot", label: "Bot" },
+    { key: "/resources", label: "资源管理" },
     {
       key: "xianyu",
       label: "闲鱼自动化",

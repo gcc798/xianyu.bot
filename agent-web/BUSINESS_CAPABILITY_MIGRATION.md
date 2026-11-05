@@ -289,9 +289,9 @@ Vue 参考：`telegram-overview.vue`、`telegram-dialogs.vue`、`telegram-settin
 
 | 能力 | 方法与路径 | 状态 |
 | --- | --- | --- |
-| 资源列表 | `GET /xy/resources` | 待开发 |
-| 资源详情 | `GET /xy/resources/:id` | 待开发 |
-| 下载 | `GET /xy/resources/:id/download` | 待开发 |
+| 资源列表 | `GET /xy/resources` | 已完成 |
+| 资源详情 | `GET /xy/resources/:id` | 已完成 |
+| 下载 | `GET /xy/resources/:id/download` | 已完成 |
 | 任务详情 | `GET /xy/resource-tasks/:id` | 已有部分能力，待统一 |
 | 取消任务 | `POST /xy/resource-tasks/:id/cancel` | 已有部分能力，待统一 |
 

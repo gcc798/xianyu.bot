@@ -31,6 +31,7 @@ export const router = createBrowserRouter(
           children: [
             { index: true, element: <Navigate to="/bot" replace /> },
             { path: "bot", lazy: () => import("../pages/bot/BotPage"), HydrateFallback: RouteFallback },
+            { path: "resources", lazy: () => import("../pages/resources/ResourcesPage"), HydrateFallback: RouteFallback },
             { path: "xianyu/accounts", lazy: () => import("../pages/xianyu/accounts/AccountsPage"), HydrateFallback: RouteFallback },
             { path: "xianyu/products", lazy: () => import("../pages/xianyu/products/ProductsPage"), HydrateFallback: RouteFallback },
             { path: "xianyu/orders", lazy: () => import("../pages/xianyu/orders/OrdersPage"), HydrateFallback: RouteFallback },

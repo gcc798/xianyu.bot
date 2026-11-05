@@ -100,6 +100,7 @@ src/
 | 发货任务 | 已完成 | `xianyu/delivery-tasks.vue` | `/xy/delivery-rule/task-list`、`task-retry` |
 | 业务事件 | 已完成 | `xianyu/business-events.vue` | `/xy/event/list` |
 | AI 与 MCP 设置 | 已完成 | `xianyu/ai-settings.vue` | `/xy/ai/models`、`mcp-servers`、`agent-config` |
+| 资源管理 | 已完成 | 资源页面 | `/xy/resources`、详情、下载 |
 | Telegram 总览 | 待开发 | `xianyu/telegram-overview.vue` | Telegram 代理接口 |
 | Telegram 会话 | 待开发 | `xianyu/telegram-dialogs.vue` | Telegram 代理接口 |
 | 资源任务与文件 | 待开发 | `telegram-resource-*.vue` | `/xy/telegram/*`、`/xy/resources/*` |
@@ -178,5 +179,6 @@ src/
 | 2026-11-05 | 完成回复规则、发货规则、卡密库存与导入、发货任务和业务事件 | 完成 |
 | 2026-11-05 | 完成管理员模型、MCP Server 和 Agent 运行边界配置 | 完成 |
 | 2026-11-05 | Bot 工作区与轨迹组件归位到页面目录，保持既有会话行为 | 完成 |
+| 2026-11-05 | 完成统一资源列表、来源详情和安全下载地址获取 | 完成 |
 
 后续每完成一个批次，只追加已经发生的结果、验证命令和剩余问题，不在这里记录逐行修改过程。
