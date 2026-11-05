@@ -35,6 +35,10 @@ export const router = createBrowserRouter(
             { path: "xianyu/products", lazy: () => import("../pages/xianyu/products/ProductsPage"), HydrateFallback: RouteFallback },
             { path: "xianyu/orders", lazy: () => import("../pages/xianyu/orders/OrdersPage"), HydrateFallback: RouteFallback },
             { path: "xianyu/messages", lazy: () => import("../pages/xianyu/messages/MessagesPage"), HydrateFallback: RouteFallback },
+            { path: "xianyu/reply-rules", lazy: () => import("../pages/xianyu/reply-rules/ReplyRulesPage"), HydrateFallback: RouteFallback },
+            { path: "xianyu/delivery-rules", lazy: () => import("../pages/xianyu/delivery-rules/DeliveryRulesPage"), HydrateFallback: RouteFallback },
+            { path: "xianyu/delivery-tasks", lazy: () => import("../pages/xianyu/delivery-tasks/DeliveryTasksPage"), HydrateFallback: RouteFallback },
+            { path: "xianyu/events", lazy: () => import("../pages/xianyu/events/BusinessEventsPage"), HydrateFallback: RouteFallback },
             {
               element: <AdminRoutes />,
               children: [

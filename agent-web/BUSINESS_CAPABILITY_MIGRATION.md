@@ -180,7 +180,7 @@ Vue 参考：`web/src/view/xianyu/orders.vue`。
 | 订单列表 | `GET /xy/order/list` | `page`、`pageSize`、`keyword`、`accountId`、`status` → `PageResult<Order>` | 已完成 |
 | 同步待发货 | `POST /xy/order/sync-pending` | `{ accountId }` | 已完成 |
 | 订单详情 | 当前无详情路由 | 不能获得稳定的单订单详情合同 | 后端前置 |
-| 订单最近事件 | `GET /xy/event/list?orderId=...` | 分页事件 | 待开发 |
+| 订单最近事件 | `GET /xy/event/list?orderId=...` | 分页事件 | 业务事件页已完成；详情页后端前置 |
 
 订单列表字段为 `ID`、`CreatedAt`、`UpdatedAt`、`accountId`、`accountLabel`、`externalOrderId`、`externalProductId`、`productTitle`、`buyerUserId`、`buyerUserName`、`sessionId`、`skuKey`、`status`、`amountCent`。
 
@@ -204,9 +204,9 @@ Vue 参考：`web/src/view/xianyu/reply-rules.vue`。
 
 | 能力 | 方法与路径 | 请求/响应 | 业务约束 | 状态 |
 | --- | --- | --- | --- | --- |
-| 列表 | `GET /xy/reply-rule/list` | `page`、`pageSize`、`keyword`、`productId`、`type` | 加载商品选项 | 待开发 |
-| 新建/编辑/优先级 | `POST /xy/reply-rule/save` | `{ ID, productId, type, keyword, priority, enabled, content }` | 类型为精确、模糊或兜底；兜底唯一性以 Service 校验为准 | 待开发 |
-| 删除 | `DELETE /xy/reply-rule/delete` | `{ ID }` | 二次确认 | 待开发 |
+| 列表 | `GET /xy/reply-rule/list` | `page`、`pageSize`、`keyword`、`productId`、`type` | 加载商品选项 | 已完成 |
+| 新建/编辑/优先级 | `POST /xy/reply-rule/save` | `{ ID, productId, type, keyword, priority, enabled, content }` | 类型为精确、模糊或兜底；兜底唯一性以 Service 校验为准 | 已完成 |
+| 删除 | `DELETE /xy/reply-rule/delete` | `{ ID }` | 二次确认 | 已完成 |
 
 ### 4.8 发货规则、库存与任务
 
@@ -214,19 +214,21 @@ Vue 参考：`delivery-rules.vue`、`delivery-tasks.vue`。
 
 | 能力 | 方法与路径 | 请求/响应 | 交互要求 | 状态 |
 | --- | --- | --- | --- | --- |
-| 规则列表 | `GET /xy/delivery-rule/list` | `page`、`pageSize`、`keyword`、`productId`、`mode` → `PageResult<DeliveryRule>` | 文本/卡密模式 | 待开发 |
-| 保存规则 | `POST /xy/delivery-rule/save` | `{ ID, productId, skuKey, skuName, mode, template, enabled }` | 提交中防重复 | 待开发 |
-| 删除规则 | `DELETE /xy/delivery-rule/delete` | `{ ID }` | 二次确认 | 待开发 |
-| 导入卡密 | `POST /xy/delivery-rule/resource-import` | `{ ruleId, values: string[] }` | 原文只提交，不回显 | 待开发 |
-| 库存 | `GET /xy/delivery-rule/inventory` | `{ ID }` → `{ ruleId, available, reserved, consumed }` | 展示汇总计数 | 待开发 |
-| 任务列表 | `GET /xy/delivery-rule/task-list` | `page`、`pageSize`、`keyword`、`accountId`、`status` → `PageResult<DeliveryTask>` | 状态、重试次数、下次执行、错误 | 待开发 |
-| 重试任务 | `POST /xy/delivery-rule/task-retry` | `{ ID }` | 仅失败任务显示；确认后提交 | 待开发 |
+| 规则列表 | `GET /xy/delivery-rule/list` | `page`、`pageSize`、`keyword`、`productId`、`mode` → `PageResult<DeliveryRule>` | 文本/卡密模式 | 已完成 |
+| 保存规则 | `POST /xy/delivery-rule/save` | `{ ID, productId, skuKey, skuName, mode, template, enabled }` | 提交中防重复 | 已完成 |
+| 删除规则 | `DELETE /xy/delivery-rule/delete` | `{ ID }` | 二次确认 | 已完成 |
+| 导入卡密 | `POST /xy/delivery-rule/resource-import` | `{ ruleId, values: string[] }` | 原文只提交，不回显 | 已完成 |
+| 库存 | `GET /xy/delivery-rule/inventory` | `{ ID }` → `{ ruleId, available, reserved, consumed }` | 展示汇总计数 | 已完成 |
+| 任务列表 | `GET /xy/delivery-rule/task-list` | `page`、`pageSize`、`keyword`、`accountId`、`status` → `PageResult<DeliveryTask>` | 状态、重试次数、下次执行、错误 | 已完成 |
+| 重试任务 | `POST /xy/delivery-rule/task-retry` | `{ ID }` | 仅失败任务显示；确认后提交 | 已完成 |
 
 ### 4.9 业务事件
 
 Vue 参考：`web/src/view/xianyu/business-events.vue`。
 
 `GET /xy/event/list` 接收 `page`、`pageSize`、`keyword`、`accountId`、`productId`、`orderId`、`type`、`status`，返回 `PageResult<BusinessEvent>`。字段包括账号、商品、订单、事件类型、结果状态、摘要和安全错误描述。业务事件是只读审计页，不提供前端伪造、重放或编辑能力。
+
+状态：已完成。
 
 ### 4.10 Bot 会话、轨迹与审批
 
