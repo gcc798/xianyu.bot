@@ -6,6 +6,12 @@ export default defineConfig(({ mode }) => {
   return {
     base: "/agent/",
     plugins: [react()],
+    build: {
+      rollupOptions: {
+        // 设计预览独立构建，不进入正式应用入口和路由。
+        input: { app: "index.html", uiPreview: "ui-preview.html" },
+      },
+    },
     server: {
       port: 5174,
       proxy: {
