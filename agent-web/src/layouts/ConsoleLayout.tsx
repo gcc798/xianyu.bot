@@ -20,6 +20,7 @@ const routeTitles: Record<string, string> = {
   "/system/users": "用户管理",
   "/system/dictionaries": "字典管理",
   "/system/login-logs": "登录日志",
+  "/system/ai-settings": "AI 与 MCP",
 };
 
 export default function ConsoleLayout() {
@@ -52,6 +53,7 @@ export default function ConsoleLayout() {
             { key: "/system/users", label: "用户管理" },
             { key: "/system/dictionaries", label: "字典管理" },
             { key: "/system/login-logs", label: "登录日志" },
+            { key: "/system/ai-settings", label: "AI 与 MCP" },
           ],
         }]
       : []),

@@ -45,6 +45,7 @@ export const router = createBrowserRouter(
                 { path: "system/users", lazy: () => import("../pages/system/users/UsersPage"), HydrateFallback: RouteFallback },
                 { path: "system/dictionaries", lazy: () => import("../pages/system/dictionaries/DictionariesPage"), HydrateFallback: RouteFallback },
                 { path: "system/login-logs", lazy: () => import("../pages/system/login-logs/LoginLogsPage"), HydrateFallback: RouteFallback },
+                { path: "system/ai-settings", lazy: () => import("../pages/system/ai-settings/AISettingsPage"), HydrateFallback: RouteFallback },
               ],
             },
           ],

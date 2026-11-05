@@ -253,11 +253,11 @@ Vue 参考：`web/src/view/xianyu/ai-settings.vue`。以下路由全部仅管理
 
 | 能力 | 方法与路径 | 主要字段 | 状态 |
 | --- | --- | --- | --- |
-| 模型列表/新建 | `GET /xy/ai/models`、`POST /xy/ai/models` | `name`、`provider`、`baseUrl`、`apiKey`、`model`、能力开关、上下文与超时 | 待开发 |
-| 模型编辑/删除/默认 | `PUT /xy/ai/models/:id`、`DELETE .../:id`、`PUT .../:id/default` | 编辑时 `apiKey` 留空表示不替换 | 待开发 |
-| MCP 列表/新建 | `GET /xy/ai/mcp-servers`、`POST /xy/ai/mcp-servers` | `name`、`code`、`baseUrl`、`authHeader`、`authToken`、超时 | 待开发 |
-| MCP 编辑/删除 | `PUT /xy/ai/mcp-servers/:id`、`DELETE .../:id` | 编辑时 `authToken` 留空表示不替换 | 待开发 |
-| Agent 配置 | `GET /xy/ai/agent-config`、`PUT /xy/ai/agent-config` | 轮次、工具调用和令牌边界以 Go 请求模型为准 | 待开发 |
+| 模型列表/新建 | `GET /xy/ai/models`、`POST /xy/ai/models` | `name`、`provider`、`baseUrl`、`apiKey`、`model`、能力开关、上下文与超时 | 已完成 |
+| 模型编辑/删除/默认 | `PUT /xy/ai/models/:id`、`DELETE .../:id`、`PUT .../:id/default` | 编辑时 `apiKey` 留空表示不替换 | 已完成 |
+| MCP 列表/新建 | `GET /xy/ai/mcp-servers`、`POST /xy/ai/mcp-servers` | `name`、`code`、`baseUrl`、`authHeader`、`authToken`、超时 | 已完成 |
+| MCP 编辑/删除 | `PUT /xy/ai/mcp-servers/:id`、`DELETE .../:id` | 编辑时 `authToken` 留空表示不替换 | 已完成 |
+| Agent 配置 | `GET /xy/ai/agent-config`、`PUT /xy/ai/agent-config` | 轮次、工具调用和令牌边界以 Go 请求模型为准 | 已完成 |
 
 删除模型或 MCP Server 必须确认；默认模型、启用状态和支持能力使用后端返回值，不在前端推导。
 
