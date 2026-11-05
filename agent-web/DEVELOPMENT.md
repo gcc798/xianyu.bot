@@ -89,11 +89,12 @@ src/
 | 登录与退出 | 已完成新结构迁移 | `view/login` | `/base/login`、`/jwt/jsonInBlacklist` |
 | 总览 | 待开发 | `xianyu/dashboard.vue` | `/xy/dashboard/overview` |
 | Bot | 已有业务逻辑，待按预览重构 | `xianyu/ai-agent.vue` | `/xy/ai/agent/*` |
-| 账号管理 | 待开发 | `xianyu/accounts.vue` | `/xy/account/*`、`/xy/qr-login/*`、`/xy/websocket/*` |
-| 商品列表 | 预览已确认，正式页待开发 | `xianyu/products.vue` | `/xy/product/list`、`sync`、`setting` |
-| 商品详情 | 预览基本确认，正式页待开发 | 后端数据与商品页 | 商品、订单、事件接口 |
-| 订单列表与详情 | 详情预览基本确认，正式页待开发 | `xianyu/orders.vue` | `/xy/order/list`、`sync-pending` |
-| 消息记录 | 待开发 | `xianyu/messages.vue` | `/xy/message/list`、`reply`、`takeover` |
+| 账号管理 | 已完成 | `xianyu/accounts.vue` | `/xy/account/*`、`/xy/qr-login/*`、`/xy/websocket/*` |
+| 商品列表 | 已完成 | `xianyu/products.vue` | `/xy/product/list`、`sync`、`setting` |
+| 商品详情 | 后端接口前置 | 后端数据与商品页 | 缺少按 ID 详情与关联订单合同 |
+| 订单列表 | 已完成 | `xianyu/orders.vue` | `/xy/order/list`、`sync-pending` |
+| 订单详情 | 后端接口前置 | `xianyu/orders.vue` | 缺少按 ID 详情合同 |
+| 消息记录 | 已完成 | `xianyu/messages.vue` | `/xy/message/list`、`reply`、`takeover` |
 | 回复规则 | 待开发 | `xianyu/reply-rules.vue` | `/xy/reply-rule/*` |
 | 发货规则 | 待开发 | `xianyu/delivery-rules.vue` | `/xy/delivery-rule/*` |
 | 发货任务 | 待开发 | `xianyu/delivery-tasks.vue` | `/xy/delivery-rule/task-list`、`task-retry` |
@@ -173,5 +174,6 @@ src/
 | 2026-11-05 | 确认采用顶层职责分层，页面私有组件就近存放 | 完成 |
 | 2026-11-05 | 确认正式开发使用 React 19 | 完成 |
 | 2026-11-05 | 升级 React 19，完成正式 Router、鉴权、Layout 和系统页面分层 | 完成 |
+| 2026-11-05 | 完成账号、商品列表、订单列表和消息记录；商品与订单详情等待后端按 ID 查询合同 | 完成 |
 
 后续每完成一个批次，只追加已经发生的结果、验证命令和剩余问题，不在这里记录逐行修改过程。

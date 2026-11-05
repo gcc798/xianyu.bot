@@ -37,7 +37,7 @@ export function acceptRenewedToken(response: Response) {
   }
 }
 
-export function queryString(params: Record<string, string | number | boolean | undefined | null>) {
+export function queryString<T extends object>(params: T) {
   const query = new URLSearchParams();
   Object.entries(params).forEach(([key, value]) => {
     if (value !== undefined && value !== null && value !== "") query.set(key, String(value));

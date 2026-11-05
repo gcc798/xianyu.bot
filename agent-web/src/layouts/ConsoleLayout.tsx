@@ -9,6 +9,10 @@ const { Header, Sider, Content } = Layout;
 
 const routeTitles: Record<string, string> = {
   "/bot": "Bot",
+  "/xianyu/accounts": "账号管理",
+  "/xianyu/products": "商品管理",
+  "/xianyu/orders": "订单管理",
+  "/xianyu/messages": "消息记录",
   "/system/users": "用户管理",
   "/system/dictionaries": "字典管理",
   "/system/login-logs": "登录日志",
@@ -22,6 +26,16 @@ export default function ConsoleLayout() {
   const isAdmin = session?.user.authorityId === ADMIN_AUTHORITY_ID;
   const menu: MenuProps["items"] = [
     { key: "/bot", label: "Bot" },
+    {
+      key: "xianyu",
+      label: "闲鱼自动化",
+      children: [
+        { key: "/xianyu/accounts", label: "账号管理" },
+        { key: "/xianyu/products", label: "商品管理" },
+        { key: "/xianyu/orders", label: "订单管理" },
+        { key: "/xianyu/messages", label: "消息记录" },
+      ],
+    },
     ...(isAdmin
       ? [{
           key: "system",
@@ -56,7 +70,7 @@ export default function ConsoleLayout() {
           mode="inline"
           items={menu}
           selectedKeys={[location.pathname]}
-          defaultOpenKeys={["system"]}
+          defaultOpenKeys={["xianyu", "system"]}
           onClick={({ key }) => navigate(key)}
           className={styles.menu}
         />

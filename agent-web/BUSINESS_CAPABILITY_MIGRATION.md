@@ -135,17 +135,17 @@ Vue 参考：`web/src/view/xianyu/accounts.vue`、`web/src/api/xianyu/account.js
 
 | 能力 | 方法与路径 | 请求/响应 | 交互要求 | 状态 |
 | --- | --- | --- | --- | --- |
-| 列表 | `GET /xy/account/list` | `page`、`pageSize`、`keyword`、`status`、`enabled?` | 加载、空、错误、分页 | 待开发 |
-| 新建 | `POST /xy/account/create` | `{ label, note }` | 成功后刷新 | 待开发 |
-| 编辑/启停 | `PUT /xy/account/update` | `{ ID, label, note, enabled }` | 开关失败时恢复原值 | 待开发 |
-| 删除 | `DELETE /xy/account/delete` | `{ ID }` | 二次确认 | 待开发 |
-| 保存凭据 | `PUT /xy/account/credential` | `{ ID, cookie, token }` | 只写不回填；提交后可重新检查登录 | 待开发 |
-| 检查登录 | `POST /xy/account/check-login` | `{ ID }`；响应 `LoginStatus` | 展示状态，不展示凭据 | 待开发 |
-| 开始扫码 | `POST /xy/qr-login/start` | `{ ID }`；响应 `QRLogin` | 打开二维码并开始轮询 | 待开发 |
-| 查询扫码 | `GET /xy/qr-login/status` | `sessionId` | 成功、失败、过期时停止轮询 | 待开发 |
-| 取消扫码 | `DELETE /xy/qr-login/cancel` | `sessionId` | 关闭弹窗和卸载页面时清理 | 待开发 |
-| 连接状态 | `GET /xy/websocket/status` | `{ ID }`；响应 `WebSocketStatus` | 按账号刷新 | 待开发 |
-| 启停连接 | `POST /xy/websocket/start`、`POST /xy/websocket/stop` | `{ ID }` | 停止连接需确认 | 待开发 |
+| 列表 | `GET /xy/account/list` | `page`、`pageSize`、`keyword`、`status`、`enabled?` | 加载、空、错误、分页 | 已完成 |
+| 新建 | `POST /xy/account/create` | `{ label, note }` | 成功后刷新 | 已完成 |
+| 编辑/启停 | `PUT /xy/account/update` | `{ ID, label, note, enabled }` | 开关失败时恢复原值 | 已完成 |
+| 删除 | `DELETE /xy/account/delete` | `{ ID }` | 二次确认 | 已完成 |
+| 保存凭据 | `PUT /xy/account/credential` | `{ ID, cookie, token }` | 只写不回填；提交后可重新检查登录 | 已完成 |
+| 检查登录 | `POST /xy/account/check-login` | `{ ID }`；响应 `LoginStatus` | 展示状态，不展示凭据 | 已完成 |
+| 开始扫码 | `POST /xy/qr-login/start` | `{ ID }`；响应 `QRLogin` | 打开二维码并开始轮询 | 已完成 |
+| 查询扫码 | `GET /xy/qr-login/status` | `sessionId` | 成功、失败、过期时停止轮询 | 已完成 |
+| 取消扫码 | `DELETE /xy/qr-login/cancel` | `sessionId` | 关闭弹窗和卸载页面时清理 | 已完成 |
+| 连接状态 | `GET /xy/websocket/status` | `{ ID }`；响应 `WebSocketStatus` | 按账号刷新 | 已完成 |
+| 启停连接 | `POST /xy/websocket/start`、`POST /xy/websocket/stop` | `{ ID }` | 停止连接需确认 | 已完成 |
 
 ### 4.4 商品列表与商品详情
 
@@ -153,9 +153,9 @@ Vue 参考：`web/src/view/xianyu/products.vue`。已确认的正式 UI 以隔�
 
 | 能力 | 方法与路径 | 请求/响应 | 状态 |
 | --- | --- | --- | --- |
-| 商品列表 | `GET /xy/product/list` | `ProductSearch` → `PageResult<Product>` | 待开发 |
-| 同步商品 | `POST /xy/product/sync` | `{ accountId }` | 待开发 |
-| 商品业务设置 | `PUT /xy/product/setting` | `UpdateProductSetting` | 待开发 |
+| 商品列表 | `GET /xy/product/list` | `ProductSearch` → `PageResult<Product>` | 已完成 |
+| 同步商品 | `POST /xy/product/sync` | `{ accountId }` | 已完成 |
+| 商品业务设置 | `PUT /xy/product/setting` | `UpdateProductSetting` | 已完成 |
 | 商品详情 | 当前无详情路由 | 不能获得稳定的单商品详情合同 | 后端前置 |
 | 关联订单 | 当前只有 `GET /xy/order/list`，不支持商品 ID 筛选 | 不得在前端拉取全量订单后拼接 | 后端前置 |
 | 商品最近事件 | `GET /xy/event/list?productId=...` | `BusinessEventSearch` → 分页事件 | 待开发 |
@@ -177,8 +177,8 @@ Vue 参考：`web/src/view/xianyu/orders.vue`。
 
 | 能力 | 方法与路径 | 请求/响应 | 状态 |
 | --- | --- | --- | --- |
-| 订单列表 | `GET /xy/order/list` | `page`、`pageSize`、`keyword`、`accountId`、`status` → `PageResult<Order>` | 待开发 |
-| 同步待发货 | `POST /xy/order/sync-pending` | `{ accountId }` | 待开发 |
+| 订单列表 | `GET /xy/order/list` | `page`、`pageSize`、`keyword`、`accountId`、`status` → `PageResult<Order>` | 已完成 |
+| 同步待发货 | `POST /xy/order/sync-pending` | `{ accountId }` | 已完成 |
 | 订单详情 | 当前无详情路由 | 不能获得稳定的单订单详情合同 | 后端前置 |
 | 订单最近事件 | `GET /xy/event/list?orderId=...` | 分页事件 | 待开发 |
 
@@ -192,9 +192,9 @@ Vue 参考：`web/src/view/xianyu/messages.vue`。
 
 | 能力 | 方法与路径 | 请求/响应 | 交互要求 | 状态 |
 | --- | --- | --- | --- | --- |
-| 消息列表 | `GET /xy/message/list` | `page`、`pageSize`、`accountId`、`sessionId`、`direction`、`externalProductId`、`buyerName`、`content`、`startTime`、`endTime` → `PageResult<Message>` | 时间筛选使用毫秒时间戳 | 待开发 |
-| 人工回复 | `POST /xy/message/reply` | `{ messageId, text }` | 禁止空文本；防重复提交 | 待开发 |
-| 人工接管 | `PUT /xy/message/takeover` | `{ messageId, active }` | 失败时恢复开关 | 待开发 |
+| 消息列表 | `GET /xy/message/list` | `page`、`pageSize`、`accountId`、`sessionId`、`direction`、`externalProductId`、`buyerName`、`content`、`startTime`、`endTime` → `PageResult<Message>` | 时间筛选使用毫秒时间戳 | 已完成 |
+| 人工回复 | `POST /xy/message/reply` | `{ messageId, text }` | 禁止空文本；防重复提交 | 已完成 |
+| 人工接管 | `PUT /xy/message/takeover` | `{ messageId, active }` | 失败时恢复开关 | 已完成 |
 
 消息 DTO 保留 `contentType`、`direction`、`source` 和 `takeoverActive`，页面不能只按文本消息假设所有内容类型。
 
