@@ -236,14 +236,14 @@ Vue 的 `ai-agent.vue` 只是入口占位；正式业务主要参考现有 `agen
 
 | 能力 | 方法与路径 | 请求/响应 | 状态 |
 | --- | --- | --- | --- |
-| 会话列表/新建 | `GET /xy/ai/agent/sessions`、`POST /xy/ai/agent/sessions` | 分页；新建 `{ title }` | 已有，待重构 |
-| 会话详情/删除 | `GET /xy/ai/agent/sessions/:id`、`DELETE .../:id` | `AgentSessionDetail` | 已有，待重构 |
-| 发送消息 | `POST .../:id/messages` | `{ message, idempotencyKey, directives }`；directive 最多 2 个 | 已有 |
-| 取消运行 | `DELETE .../:id/runs/:runId` | 仅运行中允许 | 已有 |
-| 审批运行 | `POST /xy/ai/agent/runs/:id/approve` | 写工具确认 | 已有 |
-| SSE | `GET .../:id/events` | 断线重连和会话切换清理 | 已有 |
-| 轨迹 | `GET .../:id/trajectory` | `afterId`、`limit<=500`、`runId?`、`type?` | 已有，待重构 |
-| 工具详情 | `GET .../:id/tool-calls/:callId` | `AgentToolCallDetail` | 已有，待重构 |
+| 会话列表/新建 | `GET /xy/ai/agent/sessions`、`POST /xy/ai/agent/sessions` | 分页；新建 `{ title }` | 已完成 |
+| 会话详情/删除 | `GET /xy/ai/agent/sessions/:id`、`DELETE .../:id` | `AgentSessionDetail` | 已完成 |
+| 发送消息 | `POST .../:id/messages` | `{ message, idempotencyKey, directives }`；directive 最多 2 个 | 已完成 |
+| 取消运行 | `DELETE .../:id/runs/:runId` | 仅运行中允许 | 已完成 |
+| 审批运行 | `POST /xy/ai/agent/runs/:id/approve` | 写工具确认 | 已完成 |
+| SSE | `GET .../:id/events` | 断线重连和会话切换清理 | 已完成 |
+| 轨迹 | `GET .../:id/trajectory` | `afterId`、`limit<=500`、`runId?`、`type?` | 已完成 |
+| 工具详情 | `GET .../:id/tool-calls/:callId` | `AgentToolCallDetail` | 已完成 |
 
 轨迹与工具详情只消费后端已经处理过的安全参数和结果。前端不从其他请求缓存补写轨迹内容，也不把认证材料拼入对话或审批说明。
 

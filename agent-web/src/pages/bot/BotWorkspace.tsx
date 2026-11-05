@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { approveRun, cancelRun, createSession, deleteSession, getSession, getTrajectory, listSessions, sendMessage, streamEvents } from './api/agent'
-import type { AgentEvent, Approval, ChatMessage, Directive, Operation, Session } from './models/agent'
-import TrajectoryPanel from './TrajectoryPanel'
+import { approveRun, cancelRun, createSession, deleteSession, getSession, getTrajectory, listSessions, sendMessage, streamEvents } from '../../api/agent'
+import type { AgentEvent, Approval, ChatMessage, Directive, Operation, Session } from '../../models/agent'
+import TrajectoryPanel from './components/TrajectoryPanel'
 
 const capabilities = [
   ['skill', 'resource-discovery', '理解目标并编排资源检索'], ['skill', 'telegram-resource', '使用当前 MCP 的资源能力'],
@@ -12,7 +12,7 @@ const capabilities = [
 ] as const
 const terminalEvents = new Set(['run.completed', 'run.failed', 'run.cancelled'])
 
-export default function App() {
+export default function BotWorkspace() {
   const [sessions, setSessions] = useState<Session[]>([])
   const [sessionId, setSessionId] = useState(0)
   const [messages, setMessages] = useState<ChatMessage[]>([])

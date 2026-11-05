@@ -1,4 +1,4 @@
-import BotWorkspace from "../../App";
+import BotWorkspace from "./BotWorkspace";
 
 export function Component() {
   return <BotWorkspace />;

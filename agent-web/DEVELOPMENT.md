@@ -9,7 +9,7 @@
 - `agent-web/` 是唯一维护和部署的前端。
 - 当前工程使用 React 19、React Router 和 Ant Design 6。
 - 当前正式代码包含登录、统一控制台 Layout、用户、字典、登录日志以及 Bot 对话、审批和轨迹能力。
-- 登录、权限、API、DTO、系统页面和路由已按职责拆分；Bot 页面和轨迹组件将在对应批次继续拆分。
+- 登录、权限、API、DTO、系统页面、Bot 工作区和轨迹组件已按职责拆分。
 - `web/` 是只读 Vue 参考，只用于确认业务流程、字段、接口和危险操作，不复制其组件体系和视觉皮肤。
 - `src/previews/` 与 `ui-preview.html` 是隔离预览，不进入正式路由。
 
@@ -88,7 +88,7 @@ src/
 | --- | --- | --- | --- |
 | 登录与退出 | 已完成新结构迁移 | `view/login` | `/base/login`、`/jwt/jsonInBlacklist` |
 | 总览 | 待开发 | `xianyu/dashboard.vue` | `/xy/dashboard/overview` |
-| Bot | 已有业务逻辑，待按预览重构 | `xianyu/ai-agent.vue` | `/xy/ai/agent/*` |
+| Bot | 已完成 | `xianyu/ai-agent.vue` | `/xy/ai/agent/*` |
 | 账号管理 | 已完成 | `xianyu/accounts.vue` | `/xy/account/*`、`/xy/qr-login/*`、`/xy/websocket/*` |
 | 商品列表 | 已完成 | `xianyu/products.vue` | `/xy/product/list`、`sync`、`setting` |
 | 商品详情 | 后端接口前置 | 后端数据与商品页 | 缺少按 ID 详情与关联订单合同 |
@@ -177,5 +177,6 @@ src/
 | 2026-11-05 | 完成账号、商品列表、订单列表和消息记录；商品与订单详情等待后端按 ID 查询合同 | 完成 |
 | 2026-11-05 | 完成回复规则、发货规则、卡密库存与导入、发货任务和业务事件 | 完成 |
 | 2026-11-05 | 完成管理员模型、MCP Server 和 Agent 运行边界配置 | 完成 |
+| 2026-11-05 | Bot 工作区与轨迹组件归位到页面目录，保持既有会话行为 | 完成 |
 
 后续每完成一个批次，只追加已经发生的结果、验证命令和剩余问题，不在这里记录逐行修改过程。
