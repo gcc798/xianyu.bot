@@ -33,6 +33,7 @@ export const router = createBrowserRouter(
             { path: "overview", lazy: () => import("../pages/dashboard/DashboardPage"), HydrateFallback: RouteFallback },
             { path: "bot", lazy: () => import("../pages/bot/BotPage"), HydrateFallback: RouteFallback },
             { path: "resources", lazy: () => import("../pages/resources/ResourcesPage"), HydrateFallback: RouteFallback },
+            { path: "profile", lazy: () => import("../pages/profile/ProfilePage"), HydrateFallback: RouteFallback },
             { path: "telegram/overview", lazy: () => import("../pages/telegram/overview/TelegramOverviewPage"), HydrateFallback: RouteFallback },
             { path: "telegram/dialogs", lazy: () => import("../pages/telegram/dialogs/TelegramDialogsPage"), HydrateFallback: RouteFallback },
             { path: "telegram/resource-tasks", lazy: () => import("../pages/telegram/resource-tasks/TelegramResourceTasksPage"), HydrateFallback: RouteFallback },

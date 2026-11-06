@@ -40,3 +40,11 @@ export async function logout() {
 export function getCurrentUser() {
   return request<{ userInfo: CurrentUser }>("/user/getUserInfo");
 }
+
+export function updateCurrentUser(input: Pick<CurrentUser, "nickName" | "phone" | "email" | "headerImg">) {
+  return request<EmptyResponse>("/user/setSelfInfo", { method: "PUT", body: JSON.stringify(input) });
+}
+
+export function changePassword(input: { password: string; newPassword: string }) {
+  return request<EmptyResponse>("/user/changePassword", { method: "POST", body: JSON.stringify(input) });
+}

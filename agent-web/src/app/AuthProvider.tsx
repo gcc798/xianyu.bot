@@ -8,6 +8,7 @@ type AuthContextValue = {
   isReady: boolean;
   signIn: (input: LoginRequest) => Promise<void>;
   signOut: () => Promise<void>;
+  refreshUser: () => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -45,6 +46,16 @@ export function AuthProvider({ children }: PropsWithChildren) {
       signOut: async () => {
         await logout();
         setSession(null);
+      },
+      refreshUser: async () => {
+        const { userInfo } = await getCurrentUser();
+        setSession((current) => {
+          if (!current) return current;
+          const renewed = readAuthSession();
+          const next = { ...(renewed || current), user: userInfo };
+          storeAuthSession(next);
+          return next;
+        });
       },
     }),
     [isReady, session],

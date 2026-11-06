@@ -1,4 +1,4 @@
-import { App, Button, Layout, Menu } from "antd";
+import { App, Button, Dropdown, Layout, Menu } from "antd";
 import type { MenuProps } from "antd";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../app/AuthProvider";
@@ -11,6 +11,7 @@ const routeTitles: Record<string, string> = {
   "/overview": "运营总览",
   "/bot": "Bot",
   "/resources": "资源管理",
+  "/profile": "个人设置",
   "/telegram/overview": "Telegram 总览",
   "/telegram/dialogs": "Telegram 会话",
   "/telegram/resource-tasks": "资源任务",
@@ -108,13 +109,14 @@ export default function ConsoleLayout() {
       <Layout className={styles.workspace}>
         <Header className={styles.header}>
           <div className={styles.breadcrumb}>
-            <span>{location.pathname.startsWith("/system") ? "系统设置" : location.pathname.startsWith("/telegram") ? "Telegram" : "闲鱼自动化"}</span>
+            <span>{location.pathname.startsWith("/system") ? "系统设置" : location.pathname.startsWith("/telegram") ? "Telegram" : location.pathname === "/profile" ? "账号" : "闲鱼自动化"}</span>
             <i>/</i>
             <strong>{routeTitles[location.pathname] || "控制台"}</strong>
           </div>
           <div className={styles.account}>
-            <span>{session?.user.nickName || session?.user.userName}</span>
-            <Button type="text" onClick={confirmLogout}>退出</Button>
+            <Dropdown menu={{ items: [{ key: "profile", label: "个人设置" }, { type: "divider" }, { key: "logout", label: "退出登录", danger: true }], onClick: ({ key }) => key === "profile" ? navigate("/profile") : confirmLogout() }} trigger={["click"]}>
+              <Button type="text">{session?.user.nickName || session?.user.userName}</Button>
+            </Dropdown>
           </div>
         </Header>
         <Content className={styles.content}><Outlet /></Content>

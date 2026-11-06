@@ -1,0 +1,4 @@
+.content { max-width: 760px; padding: 0 24px 24px; }
+.form { max-width: 620px; }
+.row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.actions { margin-top: 8px; }
