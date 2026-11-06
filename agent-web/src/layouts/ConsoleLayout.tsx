@@ -12,6 +12,8 @@ const routeTitles: Record<string, string> = {
   "/resources": "资源管理",
   "/telegram/overview": "Telegram 总览",
   "/telegram/dialogs": "Telegram 会话",
+  "/telegram/resource-tasks": "资源任务",
+  "/telegram/resource-files": "资源文件",
   "/telegram/settings": "Telegram 设置",
   "/xianyu/accounts": "账号管理",
   "/xianyu/products": "商品管理",
@@ -42,6 +44,8 @@ export default function ConsoleLayout() {
       children: [
         { key: "/telegram/overview", label: "总览" },
         { key: "/telegram/dialogs", label: "会话" },
+        { key: "/telegram/resource-tasks", label: "资源任务" },
+        { key: "/telegram/resource-files", label: "资源文件" },
         { key: "/telegram/settings", label: "设置" },
       ],
     },

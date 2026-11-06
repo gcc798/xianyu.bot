@@ -277,11 +277,11 @@ Vue 参考：`telegram-overview.vue`、`telegram-dialogs.vue`、`telegram-settin
 | 设置 | `GET /api/admin/settings` | 不接入明文凭据读取 | 已开发，待联调 |
 | 成人内容开关 | `POST /api/admin/settings/adult-mode` | `{ adult_mode }` | 已开发，待联调 |
 | AI 设置/探测 | `POST /api/admin/settings/ai`、`POST /api/admin/settings/ai/probe` | `base_url`、`api_key`、`model` | 已开发，待联调 |
-| 资源选项 | `GET /api/resources/options` | 无 | 需核验 |
-| 资源任务 | `POST/GET /api/resources/tasks` | 创建参数、分页以服务合同为准 | 需核验 |
-| 取消/重试任务 | `POST /api/resources/tasks/:id/cancel`、`POST .../:id/retry` | 路径 ID | 需核验 |
-| 资源文件 | `GET /api/resources/files` | 分页与筛选 | 需核验 |
-| 预览/下载 | `GET /api/resources/files/:id/:action` | `action` 仅允许服务支持值；Blob | 需核验 |
+| 资源选项 | `GET /api/resources/options` | 无 | 已开发，待联调 |
+| 资源任务 | `POST/GET /api/resources/tasks` | 创建参数、分页以服务合同为准 | 已开发，待联调 |
+| 取消/重试任务 | `POST /api/resources/tasks/:id/cancel`、`POST .../:id/retry` | 路径 ID，取消必须确认 | 已开发，待联调 |
+| 资源文件 | `GET /api/resources/files` | 分页与筛选 | 已开发，待联调 |
+| 预览/下载 | `GET /api/resources/files/:id/:action` | `action` 仅允许 `preview`、`download`；Blob | 已开发，待联调 |
 
 ### 4.13 统一资源交付
 

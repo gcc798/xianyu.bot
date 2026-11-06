@@ -103,7 +103,7 @@ src/
 | 资源管理 | 已完成 | 资源页面 | `/xy/resources`、详情、下载 |
 | Telegram 总览 | 已开发，待联调 | `xianyu/telegram-overview.vue` | Telegram 代理接口 |
 | Telegram 会话 | 已开发，待联调 | `xianyu/telegram-dialogs.vue` | Telegram 代理接口 |
-| 资源任务与文件 | 待开发 | `telegram-resource-*.vue` | `/xy/telegram/*`、`/xy/resources/*` |
+| 资源任务与文件 | 已开发，待联调 | `telegram-resource-*.vue` | Telegram 代理接口 |
 | Telegram 设置 | 已开发，待联调 | `xianyu/telegram-settings.vue` | Telegram 代理接口 |
 | 用户、字典、登录日志 | 已完成新结构迁移 | `superAdmin`、`systemTools` | `/user/*`、`/sysDictionary*`、`/sysLoginLog/*` |
 
@@ -182,5 +182,6 @@ src/
 | 2026-11-05 | 完成统一资源列表、来源详情和安全下载地址获取 | 完成 |
 | 2026-11-05 | 完成 Telegram 状态、扫码登录、扫描和会话管理页面，等待运行服务联调 | 完成开发 |
 | 2026-11-05 | 完成 Telegram 公开设置、内容范围和资源识别 AI 配置页面，等待运行服务联调 | 完成开发 |
+| 2026-11-06 | 完成 Telegram 资源任务创建、进度、取消、重试和资源文件查询、预览、下载页面，等待运行服务联调 | 完成开发 |
 
 后续每完成一个批次，只追加已经发生的结果、验证命令和剩余问题，不在这里记录逐行修改过程。

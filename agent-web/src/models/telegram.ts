@@ -40,3 +40,45 @@ export type TelegramSettings = {
 };
 
 export type TelegramAISettingsInput = { base_url: string; api_key: string; model: string };
+
+export type TelegramResourceDialog = Pick<TelegramDialog, "id" | "telegram_id" | "name" | "username" | "dialog_type" | "is_group" | "is_broadcast" | "member_count" | "last_message_at">;
+export type TelegramResourceOptions = { dialogs: TelegramResourceDialog[]; file_types: string[]; max_file_size: number };
+export type TelegramResourceTaskInput = {
+  keyword: string;
+  file_types: string[];
+  source_mode: "smart" | "all" | "manual";
+  source_dialog_ids: number[];
+  max_downloads: number;
+};
+export type TelegramResourceTask = TelegramResourceTaskInput & {
+  id: number;
+  status: "queued" | "running" | "completed" | "failed" | "cancelled";
+  files_found: number;
+  files_completed: number;
+  error_message: string | null;
+  created_at: string;
+  started_at: string | null;
+  completed_at: string | null;
+  cancel_requested: boolean;
+  source_strategy: string;
+};
+export type TelegramResourceTaskPage = { list: TelegramResourceTask[]; total: number; page: number; page_size: number };
+
+export type TelegramResourceFile = {
+  id: number;
+  task_id: number;
+  original_filename: string;
+  file_type: string;
+  file_size: number;
+  mime_type: string | null;
+  download_status: "queued" | "downloading" | "success" | "failed" | "cancelled" | "duplicate";
+  upload_status: "pending" | "uploading" | "success" | "failed" | "cancelled";
+  bytes_downloaded: number;
+  attempts: number;
+  error_message: string | null;
+  created_at: string;
+  completed_at: string | null;
+  source_name: string;
+  source_username: string | null;
+};
+export type TelegramResourceFilePage = { list: TelegramResourceFile[]; total: number; page: number; page_size: number };

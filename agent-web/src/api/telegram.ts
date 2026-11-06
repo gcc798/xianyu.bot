@@ -1,4 +1,4 @@
-import type { TelegramAISettingsInput, TelegramDialogPage, TelegramQR, TelegramScan, TelegramSettings, TelegramStatus } from "../models/telegram";
+import type { TelegramAISettingsInput, TelegramDialogPage, TelegramQR, TelegramResourceFilePage, TelegramResourceOptions, TelegramResourceTask, TelegramResourceTaskInput, TelegramResourceTaskPage, TelegramScan, TelegramSettings, TelegramStatus } from "../models/telegram";
 import { acceptRenewedToken, accessToken, apiBaseURL, queryString } from "./client";
 
 const basePath = "/xy/proxy/telegram";
@@ -14,6 +14,19 @@ async function telegramRequest<T>(path: string, init: RequestInit = {}) {
   const data = await response.json() as T & { detail?: string };
   if (!response.ok) throw new Error(data.detail || "Telegram 服务请求失败");
   return data;
+}
+
+async function telegramFile(path: string) {
+  const headers = new Headers();
+  const token = accessToken();
+  if (token) headers.set("x-token", token);
+  const response = await fetch(`${apiBaseURL}${basePath}${path}`, { headers });
+  acceptRenewedToken(response);
+  if (!response.ok) {
+    const data = await response.json().catch(() => ({ detail: "文件读取失败" })) as { detail?: string };
+    throw new Error(data.detail || "文件读取失败");
+  }
+  return response.blob();
 }
 
 export const telegramApi = {
@@ -40,4 +53,11 @@ export const telegramApi = {
   probeAISettings: (input: TelegramAISettingsInput) => telegramRequest<{ available: boolean }>("/api/admin/settings/ai/probe", {
     method: "POST", body: JSON.stringify(input),
   }),
+  resourceOptions: () => telegramRequest<TelegramResourceOptions>("/api/resources/options"),
+  resourceTasks: (input: { page: number; page_size: number }) => telegramRequest<TelegramResourceTaskPage>(`/api/resources/tasks${queryString(input)}`),
+  createResourceTask: (input: TelegramResourceTaskInput) => telegramRequest<TelegramResourceTask>("/api/resources/tasks", { method: "POST", body: JSON.stringify(input) }),
+  cancelResourceTask: (id: number) => telegramRequest<{ ok: boolean }>(`/api/resources/tasks/${id}/cancel`, { method: "POST" }),
+  retryResourceTask: (id: number) => telegramRequest<{ ok: boolean }>(`/api/resources/tasks/${id}/retry`, { method: "POST" }),
+  resourceFiles: (input: { page: number; page_size: number; task_id?: number; filename?: string; file_type?: string; status?: string; source_id?: number }) => telegramRequest<TelegramResourceFilePage>(`/api/resources/files${queryString(input)}`),
+  resourceFile: (id: number, action: "preview" | "download") => telegramFile(`/api/resources/files/${id}/${action}`),
 };
