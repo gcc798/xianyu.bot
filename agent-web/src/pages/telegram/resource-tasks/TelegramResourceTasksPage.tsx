@@ -97,6 +97,7 @@ export function Component() {
   });
 
   const columns: TableColumnsType<TelegramResourceTask> = [
+    { title: "序号", width: 64, render: (_value, _record, index) => (page - 1) * pageSize + index + 1 },
     { title: "任务", dataIndex: "id", width: 76, render: (value: number) => `#${value}` },
     { title: "检索主题", dataIndex: "keyword", width: 210, ellipsis: true },
     { title: "文件类型", dataIndex: "file_types", width: 150, ellipsis: true, render: (value: string[]) => value.length ? value.join("、") : "不限" },

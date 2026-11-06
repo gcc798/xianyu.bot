@@ -50,6 +50,7 @@ export function Component() {
   };
 
   const columns: TableColumnsType<Resource> = [
+    { title: "序号", width: 64, render: (_value, _record, index) => (page - 1) * pageSize + index + 1 },
     { title: "资源名称", dataIndex: "name", ellipsis: true, render: (value: string, record) => <Button type="link" className={styles.linkButton} onClick={() => void openDetail(record.ID)}>{value}</Button> },
     { title: "文件类型", dataIndex: "mimeType", width: 180, ellipsis: true, render: (value: string) => value || "-" },
     { title: "大小", dataIndex: "size", width: 100, render: formatFileSize },

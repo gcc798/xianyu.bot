@@ -46,6 +46,7 @@ export function Component() {
     }
   };
   const columns: TableColumnsType<TelegramDialog> = [
+    { title: "序号", width: 64, render: (_value, _record, index) => (page - 1) * pageSize + index + 1 },
     { title: "会话名称", dataIndex: "name", width: 220, ellipsis: true },
     { title: "用户名", dataIndex: "username", width: 150, ellipsis: true, render: (value: string | null) => value ? `@${value}` : "-" },
     { title: "类型", dataIndex: "dialog_type", width: 100, render: (value: string) => <Tag>{value}</Tag> },

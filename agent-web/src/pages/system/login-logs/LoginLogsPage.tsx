@@ -45,6 +45,7 @@ export function Component() {
   });
 
   const columns: TableColumnsType<LoginLog> = [
+    { title: "序号", width: 64, render: (_value, _record, index) => (page - 1) * 20 + index + 1 },
     { title: "用户", dataIndex: "username", width: 160 },
     { title: "IP", dataIndex: "ip", width: 150 },
     { title: "结果", dataIndex: "status", width: 90, render: (value: boolean) => <Tag color={value ? "success" : "error"}>{value ? "成功" : "失败"}</Tag> },

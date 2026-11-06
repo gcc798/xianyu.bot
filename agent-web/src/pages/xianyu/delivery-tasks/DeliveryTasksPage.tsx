@@ -67,6 +67,7 @@ export function Component() {
   };
 
   const columns: TableColumnsType<DeliveryTask> = [
+    { title: "序号", width: 64, render: (_value, _record, index) => (page - 1) * pageSize + index + 1 },
     { title: "订单号", dataIndex: "externalOrderId", width: 160, ellipsis: true },
     { title: "商品", dataIndex: "productTitle", width: 200, ellipsis: true },
     { title: "买家", dataIndex: "buyerUserName", width: 110, ellipsis: true },

@@ -140,6 +140,7 @@ export function Component() {
   };
 
   const columns: TableColumnsType<UserRecord> = [
+    { title: "序号", width: 64, render: (_value, _record, index) => (page - 1) * 20 + index + 1 },
     { title: "用户名", dataIndex: "userName", width: 160 },
     { title: "昵称", dataIndex: "nickName", width: 160 },
     { title: "角色", dataIndex: "authorityId", width: 110, render: (value: number) => value === ADMIN_AUTHORITY_ID ? "管理员" : "普通用户" },

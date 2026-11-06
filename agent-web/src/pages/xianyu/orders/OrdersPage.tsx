@@ -60,6 +60,7 @@ export function Component() {
   };
 
   const columns: TableColumnsType<Order> = [
+    { title: "序号", width: 64, render: (_value, _record, index) => (page - 1) * pageSize + index + 1 },
     { title: "订单号", dataIndex: "externalOrderId", width: 160, ellipsis: true, render: (value: string, record) => <Link to={`/xianyu/orders/${record.ID}`}>{value}</Link> },
     { title: "商品", dataIndex: "productTitle", width: 190, ellipsis: true },
     { title: "商品编码", dataIndex: "externalProductId", width: 125, ellipsis: true },

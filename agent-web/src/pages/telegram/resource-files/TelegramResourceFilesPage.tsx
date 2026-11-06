@@ -56,11 +56,12 @@ export function Component() {
   };
 
   const columns: TableColumnsType<TelegramResourceFile> = [
+    { title: "序号", width: 64, render: (_value, _record, index) => (page - 1) * pageSize + index + 1 },
+    { title: "任务", dataIndex: "task_id", width: 80, render: (value: number) => `#${value}` },
     { title: "文件名", dataIndex: "original_filename", width: 280, ellipsis: true },
     { title: "类型", dataIndex: "file_type", width: 90, render: (value: string) => value || "-" },
     { title: "大小", dataIndex: "file_size", width: 110, render: formatFileSize },
     { title: "来源", dataIndex: "source_name", width: 190, ellipsis: true },
-    { title: "任务", dataIndex: "task_id", width: 80, render: (value: number) => `#${value}` },
     { title: "完成时间", dataIndex: "completed_at", width: 150, render: (value: string | null) => value ? formatDateTime(value) : "-" },
     { title: "下载", dataIndex: "download_status", width: 100, render: (value: string) => <Tag color={statusColor(value)}>{fileStatusLabel[value] || value}</Tag> },
     { title: "存储", dataIndex: "upload_status", width: 100, render: (value: string) => <Tag color={statusColor(value)}>{fileStatusLabel[value] || value}</Tag> },

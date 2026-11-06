@@ -101,6 +101,7 @@ export function Component() {
   );
 
   const columns: TableColumnsType<Product> = [
+    { title: "序号", width: 64, render: (_value, _record, index) => (page - 1) * pageSize + index + 1 },
     { title: "商品名称", dataIndex: "title", width: 215, ellipsis: true, render: (value: string, record) => <Link to={`/xianyu/products/${record.ID}`}>{value}</Link> },
     { title: "商品编码", dataIndex: "externalProductId", width: 125, ellipsis: true },
     { title: "图片", dataIndex: "imageUrl", width: 55, render: (_: string, record) => renderImage(record) },
