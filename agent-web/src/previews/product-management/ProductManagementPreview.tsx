@@ -380,7 +380,6 @@ function PreviewConsole() {
               <ProductDetailPreview
                 product={detailProduct}
                 onBack={() => setPreviewPage("products")}
-                onOpenOrder={() => setPreviewPage("order-detail")}
                 onOpenSetting={() => openSetting(detailProduct)}
                 onSync={() => message.success("模拟同步完成，不会修改真实商品")}
               />

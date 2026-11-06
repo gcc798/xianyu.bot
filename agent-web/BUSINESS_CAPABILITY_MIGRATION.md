@@ -157,7 +157,6 @@ Vue 参考：`web/src/view/xianyu/products.vue`。已确认的正式 UI 以隔�
 | 同步商品 | `POST /xy/product/sync` | `{ accountId }` | 已完成 |
 | 商品业务设置 | `PUT /xy/product/setting` | `UpdateProductSetting` | 已完成 |
 | 商品详情 | 当前无详情路由 | 不能获得稳定的单商品详情合同 | 后端前置 |
-| 关联订单 | 当前只有 `GET /xy/order/list`，不支持商品 ID 筛选 | 不得在前端拉取全量订单后拼接 | 后端前置 |
 | 商品最近事件 | `GET /xy/event/list?productId=...` | 业务事件页支持本地商品 ID 精确筛选 | 已完成 |
 
 商品列表字段以 `response.Product` 为准：
@@ -169,7 +168,7 @@ Vue 参考：`web/src/view/xianyu/products.vue`。已确认的正式 UI 以隔�
 - `virtualProduct`、`autoReplyEnabled`、`autoDeliveryEnabled`、`autoRelistEnabled`
 - `replyDelaySeconds`、`relistDelaySeconds`、`relistDescription`、`relistImageUrls`、`relistAddress`
 
-后端明确不返回 `SourceJSON`。正式商品详情页不得使用预览模拟订单、模拟事件或列表缓存冒充详情数据。后端应先提供按本地 `ID` 获取商品详情的接口，并为关联订单提供明确筛选合同；接口补齐后再更新本文和 DTO。
+后端明确不返回 `SourceJSON`。正式商品详情页不得使用预览模拟事件或列表缓存冒充详情数据。后端应先提供按本地 `ID` 获取商品详情的接口；接口补齐后再更新本文和 DTO。
 
 ### 4.5 订单列表与订单详情
 
@@ -316,10 +315,9 @@ Vue 参考：`telegram-overview.vue`、`telegram-dialogs.vue`、`telegram-settin
 React 正式开发前或对应页面开发时必须解决：
 
 1. **商品详情接口缺失**：新增按本地商品 `ID` 获取详情的明确路由和响应 DTO。
-2. **商品关联订单合同缺失**：订单列表当前不支持 `productId` 或 `externalProductId` 筛选；需确定后端查询方式。
-3. **订单详情接口缺失**：新增按本地订单 `ID` 获取详情的明确路由和响应 DTO。
-4. **Telegram 合同不是仓库内 Go DTO**：需对运行中的代理逐项联调，固化 React TypeScript 类型及错误结构。
-5. **Telegram 明文 Key 读取与仓库安全边界冲突**：React 不迁移该读取动作，后端需决定删除或替换合同。
+2. **订单详情接口缺失**：新增按本地订单 `ID` 获取详情的明确路由和响应 DTO。
+3. **Telegram 合同不是仓库内 Go DTO**：需对运行中的代理逐项联调，固化 React TypeScript 类型及错误结构。
+4. **Telegram 明文 Key 读取与仓库安全边界冲突**：React 不迁移该读取动作，后端需决定删除或替换合同。
 
 缺口未解决时可以先完成列表页，但不得用模拟数据、全量列表拼接或 `unknown` 类型绕过。
 

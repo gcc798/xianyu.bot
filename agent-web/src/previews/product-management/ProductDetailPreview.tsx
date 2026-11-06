@@ -4,39 +4,13 @@ import {
   Empty,
   Image,
   Space,
-  Table,
   Tabs,
   Tag,
   Timeline,
   Typography,
 } from "antd";
-import type { DescriptionsProps, TableColumnsType } from "antd";
+import type { DescriptionsProps } from "antd";
 import type { PreviewProduct } from "./previewData";
-
-type RelatedOrder = {
-  orderId: string;
-  buyer: string;
-  amountCent: number;
-  status: string;
-  createdAt: string;
-};
-
-const relatedOrders: RelatedOrder[] = [
-  {
-    orderId: "XY2026110300186",
-    buyer: "林先生",
-    amountCent: 46800,
-    status: "待发货",
-    createdAt: "2026-11-03 10:28",
-  },
-  {
-    orderId: "XY2026102900942",
-    buyer: "周女士",
-    amountCent: 45800,
-    status: "已完成",
-    createdAt: "2026-10-29 21:06",
-  },
-];
 
 const productStatusMeta: Record<PreviewProduct["status"], { label: string; color?: string }> = {
   on_sale: { label: "在售", color: "success" },
@@ -47,13 +21,11 @@ const productStatusMeta: Record<PreviewProduct["status"], { label: string; color
 export default function ProductDetailPreview({
   product,
   onBack,
-  onOpenOrder,
   onOpenSetting,
   onSync,
 }: {
   product: PreviewProduct;
   onBack: () => void;
-  onOpenOrder: () => void;
   onOpenSetting: () => void;
   onSync: () => void;
 }) {
@@ -99,36 +71,6 @@ export default function ProductDetailPreview({
     },
   ];
 
-  const orderColumns: TableColumnsType<RelatedOrder> = [
-    {
-      title: "订单号",
-      dataIndex: "orderId",
-      render: (orderId: string) => <Typography.Text copyable>{orderId}</Typography.Text>,
-    },
-    { title: "买家", dataIndex: "buyer", responsive: ["sm"] },
-    {
-      title: "成交金额",
-      dataIndex: "amountCent",
-      render: (amountCent: number) => `¥${(amountCent / 100).toFixed(2)}`,
-    },
-    {
-      title: "状态",
-      dataIndex: "status",
-      render: (status: string) => <Tag color={status === "待发货" ? "warning" : "success"}>{status}</Tag>,
-    },
-    { title: "下单时间", dataIndex: "createdAt", responsive: ["md"] },
-    {
-      title: "操作",
-      key: "operation",
-      render: (_, order) =>
-        order.status === "待发货" ? (
-          <Button type="link" onClick={onOpenOrder}>查看详情</Button>
-        ) : (
-          <Typography.Text type="secondary">已归档</Typography.Text>
-        ),
-    },
-  ];
-  const visibleOrders = product.ID === 101 ? relatedOrders : [];
   const eventItems = [
     { color: "green", children: `今天 10:42 · ${status.label}商品同步成功` },
     product.status === "on_sale"
@@ -214,23 +156,9 @@ export default function ProductDetailPreview({
             },
             {
               key: "records",
-              label: "关联记录",
+              label: "操作记录",
               children: (
                 <div className="detail-tab-body">
-                  <section className="detail-section">
-                    <div className="detail-section-heading">
-                      <Typography.Title level={4}>关联订单</Typography.Title>
-                      {visibleOrders.length > 0 && <Button type="link" onClick={onOpenOrder}>查看订单详情</Button>}
-                    </div>
-                    <Table<RelatedOrder>
-                      columns={orderColumns}
-                      dataSource={visibleOrders}
-                      rowKey="orderId"
-                      pagination={false}
-                      scroll={{ x: "max-content" }}
-                      locale={{ emptyText: "暂无关联订单" }}
-                    />
-                  </section>
                   <section className="detail-section">
                     <div className="detail-section-heading">
                       <Typography.Title level={4}>操作记录</Typography.Title>
