@@ -103,7 +103,7 @@ src/
 | AI 与 MCP 设置 | 已完成 | `xianyu/ai-settings.vue` | `/xy/ai/models`、`mcp-servers`、`agent-config` |
 | 资源管理 | 已完成 | 资源页面 | `/xy/resources`、详情、下载 |
 | Telegram 总览 | 已开发，待联调 | `xianyu/telegram-overview.vue` | Telegram 代理接口 |
-| Telegram 会话 | 已开发，待联调 | `xianyu/telegram-dialogs.vue` | Telegram 代理接口 |
+| Telegram 会话 | 已开发，待联调 | `xianyu/telegram-dialogs.vue` | Telegram 代理列表、退出与导出接口 |
 | 资源任务与文件 | 已开发，待联调 | `telegram-resource-*.vue` | Telegram 代理接口 |
 | Telegram 设置 | 已开发，待联调 | `xianyu/telegram-settings.vue` | Telegram 代理接口 |
 | 用户、字典、登录日志 | 已完成新结构迁移 | `superAdmin`、`systemTools` | `/user/*`、`/sysDictionary*`、`/sysLoginLog/*` |

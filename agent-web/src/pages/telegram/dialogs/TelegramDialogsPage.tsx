@@ -14,7 +14,7 @@ export function Component() {
   const [page, setPage] = useState(1), [pageSize, setPageSize] = useState(30), [total, setTotal] = useState(0);
   const [keyword, setKeyword] = useState(""), [query, setQuery] = useState(""), [filter, setFilter] = useState<string>();
   const [membersMin, setMembersMin] = useState<number>(), [membersMax, setMembersMax] = useState<number>();
-  const [loading, setLoading] = useState(false), [error, setError] = useState("");
+  const [loading, setLoading] = useState(false), [exporting, setExporting] = useState(false), [error, setError] = useState("");
   const load = useCallback(async () => {
     setLoading(true); setError("");
     try { const data = await telegramApi.dialogs({ page, page_size: pageSize, q: query, filter, members_min: membersMin, members_max: membersMax }); setRows(data.list); setTotal(data.total); }
@@ -28,6 +28,23 @@ export function Component() {
     okText: "退出", okType: "danger", cancelText: "取消",
     onOk: async () => { const data = await telegramApi.leaveDialogs(selected.map(Number)); message.success(`成功 ${data.success}，失败 ${data.failed}`); setSelected([]); await load(); },
   });
+  const exportDialogs = async () => {
+    setExporting(true);
+    try {
+      const blob = await telegramApi.exportDialogs({ q: query, filter, members_min: membersMin, members_max: membersMax });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `telegram-dialogs-${new Date().toISOString().slice(0, 10)}.csv`;
+      link.click();
+      window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+      message.success("会话已导出");
+    } catch (cause) {
+      message.error(cause instanceof Error ? cause.message : "会话导出失败");
+    } finally {
+      setExporting(false);
+    }
+  };
   const columns: TableColumnsType<TelegramDialog> = [
     { title: "会话名称", dataIndex: "name", width: 220, ellipsis: true },
     { title: "用户名", dataIndex: "username", width: 150, ellipsis: true, render: (value: string | null) => value ? `@${value}` : "-" },
@@ -45,7 +62,7 @@ export function Component() {
       <Select allowClear value={filter} placeholder="全部会话" style={{ width: 140 }} options={[{ value: "groups", label: "群组" }, { value: "channels", label: "频道" }, { value: "normal", label: "正常" }, { value: "invalid", label: "异常" }, { value: "muted", label: "已静音" }, { value: "archived", label: "已归档" }, { value: "creator", label: "我创建的" }]} onChange={(value) => { setFilter(value); setPage(1); }} />
       <InputNumber value={membersMin} min={0} placeholder="最少成员" onChange={(value) => setMembersMin(value ?? undefined)} />
       <InputNumber value={membersMax} min={0} placeholder="最多成员" onChange={(value) => setMembersMax(value ?? undefined)} />
-      <Space><Button type="primary" onClick={search}>查询</Button><Button onClick={reset}>重置</Button><Button danger disabled={!selected.length} onClick={leave}>退出会话</Button></Space>
+      <Space><Button type="primary" onClick={search}>查询</Button><Button onClick={reset}>重置</Button><Button loading={exporting} onClick={() => void exportDialogs()}>导出</Button><Button danger disabled={!selected.length} onClick={leave}>退出会话</Button></Space>
     </div>
     {error && <Alert className={styles.alert} type="error" showIcon title={error} />}
     <div className={styles.table}><Table<TelegramDialog> rowKey="id" size="small" loading={loading} rowSelection={{ selectedRowKeys: selected, onChange: setSelected }} columns={columns} dataSource={rows} pagination={false} scroll={{ x: 1050 }} /></div>

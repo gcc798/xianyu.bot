@@ -273,7 +273,7 @@ Vue 参考：`telegram-overview.vue`、`telegram-dialogs.vue`、`telegram-settin
 | 扫描 | `POST /api/admin/scan`、`GET /api/admin/scan/status` | 启动与轮询 | 已开发，待联调 |
 | 会话列表 | `GET /api/admin/dialogs` | 上游分页/筛选 | 已开发，待联调 |
 | 退出会话 | `POST /api/admin/dialogs/leave` | `{ dialog_ids, confirm: '退出' }`，必须二次确认 | 已开发，待联调 |
-| 导出会话 | `GET /api/admin/dialogs/export` | Blob 下载 | 需核验 |
+| 导出会话 | `GET /api/admin/dialogs/export` | 按当前筛选导出 CSV Blob | 已开发，待联调 |
 | 设置 | `GET /api/admin/settings` | 不接入明文凭据读取 | 已开发，待联调 |
 | 成人内容开关 | `POST /api/admin/settings/adult-mode` | `{ adult_mode }` | 已开发，待联调 |
 | AI 设置/探测 | `POST /api/admin/settings/ai`、`POST /api/admin/settings/ai/probe` | `base_url`、`api_key`、`model` | 已开发，待联调 |

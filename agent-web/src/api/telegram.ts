@@ -40,6 +40,8 @@ export const telegramApi = {
   scanStatus: () => telegramRequest<TelegramScan>("/api/admin/scan/status"),
   dialogs: (input: { page: number; page_size: number; q?: string; filter?: string; members_min?: number; members_max?: number }) =>
     telegramRequest<TelegramDialogPage>(`/api/admin/dialogs${queryString(input)}`),
+  exportDialogs: (input: { q?: string; filter?: string; members_min?: number; members_max?: number }) =>
+    telegramFile(`/api/admin/dialogs/export${queryString(input)}`),
   leaveDialogs: (dialog_ids: number[]) => telegramRequest<{ success: number; failed: number }>("/api/admin/dialogs/leave", {
     method: "POST", body: JSON.stringify({ dialog_ids, confirm: "退出" }),
   }),
