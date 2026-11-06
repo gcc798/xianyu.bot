@@ -1,8 +1,17 @@
 .shell { min-width: 960px; min-height: 100vh; background: #f4f6f8; }
-.sidebar { position: fixed !important; inset: 0 auto 0 0; z-index: 20; overflow: hidden; border-right: 1px solid #e1e5eb; background: #f7f8fa !important; }
+.sidebar { position: fixed !important; inset: 0 auto 0 0; z-index: 20; overflow: hidden; border-right: 1px solid #e1e5eb; background: #f7f8fa !important; transition: width 160ms ease, min-width 160ms ease, max-width 160ms ease !important; }
+.sidebar :global(.ant-layout-sider-children) { height: 100%; display: flex; flex-direction: column; }
 .brand { width: 100%; height: 72px; padding: 0 24px; border: 0; border-bottom: 1px solid #e1e5eb; color: #1f2329; background: transparent; font: 650 18px/1 inherit; text-align: left; cursor: pointer; }
-.menu { padding: 24px 12px; border-inline-end: 0 !important; background: transparent !important; }
-.workspace { min-width: 0; min-height: 100vh; margin-left: 228px; }
+.menuScroller { min-height: 0; flex: 1; overflow-x: hidden; overflow-y: auto; scrollbar-width: thin; scrollbar-color: #c9ced6 transparent; }
+.menu { padding: 16px 12px; border-inline-end: 0 !important; background: transparent !important; }
+.collapseBar { flex: none; padding: 10px 12px; border-top: 1px solid #e1e5eb; background: #f7f8fa; }
+.collapseBar button { height: 40px; color: #59616d; text-align: left; }
+.workspace { min-width: 0; min-height: 100vh; margin-left: 228px; transition: margin-left 160ms ease; }
+.collapsed .brand { padding: 0; text-align: center; }
+.collapsed .menu { padding-inline: 8px; }
+.collapsed .workspace { margin-left: 64px; }
+.collapsed .collapseBar { padding-inline: 8px; }
+.collapsed .collapseBar button { text-align: center; }
 .header { position: sticky; top: 0; z-index: 15; height: 72px; display: flex; align-items: center; justify-content: space-between; padding: 0 28px; border-bottom: 1px solid #e1e5eb; background: #fff !important; }
 .breadcrumb { display: flex; align-items: center; gap: 12px; color: #818995; }
 .breadcrumb i { color: #b4bac3; font-style: normal; }
@@ -10,6 +19,6 @@
 .account { display: flex; align-items: center; gap: 10px; color: #59616d; }
 .content { min-width: 0; height: calc(100vh - 72px); overflow: auto; }
 @media (max-width: 1100px) {
-  .sidebar { width: 196px !important; max-width: 196px !important; min-width: 196px !important; }
-  .workspace { margin-left: 196px; }
+  .shell:not(.collapsed) .sidebar { width: 196px !important; max-width: 196px !important; min-width: 196px !important; }
+  .shell:not(.collapsed) .workspace { margin-left: 196px; }
 }

@@ -1,5 +1,7 @@
+import { AppstoreOutlined, DatabaseOutlined, MenuFoldOutlined, MenuUnfoldOutlined, RobotOutlined, SendOutlined, SettingOutlined, ShopOutlined } from "@ant-design/icons";
 import { App, Button, Dropdown, Layout, Menu } from "antd";
 import type { MenuProps } from "antd";
+import { useState } from "react";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../app/AuthProvider";
 import { ADMIN_AUTHORITY_ID } from "../models/auth";
@@ -36,6 +38,7 @@ export default function ConsoleLayout() {
   const navigate = useNavigate();
   const { modal } = App.useApp();
   const { session, signOut } = useAuth();
+  const [collapsed, setCollapsed] = useState(false);
   const isAdmin = session?.user.authorityId === ADMIN_AUTHORITY_ID;
   const currentTitle = location.pathname.startsWith("/xianyu/products/")
     ? "商品详情"
@@ -44,11 +47,12 @@ export default function ConsoleLayout() {
     ? "/xianyu/products"
     : location.pathname.startsWith("/xianyu/orders/") ? "/xianyu/orders" : location.pathname;
   const menu: MenuProps["items"] = [
-    { key: "/overview", label: "总览" },
-    { key: "/bot", label: "Bot" },
-    { key: "/resources", label: "资源管理" },
+    { key: "/overview", icon: <AppstoreOutlined />, label: "总览" },
+    { key: "/bot", icon: <RobotOutlined />, label: "Bot" },
+    { key: "/resources", icon: <DatabaseOutlined />, label: "资源管理" },
     {
       key: "telegram",
+      icon: <SendOutlined />,
       label: "Telegram",
       children: [
         { key: "/telegram/overview", label: "总览" },
@@ -60,6 +64,7 @@ export default function ConsoleLayout() {
     },
     {
       key: "xianyu",
+      icon: <ShopOutlined />,
       label: "闲鱼自动化",
       children: [
         { key: "/xianyu/accounts", label: "账号管理" },
@@ -75,6 +80,7 @@ export default function ConsoleLayout() {
     ...(isAdmin
       ? [{
           key: "system",
+          icon: <SettingOutlined />,
           label: "系统设置",
           children: [
             { key: "/system/users", label: "用户管理" },
@@ -100,17 +106,23 @@ export default function ConsoleLayout() {
   };
 
   return (
-    <Layout className={styles.shell} hasSider>
-      <Sider width={228} theme="light" className={styles.sidebar}>
-        <button className={styles.brand} onClick={() => navigate("/overview")}>闲鱼运营</button>
-        <Menu
-          mode="inline"
-          items={menu}
-          selectedKeys={[selectedPath]}
-          defaultOpenKeys={["telegram", "xianyu", "system"]}
-          onClick={({ key }) => navigate(key)}
-          className={styles.menu}
-        />
+    <Layout className={`${styles.shell} ${collapsed ? styles.collapsed : ""}`} hasSider>
+      <Sider width={228} collapsedWidth={64} collapsed={collapsed} collapsible trigger={null} theme="light" className={styles.sidebar}>
+        <button className={styles.brand} title="返回总览" onClick={() => navigate("/overview")}>{collapsed ? "闲" : "闲鱼运营"}</button>
+        <div className={styles.menuScroller}>
+          <Menu
+            mode="inline"
+            inlineCollapsed={collapsed}
+            items={menu}
+            selectedKeys={[selectedPath]}
+            defaultOpenKeys={["telegram", "xianyu", "system"]}
+            onClick={({ key }) => navigate(key)}
+            className={styles.menu}
+          />
+        </div>
+        <div className={styles.collapseBar}>
+          <Button type="text" block title={collapsed ? "展开菜单" : "收起菜单"} aria-label={collapsed ? "展开菜单" : "收起菜单"} icon={collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />} onClick={() => setCollapsed((value) => !value)}>{collapsed ? null : "收起菜单"}</Button>
+        </div>
       </Sider>
       <Layout className={styles.workspace}>
         <Header className={styles.header}>
