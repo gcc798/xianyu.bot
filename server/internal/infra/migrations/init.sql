@@ -332,7 +332,7 @@ ALTER SEQUENCE public.tel_leave_history_id_seq OWNED BY public.tel_leave_history
 
 CREATE TABLE public.tel_resource_files (
     id bigint NOT NULL,
-    task_id bigint NOT NULL,
+    task_id bigint,
     telegram_chat_id bigint NOT NULL,
     telegram_message_id bigint NOT NULL,
     telegram_file_id text,
@@ -3250,7 +3250,7 @@ CREATE INDEX idx_xy_takeovers_owner ON public.xy_conversation_takeovers USING bt
 --
 
 ALTER TABLE ONLY public.tel_resource_files
-    ADD CONSTRAINT tel_resource_files_task_id_fkey FOREIGN KEY (task_id) REFERENCES public.tel_resource_tasks(id) ON DELETE CASCADE;
+    ADD CONSTRAINT tel_resource_files_task_id_fkey FOREIGN KEY (task_id) REFERENCES public.tel_resource_tasks(id) ON DELETE SET NULL;
 
 
 --

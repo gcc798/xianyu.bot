@@ -289,6 +289,25 @@ class Database:
         with self.connect() as db:
             return db.execute("SELECT f.*,s.source_name,s.source_username FROM tel_resource_files f JOIN tel_resource_sources s ON s.file_id=f.id WHERE f.id=%s", (file_id,)).fetchone()
 
+    def resource_task_files(self, task_id: int) -> list[dict]:
+        with self.connect() as db:
+            return db.execute("SELECT id,object_key FROM tel_resource_files WHERE task_id=%s ORDER BY id", (task_id,)).fetchall()
+
+    def delete_resource_file(self, file_id: int) -> None:
+        with self.connect() as db:
+            if db.execute("DELETE FROM tel_resource_files WHERE id=%s RETURNING id", (file_id,)).fetchone() is None:
+                raise ValueError("资源文件不存在")
+
+    def delete_resource_task(self, task_id: int, delete_files: bool) -> None:
+        with self.connect() as db:
+            if delete_files:
+                db.execute("DELETE FROM tel_resource_files WHERE task_id=%s", (task_id,))
+            else:
+                db.execute("UPDATE tel_resource_files SET task_id=NULL WHERE task_id=%s", (task_id,))
+            db.execute("DELETE FROM tel_acquisition_tasks WHERE resource_task_id=%s", (task_id,))
+            if db.execute("DELETE FROM tel_resource_tasks WHERE id=%s RETURNING id", (task_id,)).fetchone() is None:
+                raise ValueError("资源任务不存在")
+
     def list_resource_files(self, filters: dict, page: int = 1, page_size: int = 20) -> tuple[list[dict], int]:
         where, params = ["TRUE"], []
         for key, column in (("task_id", "f.task_id"), ("file_type", "f.file_type"), ("status", "f.download_status"), ("source_id", "s.dialog_id")):

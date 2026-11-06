@@ -46,6 +46,9 @@ class RustFS:
         content_type = mime_type or mimetypes.guess_type(path.name)[0] or "application/octet-stream"
         self.client.upload_file(str(path), self.bucket, object_key, ExtraArgs={"ContentType": content_type})
 
+    def delete(self, object_key: str) -> None:
+        self.client.delete_object(Bucket=self.bucket, Key=object_key)
+
     def presigned_url(self, object_key: str, filename: str, inline: bool, expires: int = 300) -> str:
         disposition = "inline" if inline else "attachment"
         return self.client.generate_presigned_url(

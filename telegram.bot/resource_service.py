@@ -555,6 +555,28 @@ class ResourceService:
         self.db.update_resource_task(task_id, status="queued", files_found=found, files_completed=completed, error_message=None, completed_at=None, cancel_requested=False)
         self.enqueue(task_id)
 
+    def delete_task(self, task_id: int, delete_files: bool) -> None:
+        task = self.db.resource_task(task_id)
+        if not task:
+            raise ValueError("资源任务不存在")
+        if task["status"] in {"queued", "running"}:
+            raise ValueError("请先取消任务，再执行删除")
+        files = self.db.resource_task_files(task_id) if delete_files else []
+        for file in files:
+            if file["object_key"]:
+                self.storage.delete(file["object_key"])
+        self.db.delete_resource_task(task_id, delete_files)
+
+    def delete_file(self, file_id: int) -> None:
+        file = self.db.resource_file(file_id)
+        if not file:
+            raise ValueError("资源文件不存在")
+        if file["download_status"] in {"queued", "downloading"} or file["upload_status"] in {"pending", "uploading"}:
+            raise ValueError("文件仍在处理中，暂不能删除")
+        if file["object_key"]:
+            self.storage.delete(file["object_key"])
+        self.db.delete_resource_file(file_id)
+
     async def _worker(self) -> None:
         while True:
             task_id = await self.queue.get()

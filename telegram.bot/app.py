@@ -12,6 +12,7 @@ from typing import Literal
 from urllib.parse import urlencode, urlparse
 
 import uvicorn
+from botocore.exceptions import BotoCoreError, ClientError
 from dotenv import load_dotenv
 from fastapi import FastAPI, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
@@ -490,6 +491,18 @@ async def retry_resource_task(task_id: int, request: Request):
     return {"ok": True}
 
 
+@app.delete("/api/resources/tasks/{task_id}")
+async def delete_resource_task(task_id: int, request: Request, delete_files: bool = False):
+    internal_access(request)
+    try:
+        resources.delete_task(task_id, delete_files)
+    except ValueError as exc:
+        raise HTTPException(409, str(exc)) from exc
+    except (BotoCoreError, ClientError) as exc:
+        raise HTTPException(502, "RustFS 文件删除失败") from exc
+    return {"ok": True}
+
+
 @app.get("/api/resources/files")
 async def resource_files(request: Request, page: int = 1, page_size: int = 20, task_id: int | None = None, filename: str = "", file_type: str = "", status: str = "", source_id: int | None = None):
     internal_access(request)
@@ -519,6 +532,18 @@ async def preview_resource_file(file_id: int, request: Request):
 @app.get("/api/resources/files/{file_id}/download")
 async def download_resource_file(file_id: int, request: Request):
     return resource_redirect(file_id, request, False)
+
+
+@app.delete("/api/resources/files/{file_id}")
+async def delete_resource_file(file_id: int, request: Request):
+    internal_access(request)
+    try:
+        resources.delete_file(file_id)
+    except ValueError as exc:
+        raise HTTPException(409, str(exc)) from exc
+    except (BotoCoreError, ClientError) as exc:
+        raise HTTPException(502, "RustFS 文件删除失败") from exc
+    return {"ok": True}
 
 
 def local_ip():

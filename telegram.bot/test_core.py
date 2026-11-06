@@ -138,6 +138,58 @@ def test_resource_cancel_interrupts_active_download():
     asyncio.run(scenario())
 
 
+def test_resource_deletion_keeps_or_removes_related_files():
+    class FakeDatabase:
+        task = {"id": 9, "status": "completed"}
+        files = [{"id": 3, "object_key": "telegram/3.pdf"}, {"id": 4, "object_key": None}]
+        deleted_tasks = []
+        deleted_files = []
+
+        def resource_task(self, _task_id):
+            return self.task
+
+        def resource_task_files(self, _task_id):
+            return self.files
+
+        def delete_resource_task(self, task_id, delete_files):
+            self.deleted_tasks.append((task_id, delete_files))
+
+        def resource_file(self, _file_id):
+            return {"id": 3, "object_key": "telegram/3.pdf", "download_status": "success", "upload_status": "success"}
+
+        def delete_resource_file(self, file_id):
+            self.deleted_files.append(file_id)
+
+    class FakeStorage:
+        deleted = []
+
+        def delete(self, object_key):
+            self.deleted.append(object_key)
+
+    service = ResourceService.__new__(ResourceService)
+    service.db = FakeDatabase()
+    service.storage = FakeStorage()
+
+    service.delete_task(9, False)
+    assert service.db.deleted_tasks == [(9, False)]
+    assert service.storage.deleted == []
+
+    service.delete_task(9, True)
+    assert service.db.deleted_tasks[-1] == (9, True)
+    assert service.storage.deleted == ["telegram/3.pdf"]
+
+    service.delete_file(3)
+    assert service.db.deleted_files == [3]
+    assert service.storage.deleted == ["telegram/3.pdf", "telegram/3.pdf"]
+
+    service.db.task = {"id": 10, "status": "running"}
+    try:
+        service.delete_task(10, True)
+        raise AssertionError("running task was deleted")
+    except ValueError as exc:
+        assert "先取消任务" in str(exc)
+
+
 def test_adult_dialog_filter_uses_cached_ids_without_ai():
     settings = {"adult_mode": "false", "adult_dialog_ids": '[7, "8"]'}
     database = Database.__new__(Database)
@@ -250,8 +302,9 @@ def test_metadata_scan_storage():
             assert db.resource_task(task["id"])["status"] == "cancelled"
             manager.retry(task["id"])
             assert db.resource_task(task["id"])["status"] == "queued"
-            resource = db.claim_resource_file(task["id"], row, 99, "file-99", "training.pdf", 123, "application/pdf", "authorized training")
-            assert resource and db.claim_resource_file(task["id"], row, 99, "file-99", "training.pdf", 123, "application/pdf", "authorized training") is None
+            telegram_file_id = "file-" + uuid.uuid4().hex
+            resource = db.claim_resource_file(task["id"], row, 99, telegram_file_id, "training.pdf", 123, "application/pdf", "authorized training")
+            assert resource and db.claim_resource_file(task["id"], row, 99, telegram_file_id, "training.pdf", 123, "application/pdf", "authorized training") is None
             db.update_resource_task(task["id"], status="running")
             db.update_resource_file(resource["id"], download_status="downloading")
             running_tasks, _ = db.list_resource_tasks({"q": task_keyword})
@@ -267,6 +320,7 @@ def test_metadata_scan_storage():
             assert created is True and retried["id"] == acquisition["id"] and retried["state"] == "queued"
         finally:
             conn.execute("DELETE FROM tel_acquisition_tasks WHERE id=%s", (locals().get("acquisition", {}).get("id", -1),))
+            conn.execute("DELETE FROM tel_resource_files WHERE telegram_chat_id=%s", (telegram_id,))
             conn.execute("DELETE FROM tel_resource_tasks WHERE id=%s", (locals().get("task", {}).get("id", -1),))
             conn.execute("DELETE FROM tel_leave_history WHERE telegram_id=%s", (telegram_id,))
             conn.execute("DELETE FROM tel_dialogs WHERE telegram_id=%s", (telegram_id,))
