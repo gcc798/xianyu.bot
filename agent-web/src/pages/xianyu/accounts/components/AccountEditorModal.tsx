@@ -25,11 +25,19 @@ export default function AccountEditorModal({ account, loading, onCancel, onSave 
       onCancel={onCancel}
       onOk={() => form.submit()}
       afterOpenChange={(visible) => {
-        if (visible) form.setFieldsValue({ label: account?.label || "", note: account?.note || "" });
+        if (visible)
+          form.setFieldsValue({ label: account?.label || "", note: account?.note || "" });
       }}
     >
       <Form form={form} layout="vertical" onFinish={onSave}>
-        <Form.Item name="label" label="账号名称" rules={[{ required: true, whitespace: true, message: "请输入账号名称" }, { max: 80, message: "最多 80 个字符" }]}>
+        <Form.Item
+          name="label"
+          label="账号名称"
+          rules={[
+            { required: true, whitespace: true, message: "请输入账号名称" },
+            { max: 80, message: "最多 80 个字符" },
+          ]}
+        >
           <Input autoFocus />
         </Form.Item>
         <Form.Item name="note" label="备注" rules={[{ max: 500, message: "最多 500 个字符" }]}>

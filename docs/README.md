@@ -5,6 +5,7 @@
 - [系统架构](architecture.md)
 - [项目范围](project-scope.md)
 - [前端](frontend.md)
+- [React 前端开发规范](frontend-development.md)
 - [数据库](database.md)
 - [第三方许可](third-party-licensing.md)
 

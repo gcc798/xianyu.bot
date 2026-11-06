@@ -24,24 +24,48 @@ export function AgentLimits() {
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    void aiConfigApi.agentConfig()
+    void aiConfigApi
+      .agentConfig()
       .then(({ config }) => form.setFieldsValue(config))
-      .catch((cause) => message.error(cause instanceof Error ? cause.message : "Agent 配置加载失败"))
+      .catch((cause) =>
+        message.error(cause instanceof Error ? cause.message : "Agent 配置加载失败"),
+      )
       .finally(() => setLoading(false));
   }, [form, message]);
   const save = async (input: AgentConfig) => {
     setSaving(true);
-    try { await aiConfigApi.updateAgentConfig(input); message.success("Agent 配置已保存"); }
-    finally { setSaving(false); }
+    try {
+      await aiConfigApi.updateAgentConfig(input);
+      message.success("Agent 配置已保存");
+    } finally {
+      setSaving(false);
+    }
   };
 
-  return <Spin spinning={loading}>
-    <Form form={form} layout="vertical" onFinish={save}>
-      <div className={styles.toolbar}><Button type="primary" loading={saving} onClick={() => form.submit()}>保存配置</Button></div>
-      <div className={styles.grid}>
-        {fields.map((field) => <Form.Item key={field.name} name={field.name} label={field.label} rules={[{ required: true }]}><InputNumber min={1} max={field.max} /></Form.Item>)}
-      </div>
-      <Form.Item name="ID" hidden><InputNumber /></Form.Item>
-    </Form>
-  </Spin>;
+  return (
+    <Spin spinning={loading}>
+      <Form form={form} layout="vertical" onFinish={save}>
+        <div className={styles.toolbar}>
+          <Button type="primary" loading={saving} onClick={() => form.submit()}>
+            保存配置
+          </Button>
+        </div>
+        <div className={styles.grid}>
+          {fields.map((field) => (
+            <Form.Item
+              key={field.name}
+              name={field.name}
+              label={field.label}
+              rules={[{ required: true }]}
+            >
+              <InputNumber min={1} max={field.max} />
+            </Form.Item>
+          ))}
+        </div>
+        <Form.Item name="ID" hidden>
+          <InputNumber />
+        </Form.Item>
+      </Form>
+    </Spin>
+  );
 }

@@ -22,7 +22,8 @@ export default function App() {
           colorBgLayout: "#f4f6f8",
           borderRadius: 6,
           controlHeight: 36,
-          fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif',
+          fontFamily:
+            '-apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif',
           fontSize: 14,
           boxShadowSecondary: "0 10px 32px rgba(18, 31, 53, 0.12)",
         },

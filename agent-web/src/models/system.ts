@@ -51,10 +51,9 @@ export type Dictionary = {
   sysDictionaryDetails: DictionaryDetail[];
 };
 
-export type DictionaryInput = Pick<
-  Dictionary,
-  "name" | "type" | "status" | "desc" | "parentID"
-> & { ID?: number };
+export type DictionaryInput = Pick<Dictionary, "name" | "type" | "status" | "desc" | "parentID"> & {
+  ID?: number;
+};
 
 export type DictionaryDetail = {
   ID: number;

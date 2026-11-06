@@ -31,7 +31,13 @@ export function Component() {
     setLoading(true);
     setError("");
     try {
-      const data = await automationApi.deliveryRules({ page, pageSize, productId, mode, keyword: query });
+      const data = await automationApi.deliveryRules({
+        page,
+        pageSize,
+        productId,
+        mode,
+        keyword: query,
+      });
       setRows(data.list);
       setTotal(data.total);
     } catch (cause) {
@@ -41,9 +47,12 @@ export function Component() {
     }
   }, [page, pageSize, productId, mode, query]);
 
-  useEffect(() => { void load(); }, [load]);
   useEffect(() => {
-    void productsApi.list({ page: 1, pageSize: 100, status: "on_sale" })
+    void load();
+  }, [load]);
+  useEffect(() => {
+    void productsApi
+      .list({ page: 1, pageSize: 100, status: "on_sale" })
       .then((data) => setProducts(data.list))
       .catch(() => undefined);
   }, []);
@@ -87,7 +96,10 @@ export function Component() {
 
   const importResources = async () => {
     if (!importRule) return;
-    const values = resourceText.split(/\r?\n/).map((value) => value.trim()).filter(Boolean);
+    const values = resourceText
+      .split(/\r?\n/)
+      .map((value) => value.trim())
+      .filter(Boolean);
     if (!values.length) {
       message.warning("请输入卡密");
       return;
@@ -112,39 +124,78 @@ export function Component() {
   };
 
   const columns: TableColumnsType<DeliveryRule> = [
-    { title: "序号", width: 64, align: "center", render: (_value, _record, index) => (page - 1) * pageSize + index + 1 },
+    {
+      title: "序号",
+      width: 64,
+      align: "center",
+      render: (_value, _record, index) => (page - 1) * pageSize + index + 1,
+    },
     { title: "商品", dataIndex: "productTitle", ellipsis: true },
     {
-      title: "SKU", dataIndex: "skuName", width: 170, ellipsis: true,
+      title: "SKU",
+      dataIndex: "skuName",
+      width: 170,
+      ellipsis: true,
       render: (value: string, record) => value || record.skuKey || "通用规则",
     },
     {
-      title: "模式", dataIndex: "mode", width: 100,
-      render: (value: string) => <Tag color={value === "card" ? "processing" : "default"}>{value === "card" ? "卡密发货" : "文本发货"}</Tag>,
+      title: "模式",
+      dataIndex: "mode",
+      width: 100,
+      render: (value: string) => (
+        <Tag color={value === "card" ? "processing" : "default"}>
+          {value === "card" ? "卡密发货" : "文本发货"}
+        </Tag>
+      ),
     },
     { title: "模板", dataIndex: "template", width: 330, ellipsis: true },
     {
-      title: "状态", dataIndex: "enabled", width: 80,
-      render: (value: boolean) => <Tag color={value ? "success" : "default"}>{value ? "启用" : "停用"}</Tag>,
+      title: "状态",
+      dataIndex: "enabled",
+      width: 80,
+      render: (value: boolean) => (
+        <Tag color={value ? "success" : "default"}>{value ? "启用" : "停用"}</Tag>
+      ),
     },
     {
-      title: "操作", width: 220, fixed: "right",
+      title: "操作",
+      width: 220,
+      fixed: "right",
       render: (_, record) => (
         <Space size={2}>
-          <Button type="link" className={styles.linkButton} onClick={() => setEditing(record)}>编辑</Button>
+          <Button type="link" className={styles.linkButton} onClick={() => setEditing(record)}>
+            编辑
+          </Button>
           {record.mode === "card" && (
             <>
-              <Button type="link" className={styles.linkButton} onClick={() => setImportRule(record)}>导入卡密</Button>
-              <Button type="link" className={styles.linkButton} onClick={() => void showInventory(record)}>库存</Button>
+              <Button
+                type="link"
+                className={styles.linkButton}
+                onClick={() => setImportRule(record)}
+              >
+                导入卡密
+              </Button>
+              <Button
+                type="link"
+                className={styles.linkButton}
+                onClick={() => void showInventory(record)}
+              >
+                库存
+              </Button>
             </>
           )}
-          <Button type="link" danger className={styles.linkButton} onClick={() => remove(record)}>删除</Button>
+          <Button type="link" danger className={styles.linkButton} onClick={() => remove(record)}>
+            删除
+          </Button>
         </Space>
       ),
     },
   ];
 
-  const search = () => { setQuery(keyword.trim()); setPage(1); };
+  const search = () => {
+    setQuery(keyword.trim());
+    setPage(1);
+  };
   const reset = () => {
     setProductId(undefined);
     setMode(undefined);
@@ -158,36 +209,72 @@ export function Component() {
       <section className={styles.surface}>
         <div className={styles.filters}>
           <Select
-            allowClear showSearch value={productId} placeholder="全部商品" style={{ width: 220 }}
+            allowClear
+            showSearch
+            value={productId}
+            placeholder="全部商品"
+            style={{ width: 220 }}
             options={products.map((item) => ({ value: item.ID, label: item.title }))}
-            onChange={(value) => { setProductId(value); setPage(1); }}
+            onChange={(value) => {
+              setProductId(value);
+              setPage(1);
+            }}
           />
           <Select
-            allowClear value={mode} placeholder="全部模式" style={{ width: 130 }}
-            options={[{ value: "text", label: "文本发货" }, { value: "card", label: "卡密发货" }]}
-            onChange={(value) => { setMode(value); setPage(1); }}
+            allowClear
+            value={mode}
+            placeholder="全部模式"
+            style={{ width: 130 }}
+            options={[
+              { value: "text", label: "文本发货" },
+              { value: "card", label: "卡密发货" },
+            ]}
+            onChange={(value) => {
+              setMode(value);
+              setPage(1);
+            }}
           />
           <Input.Search
-            value={keyword} allowClear placeholder="SKU 或模板内容" style={{ width: 220 }}
-            onChange={(event) => setKeyword(event.target.value)} onSearch={search}
+            value={keyword}
+            allowClear
+            placeholder="SKU 或模板内容"
+            style={{ width: 220 }}
+            onChange={(event) => setKeyword(event.target.value)}
+            onSearch={search}
           />
           <Space>
-            <Button type="primary" onClick={search}>查询</Button>
+            <Button type="primary" onClick={search}>
+              查询
+            </Button>
             <Button onClick={reset}>重置</Button>
-            <Button type="primary" onClick={() => setEditing(null)}>新增规则</Button>
+            <Button type="primary" onClick={() => setEditing(null)}>
+              新增规则
+            </Button>
           </Space>
         </div>
         {error && <Alert className={styles.alert} type="error" showIcon title={error} />}
         <div className={styles.table}>
           <Table<DeliveryRule>
-            rowKey="ID" size="small" loading={loading} columns={columns} dataSource={rows}
-            pagination={false} scroll={{ x: 1100 }}
+            rowKey="ID"
+            size="small"
+            loading={loading}
+            columns={columns}
+            dataSource={rows}
+            pagination={false}
+            scroll={{ x: 1100 }}
           />
         </div>
         <div className={styles.pagination}>
           <Pagination
-            current={page} pageSize={pageSize} total={total} showSizeChanger pageSizeOptions={[10, 20, 50]}
-            onChange={(nextPage, nextSize) => { setPage(nextSize === pageSize ? nextPage : 1); setPageSize(nextSize); }}
+            current={page}
+            pageSize={pageSize}
+            total={total}
+            showSizeChanger
+            pageSizeOptions={[10, 20, 50]}
+            onChange={(nextPage, nextSize) => {
+              setPage(nextSize === pageSize ? nextPage : 1);
+              setPageSize(nextSize);
+            }}
           />
         </div>
       </section>

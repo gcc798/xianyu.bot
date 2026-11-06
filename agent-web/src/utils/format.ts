@@ -1,4 +1,7 @@
-const dateTimeFormatter = new Intl.DateTimeFormat("zh-CN", { dateStyle: "short", timeStyle: "short" });
+const dateTimeFormatter = new Intl.DateTimeFormat("zh-CN", {
+  dateStyle: "short",
+  timeStyle: "short",
+});
 
 export function formatMoney(cent: number) {
   return `¥${(cent / 100).toFixed(2)}`;

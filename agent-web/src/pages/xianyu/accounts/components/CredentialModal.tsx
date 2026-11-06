@@ -23,14 +23,33 @@ export default function CredentialModal({ account, loading, onCancel, onSave }: 
       destroyOnHidden
       onCancel={onCancel}
       onOk={() => form.submit()}
-      afterOpenChange={(visible) => { if (visible) form.setFieldsValue({ cookie: "", token: "" }); }}
+      afterOpenChange={(visible) => {
+        if (visible) form.setFieldsValue({ cookie: "", token: "" });
+      }}
     >
-      <Alert type="warning" showIcon title="凭证保存后不再回显；请仅填写需要更新的账号凭证。" style={{ marginBottom: 18 }} />
-      <Form form={form} layout="vertical" onFinish={(input) => { if (account) return onSave({ ...input, ID: account.ID }); }}>
-        <Form.Item name="cookie" label="Cookie" rules={[{ required: true, whitespace: true, message: "请输入 Cookie" }]}>
+      <Alert
+        type="warning"
+        showIcon
+        title="凭证保存后不再回显；请仅填写需要更新的账号凭证。"
+        style={{ marginBottom: 18 }}
+      />
+      <Form
+        form={form}
+        layout="vertical"
+        onFinish={(input) => {
+          if (account) return onSave({ ...input, ID: account.ID });
+        }}
+      >
+        <Form.Item
+          name="cookie"
+          label="Cookie"
+          rules={[{ required: true, whitespace: true, message: "请输入 Cookie" }]}
+        >
           <Input.TextArea rows={5} autoComplete="off" />
         </Form.Item>
-        <Form.Item name="token" label="Token"><Input.Password autoComplete="new-password" /></Form.Item>
+        <Form.Item name="token" label="Token">
+          <Input.Password autoComplete="new-password" />
+        </Form.Item>
       </Form>
     </Modal>
   );

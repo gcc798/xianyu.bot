@@ -34,7 +34,13 @@ export function Component() {
     setLoading(true);
     setError("");
     try {
-      const data = await automationApi.replyRules({ page, pageSize, productId, type, keyword: query });
+      const data = await automationApi.replyRules({
+        page,
+        pageSize,
+        productId,
+        type,
+        keyword: query,
+      });
       setRows(data.list);
       setTotal(data.total);
     } catch (cause) {
@@ -44,9 +50,12 @@ export function Component() {
     }
   }, [page, pageSize, productId, type, query]);
 
-  useEffect(() => { void load(); }, [load]);
   useEffect(() => {
-    void productsApi.list({ page: 1, pageSize: 100, status: "on_sale" })
+    void load();
+  }, [load]);
+  useEffect(() => {
+    void productsApi
+      .list({ page: 1, pageSize: 100, status: "on_sale" })
       .then((data) => setProducts(data.list))
       .catch(() => undefined);
   }, []);
@@ -84,37 +93,60 @@ export function Component() {
   };
 
   const columns: TableColumnsType<ReplyRule> = [
-    { title: "序号", width: 64, align: "center", render: (_value, _record, index) => (page - 1) * pageSize + index + 1 },
+    {
+      title: "序号",
+      width: 64,
+      align: "center",
+      render: (_value, _record, index) => (page - 1) * pageSize + index + 1,
+    },
     { title: "商品", dataIndex: "productTitle", ellipsis: true },
     {
-      title: "类型", dataIndex: "type", width: 100,
+      title: "类型",
+      dataIndex: "type",
+      width: 100,
       render: (value: string) => {
         const item = ruleTypes[value] ?? { label: value, color: "default" };
         return <Tag color={item.color}>{item.label}</Tag>;
       },
     },
     {
-      title: "触发关键词", dataIndex: "keyword", width: 190, ellipsis: true,
-      render: (value: string, record) => record.type === "fallback" ? "未匹配其他规则" : value,
+      title: "触发关键词",
+      dataIndex: "keyword",
+      width: 190,
+      ellipsis: true,
+      render: (value: string, record) => (record.type === "fallback" ? "未匹配其他规则" : value),
     },
     { title: "回复内容", dataIndex: "content", width: 300, ellipsis: true },
     { title: "优先级", dataIndex: "priority", width: 80 },
     {
-      title: "状态", dataIndex: "enabled", width: 80,
-      render: (value: boolean) => <Tag color={value ? "success" : "default"}>{value ? "启用" : "停用"}</Tag>,
+      title: "状态",
+      dataIndex: "enabled",
+      width: 80,
+      render: (value: boolean) => (
+        <Tag color={value ? "success" : "default"}>{value ? "启用" : "停用"}</Tag>
+      ),
     },
     {
-      title: "操作", width: 100, fixed: "right",
+      title: "操作",
+      width: 100,
+      fixed: "right",
       render: (_, record) => (
         <Space size={2}>
-          <Button type="link" className={styles.linkButton} onClick={() => setEditing(record)}>编辑</Button>
-          <Button type="link" danger className={styles.linkButton} onClick={() => remove(record)}>删除</Button>
+          <Button type="link" className={styles.linkButton} onClick={() => setEditing(record)}>
+            编辑
+          </Button>
+          <Button type="link" danger className={styles.linkButton} onClick={() => remove(record)}>
+            删除
+          </Button>
         </Space>
       ),
     },
   ];
 
-  const search = () => { setQuery(keyword.trim()); setPage(1); };
+  const search = () => {
+    setQuery(keyword.trim());
+    setPage(1);
+  };
   const reset = () => {
     setProductId(undefined);
     setType(undefined);
@@ -128,36 +160,73 @@ export function Component() {
       <section className={styles.surface}>
         <div className={styles.filters}>
           <Select
-            allowClear showSearch value={productId} placeholder="全部商品" style={{ width: 220 }}
+            allowClear
+            showSearch
+            value={productId}
+            placeholder="全部商品"
+            style={{ width: 220 }}
             options={products.map((item) => ({ value: item.ID, label: item.title }))}
-            onChange={(value) => { setProductId(value); setPage(1); }}
+            onChange={(value) => {
+              setProductId(value);
+              setPage(1);
+            }}
           />
           <Select
-            allowClear value={type} placeholder="全部类型" style={{ width: 130 }}
-            options={[{ value: "exact", label: "精确匹配" }, { value: "fuzzy", label: "模糊匹配" }, { value: "fallback", label: "兜底回复" }]}
-            onChange={(value) => { setType(value); setPage(1); }}
+            allowClear
+            value={type}
+            placeholder="全部类型"
+            style={{ width: 130 }}
+            options={[
+              { value: "exact", label: "精确匹配" },
+              { value: "fuzzy", label: "模糊匹配" },
+              { value: "fallback", label: "兜底回复" },
+            ]}
+            onChange={(value) => {
+              setType(value);
+              setPage(1);
+            }}
           />
           <Input.Search
-            value={keyword} allowClear placeholder="关键词或回复内容" style={{ width: 240 }}
-            onChange={(event) => setKeyword(event.target.value)} onSearch={search}
+            value={keyword}
+            allowClear
+            placeholder="关键词或回复内容"
+            style={{ width: 240 }}
+            onChange={(event) => setKeyword(event.target.value)}
+            onSearch={search}
           />
           <Space>
-            <Button type="primary" onClick={search}>查询</Button>
+            <Button type="primary" onClick={search}>
+              查询
+            </Button>
             <Button onClick={reset}>重置</Button>
-            <Button type="primary" onClick={() => setEditing(null)}>新增规则</Button>
+            <Button type="primary" onClick={() => setEditing(null)}>
+              新增规则
+            </Button>
           </Space>
         </div>
         {error && <Alert className={styles.alert} type="error" showIcon title={error} />}
         <div className={styles.table}>
           <Table<ReplyRule>
-            rowKey="ID" size="small" loading={loading} columns={columns} dataSource={rows}
-            pagination={false} scroll={{ x: 1100 }}
+            rowKey="ID"
+            size="small"
+            loading={loading}
+            columns={columns}
+            dataSource={rows}
+            pagination={false}
+            scroll={{ x: 1100 }}
           />
         </div>
         <div className={styles.pagination}>
           <Pagination
-            current={page} pageSize={pageSize} total={total} showSizeChanger pageSizeOptions={[10, 20, 50]}
-            onChange={(nextPage, nextSize) => { setPage(nextSize === pageSize ? nextPage : 1); setPageSize(nextSize); }}
+            current={page}
+            pageSize={pageSize}
+            total={total}
+            showSizeChanger
+            pageSizeOptions={[10, 20, 50]}
+            onChange={(nextPage, nextSize) => {
+              setPage(nextSize === pageSize ? nextPage : 1);
+              setPageSize(nextSize);
+            }}
           />
         </div>
       </section>

@@ -1,23 +1,111 @@
-.page { min-height: 100%; display: flex; flex-direction: column; padding: 16px 18px 12px; }
-.surface { min-height: 0; flex: 1; display: flex; flex-direction: column; overflow: hidden; border-radius: 8px; background: #fff; }
-.filters { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 18px 20px; }
-.filters :global(.ant-form-item) { margin-bottom: 0; }
-.filters :global(.ant-form-item-label) { padding-bottom: 0; }
-.table { min-height: 0; flex: 1; overflow: auto; }
-.table :global(.ant-table-wrapper), .table :global(.ant-spin-nested-loading), .table :global(.ant-spin-container) { min-height: 100%; }
-.pagination { min-height: 60px; display: flex; align-items: center; padding: 12px 20px; border-top: 1px solid #e4e7ec; }
-.alert { margin: 0 20px 14px; }
-.linkButton { padding-inline: 4px !important; }
-.split { min-height: 0; flex: 1; display: grid; grid-template-columns: 280px minmax(0, 1fr); border-top: 1px solid #e4e7ec; }
-.dictionaryList { min-height: 0; overflow: auto; padding: 12px; border-right: 1px solid #e4e7ec; }
-.dictionaryList button { width: 100%; display: grid; gap: 4px; padding: 10px 12px; border: 0; border-radius: 6px; color: #2b3038; background: transparent; text-align: left; cursor: pointer; }
-.dictionaryList button:hover { background: #f2f4f7; }
-.dictionaryList button[data-selected="true"] { color: #245fd6; background: #e8eefb; }
-.dictionaryList small { color: #89919d; }
-.dictionaryDetails { min-width: 0; display: flex; flex-direction: column; }
-.sectionToolbar { min-height: 60px; display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 12px 18px; }
-.sectionToolbar strong { font-size: 15px; font-weight: 600; }
+.page {
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+  padding: 16px 18px 12px;
+}
+.surface {
+  min-height: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-radius: 8px;
+  background: #fff;
+}
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding: 18px 20px;
+}
+.filters :global(.ant-form-item) {
+  margin-bottom: 0;
+}
+.filters :global(.ant-form-item-label) {
+  padding-bottom: 0;
+}
+.table {
+  min-height: 0;
+  flex: 1;
+  overflow: auto;
+}
+.table :global(.ant-table-wrapper),
+.table :global(.ant-spin-nested-loading),
+.table :global(.ant-spin-container) {
+  min-height: 100%;
+}
+.pagination {
+  min-height: 60px;
+  display: flex;
+  align-items: center;
+  padding: 12px 20px;
+  border-top: 1px solid #e4e7ec;
+}
+.alert {
+  margin: 0 20px 14px;
+}
+.linkButton {
+  padding-inline: 4px !important;
+}
+.split {
+  min-height: 0;
+  flex: 1;
+  display: grid;
+  grid-template-columns: 280px minmax(0, 1fr);
+  border-top: 1px solid #e4e7ec;
+}
+.dictionaryList {
+  min-height: 0;
+  overflow: auto;
+  padding: 12px;
+  border-right: 1px solid #e4e7ec;
+}
+.dictionaryList button {
+  width: 100%;
+  display: grid;
+  gap: 4px;
+  padding: 10px 12px;
+  border: 0;
+  border-radius: 6px;
+  color: #2b3038;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+.dictionaryList button:hover {
+  background: #f2f4f7;
+}
+.dictionaryList button[data-selected="true"] {
+  color: #245fd6;
+  background: #e8eefb;
+}
+.dictionaryList small {
+  color: #89919d;
+}
+.dictionaryDetails {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.sectionToolbar {
+  min-height: 60px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 18px;
+}
+.sectionToolbar strong {
+  font-size: 15px;
+  font-weight: 600;
+}
 @media (max-width: 1180px) {
-  .page { padding-inline: 12px; }
-  .split { grid-template-columns: 240px minmax(0, 1fr); }
+  .page {
+    padding-inline: 12px;
+  }
+  .split {
+    grid-template-columns: 240px minmax(0, 1fr);
+  }
 }

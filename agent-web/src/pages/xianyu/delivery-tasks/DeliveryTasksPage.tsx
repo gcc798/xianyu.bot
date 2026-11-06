@@ -35,7 +35,13 @@ export function Component() {
     setLoading(true);
     setError("");
     try {
-      const data = await automationApi.deliveryTasks({ page, pageSize, accountId, status, keyword: query });
+      const data = await automationApi.deliveryTasks({
+        page,
+        pageSize,
+        accountId,
+        status,
+        keyword: query,
+      });
       setRows(data.list);
       setTotal(data.total);
     } catch (cause) {
@@ -45,9 +51,12 @@ export function Component() {
     }
   }, [page, pageSize, accountId, status, query]);
 
-  useEffect(() => { void load(); }, [load]);
   useEffect(() => {
-    void accountsApi.list({ page: 1, pageSize: 100 })
+    void load();
+  }, [load]);
+  useEffect(() => {
+    void accountsApi
+      .list({ page: 1, pageSize: 100 })
       .then((data) => setAccounts(data.list))
       .catch(() => undefined);
   }, []);
@@ -67,17 +76,30 @@ export function Component() {
   };
 
   const columns: TableColumnsType<DeliveryTask> = [
-    { title: "序号", width: 64, align: "center", render: (_value, _record, index) => (page - 1) * pageSize + index + 1 },
+    {
+      title: "序号",
+      width: 64,
+      align: "center",
+      render: (_value, _record, index) => (page - 1) * pageSize + index + 1,
+    },
     { title: "订单号", dataIndex: "externalOrderId", width: 160, ellipsis: true },
     { title: "商品", dataIndex: "productTitle", width: 200, ellipsis: true },
     { title: "买家", dataIndex: "buyerUserName", width: 110, ellipsis: true },
     { title: "账号", dataIndex: "accountLabel", width: 120, ellipsis: true },
     {
-      title: "模式", dataIndex: "mode", width: 90,
-      render: (value: string) => <Tag color={value === "card" ? "processing" : "default"}>{value === "card" ? "卡密" : "文本"}</Tag>,
+      title: "模式",
+      dataIndex: "mode",
+      width: 90,
+      render: (value: string) => (
+        <Tag color={value === "card" ? "processing" : "default"}>
+          {value === "card" ? "卡密" : "文本"}
+        </Tag>
+      ),
     },
     {
-      title: "状态", dataIndex: "status", width: 100,
+      title: "状态",
+      dataIndex: "status",
+      width: 100,
       render: (value: string) => {
         const item = taskStatuses[value] ?? { label: value, color: "default" };
         return <Tag color={item.color}>{item.label}</Tag>;
@@ -85,16 +107,32 @@ export function Component() {
     },
     { title: "尝试次数", dataIndex: "attempts", width: 90 },
     { title: "下次执行", dataIndex: "nextAttemptAt", width: 150, render: formatDateTime },
-    { title: "失败原因", dataIndex: "lastError", width: 200, ellipsis: true, render: (value: string) => value || "-" },
     {
-      title: "操作", width: 70, fixed: "right",
-      render: (_, record) => record.status === "failed"
-        ? <Button type="link" className={styles.linkButton} onClick={() => retry(record)}>重试</Button>
-        : "-",
+      title: "失败原因",
+      dataIndex: "lastError",
+      width: 200,
+      ellipsis: true,
+      render: (value: string) => value || "-",
+    },
+    {
+      title: "操作",
+      width: 70,
+      fixed: "right",
+      render: (_, record) =>
+        record.status === "failed" ? (
+          <Button type="link" className={styles.linkButton} onClick={() => retry(record)}>
+            重试
+          </Button>
+        ) : (
+          "-"
+        ),
     },
   ];
 
-  const search = () => { setQuery(keyword.trim()); setPage(1); };
+  const search = () => {
+    setQuery(keyword.trim());
+    setPage(1);
+  };
   const reset = () => {
     setAccountId(undefined);
     setStatus(undefined);
@@ -108,35 +146,68 @@ export function Component() {
       <section className={styles.surface}>
         <div className={styles.filters}>
           <Select
-            allowClear value={accountId} placeholder="全部账号" style={{ width: 170 }}
+            allowClear
+            value={accountId}
+            placeholder="全部账号"
+            style={{ width: 170 }}
             options={accounts.map((account) => ({ value: account.ID, label: account.label }))}
-            onChange={(value) => { setAccountId(value); setPage(1); }}
+            onChange={(value) => {
+              setAccountId(value);
+              setPage(1);
+            }}
           />
           <Select
-            allowClear value={status} placeholder="全部状态" style={{ width: 140 }}
-            options={Object.entries(taskStatuses).map(([value, item]) => ({ value, label: item.label }))}
-            onChange={(value) => { setStatus(value); setPage(1); }}
+            allowClear
+            value={status}
+            placeholder="全部状态"
+            style={{ width: 140 }}
+            options={Object.entries(taskStatuses).map(([value, item]) => ({
+              value,
+              label: item.label,
+            }))}
+            onChange={(value) => {
+              setStatus(value);
+              setPage(1);
+            }}
           />
           <Input.Search
-            value={keyword} allowClear placeholder="订单、商品或买家" style={{ width: 250 }}
-            onChange={(event) => setKeyword(event.target.value)} onSearch={search}
+            value={keyword}
+            allowClear
+            placeholder="订单、商品或买家"
+            style={{ width: 250 }}
+            onChange={(event) => setKeyword(event.target.value)}
+            onSearch={search}
           />
           <Space>
-            <Button type="primary" onClick={search}>查询</Button>
+            <Button type="primary" onClick={search}>
+              查询
+            </Button>
             <Button onClick={reset}>重置</Button>
           </Space>
         </div>
         {error && <Alert className={styles.alert} type="error" showIcon title={error} />}
         <div className={styles.table}>
           <Table<DeliveryTask>
-            rowKey="ID" size="small" loading={loading} columns={columns} dataSource={rows}
-            pagination={false} scroll={{ x: 1380 }}
+            rowKey="ID"
+            size="small"
+            loading={loading}
+            columns={columns}
+            dataSource={rows}
+            pagination={false}
+            scroll={{ x: 1380 }}
           />
         </div>
         <div className={styles.pagination}>
           <Pagination
-            current={page} pageSize={pageSize} total={total} showSizeChanger pageSizeOptions={[10, 20, 50]}
-            onChange={(nextPage, nextSize) => { setPage(nextSize === pageSize ? nextPage : 1); setPageSize(nextSize); }}
+            current={page}
+            pageSize={pageSize}
+            total={total}
+            showSizeChanger
+            pageSizeOptions={[10, 20, 50]}
+            onChange={(nextPage, nextSize) => {
+              setPage(nextSize === pageSize ? nextPage : 1);
+              setPageSize(nextSize);
+            }}
           />
         </div>
       </section>

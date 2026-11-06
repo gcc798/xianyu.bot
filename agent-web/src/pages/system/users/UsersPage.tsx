@@ -1,4 +1,16 @@
-import { Alert, App, Button, Form, Input, Modal, Pagination, Select, Space, Table, Tag } from "antd";
+import {
+  Alert,
+  App,
+  Button,
+  Form,
+  Input,
+  Modal,
+  Pagination,
+  Select,
+  Space,
+  Table,
+  Tag,
+} from "antd";
 import type { TableColumnsType } from "antd";
 import { useCallback, useEffect, useState } from "react";
 import { systemApi } from "../../../api/system";
@@ -51,7 +63,9 @@ export function Component() {
     }
   }, [page, query]);
 
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    void load();
+  }, [load]);
 
   const openCreate = () => {
     setEditing(null);
@@ -128,7 +142,15 @@ export function Component() {
     let password = "";
     modal.confirm({
       title: `重置 ${user.userName} 的密码`,
-      content: <Input.Password autoComplete="new-password" placeholder="至少 6 位" onChange={(event) => { password = event.target.value; }} />,
+      content: (
+        <Input.Password
+          autoComplete="new-password"
+          placeholder="至少 6 位"
+          onChange={(event) => {
+            password = event.target.value;
+          }}
+        />
+      ),
       okText: "重置",
       cancelText: "取消",
       onOk: async () => {
@@ -140,22 +162,45 @@ export function Component() {
   };
 
   const columns: TableColumnsType<UserRecord> = [
-    { title: "序号", width: 64, align: "center", render: (_value, _record, index) => (page - 1) * 20 + index + 1 },
+    {
+      title: "序号",
+      width: 64,
+      align: "center",
+      render: (_value, _record, index) => (page - 1) * 20 + index + 1,
+    },
     { title: "用户名", dataIndex: "userName", width: 160 },
     { title: "昵称", dataIndex: "nickName", width: 160 },
-    { title: "角色", dataIndex: "authorityId", width: 110, render: (value: number) => value === ADMIN_AUTHORITY_ID ? "管理员" : "普通用户" },
+    {
+      title: "角色",
+      dataIndex: "authorityId",
+      width: 110,
+      render: (value: number) => (value === ADMIN_AUTHORITY_ID ? "管理员" : "普通用户"),
+    },
     { title: "手机号", dataIndex: "phone", width: 150, render: (value: string) => value || "—" },
     { title: "邮箱", dataIndex: "email", ellipsis: true, render: (value: string) => value || "—" },
-    { title: "状态", dataIndex: "enable", width: 96, render: (value: number) => <Tag color={value === 1 ? "success" : "default"}>{value === 1 ? "启用" : "停用"}</Tag> },
+    {
+      title: "状态",
+      dataIndex: "enable",
+      width: 96,
+      render: (value: number) => (
+        <Tag color={value === 1 ? "success" : "default"}>{value === 1 ? "启用" : "停用"}</Tag>
+      ),
+    },
     {
       title: "操作",
       key: "actions",
       width: 200,
       render: (_, user) => (
         <Space size={4}>
-          <Button type="link" className={styles.linkButton} onClick={() => openEdit(user)}>编辑</Button>
-          <Button type="link" className={styles.linkButton} onClick={() => resetPassword(user)}>重置密码</Button>
-          <Button type="link" danger className={styles.linkButton} onClick={() => remove(user)}>删除</Button>
+          <Button type="link" className={styles.linkButton} onClick={() => openEdit(user)}>
+            编辑
+          </Button>
+          <Button type="link" className={styles.linkButton} onClick={() => resetPassword(user)}>
+            重置密码
+          </Button>
+          <Button type="link" danger className={styles.linkButton} onClick={() => remove(user)}>
+            删除
+          </Button>
         </Space>
       ),
     },
@@ -171,17 +216,44 @@ export function Component() {
             placeholder="用户名或昵称"
             style={{ width: 280 }}
             onChange={(event) => setKeyword(event.target.value)}
-            onSearch={() => { setPage(1); setQuery(keyword.trim()); }}
+            onSearch={() => {
+              setPage(1);
+              setQuery(keyword.trim());
+            }}
           />
-          <Button onClick={() => { setKeyword(""); setQuery(""); setPage(1); }}>重置</Button>
-          <Button type="primary" onClick={openCreate}>新建用户</Button>
+          <Button
+            onClick={() => {
+              setKeyword("");
+              setQuery("");
+              setPage(1);
+            }}
+          >
+            重置
+          </Button>
+          <Button type="primary" onClick={openCreate}>
+            新建用户
+          </Button>
         </div>
         {error && <Alert className={styles.alert} type="error" showIcon title={error} />}
         <div className={styles.table}>
-          <Table<UserRecord> rowKey="ID" size="small" loading={loading} columns={columns} dataSource={rows} pagination={false} scroll={{ x: 980 }} />
+          <Table<UserRecord>
+            rowKey="ID"
+            size="small"
+            loading={loading}
+            columns={columns}
+            dataSource={rows}
+            pagination={false}
+            scroll={{ x: 980 }}
+          />
         </div>
         <div className={styles.pagination}>
-          <Pagination current={page} pageSize={20} total={total} showSizeChanger={false} onChange={setPage} />
+          <Pagination
+            current={page}
+            pageSize={20}
+            total={total}
+            showSizeChanger={false}
+            onChange={setPage}
+          />
         </div>
       </section>
 
@@ -193,19 +265,50 @@ export function Component() {
         cancelText="取消"
         destroyOnHidden
         onOk={() => void save()}
-        onCancel={() => { setEditing(undefined); form.resetFields(); }}
+        onCancel={() => {
+          setEditing(undefined);
+          form.resetFields();
+        }}
       >
         <Form<UserForm> form={form} layout="vertical" requiredMark={false}>
-          <Form.Item name="userName" label="用户名" rules={[{ required: true }]}><Input disabled={Boolean(editing)} autoComplete="off" /></Form.Item>
-          {!editing && <Form.Item name="passWord" label="初始密码" rules={[{ required: true }, { min: 6 }]}><Input.Password autoComplete="new-password" /></Form.Item>}
-          <Form.Item name="nickName" label="昵称" rules={[{ required: true }]}><Input /></Form.Item>
+          <Form.Item name="userName" label="用户名" rules={[{ required: true }]}>
+            <Input disabled={Boolean(editing)} autoComplete="off" />
+          </Form.Item>
+          {!editing && (
+            <Form.Item name="passWord" label="初始密码" rules={[{ required: true }, { min: 6 }]}>
+              <Input.Password autoComplete="new-password" />
+            </Form.Item>
+          )}
+          <Form.Item name="nickName" label="昵称" rules={[{ required: true }]}>
+            <Input />
+          </Form.Item>
           <Space size={12} style={{ display: "flex" }}>
-            <Form.Item name="authorityId" label="角色" style={{ flex: 1 }}><Select options={[{ label: "普通用户", value: USER_AUTHORITY_ID }, { label: "管理员", value: ADMIN_AUTHORITY_ID }]} /></Form.Item>
-            <Form.Item name="enable" label="状态" style={{ flex: 1 }}><Select options={[{ label: "启用", value: 1 }, { label: "停用", value: 2 }]} /></Form.Item>
+            <Form.Item name="authorityId" label="角色" style={{ flex: 1 }}>
+              <Select
+                options={[
+                  { label: "普通用户", value: USER_AUTHORITY_ID },
+                  { label: "管理员", value: ADMIN_AUTHORITY_ID },
+                ]}
+              />
+            </Form.Item>
+            <Form.Item name="enable" label="状态" style={{ flex: 1 }}>
+              <Select
+                options={[
+                  { label: "启用", value: 1 },
+                  { label: "停用", value: 2 },
+                ]}
+              />
+            </Form.Item>
           </Space>
-          <Form.Item name="phone" label="手机号"><Input /></Form.Item>
-          <Form.Item name="email" label="邮箱" rules={[{ type: "email" }]}><Input /></Form.Item>
-          <Form.Item name="headerImg" label="头像地址"><Input /></Form.Item>
+          <Form.Item name="phone" label="手机号">
+            <Input />
+          </Form.Item>
+          <Form.Item name="email" label="邮箱" rules={[{ type: "email" }]}>
+            <Input />
+          </Form.Item>
+          <Form.Item name="headerImg" label="头像地址">
+            <Input />
+          </Form.Item>
         </Form>
       </Modal>
     </div>

@@ -12,21 +12,30 @@ type Props = {
   onSave: (input: DeliveryRuleInput) => Promise<void>;
 };
 
-export function DeliveryRuleModal({ record, products, defaultProductId, saving, onCancel, onSave }: Props) {
+export function DeliveryRuleModal({
+  record,
+  products,
+  defaultProductId,
+  saving,
+  onCancel,
+  onSave,
+}: Props) {
   const [form] = Form.useForm<DeliveryRuleInput>();
   const mode = Form.useWatch("mode", form);
 
   useEffect(() => {
     if (record === undefined) return;
-    form.setFieldsValue(record ?? {
-      ID: 0,
-      productId: defaultProductId,
-      skuKey: "",
-      skuName: "",
-      mode: "text",
-      template: "",
-      enabled: true,
-    });
+    form.setFieldsValue(
+      record ?? {
+        ID: 0,
+        productId: defaultProductId,
+        skuKey: "",
+        skuName: "",
+        mode: "text",
+        template: "",
+        enabled: true,
+      },
+    );
   }, [defaultProductId, form, record]);
 
   return (
@@ -42,8 +51,15 @@ export function DeliveryRuleModal({ record, products, defaultProductId, saving, 
       onOk={() => form.submit()}
     >
       <Form form={form} layout="vertical" onFinish={onSave}>
-        <Form.Item name="productId" label="商品" rules={[{ required: true, message: "请选择商品" }]}>
-          <Select showSearch options={products.map((item) => ({ value: item.ID, label: item.title }))} />
+        <Form.Item
+          name="productId"
+          label="商品"
+          rules={[{ required: true, message: "请选择商品" }]}
+        >
+          <Select
+            showSearch
+            options={products.map((item) => ({ value: item.ID, label: item.title }))}
+          />
         </Form.Item>
         <Space size={16} align="start" style={{ width: "100%" }}>
           <Form.Item name="skuKey" label="SKU 标识">
@@ -55,7 +71,10 @@ export function DeliveryRuleModal({ record, products, defaultProductId, saving, 
           <Form.Item name="mode" label="发货模式" rules={[{ required: true }]}>
             <Select
               style={{ width: 150 }}
-              options={[{ value: "text", label: "文本发货" }, { value: "card", label: "卡密发货" }]}
+              options={[
+                { value: "text", label: "文本发货" },
+                { value: "card", label: "卡密发货" },
+              ]}
             />
           </Form.Item>
           <Form.Item name="enabled" label="启用" valuePropName="checked">

@@ -12,21 +12,30 @@ type Props = {
   onSave: (input: ReplyRuleInput) => Promise<void>;
 };
 
-export function ReplyRuleModal({ record, products, defaultProductId, saving, onCancel, onSave }: Props) {
+export function ReplyRuleModal({
+  record,
+  products,
+  defaultProductId,
+  saving,
+  onCancel,
+  onSave,
+}: Props) {
   const [form] = Form.useForm<ReplyRuleInput>();
   const type = Form.useWatch("type", form);
 
   useEffect(() => {
     if (record === undefined) return;
-    form.setFieldsValue(record ?? {
-      ID: 0,
-      productId: defaultProductId,
-      type: "fuzzy",
-      keyword: "",
-      priority: 100,
-      enabled: true,
-      content: "",
-    });
+    form.setFieldsValue(
+      record ?? {
+        ID: 0,
+        productId: defaultProductId,
+        type: "fuzzy",
+        keyword: "",
+        priority: 100,
+        enabled: true,
+        content: "",
+      },
+    );
   }, [defaultProductId, form, record]);
 
   return (
@@ -41,22 +50,37 @@ export function ReplyRuleModal({ record, products, defaultProductId, saving, onC
       onOk={() => form.submit()}
     >
       <Form form={form} layout="vertical" onFinish={onSave}>
-        <Form.Item name="productId" label="商品" rules={[{ required: true, message: "请选择商品" }]}>
-          <Select showSearch options={products.map((item) => ({ value: item.ID, label: item.title }))} />
+        <Form.Item
+          name="productId"
+          label="商品"
+          rules={[{ required: true, message: "请选择商品" }]}
+        >
+          <Select
+            showSearch
+            options={products.map((item) => ({ value: item.ID, label: item.title }))}
+          />
         </Form.Item>
         <Form.Item name="type" label="规则类型" rules={[{ required: true }]}>
           <Select
             disabled={record?.type === "exact"}
-            options={record?.type === "exact"
-              ? [{ value: "exact", label: "精确匹配" }]
-              : [{ value: "fuzzy", label: "模糊匹配" }, { value: "fallback", label: "兜底回复" }]}
+            options={
+              record?.type === "exact"
+                ? [{ value: "exact", label: "精确匹配" }]
+                : [
+                    { value: "fuzzy", label: "模糊匹配" },
+                    { value: "fallback", label: "兜底回复" },
+                  ]
+            }
           />
         </Form.Item>
         {type !== "fallback" && (
           <Form.Item
             name="keyword"
             label="触发关键词"
-            rules={[{ required: true, whitespace: true, message: "请输入触发关键词" }, { max: 255 }]}
+            rules={[
+              { required: true, whitespace: true, message: "请输入触发关键词" },
+              { max: 255 },
+            ]}
           >
             <Input />
           </Form.Item>
@@ -69,7 +93,11 @@ export function ReplyRuleModal({ record, products, defaultProductId, saving, onC
             <Switch />
           </Form.Item>
         </Space>
-        <Form.Item name="content" label="回复内容" rules={[{ required: true, whitespace: true }, { max: 4000 }]}>
+        <Form.Item
+          name="content"
+          label="回复内容"
+          rules={[{ required: true, whitespace: true }, { max: 4000 }]}
+        >
           <Input.TextArea rows={5} maxLength={4000} showCount />
         </Form.Item>
       </Form>

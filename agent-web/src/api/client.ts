@@ -30,7 +30,11 @@ export function acceptRenewedToken(response: Response) {
     const expiresAt = Number(response.headers.get("new-expires-at"));
     localStorage.setItem(
       SESSION_KEY,
-      JSON.stringify({ ...session, token, expiresAt: expiresAt > 0 ? expiresAt * 1000 : session.expiresAt }),
+      JSON.stringify({
+        ...session,
+        token,
+        expiresAt: expiresAt > 0 ? expiresAt * 1000 : session.expiresAt,
+      }),
     );
   } catch {
     clearStoredAuth();

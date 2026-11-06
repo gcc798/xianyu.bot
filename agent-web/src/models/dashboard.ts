@@ -13,8 +13,18 @@ export type DashboardMetrics = {
   failedAutomationTasks: number;
 };
 
-export type DashboardMessagePoint = { timestamp: number; inbound: number; outbound: number; autoReplies: number };
-export type DashboardOrderPoint = { timestamp: number; orders: number; delivered: number; failed: number };
+export type DashboardMessagePoint = {
+  timestamp: number;
+  inbound: number;
+  outbound: number;
+  autoReplies: number;
+};
+export type DashboardOrderPoint = {
+  timestamp: number;
+  orders: number;
+  delivered: number;
+  failed: number;
+};
 export type DashboardNameValue = { name: string; value: number };
 export type DashboardAutomation = {
   replySuccess: number;

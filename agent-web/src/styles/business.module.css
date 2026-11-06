@@ -1,10 +1,52 @@
-.statusGroup { display: flex; flex-wrap: wrap; gap: 6px; }
-.statusGroup :global(.ant-tag) { margin-inline-end: 0; }
-.thumbnail { width: 40px; height: 40px; object-fit: cover; border-radius: 5px; background: #eef1f5; }
-.errorText { max-width: 180px; overflow: hidden; color: #c93c37; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
-.modalGrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 20px; }
-.modalGrid :global(.ant-form-item-wide) { grid-column: 1 / -1; }
-.qrBody { min-height: 340px; display: grid; place-items: center; text-align: center; }
-.qrCode { width: 280px; height: 280px; object-fit: contain; }
-.qrStatus { margin-top: 14px; color: #67707e; }
-.messageContent { max-width: 420px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.statusGroup {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.statusGroup :global(.ant-tag) {
+  margin-inline-end: 0;
+}
+.thumbnail {
+  width: 40px;
+  height: 40px;
+  object-fit: cover;
+  border-radius: 5px;
+  background: #eef1f5;
+}
+.errorText {
+  max-width: 180px;
+  overflow: hidden;
+  color: #c93c37;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.modalGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  column-gap: 20px;
+}
+.modalGrid :global(.ant-form-item-wide) {
+  grid-column: 1 / -1;
+}
+.qrBody {
+  min-height: 340px;
+  display: grid;
+  place-items: center;
+  text-align: center;
+}
+.qrCode {
+  width: 280px;
+  height: 280px;
+  object-fit: contain;
+}
+.qrStatus {
+  margin-top: 14px;
+  color: #67707e;
+}
+.messageContent {
+  max-width: 420px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

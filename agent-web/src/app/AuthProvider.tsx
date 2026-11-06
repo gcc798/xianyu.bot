@@ -1,33 +1,24 @@
-import { createContext, useContext, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { PropsWithChildren } from "react";
 import { getCurrentUser, login, logout, readAuthSession, storeAuthSession } from "../api/auth";
-import type { AuthSession, LoginRequest } from "../models/auth";
-
-type AuthContextValue = {
-  session: AuthSession | null;
-  isReady: boolean;
-  signIn: (input: LoginRequest) => Promise<void>;
-  signOut: () => Promise<void>;
-  refreshUser: () => Promise<void>;
-};
-
-const AuthContext = createContext<AuthContextValue | null>(null);
+import type { AuthSession } from "../models/auth";
+import { AuthContext } from "./AuthContext";
+import type { AuthContextValue } from "./AuthContext";
 
 export function AuthProvider({ children }: PropsWithChildren) {
   const [session, setSession] = useState<AuthSession | null>(() => readAuthSession());
-  const [isReady, setIsReady] = useState(false);
+  const initialSession = useRef(session).current;
+  const [isReady, setIsReady] = useState(initialSession === null);
 
+  // 启动时只校验持久化会话；后续登录和资料刷新由对应动作直接更新状态。
   useEffect(() => {
-    if (!session) {
-      setIsReady(true);
-      return;
-    }
+    if (!initialSession) return;
     let active = true;
     void getCurrentUser()
       .then(({ userInfo }) => {
         if (!active) return;
         const renewed = readAuthSession();
-        const current = { ...(renewed || session), user: userInfo };
+        const current = { ...(renewed || initialSession), user: userInfo };
         storeAuthSession(current);
         setSession(current);
       })
@@ -35,8 +26,10 @@ export function AuthProvider({ children }: PropsWithChildren) {
       .finally(() => {
         if (active) setIsReady(true);
       });
-    return () => { active = false; };
-  }, []);
+    return () => {
+      active = false;
+    };
+  }, [initialSession]);
 
   const value = useMemo<AuthContextValue>(
     () => ({
@@ -62,10 +55,4 @@ export function AuthProvider({ children }: PropsWithChildren) {
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
-}
-
-export function useAuth() {
-  const value = useContext(AuthContext);
-  if (!value) throw new Error("useAuth 必须在 AuthProvider 内使用");
-  return value;
 }

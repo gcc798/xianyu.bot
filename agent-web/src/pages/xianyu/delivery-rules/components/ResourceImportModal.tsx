@@ -21,7 +21,12 @@ export function ResourceImportModal({ rule, value, saving, onChange, onCancel, o
       onCancel={onCancel}
       onOk={() => void onImport()}
     >
-      <Alert type="info" showIcon title="每行一条，重复内容自动忽略。" style={{ marginBottom: 16 }} />
+      <Alert
+        type="info"
+        showIcon
+        title="每行一条，重复内容自动忽略。"
+        style={{ marginBottom: 16 }}
+      />
       <Input.TextArea
         value={value}
         rows={10}

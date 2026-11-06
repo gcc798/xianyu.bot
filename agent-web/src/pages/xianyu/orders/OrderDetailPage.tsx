@@ -52,11 +52,27 @@ export function Component() {
     }
   }, [orderID]);
 
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    void load();
+  }, [load]);
 
-  if (loading) return <div className="app-loading"><Spin size="large" /></div>;
+  if (loading)
+    return (
+      <div className="app-loading">
+        <Spin size="large" />
+      </div>
+    );
   if (!order) {
-    return <div className={pageStyles.page}><Alert type="error" showIcon title={error || "订单不存在"} action={<Link to="/xianyu/orders">返回订单列表</Link>} /></div>;
+    return (
+      <div className={pageStyles.page}>
+        <Alert
+          type="error"
+          showIcon
+          title={error || "订单不存在"}
+          action={<Link to="/xianyu/orders">返回订单列表</Link>}
+        />
+      </div>
+    );
   }
 
   const status = statusMeta[order.status] ?? { label: order.status || "未知", color: "default" };
@@ -79,8 +95,22 @@ export function Component() {
   const eventColumns: TableColumnsType<BusinessEvent> = [
     { title: "发生时间", dataIndex: "CreatedAt", width: 160, render: formatDateTime },
     { title: "摘要", dataIndex: "summary", ellipsis: true },
-    { title: "状态", dataIndex: "status", width: 110, render: (value: string) => { const item = eventStatusMeta[value] ?? { label: value, color: "default" }; return <Tag color={item.color}>{item.label}</Tag>; } },
-    { title: "错误信息", dataIndex: "error", width: 260, ellipsis: true, render: (value: string) => value || "-" },
+    {
+      title: "状态",
+      dataIndex: "status",
+      width: 110,
+      render: (value: string) => {
+        const item = eventStatusMeta[value] ?? { label: value, color: "default" };
+        return <Tag color={item.color}>{item.label}</Tag>;
+      },
+    },
+    {
+      title: "错误信息",
+      dataIndex: "error",
+      width: 260,
+      ellipsis: true,
+      render: (value: string) => value || "-",
+    },
   ];
 
   return (
@@ -89,16 +119,41 @@ export function Component() {
         <div className={styles.heading}>
           <div>
             <Link to="/xianyu/orders">返回订单列表</Link>
-            <div className={styles.title}><h1>{order.externalOrderId}</h1><Tag color={status.color}>{status.label}</Tag></div>
+            <div className={styles.title}>
+              <h1>{order.externalOrderId}</h1>
+              <Tag color={status.color}>{status.label}</Tag>
+            </div>
           </div>
         </div>
         {error && <Alert type="error" showIcon title={error} />}
         <Tabs
           className={styles.tabs}
           items={[
-            { key: "overview", label: "订单信息", children: <Descriptions bordered column={2} size="small" items={overview} /> },
-            { key: "buyer", label: "买家与会话", children: <Descriptions bordered column={2} size="small" items={buyer} /> },
-            { key: "events", label: "操作记录", children: <Table rowKey="ID" size="small" columns={eventColumns} dataSource={events} pagination={false} locale={{ emptyText: "暂无操作记录" }} scroll={{ x: 760 }} /> },
+            {
+              key: "overview",
+              label: "订单信息",
+              children: <Descriptions bordered column={2} size="small" items={overview} />,
+            },
+            {
+              key: "buyer",
+              label: "买家与会话",
+              children: <Descriptions bordered column={2} size="small" items={buyer} />,
+            },
+            {
+              key: "events",
+              label: "操作记录",
+              children: (
+                <Table
+                  rowKey="ID"
+                  size="small"
+                  columns={eventColumns}
+                  dataSource={events}
+                  pagination={false}
+                  locale={{ emptyText: "暂无操作记录" }}
+                  scroll={{ x: 760 }}
+                />
+              ),
+            },
           ]}
         />
       </section>
