@@ -15,7 +15,7 @@ const fileStatusLabel: Record<string, string> = {
 
 const statusColor = (value: string) => value === "success" ? "success" : value === "failed" ? "error" : value === "cancelled" || value === "duplicate" ? undefined : "processing";
 export function Component() {
-  const { message } = App.useApp();
+  const { message, modal } = App.useApp();
   const [searchParams] = useSearchParams();
   const initialTaskId = Number(searchParams.get("task_id"));
   const [options, setOptions] = useState<TelegramResourceOptions>({ dialogs: [], file_types: [], max_file_size: 0 });
@@ -55,9 +55,22 @@ export function Component() {
     }
   };
 
+  const deleteFile = (file: TelegramResourceFile) => modal.confirm({
+    title: `删除文件“${file.original_filename}”？`,
+    content: "文件数据库记录及 RustFS 文件将同步删除，且无法恢复。",
+    okText: "删除",
+    okType: "danger",
+    cancelText: "取消",
+    onOk: async () => {
+      await telegramApi.deleteResourceFile(file.id);
+      message.success("资源文件已删除");
+      if (rows.length === 1 && page > 1) setPage(page - 1); else await load();
+    },
+  });
+
   const columns: TableColumnsType<TelegramResourceFile> = [
     { title: "序号", width: 64, align: "center", render: (_value, _record, index) => (page - 1) * pageSize + index + 1 },
-    { title: "任务", dataIndex: "task_id", width: 80, render: (value: number) => `#${value}` },
+    { title: "任务", dataIndex: "task_id", width: 80, render: (value: number | null) => value ? `#${value}` : "-" },
     { title: "文件名", dataIndex: "original_filename", width: 280, ellipsis: true, render: (value: string, file) => options.file_types.find((item) => item.value === file.file_type)?.preview && file.upload_status === "success" ? <Button type="link" className={styles.linkButton} title={value} onClick={() => setPreviewId(file.id)}>{value}</Button> : value },
     { title: "类型", dataIndex: "file_type", width: 120, render: (value: string) => options.file_types.find((item) => item.value === value)?.label || value || "-" },
     { title: "大小", dataIndex: "file_size", width: 110, render: formatFileSize },
@@ -65,8 +78,9 @@ export function Component() {
     { title: "完成时间", dataIndex: "completed_at", width: 150, render: (value: string | null) => value ? formatDateTime(value) : "-" },
     { title: "下载", dataIndex: "download_status", width: 100, render: (value: string) => <Tag color={statusColor(value)}>{fileStatusLabel[value] || value}</Tag> },
     { title: "存储", dataIndex: "upload_status", width: 100, render: (value: string) => <Tag color={statusColor(value)}>{fileStatusLabel[value] || value}</Tag> },
-    { title: "操作", fixed: "right", width: 80, render: (_, file) => <Space size={2}>
+    { title: "操作", fixed: "right", width: 120, render: (_, file) => <Space size={2}>
       {file.upload_status === "success" && <Button type="link" className={styles.linkButton} onClick={() => void downloadFile(file)}>下载</Button>}
+      {!(["queued", "downloading"] as const).includes(file.download_status as "queued" | "downloading") && !(["pending", "uploading"] as const).includes(file.upload_status as "pending" | "uploading") && <Button danger type="link" className={styles.linkButton} onClick={() => deleteFile(file)}>删除</Button>}
     </Space> },
   ];
 
@@ -83,7 +97,7 @@ export function Component() {
       <Space><Button type="primary" onClick={search}>查询</Button><Button onClick={reset}>重置</Button><Button onClick={() => void load()}>刷新</Button></Space>
     </div>
     {error && <Alert className={styles.alert} type="error" showIcon title={error} />}
-    <div className={styles.table}><Table<TelegramResourceFile> rowKey="id" size="small" loading={loading} columns={columns} dataSource={rows} pagination={false} scroll={{ x: 1220 }} /></div>
+    <div className={styles.table}><Table<TelegramResourceFile> rowKey="id" size="small" loading={loading} columns={columns} dataSource={rows} pagination={false} scroll={{ x: 1260 }} /></div>
     <div className={styles.pagination}><Pagination current={page} pageSize={pageSize} total={total} showSizeChanger pageSizeOptions={[20, 50, 100]} onChange={(nextPage, nextSize) => { setPage(nextSize === pageSize ? nextPage : 1); setPageSize(nextSize); }} /></div>
     <ResourcePreviewModal files={rows} fileTypes={options.file_types} selectedId={previewId} onClose={() => setPreviewId(null)} />
   </section></div>;

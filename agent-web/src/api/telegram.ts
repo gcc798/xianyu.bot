@@ -60,6 +60,8 @@ export const telegramApi = {
   createResourceTask: (input: TelegramResourceTaskInput) => telegramRequest<TelegramResourceTask>("/api/resources/tasks", { method: "POST", body: JSON.stringify(input) }),
   cancelResourceTask: (id: number) => telegramRequest<{ ok: boolean }>(`/api/resources/tasks/${id}/cancel`, { method: "POST" }),
   retryResourceTask: (id: number) => telegramRequest<{ ok: boolean }>(`/api/resources/tasks/${id}/retry`, { method: "POST" }),
+  deleteResourceTask: (id: number, deleteFiles: boolean) => telegramRequest<{ ok: boolean }>(`/api/resources/tasks/${id}${queryString({ delete_files: deleteFiles })}`, { method: "DELETE" }),
   resourceFiles: (input: { page: number; page_size: number; task_id?: number; filename?: string; file_type?: string; status?: string; source_id?: number }) => telegramRequest<TelegramResourceFilePage>(`/api/resources/files${queryString(input)}`),
   resourceFile: (id: number, action: "preview" | "download") => telegramFile(`/api/resources/files/${id}/${action}`),
+  deleteResourceFile: (id: number) => telegramRequest<{ ok: boolean }>(`/api/resources/files/${id}`, { method: "DELETE" }),
 };

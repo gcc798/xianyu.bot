@@ -80,7 +80,7 @@ export type TelegramResourceTaskPage = { list: TelegramResourceTask[]; total: nu
 
 export type TelegramResourceFile = {
   id: number;
-  task_id: number;
+  task_id: number | null;
   original_filename: string;
   file_type: string;
   file_size: number;

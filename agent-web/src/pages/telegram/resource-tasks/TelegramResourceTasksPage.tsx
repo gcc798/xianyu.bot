@@ -43,8 +43,9 @@ export function Component() {
   const [rows, setRows] = useState<TelegramResourceTask[]>([]);
   const [filters, setFilters] = useState<{ q?: string; status?: TelegramResourceTask["status"] }>({});
   const [createOpen, setCreateOpen] = useState(false);
+  const [deleteTask, setDeleteTask] = useState<TelegramResourceTask | null>(null);
   const [page, setPage] = useState(1), [pageSize, setPageSize] = useState(20), [total, setTotal] = useState(0);
-  const [loading, setLoading] = useState(false), [submitting, setSubmitting] = useState(false), [error, setError] = useState("");
+  const [loading, setLoading] = useState(false), [submitting, setSubmitting] = useState(false), [deleting, setDeleting] = useState(false), [error, setError] = useState("");
 
   const load = useCallback(async (quiet = false) => {
     if (!quiet) setLoading(true);
@@ -96,6 +97,21 @@ export function Component() {
     },
   });
 
+  const removeTask = async (deleteFiles: boolean) => {
+    if (!deleteTask) return;
+    setDeleting(true);
+    try {
+      await telegramApi.deleteResourceTask(deleteTask.id, deleteFiles);
+      message.success(deleteFiles ? "任务和关联文件已删除" : "任务已删除，关联文件已保留");
+      setDeleteTask(null);
+      if (rows.length === 1 && page > 1) setPage(page - 1); else await load();
+    } catch (cause) {
+      message.error(cause instanceof Error ? cause.message : "资源任务删除失败");
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   const columns: TableColumnsType<TelegramResourceTask> = [
     { title: "序号", width: 64, align: "center", render: (_value, _record, index) => (page - 1) * pageSize + index + 1 },
     { title: "任务", dataIndex: "id", width: 76, render: (value: number) => `#${value}` },
@@ -107,10 +123,11 @@ export function Component() {
     { title: "状态", dataIndex: "status", width: 100, render: (value: TelegramResourceTask["status"]) => <Tag color={statusMeta[value].color}>{statusMeta[value].label}</Tag> },
     { title: "创建时间", dataIndex: "created_at", width: 150, render: (value: string) => formatDateTime(value) },
     { title: "错误", dataIndex: "error_message", width: 180, ellipsis: true, render: (value: string | null) => value || "-" },
-    { title: "操作", fixed: "right", width: 140, render: (_, row) => <Space size={2}>
+    { title: "操作", fixed: "right", width: 190, render: (_, row) => <Space size={2}>
       {row.files_found > 0 && <Button type="link" className={styles.linkButton} onClick={() => navigate(`/telegram/resource-files?task_id=${row.id}`)}>查看文件</Button>}
       {(["queued", "running"] as const).includes(row.status as "queued" | "running") && <Button danger type="link" className={styles.linkButton} onClick={() => runAction(row, "cancel")}>取消</Button>}
       {(["failed", "cancelled"] as const).includes(row.status as "failed" | "cancelled") && <Button type="link" className={styles.linkButton} onClick={() => runAction(row, "retry")}>重试</Button>}
+      {!(["queued", "running"] as const).includes(row.status as "queued" | "running") && <Button danger type="link" className={styles.linkButton} onClick={() => setDeleteTask(row)}>删除</Button>}
     </Space> },
   ];
 
@@ -121,7 +138,7 @@ export function Component() {
       <Form.Item><Space><Button type="primary" htmlType="submit">查询</Button><Button onClick={() => { filterForm.resetFields(); setPage(1); setFilters({}); }}>重置</Button><Button onClick={() => setCreateOpen(true)}>创建任务</Button></Space></Form.Item>
     </Form>
     {error && <Alert className={styles.alert} type="error" showIcon title={error} />}
-    <div className={styles.table}><Table<TelegramResourceTask> rowKey="id" size="small" loading={loading} columns={columns} dataSource={rows} pagination={false} scroll={{ x: 1570 }} /></div>
+    <div className={styles.table}><Table<TelegramResourceTask> rowKey="id" size="small" loading={loading} columns={columns} dataSource={rows} pagination={false} scroll={{ x: 1620 }} /></div>
     <div className={styles.pagination}><Pagination current={page} pageSize={pageSize} total={total} showSizeChanger pageSizeOptions={[20, 50, 100]} onChange={(nextPage, nextSize) => { setPage(nextSize === pageSize ? nextPage : 1); setPageSize(nextSize); }} /></div>
     <Modal title="创建资源任务" open={createOpen} width={720} okText="创建任务" cancelText="取消" confirmLoading={submitting} onOk={() => createForm.submit()} onCancel={() => setCreateOpen(false)}>
       <Form form={createForm} layout="vertical" className={businessStyles.modalGrid} initialValues={{ file_types: [], source_mode: "smart", source_dialog_ids: [], max_downloads: 10 }} onFinish={create}>
@@ -131,6 +148,16 @@ export function Component() {
         <Form.Item className="ant-form-item-wide" name="source_mode" label="搜索方式"><Radio.Group optionType="button" buttonStyle="solid" options={[{ value: "smart", label: "智能" }, { value: "all", label: "全部" }, { value: "manual", label: "手动" }]} /></Form.Item>
         {sourceMode === "manual" && <Form.Item className="ant-form-item-wide" name="source_dialog_ids" label="搜索范围" rules={[{ required: true, message: "请选择搜索来源" }]}><Select mode="multiple" showSearch optionFilterProp="label" maxTagCount="responsive" placeholder="选择群组或频道" options={options.dialogs.map((item) => ({ value: item.id, label: `${item.name}（${item.dialog_type}）` }))} /></Form.Item>}
       </Form>
+    </Modal>
+    <Modal
+      title={`删除任务 #${deleteTask?.id || ""}？`}
+      open={Boolean(deleteTask)}
+      closable={!deleting}
+      maskClosable={false}
+      footer={<Space><Button disabled={deleting} onClick={() => setDeleteTask(null)}>取消</Button><Button loading={deleting} onClick={() => void removeTask(false)}>仅删除任务</Button><Button danger type="primary" loading={deleting} onClick={() => void removeTask(true)}>删除任务和文件</Button></Space>}
+      onCancel={() => setDeleteTask(null)}
+    >
+      <p>是否同时删除关联资源文件？选择“删除任务和文件”会一并删除文件数据库记录及 RustFS 文件，且无法恢复。</p>
     </Modal>
   </section></div>;
 }
