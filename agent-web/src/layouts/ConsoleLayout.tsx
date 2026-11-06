@@ -37,6 +37,8 @@ export default function ConsoleLayout() {
   const { modal } = App.useApp();
   const { session, signOut } = useAuth();
   const isAdmin = session?.user.authorityId === ADMIN_AUTHORITY_ID;
+  const currentTitle = location.pathname.startsWith("/xianyu/products/") ? "商品详情" : routeTitles[location.pathname] || "控制台";
+  const selectedPath = location.pathname.startsWith("/xianyu/products/") ? "/xianyu/products" : location.pathname;
   const menu: MenuProps["items"] = [
     { key: "/overview", label: "总览" },
     { key: "/bot", label: "Bot" },
@@ -100,7 +102,7 @@ export default function ConsoleLayout() {
         <Menu
           mode="inline"
           items={menu}
-          selectedKeys={[location.pathname]}
+          selectedKeys={[selectedPath]}
           defaultOpenKeys={["telegram", "xianyu", "system"]}
           onClick={({ key }) => navigate(key)}
           className={styles.menu}
@@ -111,7 +113,7 @@ export default function ConsoleLayout() {
           <div className={styles.breadcrumb}>
             <span>{location.pathname.startsWith("/system") ? "系统设置" : location.pathname.startsWith("/telegram") ? "Telegram" : location.pathname === "/profile" ? "账号" : "闲鱼自动化"}</span>
             <i>/</i>
-            <strong>{routeTitles[location.pathname] || "控制台"}</strong>
+            <strong>{currentTitle}</strong>
           </div>
           <div className={styles.account}>
             <Dropdown menu={{ items: [{ key: "profile", label: "个人设置" }, { type: "divider" }, { key: "logout", label: "退出登录", danger: true }], onClick: ({ key }) => key === "profile" ? navigate("/profile") : confirmLogout() }} trigger={["click"]}>

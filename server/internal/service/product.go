@@ -102,7 +102,30 @@ func (s *Product) List(ctx context.Context, ownerID uint, input xyRequest.Produc
 		return nil, 0, err
 	}
 	list := make([]xyResponse.Product, 0)
-	err := db.Select(`p.id, p.created_at, p.updated_at, p.account_id, a.label AS account_label,
+	err := productDetails(db).
+		Scopes(input.Paginate()).Order("CASE WHEN p.status = 'on_sale' THEN 0 ELSE 1 END, p.updated_at DESC, p.id DESC").Scan(&list).Error
+	for index := range list {
+		list[index].ImageURLs = productImageURLs(list[index].SourceJSON, list[index].ImageURL)
+	}
+	return list, total, err
+}
+
+// Get 查询 ownerID 名下的单个商品详情。
+func (s *Product) Get(ctx context.Context, ownerID, productID uint) (xyResponse.Product, error) {
+	if ownerID == 0 || productID == 0 {
+		return xyResponse.Product{}, errors.New("商品 ID 不能为空")
+	}
+	var item xyResponse.Product
+	db := s.db.WithContext(ctx).Table("xy_products AS p").Where("p.id = ? AND p.owner_id = ? AND p.deleted_at IS NULL", productID, ownerID)
+	if err := productDetails(db).Take(&item).Error; err != nil {
+		return xyResponse.Product{}, err
+	}
+	item.ImageURLs = productImageURLs(item.SourceJSON, item.ImageURL)
+	return item, nil
+}
+
+func productDetails(db *gorm.DB) *gorm.DB {
+	return db.Select(`p.id, p.created_at, p.updated_at, p.account_id, a.label AS account_label,
 		p.external_product_id, p.title, p.price_cent, p.status, p.image_url, p.source_json,
 		COALESCE(s.virtual_product, false) AS virtual_product,
 		COALESCE(s.auto_reply_enabled, false) AS auto_reply_enabled,
@@ -114,12 +137,7 @@ func (s *Product) List(ctx context.Context, ownerID uint, input xyRequest.Produc
 		COALESCE(s.relist_image_urls, '') AS relist_image_urls,
 		COALESCE(s.relist_address, '') AS relist_address`).
 		Joins("JOIN xy_accounts AS a ON a.id = p.account_id AND a.deleted_at IS NULL").
-		Joins("LEFT JOIN xy_product_settings AS s ON s.product_id = p.id AND s.deleted_at IS NULL").
-		Scopes(input.Paginate()).Order("CASE WHEN p.status = 'on_sale' THEN 0 ELSE 1 END, p.updated_at DESC, p.id DESC").Scan(&list).Error
-	for index := range list {
-		list[index].ImageURLs = productImageURLs(list[index].SourceJSON, list[index].ImageURL)
-	}
-	return list, total, err
+		Joins("LEFT JOIN xy_product_settings AS s ON s.product_id = p.id AND s.deleted_at IS NULL")
 }
 
 // productImageURLs 从原始卡片提取去重图片，失败时回退到封面。

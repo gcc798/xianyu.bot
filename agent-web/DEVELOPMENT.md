@@ -92,7 +92,7 @@ src/
 | Bot | 已完成 | `xianyu/ai-agent.vue` | `/xy/ai/agent/*` |
 | 账号管理 | 已完成 | `xianyu/accounts.vue` | `/xy/account/*`、`/xy/qr-login/*`、`/xy/websocket/*` |
 | 商品列表 | 已完成 | `xianyu/products.vue` | `/xy/product/list`、`sync`、`setting` |
-| 商品详情 | 后端接口前置 | 后端数据与商品页 | 缺少按 ID 详情合同 |
+| 商品详情 | 已完成 | 后端数据与商品页 | `/xy/product/detail` |
 | 订单列表 | 已完成 | `xianyu/orders.vue` | `/xy/order/list`、`sync-pending` |
 | 订单详情 | 后端接口前置 | `xianyu/orders.vue` | 缺少按 ID 详情合同 |
 | 消息记录 | 已完成 | `xianyu/messages.vue` | `/xy/message/list`、`reply`、`takeover` |

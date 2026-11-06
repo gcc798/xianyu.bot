@@ -40,6 +40,28 @@ func (a *ProductAPI) List(c *gin.Context) {
 	response.OkWithDetailed(response.PageResult{List: list, Total: total, Page: input.Page, PageSize: input.PageSize}, "获取成功", c)
 }
 
+// Detail 获取当前用户的商品详情。
+// @Tags XyProduct
+// @Summary 获取当前用户的商品详情
+// @Security ApiKeyAuth
+// @Produce application/json
+// @Param id query int true "商品 ID"
+// @Success 200 {object} response.Response{data=response.Product,msg=string} "获取成功"
+// @Router /xy/product/detail [get]
+func (a *ProductAPI) Detail(c *gin.Context) {
+	var input xyRequest.GetById
+	if err := c.ShouldBindQuery(&input); err != nil || input.ID <= 0 {
+		response.FailWithMessage("商品 ID 无效", c)
+		return
+	}
+	item, err := a.service.Product.Get(c.Request.Context(), security.GetUserID(c), uint(input.ID))
+	if err != nil {
+		failAccount("获取闲鱼商品详情失败", err, c)
+		return
+	}
+	response.OkWithData(item, c)
+}
+
 // Sync 从闲鱼同步商品
 // @Tags XyProduct
 // @Summary 从闲鱼同步商品

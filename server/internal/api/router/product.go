@@ -20,6 +20,7 @@ func (r *ProductRouter) Init(private *gin.RouterGroup) {
 	read := private.Group("xy/product")
 	write := private.Group("xy/product")
 	read.GET("list", r.handlers.Product.List)
+	read.GET("detail", r.handlers.Product.Detail)
 	write.POST("sync", r.handlers.Product.Sync)
 	write.PUT("setting", r.handlers.Product.UpdateSetting)
 }

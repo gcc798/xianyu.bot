@@ -41,6 +41,7 @@ export const router = createBrowserRouter(
             { path: "telegram/settings", lazy: () => import("../pages/telegram/settings/TelegramSettingsPage"), HydrateFallback: RouteFallback },
             { path: "xianyu/accounts", lazy: () => import("../pages/xianyu/accounts/AccountsPage"), HydrateFallback: RouteFallback },
             { path: "xianyu/products", lazy: () => import("../pages/xianyu/products/ProductsPage"), HydrateFallback: RouteFallback },
+            { path: "xianyu/products/:id", lazy: () => import("../pages/xianyu/products/ProductDetailPage"), HydrateFallback: RouteFallback },
             { path: "xianyu/orders", lazy: () => import("../pages/xianyu/orders/OrdersPage"), HydrateFallback: RouteFallback },
             { path: "xianyu/messages", lazy: () => import("../pages/xianyu/messages/MessagesPage"), HydrateFallback: RouteFallback },
             { path: "xianyu/reply-rules", lazy: () => import("../pages/xianyu/reply-rules/ReplyRulesPage"), HydrateFallback: RouteFallback },

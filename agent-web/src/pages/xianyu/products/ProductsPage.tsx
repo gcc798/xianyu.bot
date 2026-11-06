@@ -1,6 +1,7 @@
 import { Alert, App, Button, Image, Input, Pagination, Select, Space, Table, Tag } from "antd";
 import type { TableColumnsType } from "antd";
 import { useCallback, useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { accountsApi } from "../../../api/accounts";
 import { productsApi } from "../../../api/products";
 import type { XianyuAccount } from "../../../models/account";
@@ -100,7 +101,7 @@ export function Component() {
   );
 
   const columns: TableColumnsType<Product> = [
-    { title: "商品名称", dataIndex: "title", width: 215, ellipsis: true },
+    { title: "商品名称", dataIndex: "title", width: 215, ellipsis: true, render: (value: string, record) => <Link to={`/xianyu/products/${record.ID}`}>{value}</Link> },
     { title: "商品编码", dataIndex: "externalProductId", width: 125, ellipsis: true },
     { title: "图片", dataIndex: "imageUrl", width: 55, render: (_: string, record) => renderImage(record) },
     { title: "账号", dataIndex: "accountLabel", width: 110, ellipsis: true },
@@ -118,10 +119,13 @@ export function Component() {
       render: (value: string) => new Intl.DateTimeFormat("zh-CN", { dateStyle: "short", timeStyle: "short" }).format(new Date(value)),
     },
     {
-      title: "操作", key: "actions", width: 80, fixed: "right",
-      render: (_, record) => record.status === "on_sale" ? (
-        <Button type="link" className={pageStyles.linkButton} onClick={() => setSettingProduct(record)}>业务设置</Button>
-      ) : <span style={{ color: "#89919d" }}>不可设置</span>,
+      title: "操作", key: "actions", width: 130, fixed: "right",
+      render: (_, record) => <Space size={4}>
+        <Link to={`/xianyu/products/${record.ID}`}>查看</Link>
+        {record.status === "on_sale"
+          ? <Button type="link" className={pageStyles.linkButton} onClick={() => setSettingProduct(record)}>业务设置</Button>
+          : <span style={{ color: "#89919d" }}>不可设置</span>}
+      </Space>,
     },
   ];
 

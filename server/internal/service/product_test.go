@@ -110,6 +110,25 @@ func TestProductListFiltersByTitleOrIDAndStatus(t *testing.T) {
 	require.ErrorContains(t, err, "商品状态无效")
 }
 
+// TestProductGetIsOwnerScoped 验证商品详情仅对所属用户可见。
+func TestProductGetIsOwnerScoped(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	require.NoError(t, err)
+	require.NoError(t, db.AutoMigrate(&model.Account{}, &model.Product{}, &model.ProductSetting{}))
+	account := model.Account{OwnerID: 10, Label: "商品账号", Status: "ready", Enabled: true}
+	require.NoError(t, db.Create(&account).Error)
+	item := model.Product{OwnerID: 10, AccountID: account.ID, ExternalProductID: "item-1", Title: "测试商品", Status: "on_sale", ImageURL: "https://img.example/cover.jpg"}
+	require.NoError(t, db.Create(&item).Error)
+
+	service := &Product{db: db}
+	detail, err := service.Get(t.Context(), 10, item.ID)
+	require.NoError(t, err)
+	require.Equal(t, "测试商品", detail.Title)
+	require.Equal(t, []string{"https://img.example/cover.jpg"}, detail.ImageURLs)
+	_, err = service.Get(t.Context(), 11, item.ID)
+	require.ErrorIs(t, err, gorm.ErrRecordNotFound)
+}
+
 // TestProductImageURLsReadsSavedImageInfosAndFallsBackToCover 验证对应测试场景。
 func TestProductImageURLsReadsSavedImageInfosAndFallsBackToCover(t *testing.T) {
 	images := productImageURLs(`{"detailParams":{"imageInfos":"[{\"url\":\"https://img.example/1.jpg\"},{\"url\":\"https://img.example/2.jpg\"},{\"url\":\"https://img.example/1.jpg\"}]"}}`, "https://img.example/cover.jpg")
