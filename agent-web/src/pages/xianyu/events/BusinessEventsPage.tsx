@@ -1,4 +1,4 @@
-import { Alert, Button, Input, Pagination, Select, Space, Table, Tag } from "antd";
+import { Alert, Button, Input, InputNumber, Pagination, Select, Space, Table, Tag } from "antd";
 import type { TableColumnsType } from "antd";
 import { useCallback, useEffect, useState } from "react";
 import { accountsApi } from "../../../api/accounts";
@@ -30,6 +30,8 @@ export function Component() {
   const [pageSize, setPageSize] = useState(10);
   const [total, setTotal] = useState(0);
   const [accountId, setAccountId] = useState<number>();
+  const [productId, setProductId] = useState<number>();
+  const [orderId, setOrderId] = useState<number>();
   const [type, setType] = useState<string>();
   const [status, setStatus] = useState<string>();
   const [keyword, setKeyword] = useState("");
@@ -41,7 +43,7 @@ export function Component() {
     setLoading(true);
     setError("");
     try {
-      const data = await automationApi.businessEvents({ page, pageSize, accountId, type, status, keyword: query });
+      const data = await automationApi.businessEvents({ page, pageSize, accountId, productId, orderId, type, status, keyword: query });
       setRows(data.list);
       setTotal(data.total);
     } catch (cause) {
@@ -49,7 +51,7 @@ export function Component() {
     } finally {
       setLoading(false);
     }
-  }, [page, pageSize, accountId, type, status, query]);
+  }, [page, pageSize, accountId, productId, orderId, type, status, query]);
 
   useEffect(() => { void load(); }, [load]);
   useEffect(() => {
@@ -81,6 +83,8 @@ export function Component() {
   const search = () => { setQuery(keyword.trim()); setPage(1); };
   const reset = () => {
     setAccountId(undefined);
+    setProductId(undefined);
+    setOrderId(undefined);
     setType(undefined);
     setStatus(undefined);
     setKeyword("");
@@ -97,6 +101,8 @@ export function Component() {
             options={accounts.map((account) => ({ value: account.ID, label: account.label }))}
             onChange={(value) => { setAccountId(value); setPage(1); }}
           />
+          <InputNumber value={productId} min={1} placeholder="商品 ID" style={{ width: 120 }} onChange={(value) => { setProductId(value ?? undefined); setPage(1); }} />
+          <InputNumber value={orderId} min={1} placeholder="订单 ID" style={{ width: 120 }} onChange={(value) => { setOrderId(value ?? undefined); setPage(1); }} />
           <Select
             allowClear value={type} placeholder="全部类型" style={{ width: 140 }}
             options={Object.entries(eventTypes).map(([value, label]) => ({ value, label }))}

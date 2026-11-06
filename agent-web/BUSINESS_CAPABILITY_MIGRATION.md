@@ -158,7 +158,7 @@ Vue 参考：`web/src/view/xianyu/products.vue`。已确认的正式 UI 以隔�
 | 商品业务设置 | `PUT /xy/product/setting` | `UpdateProductSetting` | 已完成 |
 | 商品详情 | 当前无详情路由 | 不能获得稳定的单商品详情合同 | 后端前置 |
 | 关联订单 | 当前只有 `GET /xy/order/list`，不支持商品 ID 筛选 | 不得在前端拉取全量订单后拼接 | 后端前置 |
-| 商品最近事件 | `GET /xy/event/list?productId=...` | `BusinessEventSearch` → 分页事件 | 待开发 |
+| 商品最近事件 | `GET /xy/event/list?productId=...` | 业务事件页支持本地商品 ID 精确筛选 | 已完成 |
 
 商品列表字段以 `response.Product` 为准：
 
@@ -180,7 +180,7 @@ Vue 参考：`web/src/view/xianyu/orders.vue`。
 | 订单列表 | `GET /xy/order/list` | `page`、`pageSize`、`keyword`、`accountId`、`status` → `PageResult<Order>` | 已完成 |
 | 同步待发货 | `POST /xy/order/sync-pending` | `{ accountId }` | 已完成 |
 | 订单详情 | 当前无详情路由 | 不能获得稳定的单订单详情合同 | 后端前置 |
-| 订单最近事件 | `GET /xy/event/list?orderId=...` | 分页事件 | 业务事件页已完成；详情页后端前置 |
+| 订单最近事件 | `GET /xy/event/list?orderId=...` | 业务事件页支持本地订单 ID 精确筛选 | 已完成；详情页后端前置 |
 
 订单列表字段为 `ID`、`CreatedAt`、`UpdatedAt`、`accountId`、`accountLabel`、`externalOrderId`、`externalProductId`、`productTitle`、`buyerUserId`、`buyerUserName`、`sessionId`、`skuKey`、`status`、`amountCent`。
 
