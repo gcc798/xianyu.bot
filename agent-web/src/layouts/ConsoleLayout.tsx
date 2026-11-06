@@ -8,6 +8,7 @@ import styles from "./ConsoleLayout.module.css";
 const { Header, Sider, Content } = Layout;
 
 const routeTitles: Record<string, string> = {
+  "/overview": "运营总览",
   "/bot": "Bot",
   "/resources": "资源管理",
   "/telegram/overview": "Telegram 总览",
@@ -36,6 +37,7 @@ export default function ConsoleLayout() {
   const { session, signOut } = useAuth();
   const isAdmin = session?.user.authorityId === ADMIN_AUTHORITY_ID;
   const menu: MenuProps["items"] = [
+    { key: "/overview", label: "总览" },
     { key: "/bot", label: "Bot" },
     { key: "/resources", label: "资源管理" },
     {
@@ -93,7 +95,7 @@ export default function ConsoleLayout() {
   return (
     <Layout className={styles.shell} hasSider>
       <Sider width={228} theme="light" className={styles.sidebar}>
-        <button className={styles.brand} onClick={() => navigate("/bot")}>闲鱼运营</button>
+        <button className={styles.brand} onClick={() => navigate("/overview")}>闲鱼运营</button>
         <Menu
           mode="inline"
           items={menu}

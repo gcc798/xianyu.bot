@@ -122,8 +122,8 @@ Vue 参考：`web/src/view/xianyu/dashboard.vue`。
 
 | 能力 | 方法与路径 | 请求 | 响应 | 状态 |
 | --- | --- | --- | --- | --- |
-| 账号筛选 | `GET /xy/account/list` | `page=1&pageSize=100` | 账号分页 | 待开发 |
-| 运营总览 | `GET /xy/dashboard/overview` | `accountId?`、必填 `startTime`、`endTime` | `DashboardOverview`：`metrics`、消息趋势/来源、订单趋势、自动化汇总、最近事件 | 待开发 |
+| 账号筛选 | `GET /xy/account/list` | `page=1&pageSize=100` | 账号分页 | 已完成 |
+| 运营总览 | `GET /xy/dashboard/overview` | `accountId?`、必填 `startTime`、`endTime` | `DashboardOverview`：`metrics`、消息趋势/来源、订单趋势、自动化汇总、最近事件 | 已完成 |
 
 页面保留今日、7 日、30 日和自定义区间。趋势时间桶使用响应的 `bucketMillis`，不能由前端固定猜测。
 

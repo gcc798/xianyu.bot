@@ -29,7 +29,8 @@ export const router = createBrowserRouter(
         {
           element: <ConsoleLayout />,
           children: [
-            { index: true, element: <Navigate to="/bot" replace /> },
+            { index: true, element: <Navigate to="/overview" replace /> },
+            { path: "overview", lazy: () => import("../pages/dashboard/DashboardPage"), HydrateFallback: RouteFallback },
             { path: "bot", lazy: () => import("../pages/bot/BotPage"), HydrateFallback: RouteFallback },
             { path: "resources", lazy: () => import("../pages/resources/ResourcesPage"), HydrateFallback: RouteFallback },
             { path: "telegram/overview", lazy: () => import("../pages/telegram/overview/TelegramOverviewPage"), HydrateFallback: RouteFallback },

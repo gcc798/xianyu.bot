@@ -87,7 +87,7 @@ src/
 | 页面 | 正式页面状态 | Vue 参考 | 主要接口 |
 | --- | --- | --- | --- |
 | 登录与退出 | 已完成新结构迁移 | `view/login` | `/base/login`、`/jwt/jsonInBlacklist` |
-| 总览 | 待开发 | `xianyu/dashboard.vue` | `/xy/dashboard/overview` |
+| 总览 | 已完成 | `xianyu/dashboard.vue` | `/xy/dashboard/overview` |
 | Bot | 已完成 | `xianyu/ai-agent.vue` | `/xy/ai/agent/*` |
 | 账号管理 | 已完成 | `xianyu/accounts.vue` | `/xy/account/*`、`/xy/qr-login/*`、`/xy/websocket/*` |
 | 商品列表 | 已完成 | `xianyu/products.vue` | `/xy/product/list`、`sync`、`setting` |
@@ -183,5 +183,6 @@ src/
 | 2026-11-05 | 完成 Telegram 状态、扫码登录、扫描和会话管理页面，等待运行服务联调 | 完成开发 |
 | 2026-11-05 | 完成 Telegram 公开设置、内容范围和资源识别 AI 配置页面，等待运行服务联调 | 完成开发 |
 | 2026-11-06 | 完成 Telegram 资源任务创建、进度、取消、重试和资源文件查询、预览、下载页面，等待运行服务联调 | 完成开发 |
+| 2026-11-06 | 完成运营总览的账号、时间范围、汇总指标、趋势、自动化结果和最近事件页面 | 完成迁移 |
 
 后续每完成一个批次，只追加已经发生的结果、验证命令和剩余问题，不在这里记录逐行修改过程。
