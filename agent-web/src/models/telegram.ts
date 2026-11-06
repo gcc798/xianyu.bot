@@ -22,3 +22,21 @@ export type TelegramDialog = {
   is_creator: boolean; tags: string[]; telegram_url: string | null;
 };
 export type TelegramDialogPage = { list: TelegramDialog[]; total: number; page: number; page_size: number };
+
+export type TelegramSettings = {
+  telegram_api_configured: boolean;
+  authorized: boolean;
+  account: string | null;
+  proxy: string;
+  listen: string;
+  resource_max_file_size: number;
+  resource_concurrency: number;
+  adult_mode: boolean;
+  adult_dialog_count: number;
+  ai_base_url: string;
+  ai_model: string;
+  ai_api_key_configured: boolean;
+  ai_api_key_masked: string;
+};
+
+export type TelegramAISettingsInput = { base_url: string; api_key: string; model: string };

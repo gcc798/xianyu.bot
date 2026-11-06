@@ -1,4 +1,4 @@
-import type { TelegramDialogPage, TelegramQR, TelegramScan, TelegramStatus } from "../models/telegram";
+import type { TelegramAISettingsInput, TelegramDialogPage, TelegramQR, TelegramScan, TelegramSettings, TelegramStatus } from "../models/telegram";
 import { acceptRenewedToken, accessToken, apiBaseURL, queryString } from "./client";
 
 const basePath = "/xy/proxy/telegram";
@@ -29,5 +29,15 @@ export const telegramApi = {
     telegramRequest<TelegramDialogPage>(`/api/admin/dialogs${queryString(input)}`),
   leaveDialogs: (dialog_ids: number[]) => telegramRequest<{ success: number; failed: number }>("/api/admin/dialogs/leave", {
     method: "POST", body: JSON.stringify({ dialog_ids, confirm: "退出" }),
+  }),
+  settings: () => telegramRequest<TelegramSettings>("/api/admin/settings"),
+  updateAdultMode: (adult_mode: boolean) => telegramRequest<{ adult_mode: boolean; adult_dialog_count: number }>("/api/admin/settings/adult-mode", {
+    method: "POST", body: JSON.stringify({ adult_mode }),
+  }),
+  updateAISettings: (input: TelegramAISettingsInput) => telegramRequest<Pick<TelegramSettings, "ai_base_url" | "ai_model" | "ai_api_key_configured" | "ai_api_key_masked">>("/api/admin/settings/ai", {
+    method: "POST", body: JSON.stringify(input),
+  }),
+  probeAISettings: (input: TelegramAISettingsInput) => telegramRequest<{ available: boolean }>("/api/admin/settings/ai/probe", {
+    method: "POST", body: JSON.stringify(input),
   }),
 };

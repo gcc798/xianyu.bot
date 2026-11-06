@@ -274,9 +274,9 @@ Vue 参考：`telegram-overview.vue`、`telegram-dialogs.vue`、`telegram-settin
 | 会话列表 | `GET /api/admin/dialogs` | 上游分页/筛选 | 已开发，待联调 |
 | 退出会话 | `POST /api/admin/dialogs/leave` | `{ dialog_ids, confirm: '退出' }`，必须二次确认 | 已开发，待联调 |
 | 导出会话 | `GET /api/admin/dialogs/export` | Blob 下载 | 需核验 |
-| 设置 | `GET /api/admin/settings` | 不接入明文凭据读取 | 需核验 |
-| 成人内容开关 | `POST /api/admin/settings/adult-mode` | `{ adult_mode }` | 需核验 |
-| AI 设置/探测 | `POST /api/admin/settings/ai`、`POST /api/admin/settings/ai/probe` | `base_url`、`api_key`、`model` | 需核验 |
+| 设置 | `GET /api/admin/settings` | 不接入明文凭据读取 | 已开发，待联调 |
+| 成人内容开关 | `POST /api/admin/settings/adult-mode` | `{ adult_mode }` | 已开发，待联调 |
+| AI 设置/探测 | `POST /api/admin/settings/ai`、`POST /api/admin/settings/ai/probe` | `base_url`、`api_key`、`model` | 已开发，待联调 |
 | 资源选项 | `GET /api/resources/options` | 无 | 需核验 |
 | 资源任务 | `POST/GET /api/resources/tasks` | 创建参数、分页以服务合同为准 | 需核验 |
 | 取消/重试任务 | `POST /api/resources/tasks/:id/cancel`、`POST .../:id/retry` | 路径 ID | 需核验 |
