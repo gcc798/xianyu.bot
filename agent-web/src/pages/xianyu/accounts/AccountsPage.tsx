@@ -246,7 +246,7 @@ export function Component() {
   };
 
   const columns: TableColumnsType<XianyuAccount> = [
-    { title: "序号", width: 64, render: (_value, _record, index) => (page - 1) * pageSize + index + 1 },
+    { title: "序号", width: 64, align: "center", render: (_value, _record, index) => (page - 1) * pageSize + index + 1 },
     { title: "账号名称", dataIndex: "label", width: 125, ellipsis: true },
     {
       title: "闲鱼用户 ID", dataIndex: "externalUserId", width: 125, ellipsis: true,

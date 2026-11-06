@@ -109,7 +109,7 @@ export function Component() {
   );
 
   const columns: TableColumnsType<XianyuMessage> = [
-    { title: "序号", width: 64, render: (_value, _record, index) => (page - 1) * pageSize + index + 1 },
+    { title: "序号", width: 64, align: "center", render: (_value, _record, index) => (page - 1) * pageSize + index + 1 },
     {
       title: "时间", dataIndex: "messageTime", width: 130,
       render: (value: number, record) => formatDateTime(value || record.CreatedAt),

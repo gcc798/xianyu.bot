@@ -61,7 +61,7 @@ export function Component() {
   }, []);
 
   const columns: TableColumnsType<BusinessEvent> = [
-    { title: "序号", width: 64, render: (_value, _record, index) => (page - 1) * pageSize + index + 1 },
+    { title: "序号", width: 64, align: "center", render: (_value, _record, index) => (page - 1) * pageSize + index + 1 },
     { title: "发生时间", dataIndex: "CreatedAt", width: 150, render: formatDateTime },
     { title: "账号", dataIndex: "accountLabel", width: 120, ellipsis: true, render: (value: string) => value || "-" },
     {

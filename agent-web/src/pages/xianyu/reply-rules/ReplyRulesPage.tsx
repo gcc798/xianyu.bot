@@ -84,7 +84,7 @@ export function Component() {
   };
 
   const columns: TableColumnsType<ReplyRule> = [
-    { title: "序号", width: 64, render: (_value, _record, index) => (page - 1) * pageSize + index + 1 },
+    { title: "序号", width: 64, align: "center", render: (_value, _record, index) => (page - 1) * pageSize + index + 1 },
     { title: "商品", dataIndex: "productTitle", ellipsis: true },
     {
       title: "类型", dataIndex: "type", width: 100,

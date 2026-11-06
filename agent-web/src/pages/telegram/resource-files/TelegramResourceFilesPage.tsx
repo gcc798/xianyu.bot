@@ -56,7 +56,7 @@ export function Component() {
   };
 
   const columns: TableColumnsType<TelegramResourceFile> = [
-    { title: "序号", width: 64, render: (_value, _record, index) => (page - 1) * pageSize + index + 1 },
+    { title: "序号", width: 64, align: "center", render: (_value, _record, index) => (page - 1) * pageSize + index + 1 },
     { title: "任务", dataIndex: "task_id", width: 80, render: (value: number) => `#${value}` },
     { title: "文件名", dataIndex: "original_filename", width: 280, ellipsis: true },
     { title: "类型", dataIndex: "file_type", width: 90, render: (value: string) => value || "-" },
