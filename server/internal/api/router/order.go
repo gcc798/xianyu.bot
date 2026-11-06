@@ -18,5 +18,6 @@ func (r *OrderRouter) Init(group *gin.RouterGroup) {
 	read := group.Group("xy/order")
 	write := group.Group("xy/order")
 	read.GET("list", r.handlers.Order.List)
+	read.GET("detail", r.handlers.Order.Detail)
 	write.POST("sync-pending", r.handlers.Order.SyncPending)
 }

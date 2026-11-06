@@ -90,6 +90,24 @@ func TestOrderEventsAreIdempotentAndOwnerScoped(t *testing.T) {
 	require.EqualValues(t, 1, events)
 }
 
+// TestOrderGetIsOwnerScoped 验证订单详情仅对所属用户可见。
+func TestOrderGetIsOwnerScoped(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	require.NoError(t, err)
+	require.NoError(t, db.AutoMigrate(&model.Account{}, &model.Order{}))
+	account := model.Account{OwnerID: 10, Label: "订单账号", Status: "ready", Enabled: true}
+	require.NoError(t, db.Create(&account).Error)
+	item := model.Order{OwnerID: 10, AccountID: account.ID, ExternalOrderID: "order-1", ProductTitle: "测试商品", Status: model.OrderStatusPendingDelivery}
+	require.NoError(t, db.Create(&item).Error)
+
+	service := &Order{db: db}
+	detail, err := service.Get(t.Context(), 10, item.ID)
+	require.NoError(t, err)
+	require.Equal(t, "order-1", detail.ExternalOrderID)
+	_, err = service.Get(t.Context(), 11, item.ID)
+	require.ErrorIs(t, err, gorm.ErrRecordNotFound)
+}
+
 // TestSyncPendingOrdersUpsertsRemoteData 验证对应测试场景。
 func TestSyncPendingOrdersUpsertsRemoteData(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})

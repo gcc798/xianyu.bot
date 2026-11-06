@@ -157,12 +157,29 @@ func (s *Order) List(ctx context.Context, ownerID uint, input xyRequest.OrderSea
 		return nil, 0, err
 	}
 	list := make([]xyResponse.Order, 0)
-	err := db.Select(`o.id, o.created_at, o.updated_at, o.account_id, a.label AS account_label,
-		o.external_order_id, o.external_product_id, o.product_title, o.buyer_user_id, o.buyer_user_name,
-		o.session_id, o.sku_key, o.status, o.amount_cent`).
-		Joins("JOIN xy_accounts AS a ON a.id = o.account_id AND a.deleted_at IS NULL").
+	err := orderDetails(db).
 		Scopes(input.Paginate()).Order("o.updated_at DESC, o.id DESC").Scan(&list).Error
 	return list, total, err
+}
+
+// Get 查询 ownerID 名下的单个订单详情。
+func (s *Order) Get(ctx context.Context, ownerID, orderID uint) (xyResponse.Order, error) {
+	if ownerID == 0 || orderID == 0 {
+		return xyResponse.Order{}, errors.New("订单 ID 不能为空")
+	}
+	var item xyResponse.Order
+	db := s.db.WithContext(ctx).Table("xy_orders AS o").Where("o.id = ? AND o.owner_id = ? AND o.deleted_at IS NULL", orderID, ownerID)
+	if err := orderDetails(db).Take(&item).Error; err != nil {
+		return xyResponse.Order{}, err
+	}
+	return item, nil
+}
+
+func orderDetails(db *gorm.DB) *gorm.DB {
+	return db.Select(`o.id, o.created_at, o.updated_at, o.account_id, a.label AS account_label,
+		o.external_order_id, o.external_product_id, o.product_title, o.buyer_user_id, o.buyer_user_name,
+		o.session_id, o.sku_key, o.status, o.amount_cent`).
+		Joins("JOIN xy_accounts AS a ON a.id = o.account_id AND a.deleted_at IS NULL")
 }
 
 // UpsertFromMessage 从订单消息幂等更新本地订单并触发发货规划。

@@ -94,7 +94,7 @@ src/
 | 商品列表 | 已完成 | `xianyu/products.vue` | `/xy/product/list`、`sync`、`setting` |
 | 商品详情 | 已完成 | 后端数据与商品页 | `/xy/product/detail` |
 | 订单列表 | 已完成 | `xianyu/orders.vue` | `/xy/order/list`、`sync-pending` |
-| 订单详情 | 后端接口前置 | `xianyu/orders.vue` | 缺少按 ID 详情合同 |
+| 订单详情 | 已完成 | `xianyu/orders.vue` | `/xy/order/detail` |
 | 消息记录 | 已完成 | `xianyu/messages.vue` | `/xy/message/list`、`reply`、`takeover` |
 | 回复规则 | 已完成 | `xianyu/reply-rules.vue` | `/xy/reply-rule/*` |
 | 发货规则 | 已完成 | `xianyu/delivery-rules.vue` | `/xy/delivery-rule/*` |

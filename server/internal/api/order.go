@@ -38,6 +38,28 @@ func (a *OrderAPI) List(c *gin.Context) {
 	response.OkWithDetailed(response.PageResult{List: list, Total: total, Page: input.Page, PageSize: input.PageSize}, "获取成功", c)
 }
 
+// Detail 获取当前用户的订单详情。
+// @Tags XyOrder
+// @Summary 获取当前用户的订单详情
+// @Security ApiKeyAuth
+// @Produce application/json
+// @Param id query int true "订单 ID"
+// @Success 200 {object} response.Response{data=response.Order,msg=string} "获取成功"
+// @Router /xy/order/detail [get]
+func (a *OrderAPI) Detail(c *gin.Context) {
+	var input xyRequest.GetById
+	if err := c.ShouldBindQuery(&input); err != nil || input.ID <= 0 {
+		response.FailWithMessage("订单 ID 无效", c)
+		return
+	}
+	item, err := a.service.Order.Get(c.Request.Context(), security.GetUserID(c), uint(input.ID))
+	if err != nil {
+		failAccount("获取闲鱼订单详情失败", err, c)
+		return
+	}
+	response.OkWithData(item, c)
+}
+
 // SyncPending 从闲鱼同步当前待发货订单
 func (a *OrderAPI) SyncPending(c *gin.Context) {
 	var input xyRequest.OrderSync

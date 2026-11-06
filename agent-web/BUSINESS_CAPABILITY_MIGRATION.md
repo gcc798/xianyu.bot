@@ -177,6 +177,7 @@ Vue 参考：`web/src/view/xianyu/orders.vue`。
 | 能力 | 方法与路径 | 请求/响应 | 状态 |
 | --- | --- | --- | --- |
 | 订单列表 | `GET /xy/order/list` | `page`、`pageSize`、`keyword`、`accountId`、`status` → `PageResult<Order>` | 已完成 |
+| 订单详情 | `GET /xy/order/detail?id=...` | 本地订单 ID → `Order` | 已完成 |
 | 同步待发货 | `POST /xy/order/sync-pending` | `{ accountId }` | 已完成 |
 | 订单详情 | 当前无详情路由 | 不能获得稳定的单订单详情合同 | 后端前置 |
 | 订单最近事件 | `GET /xy/event/list?orderId=...` | 业务事件页支持本地订单 ID 精确筛选 | 已完成；详情页后端前置 |
@@ -310,15 +311,14 @@ Vue 参考：`telegram-overview.vue`、`telegram-dialogs.vue`、`telegram-settin
 - 1440px 和约 1000px 有效桌面宽度；浏览器缩放后不出现页面级横向溢出。
 - 正式页面不引用 `src/previews/`，不连接模拟数据。
 
-## 6. 后端前置缺口
+## 6. 联调缺口
 
-React 正式开发前或对应页面开发时必须解决：
+运行服务联调时必须解决：
 
-1. **订单详情接口缺失**：新增按本地订单 `ID` 获取详情的明确路由和响应 DTO。
-2. **Telegram 合同不是仓库内 Go DTO**：需对运行中的代理逐项联调，固化 React TypeScript 类型及错误结构。
-3. **Telegram 明文 Key 读取与仓库安全边界冲突**：React 不迁移该读取动作，后端需决定删除或替换合同。
+1. **Telegram 合同不是仓库内 Go DTO**：需对运行中的代理逐项联调，固化 React TypeScript 类型及错误结构。
+2. **Telegram 明文 Key 读取与仓库安全边界冲突**：React 不迁移该读取动作，后端需决定删除或替换合同。
 
-缺口未解决时可以先完成列表页，但不得用模拟数据、全量列表拼接或 `unknown` 类型绕过。
+不得用模拟数据或 `unknown` 类型绕过联调。
 
 ## 7. 迁移完成判定
 

@@ -9,7 +9,7 @@ import type { Product, ProductSettingInput } from "../../../models/product";
 import pageStyles from "../../../styles/page.module.css";
 import { formatDateTime, formatMoney } from "../../../utils/format";
 import ProductSettingModal from "./components/ProductSettingModal";
-import styles from "./ProductDetailPage.module.css";
+import styles from "../../../styles/detail.module.css";
 
 const statusMeta: Record<string, { label: string; color: string }> = {
   on_sale: { label: "在售", color: "success" },

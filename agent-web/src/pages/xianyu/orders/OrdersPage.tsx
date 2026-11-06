@@ -1,6 +1,7 @@
 import { Alert, App, Button, Input, Pagination, Select, Space, Table, Tag } from "antd";
 import type { TableColumnsType } from "antd";
 import { useCallback, useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { accountsApi } from "../../../api/accounts";
 import { ordersApi } from "../../../api/orders";
 import type { XianyuAccount } from "../../../models/account";
@@ -59,7 +60,7 @@ export function Component() {
   };
 
   const columns: TableColumnsType<Order> = [
-    { title: "订单号", dataIndex: "externalOrderId", width: 160, ellipsis: true },
+    { title: "订单号", dataIndex: "externalOrderId", width: 160, ellipsis: true, render: (value: string, record) => <Link to={`/xianyu/orders/${record.ID}`}>{value}</Link> },
     { title: "商品", dataIndex: "productTitle", width: 190, ellipsis: true },
     { title: "商品编码", dataIndex: "externalProductId", width: 125, ellipsis: true },
     {
@@ -77,6 +78,7 @@ export function Component() {
       },
     },
     { title: "更新时间", dataIndex: "UpdatedAt", width: 140, render: formatDateTime },
+    { title: "操作", key: "operation", width: 70, fixed: "right", render: (_, record) => <Link to={`/xianyu/orders/${record.ID}`}>查看</Link> },
   ];
 
   const reset = () => { setAccountId(undefined); setStatus(undefined); setKeyword(""); setQuery(""); setPage(1); };
@@ -107,7 +109,7 @@ export function Component() {
         </div>
         {error && <Alert className={pageStyles.alert} type="error" showIcon title={error} closable onClose={() => setError("")} />}
         <div className={pageStyles.table}>
-          <Table<Order> rowKey="ID" size="small" loading={loading} columns={columns} dataSource={rows} pagination={false} scroll={{ x: 1095 }} />
+          <Table<Order> rowKey="ID" size="small" loading={loading} columns={columns} dataSource={rows} pagination={false} scroll={{ x: 1165 }} />
         </div>
         <div className={pageStyles.pagination}>
           <Pagination

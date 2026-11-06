@@ -37,8 +37,12 @@ export default function ConsoleLayout() {
   const { modal } = App.useApp();
   const { session, signOut } = useAuth();
   const isAdmin = session?.user.authorityId === ADMIN_AUTHORITY_ID;
-  const currentTitle = location.pathname.startsWith("/xianyu/products/") ? "商品详情" : routeTitles[location.pathname] || "控制台";
-  const selectedPath = location.pathname.startsWith("/xianyu/products/") ? "/xianyu/products" : location.pathname;
+  const currentTitle = location.pathname.startsWith("/xianyu/products/")
+    ? "商品详情"
+    : location.pathname.startsWith("/xianyu/orders/") ? "订单详情" : routeTitles[location.pathname] || "控制台";
+  const selectedPath = location.pathname.startsWith("/xianyu/products/")
+    ? "/xianyu/products"
+    : location.pathname.startsWith("/xianyu/orders/") ? "/xianyu/orders" : location.pathname;
   const menu: MenuProps["items"] = [
     { key: "/overview", label: "总览" },
     { key: "/bot", label: "Bot" },
