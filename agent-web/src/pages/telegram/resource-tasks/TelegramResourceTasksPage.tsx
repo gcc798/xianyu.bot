@@ -1,8 +1,9 @@
-import { Alert, App, Button, Form, Input, InputNumber, Pagination, Radio, Select, Space, Table, Tag } from "antd";
+import { Alert, App, Button, Form, Input, InputNumber, Modal, Pagination, Radio, Select, Space, Table, Tag } from "antd";
 import type { TableColumnsType } from "antd";
 import { useCallback, useEffect, useState } from "react";
 import { telegramApi } from "../../../api/telegram";
 import type { TelegramResourceOptions, TelegramResourceTask, TelegramResourceTaskInput } from "../../../models/telegram";
+import businessStyles from "../../../styles/business.module.css";
 import styles from "../../../styles/page.module.css";
 import { formatDateTime } from "../../../utils/format";
 
@@ -22,10 +23,13 @@ const sourceModeLabel = (task: TelegramResourceTask) => {
 
 export function Component() {
   const { message, modal } = App.useApp();
-  const [form] = Form.useForm<TelegramResourceTaskInput>();
-  const sourceMode = Form.useWatch("source_mode", form);
+  const [createForm] = Form.useForm<TelegramResourceTaskInput>();
+  const [filterForm] = Form.useForm<{ q?: string; status?: TelegramResourceTask["status"] }>();
+  const sourceMode = Form.useWatch("source_mode", createForm);
   const [options, setOptions] = useState<TelegramResourceOptions>({ dialogs: [], file_types: [], max_file_size: 0 });
   const [rows, setRows] = useState<TelegramResourceTask[]>([]);
+  const [filters, setFilters] = useState<{ q?: string; status?: TelegramResourceTask["status"] }>({});
+  const [createOpen, setCreateOpen] = useState(false);
   const [page, setPage] = useState(1), [pageSize, setPageSize] = useState(20), [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false), [submitting, setSubmitting] = useState(false), [error, setError] = useState("");
 
@@ -33,14 +37,14 @@ export function Component() {
     if (!quiet) setLoading(true);
     setError("");
     try {
-      const data = await telegramApi.resourceTasks({ page, page_size: pageSize });
+      const data = await telegramApi.resourceTasks({ page, page_size: pageSize, ...filters });
       setRows(data.list); setTotal(data.total);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "资源任务加载失败");
     } finally {
       if (!quiet) setLoading(false);
     }
-  }, [page, pageSize]);
+  }, [filters, page, pageSize]);
 
   useEffect(() => {
     void telegramApi.resourceOptions().then(setOptions).catch((cause) => setError(cause instanceof Error ? cause.message : "资源选项加载失败"));
@@ -56,9 +60,9 @@ export function Component() {
     try {
       await telegramApi.createResourceTask({ ...values, keyword: values.keyword.trim() });
       message.success("任务已进入队列");
-      form.resetFields(["keyword"]);
-      setPage(1);
-      await load();
+      setCreateOpen(false);
+      createForm.resetFields();
+      if (page === 1) await load(); else setPage(1);
     } catch (cause) {
       message.error(cause instanceof Error ? cause.message : "任务创建失败");
     } finally {
@@ -95,16 +99,22 @@ export function Component() {
   ];
 
   return <div className={styles.page}><section className={styles.surface}>
-    <Form form={form} layout="inline" className={styles.filters} initialValues={{ file_types: [], source_mode: "smart", source_dialog_ids: [], max_downloads: 10 }} onFinish={create}>
-      <Form.Item name="keyword" label="资源名称" rules={[{ required: true, whitespace: true, min: 2, max: 200 }]}><Input maxLength={200} placeholder="输入资源主题" style={{ width: 220 }} /></Form.Item>
-      <Form.Item name="file_types" label="文件类型"><Select mode="multiple" allowClear maxTagCount="responsive" placeholder="不限" style={{ width: 190 }} options={options.file_types.map((value) => ({ value, label: value }))} /></Form.Item>
-      <Form.Item name="max_downloads" label="最大数量" rules={[{ required: true }]}><InputNumber min={1} max={100} style={{ width: 100 }} /></Form.Item>
-      <Form.Item name="source_mode" label="搜索方式"><Radio.Group optionType="button" buttonStyle="solid" options={[{ value: "smart", label: "智能" }, { value: "all", label: "全部" }, { value: "manual", label: "手动" }]} /></Form.Item>
-      {sourceMode === "manual" && <Form.Item name="source_dialog_ids" label="搜索范围" rules={[{ required: true, message: "请选择搜索来源" }]}><Select mode="multiple" showSearch optionFilterProp="label" maxTagCount="responsive" placeholder="选择群组或频道" style={{ width: 260 }} options={options.dialogs.map((item) => ({ value: item.id, label: `${item.name}（${item.dialog_type}）` }))} /></Form.Item>}
-      <Form.Item><Button type="primary" htmlType="submit" loading={submitting}>创建任务</Button></Form.Item>
+    <Form form={filterForm} layout="inline" className={styles.filters} onFinish={(values) => { setPage(1); setFilters({ ...values, q: values.q?.trim() || undefined }); }}>
+      <Form.Item name="q" label="资源名称"><Input allowClear maxLength={200} placeholder="输入资源名称" style={{ width: 220 }} /></Form.Item>
+      <Form.Item name="status" label="任务状态"><Select allowClear placeholder="全部状态" style={{ width: 150 }} options={Object.entries(statusMeta).map(([value, meta]) => ({ value, label: meta.label }))} /></Form.Item>
+      <Form.Item><Space><Button type="primary" htmlType="submit">查询</Button><Button onClick={() => { filterForm.resetFields(); setPage(1); setFilters({}); }}>重置</Button><Button onClick={() => setCreateOpen(true)}>创建任务</Button></Space></Form.Item>
     </Form>
     {error && <Alert className={styles.alert} type="error" showIcon title={error} />}
     <div className={styles.table}><Table<TelegramResourceTask> rowKey="id" size="small" loading={loading} columns={columns} dataSource={rows} pagination={false} scroll={{ x: 1360 }} /></div>
-    <div className={styles.pagination}><Pagination current={page} pageSize={pageSize} total={total} showSizeChanger pageSizeOptions={[20, 50, 100]} onChange={(nextPage, nextSize) => { setPage(nextSize === pageSize ? nextPage : 1); setPageSize(nextSize); }} /><Space><Button onClick={() => void load()}>刷新</Button></Space></div>
+    <div className={styles.pagination}><Pagination current={page} pageSize={pageSize} total={total} showSizeChanger pageSizeOptions={[20, 50, 100]} onChange={(nextPage, nextSize) => { setPage(nextSize === pageSize ? nextPage : 1); setPageSize(nextSize); }} /></div>
+    <Modal title="创建资源任务" open={createOpen} width={720} okText="创建任务" cancelText="取消" confirmLoading={submitting} onOk={() => createForm.submit()} onCancel={() => setCreateOpen(false)}>
+      <Form form={createForm} layout="vertical" className={businessStyles.modalGrid} initialValues={{ file_types: [], source_mode: "smart", source_dialog_ids: [], max_downloads: 10 }} onFinish={create}>
+        <Form.Item className="ant-form-item-wide" name="keyword" label="资源名称" rules={[{ required: true, whitespace: true, min: 2, max: 200 }]}><Input maxLength={200} placeholder="输入资源主题" /></Form.Item>
+        <Form.Item name="file_types" label="文件类型"><Select mode="multiple" allowClear maxTagCount="responsive" placeholder="不限" options={options.file_types.map((value) => ({ value, label: value }))} /></Form.Item>
+        <Form.Item name="max_downloads" label="最大数量" rules={[{ required: true }]}><InputNumber min={1} max={100} style={{ width: "100%" }} /></Form.Item>
+        <Form.Item className="ant-form-item-wide" name="source_mode" label="搜索方式"><Radio.Group optionType="button" buttonStyle="solid" options={[{ value: "smart", label: "智能" }, { value: "all", label: "全部" }, { value: "manual", label: "手动" }]} /></Form.Item>
+        {sourceMode === "manual" && <Form.Item className="ant-form-item-wide" name="source_dialog_ids" label="搜索范围" rules={[{ required: true, message: "请选择搜索来源" }]}><Select mode="multiple" showSearch optionFilterProp="label" maxTagCount="responsive" placeholder="选择群组或频道" options={options.dialogs.map((item) => ({ value: item.id, label: `${item.name}（${item.dialog_type}）` }))} /></Form.Item>}
+      </Form>
+    </Modal>
   </section></div>;
 }

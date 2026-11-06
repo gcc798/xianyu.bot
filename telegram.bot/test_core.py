@@ -148,7 +148,11 @@ def test_metadata_scan_storage():
             scan_id = db.start_scan()
             db.update_scan(scan_id, status="completed", finished_at=now)
             db.record_leave(row, "failed", "test")
-            task = db.create_resource_task("training", ["pdf"], [dialog_id], 2)
+            task_keyword = "training-" + uuid.uuid4().hex
+            task = db.create_resource_task(task_keyword, ["pdf"], [dialog_id], 2)
+            tasks, total = db.list_resource_tasks({"q": task_keyword[9:20], "status": "queued"})
+            assert total == 1 and tasks[0]["id"] == task["id"]
+            assert db.list_resource_tasks({"q": task_keyword, "status": "completed"})[1] == 0
             manager = ResourceService(SimpleNamespace(), db, SimpleNamespace())
             manager.cancel(task["id"])
             assert db.resource_task(task["id"])["status"] == "cancelled"

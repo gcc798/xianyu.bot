@@ -56,7 +56,7 @@ export const telegramApi = {
     method: "POST", body: JSON.stringify(input),
   }),
   resourceOptions: () => telegramRequest<TelegramResourceOptions>("/api/resources/options"),
-  resourceTasks: (input: { page: number; page_size: number }) => telegramRequest<TelegramResourceTaskPage>(`/api/resources/tasks${queryString(input)}`),
+  resourceTasks: (input: { page: number; page_size: number; q?: string; status?: string }) => telegramRequest<TelegramResourceTaskPage>(`/api/resources/tasks${queryString(input)}`),
   createResourceTask: (input: TelegramResourceTaskInput) => telegramRequest<TelegramResourceTask>("/api/resources/tasks", { method: "POST", body: JSON.stringify(input) }),
   cancelResourceTask: (id: number) => telegramRequest<{ ok: boolean }>(`/api/resources/tasks/${id}/cancel`, { method: "POST" }),
   retryResourceTask: (id: number) => telegramRequest<{ ok: boolean }>(`/api/resources/tasks/${id}/retry`, { method: "POST" }),

@@ -449,11 +449,14 @@ async def create_resource_task(payload: ResourceTaskInput, request: Request):
 
 
 @app.get("/api/resources/tasks")
-async def resource_tasks(request: Request, page: int = 1, page_size: int = 20):
+async def resource_tasks(request: Request, page: int = 1, page_size: int = 20, q: str = "", status: str = ""):
     internal_access(request)
     if page < 1 or not 1 <= page_size <= 100:
         raise HTTPException(400, "分页参数无效")
-    rows, total = db.list_resource_tasks(page, page_size)
+    if status and status not in {"queued", "running", "completed", "failed", "cancelled"}:
+        raise HTTPException(400, "任务状态无效")
+    filters = {"q": q.strip()[:200], "status": status}
+    rows, total = db.list_resource_tasks(filters, page, page_size)
     return {"list": rows, "total": total, "page": page, "page_size": page_size}
 
 

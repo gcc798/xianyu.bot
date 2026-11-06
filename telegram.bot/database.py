@@ -189,10 +189,16 @@ class Database:
                 row["sources"] = db.execute(f"SELECT d.id,d.telegram_id,d.name,d.username,d.dialog_type,d.status,d.resource_compliance_status FROM tel_dialogs d WHERE d.id=ANY(%s){adult_filter} ORDER BY array_position(%s::bigint[],d.id)", (row["source_dialog_ids"], *visibility_params, row["source_dialog_ids"])).fetchall()
             return row
 
-    def list_resource_tasks(self, page: int = 1, page_size: int = 20) -> tuple[list[dict], int]:
+    def list_resource_tasks(self, filters: dict, page: int = 1, page_size: int = 20) -> tuple[list[dict], int]:
+        where, params = ["TRUE"], []
+        if filters.get("q"):
+            where.append("keyword ILIKE %s"); params.append(f"%{filters['q']}%")
+        if filters.get("status"):
+            where.append("status=%s"); params.append(filters["status"])
+        base = " FROM tel_resource_tasks WHERE " + " AND ".join(where)
         with self.connect() as db:
-            total = db.execute("SELECT COUNT(*) FROM tel_resource_tasks").fetchone()["count"]
-            rows = db.execute("SELECT * FROM tel_resource_tasks ORDER BY id DESC LIMIT %s OFFSET %s", (page_size, (page - 1) * page_size)).fetchall()
+            total = db.execute("SELECT COUNT(*)" + base, params).fetchone()["count"]
+            rows = db.execute("SELECT *" + base + " ORDER BY id DESC LIMIT %s OFFSET %s", (*params, page_size, (page - 1) * page_size)).fetchall()
             return rows, total
 
     def queued_resource_tasks(self) -> list[int]:
