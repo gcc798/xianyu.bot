@@ -78,10 +78,64 @@ def test_resource_download_timeout_records_failure():
         service.storage = SimpleNamespace()
         service.tmp_root = Path(temp_dir)
         service.max_file_size = 1024
+        service.active_downloads = {}
         record = {"id": 1, "attempts": 0, "original_filename": "file.pdf", "file_type": "pdf", "mime_type": "application/pdf"}
         assert asyncio.run(service._download(1, record, SimpleNamespace())) is False
         assert service.db.updates[-1]["download_status"] == "failed"
         assert "下载超时" in service.db.updates[-1]["error_message"]
+
+
+def test_resource_cancel_interrupts_active_download():
+    async def scenario():
+        started = asyncio.Event()
+
+        class FakeDatabase:
+            task = {"id": 9, "status": "running", "cancel_requested": False}
+            file_updates = []
+
+            def resource_task(self, _task_id):
+                return self.task
+
+            def update_resource_task(self, _task_id, **values):
+                self.task.update(values)
+
+            def update_resource_file(self, _file_id, **values):
+                self.file_updates.append(values)
+
+        class FakeTelegram:
+            client = None
+
+            def __init__(self):
+                self.client = self
+
+            async def download_media(self, _message, file):
+                Path(file).write_bytes(b"partial")
+                started.set()
+                await asyncio.Event().wait()
+
+            async def call(self, func, *args, **kwargs):
+                return await func(*args, **kwargs)
+
+        with TemporaryDirectory() as temp_dir:
+            service = ResourceService.__new__(ResourceService)
+            service.db = FakeDatabase()
+            service.telegram = FakeTelegram()
+            service.storage = SimpleNamespace()
+            service.tmp_root = Path(temp_dir)
+            service.max_file_size = 1024
+            service.active_downloads = {}
+            record = {"id": 3, "attempts": 0, "original_filename": "video.mp4", "file_type": "mp4", "mime_type": "video/mp4"}
+            running = asyncio.create_task(service._download(9, record, SimpleNamespace()))
+            await started.wait()
+            service.cancel(9)
+            assert await asyncio.wait_for(running, 0.2) is False
+            assert service.db.task["status"] == "cancelled"
+            assert service.db.file_updates[-1]["original_filename"] == "video（已中止）.mp4"
+            assert service.db.file_updates[-1]["bytes_downloaded"] == 7
+            assert service.db.file_updates[-1]["download_status"] == "cancelled"
+            assert service.db.file_updates[-1]["upload_status"] == "cancelled"
+
+    asyncio.run(scenario())
 
 
 def test_adult_dialog_filter_uses_cached_ids_without_ai():

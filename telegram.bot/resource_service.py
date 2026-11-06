@@ -165,6 +165,7 @@ class ResourceService:
         self.storage = storage
         self.queue: asyncio.Queue[int] = asyncio.Queue()
         self.workers: list[asyncio.Task] = []
+        self.active_downloads: dict[int, asyncio.Task] = {}
         self.acquisitions: dict[int, asyncio.Task] = {}
         self.interactive_search_lock = asyncio.Lock()
         self.interactive_search_wait = min(max(float(os.getenv("TG_INTERACTIVE_SEARCH_WAIT_SECONDS", "8")), 1), 30)
@@ -541,10 +542,10 @@ class ResourceService:
         task = self.db.resource_task(task_id)
         if not task or task["status"] not in {"queued", "running"}:
             raise ValueError("任务不存在或当前状态不能取消")
-        if task["status"] == "queued":
-            self.db.update_resource_task(task_id, status="cancelled", cancel_requested=True, completed_at=datetime.now(timezone.utc))
-        else:
-            self.db.update_resource_task(task_id, cancel_requested=True)
+        self.db.update_resource_task(task_id, status="cancelled", cancel_requested=True, completed_at=datetime.now(timezone.utc))
+        download = self.active_downloads.get(task_id)
+        if download:
+            download.cancel()
 
     def retry(self, task_id: int) -> None:
         task = self.db.resource_task(task_id)
@@ -600,6 +601,8 @@ class ResourceService:
                     if await self._download(task_id, record, message):
                         completed += 1
                         self.db.update_resource_task(task_id, files_completed=completed)
+                    elif self._cancelled(task_id):
+                        return
                     else:
                         failed += 1
                 if completed >= task["max_downloads"]:
@@ -635,10 +638,18 @@ class ResourceService:
         self.db.update_resource_file(record["id"], download_status="downloading", attempts=record["attempts"] + 1)
         try:
             try:
-                async with asyncio.timeout(DOWNLOAD_TIMEOUT_SECONDS):
-                    result = await self.telegram.call(self.telegram.client.download_media, message, file=str(path))
+                download = asyncio.create_task(self.telegram.call(self.telegram.client.download_media, message, file=str(path)))
+                self.active_downloads[task_id] = download
+                try:
+                    async with asyncio.timeout(DOWNLOAD_TIMEOUT_SECONDS):
+                        result = await download
+                finally:
+                    if self.active_downloads.get(task_id) is download:
+                        self.active_downloads.pop(task_id)
             except TimeoutError as exc:
                 raise RuntimeError("Telegram 下载超时（30 分钟）") from exc
+            if self._cancelled(task_id):
+                raise asyncio.CancelledError
             if not result or not path.is_file():
                 raise RuntimeError("Telegram 下载未生成文件")
             if path.stat().st_size > self.max_file_size:
@@ -650,6 +661,17 @@ class ResourceService:
             await asyncio.to_thread(self.storage.upload, path, object_key, record["mime_type"])
             self.db.update_resource_file(record["id"], upload_status="success", object_key=object_key, completed_at=now, error_message=None)
             return True
+        except asyncio.CancelledError:
+            if not self._cancelled(task_id):
+                raise
+            name = Path(record["original_filename"])
+            self.db.update_resource_file(
+                record["id"], original_filename=f"{name.stem}（已中止）{name.suffix}",
+                bytes_downloaded=path.stat().st_size if path.is_file() else 0,
+                download_status="cancelled", upload_status="cancelled", error_message="任务已取消",
+                completed_at=datetime.now(timezone.utc),
+            )
+            return False
         except Exception as exc:
             self.db.update_resource_file(record["id"], download_status="failed", upload_status="failed", error_message=str(exc)[:2000], completed_at=datetime.now(timezone.utc))
             return False

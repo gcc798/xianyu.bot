@@ -258,7 +258,7 @@ class Database:
 
     def prepare_resource_retry(self, task_id: int) -> tuple[int, int]:
         with self.connect() as db:
-            db.execute("DELETE FROM tel_resource_files WHERE task_id=%s AND (download_status='failed' OR upload_status='failed')", (task_id,))
+            db.execute("DELETE FROM tel_resource_files WHERE task_id=%s AND (download_status IN ('failed','cancelled') OR upload_status IN ('failed','cancelled'))", (task_id,))
             row = db.execute("SELECT COUNT(*) AS found,COUNT(*) FILTER (WHERE upload_status='success') AS completed FROM tel_resource_files WHERE task_id=%s", (task_id,)).fetchone()
             return row["found"], row["completed"]
 
@@ -278,7 +278,7 @@ class Database:
             return row
 
     def update_resource_file(self, file_id: int, **values) -> None:
-        allowed = {"download_status", "upload_status", "bytes_downloaded", "attempts", "error_message", "object_key", "completed_at"}
+        allowed = {"original_filename", "download_status", "upload_status", "bytes_downloaded", "attempts", "error_message", "object_key", "completed_at"}
         if not values or not set(values) <= allowed:
             raise ValueError("invalid file update")
         with self.connect() as db:
