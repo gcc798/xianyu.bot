@@ -428,15 +428,6 @@ async def probe_ai_settings(payload: AISettingsInput, request: Request):
     return {"available": await resources.probe_ai(requested_ai_settings(payload))}
 
 
-@app.get("/api/admin/settings/ai/key")
-async def reveal_ai_api_key(request: Request):
-    internal_access(request)
-    api_key = resources.ai_settings()["api_key"]
-    if not api_key:
-        raise HTTPException(404, "AI API Key 未配置")
-    return JSONResponse({"api_key": api_key}, headers={"Cache-Control": "no-store", "Pragma": "no-cache"})
-
-
 @app.get("/api/resources/options")
 async def resource_options(request: Request):
     internal_access(request)

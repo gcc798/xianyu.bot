@@ -35,7 +35,13 @@ export function Component() {
   };
   const saveAI = async (input: TelegramAISettingsInput) => {
     setSaving(true);
-    try { await telegramApi.updateAISettings(input); message.success("Telegram AI 设置已保存"); await load(); }
+    try {
+      const data = await telegramApi.updateAISettings(input);
+      setSettings((current) => current ? { ...current, ...data } : current);
+      form.setFieldsValue({ base_url: data.ai_base_url, model: data.ai_model, api_key: input.api_key });
+      message.success("Telegram AI 设置已保存");
+    }
+    catch (cause) { message.error(cause instanceof Error ? cause.message : "Telegram AI 设置保存失败"); }
     finally { setSaving(false); }
   };
   const probe = async () => {
@@ -67,7 +73,7 @@ export function Component() {
           { key: "ai", label: "资源识别 AI", forceRender: true, children: <Form form={form} layout="vertical" onFinish={saveAI} style={{ maxWidth: 760 }}>
             <Form.Item name="base_url" label="服务地址" rules={[{ required: true, type: "url" }]}><Input /></Form.Item>
             <Form.Item name="model" label="模型标识" rules={[{ required: true, whitespace: true }]}><Input /></Form.Item>
-            <Form.Item name="api_key" label="API Key"><Input.Password autoComplete="new-password" placeholder={settings?.ai_api_key_configured ? "留空则保留现有凭据" : "输入 API Key"} /></Form.Item>
+            <Form.Item name="api_key" label="API Key"><Input.Password autoComplete="new-password" placeholder={settings?.ai_api_key_configured ? settings.ai_api_key_masked : "输入 API Key"} /></Form.Item>
             <Space><Button type="primary" htmlType="submit" loading={saving}>保存</Button><Button loading={probing} onClick={() => void probe()}>测试连接</Button></Space>
           </Form> },
         ]} />
