@@ -1,3 +1,4 @@
+import { MenuFoldOutlined, MenuUnfoldOutlined } from '@ant-design/icons'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { approveRun, cancelRun, createSession, deleteSession, getSession, getTrajectory, listSessions, sendMessage, streamEvents } from '../../api/agent'
 import type { AgentEvent, Approval, ChatMessage, Directive, Operation, Session } from '../../models/agent'
@@ -27,6 +28,7 @@ export default function BotWorkspace() {
   const [slashOpen, setSlashOpen] = useState(false)
   const [operationsOpen, setOperationsOpen] = useState(false)
 	const [trajectoryOpen, setTrajectoryOpen] = useState(false)
+  const [historyCollapsed, setHistoryCollapsed] = useState(false)
   const streamRef = useRef<AbortController | null>(null)
   const viewportRef = useRef<HTMLDivElement>(null)
 
@@ -153,9 +155,12 @@ export default function BotWorkspace() {
 
   const groupedOperations = useMemo(() => operations.filter((item) => !runId || item.runId === runId), [operations, runId])
   return (
-    <main className="agent-app">
+    <main className={`agent-app ${historyCollapsed ? 'history-collapsed' : ''}`}>
       <aside className="session-sidebar">
-        <button className="new-chat" onClick={() => void newConversation()}><span>＋</span> 新对话</button>
+        <div className="session-toolbar">
+          <button className="new-chat" onClick={() => void newConversation()}><span>＋</span> 新对话</button>
+          <button className="history-toggle" title="收起历史对话" aria-label="收起历史对话" onClick={() => setHistoryCollapsed(true)}><MenuFoldOutlined /></button>
+        </div>
         <nav className="session-list" aria-label="对话列表">{sessions.map((session) =>
           <button key={session.ID} className={`session-row ${session.ID === sessionId ? 'active' : ''}`} onClick={() => void openSession(session.ID)}>
             <span><strong>{session.title || '新对话'}</strong><small>{formatTime(session.lastMessageAt || session.CreatedAt)}</small></span>
@@ -165,7 +170,10 @@ export default function BotWorkspace() {
 
       <section className="chat-stage">
         <header className="chat-header">
-          <div><strong>{activeSession?.title || '新对话'}</strong>{running && <small>正在执行</small>}</div>
+          <div className="chat-title">
+            {historyCollapsed && <button className="history-toggle" title="展开历史对话" aria-label="展开历史对话" onClick={() => setHistoryCollapsed(false)}><MenuUnfoldOutlined /></button>}
+            <div><strong>{activeSession?.title || '新对话'}</strong>{running && <small>正在执行</small>}</div>
+          </div>
           <div className="header-actions">{running && <button className="stop-button" onClick={() => void cancelRun(sessionId, runId)}>停止</button>}<button className="trace-button" disabled={!sessionId} onClick={() => setTrajectoryOpen(true)}>轨迹 <span>⌘</span></button></div>
         </header>
         <div className="message-scroll" ref={viewportRef} aria-live="polite">
