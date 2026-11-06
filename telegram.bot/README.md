@@ -58,4 +58,4 @@ docker compose config
 DATABASE_URL=postgresql://xianyu_bot:xianyu_bot@127.0.0.1:15432/xianyu_bot python telegram.bot/test_core.py
 ```
 
-拒绝词只能拦截明显风险内容，不能判断版权授权；操作者仍须确认来源和保存权限。Office 文件当前提供下载，PDF、图片、文本可在线预览。
+拒绝词只能拦截明显风险内容，不能判断版权授权；操作者仍须确认来源和保存权限。资源类型由服务端文件字典统一维护：PDF、Markdown、文本、CSV、JSON、XML、JPEG、PNG、WebP、MP4、WebM、MOV、M4V、MP3、M4A、WAV、OGG 支持在线预览；Office、OpenDocument、EPUB、MOBI、RTF 和 ZIP 仅提供下载。

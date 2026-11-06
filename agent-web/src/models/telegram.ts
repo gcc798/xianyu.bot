@@ -42,7 +42,14 @@ export type TelegramSettings = {
 export type TelegramAISettingsInput = { base_url: string; api_key: string; model: string };
 
 export type TelegramResourceDialog = Pick<TelegramDialog, "id" | "telegram_id" | "name" | "username" | "dialog_type" | "is_group" | "is_broadcast" | "member_count" | "last_message_at">;
-export type TelegramResourceOptions = { dialogs: TelegramResourceDialog[]; file_types: string[]; max_file_size: number };
+export type TelegramFilePreviewKind = "image" | "video" | "audio" | "pdf" | "text";
+export type TelegramFileTypeOption = {
+  value: string;
+  label: string;
+  category: "document" | "image" | "video" | "audio" | "archive";
+  preview: TelegramFilePreviewKind | null;
+};
+export type TelegramResourceOptions = { dialogs: TelegramResourceDialog[]; file_types: TelegramFileTypeOption[]; max_file_size: number };
 export type TelegramResourceTaskInput = {
   keyword: string;
   file_types: string[];

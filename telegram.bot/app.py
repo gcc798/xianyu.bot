@@ -22,7 +22,7 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 from analyzer import cleanup_tags, telegram_link
 from database import Database
 from mcp_server import build_mcp
-from resource_service import DEFAULT_TYPES, ResourceService
+from resource_service import DEFAULT_TYPES, FILE_TYPE_DICTIONARY, ResourceService
 from storage import RustFS
 from telegram_service import TelegramService
 
@@ -100,7 +100,7 @@ def require_login():
 
 class ResourceTaskInput(BaseModel):
     keyword: str = Field(min_length=2, max_length=200)
-    file_types: list[str] = Field(default_factory=list, max_length=30)
+    file_types: list[str] = Field(default_factory=list, max_length=len(DEFAULT_TYPES))
     source_mode: Literal["smart", "all", "manual"] = "smart"
     source_dialog_ids: list[int] = Field(default_factory=list, max_length=100)
     max_downloads: int = Field(default=10, ge=1, le=100)
@@ -110,7 +110,7 @@ class ResourceTaskInput(BaseModel):
     def validate_types(cls, values: list[str]) -> list[str]:
         cleaned = list(dict.fromkeys(value.lower().lstrip(".").strip() for value in values))
         if any(value not in DEFAULT_TYPES for value in cleaned):
-            raise ValueError("仅支持常见文档、图片和 zip 类型")
+            raise ValueError("文件类型不在资源字典中")
         return cleaned
 
     @model_validator(mode="after")
@@ -431,7 +431,8 @@ async def probe_ai_settings(payload: AISettingsInput, request: Request):
 @app.get("/api/resources/options")
 async def resource_options(request: Request):
     internal_access(request)
-    return {"dialogs": db.resource_dialogs(), "file_types": sorted(DEFAULT_TYPES), "max_file_size": resources.max_file_size}
+    file_types = [{"value": value, **metadata} for value, metadata in FILE_TYPE_DICTIONARY.items()]
+    return {"dialogs": db.resource_dialogs(), "file_types": file_types, "max_file_size": resources.max_file_size}
 
 
 @app.post("/api/resources/tasks", status_code=201)
@@ -504,7 +505,7 @@ def resource_redirect(file_id: int, request: Request, inline: bool):
     item = db.resource_file(file_id)
     if not item or item["upload_status"] != "success" or not item["object_key"]:
         raise HTTPException(404, "文件不存在或尚未上传完成")
-    previewable = (item["mime_type"] or "").startswith(("image/", "text/")) or item["file_type"] == "pdf"
+    previewable = FILE_TYPE_DICTIONARY.get(item["file_type"], {}).get("preview") is not None
     if inline and not previewable:
         raise HTTPException(415, "该文件类型不支持在线预览")
     return RedirectResponse(resources.storage.presigned_url(item["object_key"], item["original_filename"], inline), 307)

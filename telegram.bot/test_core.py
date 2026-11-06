@@ -18,6 +18,8 @@ from telethon import functions, types
 
 
 def test_resource_validation():
+    assert resource_service.FILE_TYPE_DICTIONARY["mp4"] == {"label": "MP4 视频", "category": "video", "preview": "video"}
+    assert resource_service.FILE_TYPE_DICTIONARY["docx"]["preview"] is None
     assert safe_filename("../../etc/passwd") == "passwd"
     assert safe_filename("..\\..\\bad:name?.pdf") == "bad_name_.pdf"
     service = ResourceService.__new__(ResourceService)
@@ -27,6 +29,13 @@ def test_resource_validation():
     assert service._match(message, task)["filename"] == "training.pdf"
     task["file_types"] = []
     assert service._match(message, task)["filename"] == "training.pdf"
+    message.file.name = "training.mp4"
+    message.file.mime_type = "video/mp4"
+    assert service._match(message, task)["filename"] == "training.mp4"
+    message.file.name = "training.exe"
+    assert service._match(message, task) is None
+    message.file.name = "training.pdf"
+    message.file.mime_type = "application/pdf"
     ranked = rank_sources("Kubernetes 指南", [{"id": 1, "name": "日常闲聊", "username": "chat"}, {"id": 2, "name": "Kubernetes 资料", "username": "k8s"}])
     assert [item["id"] for item in ranked] == [2, 1]
     message.raw_text = "crack training"

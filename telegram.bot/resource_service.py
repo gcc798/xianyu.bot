@@ -23,7 +23,40 @@ BLOCKED_TERMS = {
     "色情", "成人视频", "破解软件", "crack", "keygen", "木马", "勒索软件", "stealer",
     "盗号", "窃取数据", "儿童色情", "毒品", "枪支教程",
 }
-DEFAULT_TYPES = {"pdf", "epub", "mobi", "doc", "docx", "xls", "xlsx", "ppt", "pptx", "zip", "txt", "csv", "rtf", "md", "json", "xml", "odt", "ods", "odp", "jpg", "jpeg", "png", "webp"}
+FILE_TYPE_DICTIONARY = {
+    "pdf": {"label": "PDF", "category": "document", "preview": "pdf"},
+    "md": {"label": "Markdown", "category": "document", "preview": "text"},
+    "txt": {"label": "文本", "category": "document", "preview": "text"},
+    "csv": {"label": "CSV", "category": "document", "preview": "text"},
+    "json": {"label": "JSON", "category": "document", "preview": "text"},
+    "xml": {"label": "XML", "category": "document", "preview": "text"},
+    "epub": {"label": "EPUB", "category": "document", "preview": None},
+    "mobi": {"label": "MOBI", "category": "document", "preview": None},
+    "doc": {"label": "Word 97-2003", "category": "document", "preview": None},
+    "docx": {"label": "Word", "category": "document", "preview": None},
+    "xls": {"label": "Excel 97-2003", "category": "document", "preview": None},
+    "xlsx": {"label": "Excel", "category": "document", "preview": None},
+    "ppt": {"label": "PowerPoint 97-2003", "category": "document", "preview": None},
+    "pptx": {"label": "PowerPoint", "category": "document", "preview": None},
+    "rtf": {"label": "RTF", "category": "document", "preview": None},
+    "odt": {"label": "OpenDocument 文本", "category": "document", "preview": None},
+    "ods": {"label": "OpenDocument 表格", "category": "document", "preview": None},
+    "odp": {"label": "OpenDocument 演示", "category": "document", "preview": None},
+    "jpg": {"label": "JPEG 图片", "category": "image", "preview": "image"},
+    "jpeg": {"label": "JPEG 图片", "category": "image", "preview": "image"},
+    "png": {"label": "PNG 图片", "category": "image", "preview": "image"},
+    "webp": {"label": "WebP 图片", "category": "image", "preview": "image"},
+    "mp4": {"label": "MP4 视频", "category": "video", "preview": "video"},
+    "webm": {"label": "WebM 视频", "category": "video", "preview": "video"},
+    "mov": {"label": "MOV 视频", "category": "video", "preview": "video"},
+    "m4v": {"label": "M4V 视频", "category": "video", "preview": "video"},
+    "mp3": {"label": "MP3 音频", "category": "audio", "preview": "audio"},
+    "m4a": {"label": "M4A 音频", "category": "audio", "preview": "audio"},
+    "wav": {"label": "WAV 音频", "category": "audio", "preview": "audio"},
+    "ogg": {"label": "OGG 音频", "category": "audio", "preview": "audio"},
+    "zip": {"label": "ZIP 压缩包", "category": "archive", "preview": None},
+}
+DEFAULT_TYPES = set(FILE_TYPE_DICTIONARY)
 BLOCKED_ARCHIVE_EXTENSIONS = {".exe", ".dll", ".scr", ".bat", ".cmd", ".com", ".msi", ".ps1", ".vbs", ".js", ".jar", ".apk"}
 LOGGER = logging.getLogger(__name__)
 CANDIDATE_TTL = timedelta(hours=24)
@@ -291,7 +324,7 @@ class ResourceService:
         cleaned_types = list(dict.fromkeys(value.lower().lstrip(".").strip() for value in (file_types or [])))
         if len(query) < 2 or len(query) > 200:
             raise ResourceCapabilityError("invalid_argument", "检索关键词长度必须在 2 到 200 个字符之间")
-        if len(cleaned_types) > 30 or any(value not in DEFAULT_TYPES for value in cleaned_types):
+        if len(cleaned_types) > len(DEFAULT_TYPES) or any(value not in DEFAULT_TYPES for value in cleaned_types):
             raise ResourceCapabilityError("unsupported_file_type", "文件类型不在允许范围内")
         if limit < 1 or limit > 100:
             raise ResourceCapabilityError("invalid_argument", "结果数量必须在 1 到 100 之间")
@@ -586,7 +619,7 @@ class ResourceService:
         cleaned = safe_filename(filename)
         extension = cleaned.rsplit(".", 1)[-1].lower() if "." in cleaned else ""
         haystack = f"{cleaned}\n{message.raw_text or ''}".lower()
-        if task["keyword"].lower() not in haystack or task["file_types"] and extension not in set(task["file_types"]):
+        if extension not in DEFAULT_TYPES or task["keyword"].lower() not in haystack or task["file_types"] and extension not in set(task["file_types"]):
             return None
         if any(term in haystack for term in BLOCKED_TERMS):
             return None
