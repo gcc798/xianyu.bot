@@ -6,7 +6,7 @@
 
 ```text
 server/        Go API、闲鱼业务、Agent 和 PostgreSQL
-agent-web/     React 18 + TypeScript 前端
+agent-web/     React 19 + TypeScript 前端
 telegram.bot/ Telegram 资源与 MCP 服务
 web/           待删除的旧 Vue 参考
 docs/          当前架构和工程规则
