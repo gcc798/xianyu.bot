@@ -1,10 +1,9 @@
 import { Alert, App, Button, Input, Pagination, Space, Switch, Table, Tag, Tooltip } from "antd";
 import type { TableColumnsType } from "antd";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { accountsApi } from "../../../api/accounts";
 import type {
   AccountCredentialInput,
-  QRLogin,
   WebSocketStatus,
   XianyuAccount,
 } from "../../../models/account";
@@ -14,6 +13,7 @@ import AccountEditorModal from "./components/AccountEditorModal";
 import type { AccountEditorInput } from "./components/AccountEditorModal";
 import CredentialModal from "./components/CredentialModal";
 import QRLoginModal from "./components/QRLoginModal";
+import { useAccountQRLogin } from "./hooks/useAccountQRLogin";
 
 const accountStatus: Record<string, { label: string; color: string }> = {
   ready: { label: "正常", color: "success" },
@@ -44,11 +44,6 @@ export function Component() {
   const [credentialAccount, setCredentialAccount] = useState<XianyuAccount | null>(null);
   const [saving, setSaving] = useState(false);
   const [busyID, setBusyID] = useState(0);
-  const [qrOpen, setQROpen] = useState(false);
-  const [qrLoading, setQRLoading] = useState(false);
-  const [qrLogin, setQRLogin] = useState<QRLogin | null>(null);
-  const qrTimer = useRef<number | undefined>(undefined);
-  const qrRequest = useRef(0);
 
   const refreshConnections = useCallback(async (accounts: XianyuAccount[]) => {
     const results = await Promise.allSettled(
@@ -87,12 +82,7 @@ export function Component() {
     }, 10000);
     return () => window.clearInterval(timer);
   }, [rows, refreshConnections]);
-  useEffect(
-    () => () => {
-      if (qrTimer.current) window.clearTimeout(qrTimer.current);
-    },
-    [],
-  );
+  const qrLogin = useAccountQRLogin({ onConfirmed: load, onError: setError });
 
   const saveAccount = async (input: AccountEditorInput) => {
     setSaving(true);
@@ -172,65 +162,6 @@ export function Component() {
     }
   };
 
-  const pollQRLogin = useCallback(
-    async (sessionId: string, requestID: number) => {
-      try {
-        const response = await accountsApi.qrLoginStatus(sessionId);
-        if (requestID !== qrRequest.current) return;
-        setQRLogin((current) => ({
-          ...response.login,
-          qrCodeDataUrl: response.login.qrCodeDataUrl || current?.qrCodeDataUrl,
-        }));
-        if (
-          ["confirmed", "expired", "cancelled", "verification_required", "error"].includes(
-            response.login.status,
-          )
-        ) {
-          if (response.login.status === "confirmed") {
-            message.success("扫码登录成功");
-            void load();
-          }
-          return;
-        }
-        qrTimer.current = window.setTimeout(() => void pollQRLogin(sessionId, requestID), 1500);
-      } catch (cause) {
-        if (requestID === qrRequest.current)
-          setError(cause instanceof Error ? cause.message : "二维码状态获取失败");
-      }
-    },
-    [load, message],
-  );
-
-  const openQRLogin = async (record: XianyuAccount) => {
-    const requestID = ++qrRequest.current;
-    setQROpen(true);
-    setQRLoading(true);
-    setQRLogin(null);
-    try {
-      const response = await accountsApi.startQRLogin(record.ID);
-      if (requestID !== qrRequest.current) {
-        await accountsApi.cancelQRLogin(response.login.sessionId);
-        return;
-      }
-      setQRLogin(response.login);
-      qrTimer.current = window.setTimeout(
-        () => void pollQRLogin(response.login.sessionId, requestID),
-        1500,
-      );
-    } finally {
-      if (requestID === qrRequest.current) setQRLoading(false);
-    }
-  };
-
-  const closeQRLogin = () => {
-    qrRequest.current += 1;
-    if (qrTimer.current) window.clearTimeout(qrTimer.current);
-    if (qrLogin && ["pending", "scanned"].includes(qrLogin.status))
-      void accountsApi.cancelQRLogin(qrLogin.sessionId);
-    setQROpen(false);
-    setQRLogin(null);
-  };
-
   const remove = (record: XianyuAccount) =>
     modal.confirm({
       title: "删除这个账号？",
@@ -290,7 +221,7 @@ export function Component() {
         <Button
           type="link"
           className={pageStyles.linkButton}
-          onClick={() => void openQRLogin(record)}
+          onClick={() => void qrLogin.start(record)}
         >
           扫码登录
         </Button>
@@ -473,7 +404,12 @@ export function Component() {
         onCancel={() => setCredentialAccount(null)}
         onSave={saveCredential}
       />
-      <QRLoginModal open={qrOpen} loading={qrLoading} login={qrLogin} onCancel={closeQRLogin} />
+      <QRLoginModal
+        open={qrLogin.open}
+        loading={qrLogin.loading}
+        login={qrLogin.login}
+        onCancel={qrLogin.close}
+      />
     </div>
   );
 }

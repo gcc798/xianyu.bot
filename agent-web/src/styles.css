@@ -102,44 +102,53 @@ button {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 22px;
   align-items: center;
-  padding: 9px 9px 9px 12px;
+  padding-right: 9px;
   border: 0;
   border-radius: 10px;
-  text-align: left;
   background: transparent;
-  cursor: pointer;
 }
 .session-row:hover,
 .session-row.active {
   background: #eceff5;
 }
-.session-row > span {
+.session-open {
   min-width: 0;
+  min-height: 55px;
   display: grid;
+  align-content: center;
   gap: 5px;
+  padding: 9px 3px 9px 12px;
+  border: 0;
+  text-align: left;
+  background: transparent;
+  cursor: pointer;
 }
-.session-row strong {
+.session-open strong {
   overflow: hidden;
   font-size: 13px;
   font-weight: 520;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.session-row small {
+.session-open small {
   color: #a1a6af;
   font-size: 10px;
 }
-.session-row i {
+.session-delete {
   opacity: 0;
-  font-style: normal;
+  padding: 0;
+  border: 0;
   color: #9399a5;
   font-size: 17px;
   text-align: center;
+  background: transparent;
+  cursor: pointer;
 }
-.session-row:hover i {
+.session-row:hover .session-delete,
+.session-delete:focus-visible {
   opacity: 1;
 }
-.session-row i:hover {
+.session-delete:hover {
   color: #d24c4c;
 }
 .chat-stage {

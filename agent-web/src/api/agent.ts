@@ -34,6 +34,7 @@ export const getToolCall = (id: number, callId: string) =>
   );
 
 export function sendMessage(sessionId: number, message: string, directives: Directive[]) {
+  // 同一个键同时放入请求头和请求体，供网关与业务层共同识别重复提交。
   const idempotencyKey = crypto.randomUUID();
   return request<{ run: { id: number; sessionId: number; status: string } }>(
     `/xy/ai/agent/sessions/${sessionId}/messages`,
@@ -78,6 +79,7 @@ export async function streamEvents(
   while (true) {
     const { value, done } = await reader.read();
     if (done) return;
+    // 网络分片不保证落在 SSE 事件边界，必须保留未完成片段等待下一次读取。
     buffer += decoder.decode(value, { stream: true }).replaceAll("\r\n", "\n");
     let boundary = buffer.indexOf("\n\n");
     while (boundary >= 0) {

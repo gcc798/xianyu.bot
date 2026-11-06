@@ -15,6 +15,7 @@ import { acceptRenewedToken, accessToken, apiBaseURL, queryString } from "./clie
 
 const basePath = "/xy/proxy/telegram";
 
+// Telegram 服务直接返回自身 JSON，不使用主服务的 { code, data, msg } 信封。
 async function telegramRequest<T>(path: string, init: RequestInit = {}) {
   const headers = new Headers(init.headers);
   const token = accessToken();

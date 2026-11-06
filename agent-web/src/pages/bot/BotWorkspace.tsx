@@ -1,4 +1,4 @@
-import { MenuFoldOutlined, MenuUnfoldOutlined } from "@ant-design/icons";
+import { MenuUnfoldOutlined } from "@ant-design/icons";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   approveRun,
@@ -20,6 +20,7 @@ import type {
   Session,
 } from "../../models/agent";
 import TrajectoryPanel from "./components/TrajectoryPanel";
+import SessionSidebar from "./components/SessionSidebar";
 
 const capabilities = [
   ["skill", "resource-discovery", "理解目标并编排资源检索"],
@@ -76,6 +77,7 @@ export default function BotWorkspace() {
   }, []);
 
   const openSession = useCallback(async (id: number) => {
+    // 切换会话前终止旧事件流，避免旧会话增量写入新会话界面。
     streamRef.current?.abort();
     setSessionId(id);
     setError("");
@@ -174,6 +176,7 @@ export default function BotWorkspace() {
           ),
         );
         streamRef.current?.abort();
+        // 终态后以服务端持久化结果为准，补齐流断开前可能尚未到达的事件。
         void reloadActive();
       }
     },
@@ -278,46 +281,14 @@ export default function BotWorkspace() {
   );
   return (
     <main className={`agent-app ${historyCollapsed ? "history-collapsed" : ""}`}>
-      <aside className="session-sidebar">
-        <div className="session-toolbar">
-          <button className="new-chat" onClick={() => void newConversation()}>
-            <span>＋</span> 新对话
-          </button>
-          <button
-            className="history-toggle"
-            title="收起历史对话"
-            aria-label="收起历史对话"
-            onClick={() => setHistoryCollapsed(true)}
-          >
-            <MenuFoldOutlined />
-          </button>
-        </div>
-        <nav className="session-list" aria-label="对话列表">
-          {sessions.map((session) => (
-            <button
-              key={session.ID}
-              className={`session-row ${session.ID === sessionId ? "active" : ""}`}
-              onClick={() => void openSession(session.ID)}
-            >
-              <span>
-                <strong>{session.title || "新对话"}</strong>
-                <small>{formatTime(session.lastMessageAt || session.CreatedAt)}</small>
-              </span>
-              <i
-                role="button"
-                aria-label="删除对话"
-                tabIndex={0}
-                onClick={(event) => {
-                  event.stopPropagation();
-                  void removeConversation(session.ID);
-                }}
-              >
-                ×
-              </i>
-            </button>
-          ))}
-        </nav>
-      </aside>
+      <SessionSidebar
+        sessions={sessions}
+        activeSessionId={sessionId}
+        onCreate={() => void newConversation()}
+        onOpen={(id) => void openSession(id)}
+        onDelete={(id) => void removeConversation(id)}
+        onCollapse={() => setHistoryCollapsed(true)}
+      />
 
       <section className="chat-stage">
         <header className="chat-header">
@@ -526,15 +497,4 @@ export default function BotWorkspace() {
       )}
     </main>
   );
-}
-
-function formatTime(value?: string) {
-  return value
-    ? new Intl.DateTimeFormat("zh-CN", {
-        month: "2-digit",
-        day: "2-digit",
-        hour: "2-digit",
-        minute: "2-digit",
-      }).format(new Date(value))
-    : "";
 }

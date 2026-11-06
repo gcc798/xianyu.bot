@@ -19,6 +19,7 @@ export function clearStoredAuth() {
   localStorage.removeItem(SESSION_KEY);
 }
 
+/** 接收后端滑动续期的新令牌，并同步本地会话的过期时间。 */
 export function acceptRenewedToken(response: Response) {
   const token = response.headers.get("new-token");
   if (!token) return;
@@ -60,6 +61,7 @@ export async function request<T>(path: string, init: RequestInit = {}): Promise<
   acceptRenewedToken(response);
 
   if (response.status === 401) {
+    // 统一清理本地状态，避免各页面在失效会话下继续发起请求。
     clearStoredAuth();
     if (!window.location.pathname.endsWith("/login")) window.location.assign("/agent/login");
     throw new Error("登录已失效，请重新登录");
