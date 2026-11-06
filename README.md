@@ -11,7 +11,7 @@ telegram.bot/ Telegram 资源与 MCP 服务
 docs/          当前架构和工程规则
 ```
 
-后端模块边界见 [docs/architecture.md](docs/architecture.md)，功能范围见 [docs/project-scope.md](docs/project-scope.md)。
+工程文档见 [docs/README.md](docs/README.md)。
 
 ## 启动
 

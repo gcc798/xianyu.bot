@@ -50,6 +50,7 @@
 ## 文档与验证
 
 - 架构变化更新 `docs/architecture.md`，范围变化更新 `docs/project-scope.md`。
+- 产品定义更新 `docs/product.md`，设计规范更新 `docs/design.md`。
 - 不复制源码结构、表字段或历史过程到文档。
 - 先运行最小相关测试，再运行受影响应用的完整检查。
 - 不得把模拟测试写成真实账号或真实交易验收。
