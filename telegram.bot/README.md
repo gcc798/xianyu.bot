@@ -50,7 +50,7 @@ Compose 中的服务统一使用 `xianyu.bot` 网络。闲鱼助手后台映射�
 
 Telegram 与 Go 后端共用 `xianyu_bot` 数据库，Telegram 表统一使用 `tel_` 前缀；PostgreSQL 通过宿主机 `15432` 端口连接。表结构由根工程的单一 `init.sql` 初始化，Telegram 进程不动态建表。
 
-资源任务表为 `tel_resource_tasks`、`tel_resource_files`、`tel_resource_sources`。文件临时落在项目根目录 `tmp/telegram/`，上传 RustFS 后立即删除；网页经 Go 后端 JWT/Casbin 接口访问，不暴露 RustFS 凭据。
+资源任务表为 `tel_resource_tasks`、`tel_resource_files`、`tel_resource_sources`。文件临时落在项目根目录 `tmp/telegram/`，上传 RustFS 后立即删除；网页经 Go 后端 JWT 鉴权代理访问，不暴露 RustFS 凭据。
 
 ```bash
 docker compose up -d --build

@@ -8,7 +8,6 @@
 server/        Go API、闲鱼业务、Agent 和 PostgreSQL
 agent-web/     React 19 + TypeScript 前端
 telegram.bot/ Telegram 资源与 MCP 服务
-web/           待删除的旧 Vue 参考
 docs/          当前架构和工程规则
 ```
 
@@ -37,4 +36,4 @@ cd ../agent-web && npm run build
 docker compose config
 ```
 
-数据库初始化见 [docs/database.md](docs/database.md)，前端现状见 [docs/frontend.md](docs/frontend.md)，许可边界见 [docs/upstream-and-licensing.md](docs/upstream-and-licensing.md)。
+数据库初始化见 [docs/database.md](docs/database.md)，前端现状见 [docs/frontend.md](docs/frontend.md)，许可边界见 [docs/third-party-licensing.md](docs/third-party-licensing.md)。

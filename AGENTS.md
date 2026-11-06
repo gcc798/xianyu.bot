@@ -5,8 +5,7 @@
 - `server/`：Go 后端。
 - `agent-web/`：唯一维护的 React 前端。
 - `telegram.bot/`：Telegram 资源服务。
-- `web/`：待删除的旧 Vue 参考，不再修改或构建。
-- `docs/`：只记录当前事实，不记录迁移过程。
+- `docs/`：只记录当前事实。
 
 ## 后端
 
@@ -44,10 +43,9 @@
 
 ## 前端
 
-- 新功能只写入 `agent-web/`，使用 TypeScript 和 `.tsx`。
+- 前端功能写入 `agent-web/`，使用 TypeScript 和 `.tsx`。
 - 保留鉴权、权限、加载、空、错误、响应式和危险操作确认。
 - UI 修改必须执行 `npm run build`；重要交互还需真实浏览器检查。
-- `web/` 只允许读取，待剩余页面取舍完成后整体删除。
 
 ## 文档与验证
 
@@ -55,9 +53,9 @@
 - 不复制源码结构、表字段或历史过程到文档。
 - 先运行最小相关测试，再运行受影响应用的完整检查。
 - 不得把模拟测试写成真实账号或真实交易验收。
-- 遵守 `LICENSE` 和 `docs/upstream-and-licensing.md`。
+- 遵守 `LICENSE` 和 `docs/third-party-licensing.md`。
 
 ## Skills
 
-- 修改 Go、React、TypeScript 或 Vue 业务代码时使用 `.agents/skills/idiomatic-business-code/`。
+- 修改 Go、React 或 TypeScript 业务代码时使用 `.agents/skills/idiomatic-business-code/`。
 - UI 设计、审计和视觉调整时使用 `.agents/skills/impeccable/`。

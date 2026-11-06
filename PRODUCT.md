@@ -30,8 +30,7 @@ web
 ## Capabilities and Constraints
 
 - `agent-web/` 是唯一维护和部署的 Web 前端，使用 React 19、TypeScript、Vite、React Router 和 Ant Design。
-- `web/` 仅用于核对业务流程和接口；React 完成后整体删除，不继承其实现。
-- 前端使用当前唯一的 Go API 合同，不保留旧字段、旧路由或双响应格式的兼容代码。
+- 前端使用当前唯一的 Go API 合同，不保留废弃字段、路由或双响应格式的兼容代码。
 - 保留管理员与普通用户边界、用户业务数据所有权、加载/空/错误状态和危险操作确认。
 - 正式页面不使用模拟数据，不以全量列表拼接替代缺失的详情接口。
 - Cookie、Token、API Key、卡密和 MCP 凭据不得进入普通响应、日志、SSE、Prompt 或轨迹。
@@ -42,14 +41,13 @@ web
 - 产品名称使用“闲鱼运营”。
 - 一级菜单使用“Bot”和“闲鱼自动化”。
 - 界面语言为简体中文，语气直接、克制，不添加解释性营销文案。
-- 视觉采用明亮中性的企业级运营控制台方向，不继承旧工程的深绿、荧光黄和暖米色皮肤。
+- 视觉采用明亮中性的企业级运营控制台方向。
 - 字体、对话与轨迹的信息密度参考 DeepSeek Harness，但不引入工作区概念。
 
 ## Evidence on Hand
 
 - 真实业务和 API 合同位于 `server/internal/api/router/`、`server/internal/model/request/` 和 `server/internal/model/response/`。
-- 旧业务流程参考位于 `web/src/view/xianyu/` 和 `web/src/api/xianyu/`。
-- 已确认的商品列表、商品详情、订单详情和 Bot 信息结构位于 `agent-web/src/previews/product-management/`。
+- 正式页面和交互实现位于 `agent-web/src/pages/`，接口调用和 DTO 分别位于 `agent-web/src/api/`、`agent-web/src/models/`。
 - 仓库没有可公开使用的真实账号、凭据、交易数据或品牌图片；不得自行编造真实验收结果。
 
 ## Product Principles

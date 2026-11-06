@@ -37,7 +37,7 @@ Xianyu Tool -> Service
 
 `agent-web` 使用 React 19、TypeScript、Vite、React Router 和 Ant Design。应用入口负责全局主题与鉴权上下文，Router 负责页面懒加载和权限守卫，Layout 提供唯一的控制台导航；API、DTO、页面和跨页面组件按职责分层。
 
-前端只实现当前 Go API 合同，不保留旧 Vue 路由、字段或响应结构的运行时兼容逻辑。
+前端只实现当前 Go API 合同，不保留废弃路由、字段或响应结构的运行时兼容逻辑。
 
 ## 运行
 
