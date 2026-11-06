@@ -27,6 +27,7 @@ DEFAULT_TYPES = {"pdf", "epub", "mobi", "doc", "docx", "xls", "xlsx", "ppt", "pp
 BLOCKED_ARCHIVE_EXTENSIONS = {".exe", ".dll", ".scr", ".bat", ".cmd", ".com", ".msi", ".ps1", ".vbs", ".js", ".jar", ".apk"}
 LOGGER = logging.getLogger(__name__)
 CANDIDATE_TTL = timedelta(hours=24)
+DOWNLOAD_TIMEOUT_SECONDS = 1800
 TELEGRAM_SOURCE_PATTERN = re.compile(r"(?:https?://)?t\.me/([A-Za-z][A-Za-z0-9_]{4,})", re.IGNORECASE)
 
 
@@ -600,7 +601,11 @@ class ResourceService:
         path = task_dir / f"{record['id']}-{safe_filename(record['original_filename'])}"
         self.db.update_resource_file(record["id"], download_status="downloading", attempts=record["attempts"] + 1)
         try:
-            result = await self.telegram.call(self.telegram.client.download_media, message, file=str(path))
+            try:
+                async with asyncio.timeout(DOWNLOAD_TIMEOUT_SECONDS):
+                    result = await self.telegram.call(self.telegram.client.download_media, message, file=str(path))
+            except TimeoutError as exc:
+                raise RuntimeError("Telegram 下载超时（30 分钟）") from exc
             if not result or not path.is_file():
                 raise RuntimeError("Telegram 下载未生成文件")
             if path.stat().st_size > self.max_file_size:

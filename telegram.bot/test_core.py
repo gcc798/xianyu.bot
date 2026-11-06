@@ -2,6 +2,7 @@ import asyncio
 from datetime import datetime, timedelta, timezone
 import os
 from pathlib import Path
+from tempfile import TemporaryDirectory
 from types import SimpleNamespace
 import uuid
 import zipfile
@@ -44,6 +45,34 @@ def test_resource_validation():
             pass
     finally:
         archive_path.unlink(missing_ok=True)
+
+
+def test_resource_download_timeout_records_failure():
+    class FakeDatabase:
+        updates = []
+
+        def update_resource_file(self, _file_id, **values):
+            self.updates.append(values)
+
+    class FakeTelegram:
+        async def download_media(self, *_args, **_kwargs):
+            await asyncio.sleep(1)
+
+        async def call(self, func, *args, **kwargs):
+            return await func(*args, **kwargs)
+
+    with TemporaryDirectory() as temp_dir, patch("resource_service.DOWNLOAD_TIMEOUT_SECONDS", 0.01):
+        service = ResourceService.__new__(ResourceService)
+        service.db = FakeDatabase()
+        service.telegram = FakeTelegram()
+        service.telegram.client = service.telegram
+        service.storage = SimpleNamespace()
+        service.tmp_root = Path(temp_dir)
+        service.max_file_size = 1024
+        record = {"id": 1, "attempts": 0, "original_filename": "file.pdf", "file_type": "pdf", "mime_type": "application/pdf"}
+        assert asyncio.run(service._download(1, record, SimpleNamespace())) is False
+        assert service.db.updates[-1]["download_status"] == "failed"
+        assert "下载超时" in service.db.updates[-1]["error_message"]
 
 
 def test_adult_dialog_filter_uses_cached_ids_without_ai():
@@ -160,6 +189,10 @@ def test_metadata_scan_storage():
             assert db.resource_task(task["id"])["status"] == "queued"
             resource = db.claim_resource_file(task["id"], row, 99, "file-99", "training.pdf", 123, "application/pdf", "authorized training")
             assert resource and db.claim_resource_file(task["id"], row, 99, "file-99", "training.pdf", 123, "application/pdf", "authorized training") is None
+            db.update_resource_task(task["id"], status="running")
+            db.update_resource_file(resource["id"], download_status="downloading")
+            running_tasks, _ = db.list_resource_tasks({"q": task_keyword})
+            assert running_tasks[0]["current_stage"] == "downloading" and running_tasks[0]["current_file_name"] == "training.pdf"
             db.update_resource_file(resource["id"], download_status="success", upload_status="success", object_key="telegram/test/training.pdf", completed_at=now)
             assert db.resource_file(resource["id"])["source_name"] == row["name"]
             db.update_resource_task(task["id"], status="cancelled", cancel_requested=True, completed_at=now)

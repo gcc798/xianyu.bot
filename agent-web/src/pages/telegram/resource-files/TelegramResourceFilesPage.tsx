@@ -1,6 +1,7 @@
 import { Alert, App, Button, Input, InputNumber, Pagination, Select, Space, Table, Tag } from "antd";
 import type { TableColumnsType } from "antd";
 import { useCallback, useEffect, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { telegramApi } from "../../../api/telegram";
 import type { TelegramResourceFile, TelegramResourceOptions } from "../../../models/telegram";
 import styles from "../../../styles/page.module.css";
@@ -16,10 +17,12 @@ const previewable = (file: TelegramResourceFile) => file.file_type === "pdf" || 
 
 export function Component() {
   const { message } = App.useApp();
+  const [searchParams] = useSearchParams();
+  const initialTaskId = Number(searchParams.get("task_id"));
   const [options, setOptions] = useState<TelegramResourceOptions>({ dialogs: [], file_types: [], max_file_size: 0 });
   const [rows, setRows] = useState<TelegramResourceFile[]>([]);
   const [page, setPage] = useState(1), [pageSize, setPageSize] = useState(20), [total, setTotal] = useState(0);
-  const [taskId, setTaskId] = useState<number>(), [filename, setFilename] = useState(""), [fileType, setFileType] = useState<string>(), [status, setStatus] = useState<string>(), [sourceId, setSourceId] = useState<number>();
+  const [taskId, setTaskId] = useState<number | undefined>(initialTaskId > 0 ? initialTaskId : undefined), [filename, setFilename] = useState(""), [fileType, setFileType] = useState<string>(), [status, setStatus] = useState<string>(), [sourceId, setSourceId] = useState<number>();
   const [queryFilename, setQueryFilename] = useState("");
   const [loading, setLoading] = useState(false), [error, setError] = useState("");
 

@@ -192,13 +192,27 @@ class Database:
     def list_resource_tasks(self, filters: dict, page: int = 1, page_size: int = 20) -> tuple[list[dict], int]:
         where, params = ["TRUE"], []
         if filters.get("q"):
-            where.append("keyword ILIKE %s"); params.append(f"%{filters['q']}%")
+            where.append("t.keyword ILIKE %s"); params.append(f"%{filters['q']}%")
         if filters.get("status"):
-            where.append("status=%s"); params.append(filters["status"])
-        base = " FROM tel_resource_tasks WHERE " + " AND ".join(where)
+            where.append("t.status=%s"); params.append(filters["status"])
+        base = """ FROM tel_resource_tasks t
+            LEFT JOIN LATERAL (
+                SELECT id,original_filename,file_size,bytes_downloaded,download_status,upload_status
+                FROM tel_resource_files WHERE task_id=t.id ORDER BY id DESC LIMIT 1
+            ) f ON TRUE WHERE """ + " AND ".join(where)
         with self.connect() as db:
             total = db.execute("SELECT COUNT(*)" + base, params).fetchone()["count"]
-            rows = db.execute("SELECT *" + base + " ORDER BY id DESC LIMIT %s OFFSET %s", (*params, page_size, (page - 1) * page_size)).fetchall()
+            rows = db.execute("""SELECT t.*,
+                CASE
+                    WHEN t.status='completed' AND t.files_found=0 THEN 'no_result'
+                    WHEN t.status!='running' THEN t.status
+                    WHEN f.upload_status='uploading' THEN 'uploading'
+                    WHEN f.download_status='downloading' THEN 'downloading'
+                    ELSE 'searching'
+                END AS current_stage,
+                f.id AS current_file_id,f.original_filename AS current_file_name,f.file_size AS current_file_size,
+                f.bytes_downloaded AS current_file_bytes,f.download_status AS current_download_status,f.upload_status AS current_upload_status
+            """ + base + " ORDER BY t.id DESC LIMIT %s OFFSET %s", (*params, page_size, (page - 1) * page_size)).fetchall()
             return rows, total
 
     def queued_resource_tasks(self) -> list[int]:

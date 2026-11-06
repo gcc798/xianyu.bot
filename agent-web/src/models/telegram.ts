@@ -61,6 +61,13 @@ export type TelegramResourceTask = TelegramResourceTaskInput & {
   completed_at: string | null;
   cancel_requested: boolean;
   source_strategy: string;
+  current_stage: "queued" | "searching" | "downloading" | "uploading" | "completed" | "no_result" | "failed" | "cancelled";
+  current_file_id: number | null;
+  current_file_name: string | null;
+  current_file_size: number | null;
+  current_file_bytes: number | null;
+  current_download_status: TelegramResourceFile["download_status"] | null;
+  current_upload_status: TelegramResourceFile["upload_status"] | null;
 };
 export type TelegramResourceTaskPage = { list: TelegramResourceTask[]; total: number; page: number; page_size: number };
 

@@ -1,11 +1,12 @@
 import { Alert, App, Button, Form, Input, InputNumber, Modal, Pagination, Radio, Select, Space, Table, Tag } from "antd";
 import type { TableColumnsType } from "antd";
 import { useCallback, useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { telegramApi } from "../../../api/telegram";
 import type { TelegramResourceOptions, TelegramResourceTask, TelegramResourceTaskInput } from "../../../models/telegram";
 import businessStyles from "../../../styles/business.module.css";
 import styles from "../../../styles/page.module.css";
-import { formatDateTime } from "../../../utils/format";
+import { formatDateTime, formatFileSize } from "../../../utils/format";
 
 const statusMeta: Record<TelegramResourceTask["status"], { label: string; color?: string }> = {
   queued: { label: "排队中", color: "processing" },
@@ -13,6 +14,17 @@ const statusMeta: Record<TelegramResourceTask["status"], { label: string; color?
   completed: { label: "已完成", color: "success" },
   failed: { label: "失败", color: "error" },
   cancelled: { label: "已取消" },
+};
+
+const stageMeta: Record<TelegramResourceTask["current_stage"], { label: string; color?: string }> = {
+  queued: { label: "等待执行" },
+  searching: { label: "检索中", color: "processing" },
+  downloading: { label: "下载中", color: "processing" },
+  uploading: { label: "上传中", color: "processing" },
+  completed: { label: "入库完成", color: "success" },
+  no_result: { label: "未找到文件" },
+  failed: { label: "处理失败", color: "error" },
+  cancelled: { label: "已终止" },
 };
 
 const sourceModeLabel = (task: TelegramResourceTask) => {
@@ -23,6 +35,7 @@ const sourceModeLabel = (task: TelegramResourceTask) => {
 
 export function Component() {
   const { message, modal } = App.useApp();
+  const navigate = useNavigate();
   const [createForm] = Form.useForm<TelegramResourceTaskInput>();
   const [filterForm] = Form.useForm<{ q?: string; status?: TelegramResourceTask["status"] }>();
   const sourceMode = Form.useWatch("source_mode", createForm);
@@ -88,14 +101,16 @@ export function Component() {
     { title: "检索主题", dataIndex: "keyword", width: 210, ellipsis: true },
     { title: "文件类型", dataIndex: "file_types", width: 150, ellipsis: true, render: (value: string[]) => value.length ? value.join("、") : "不限" },
     { title: "范围", width: 150, render: (_, row) => `${sourceModeLabel(row)} · ${row.source_dialog_ids.length} 个` },
-    { title: "进度", width: 160, render: (_, row) => `${row.files_completed} / ${row.max_downloads}（发现 ${row.files_found}）` },
+    { title: "结果", width: 180, render: (_, row) => `找到 ${row.files_found} · 入库 ${row.files_completed} / ${row.max_downloads}` },
+    { title: "当前阶段", width: 210, render: (_, row) => <Space size={6}><Tag color={stageMeta[row.current_stage].color}>{stageMeta[row.current_stage].label}</Tag>{["downloading", "uploading"].includes(row.current_stage) && row.current_file_name ? <span title={row.current_file_name}>{row.current_file_name} · {formatFileSize(row.current_file_size || 0)}</span> : null}</Space> },
     { title: "状态", dataIndex: "status", width: 100, render: (value: TelegramResourceTask["status"]) => <Tag color={statusMeta[value].color}>{statusMeta[value].label}</Tag> },
     { title: "创建时间", dataIndex: "created_at", width: 150, render: (value: string) => formatDateTime(value) },
     { title: "错误", dataIndex: "error_message", width: 180, ellipsis: true, render: (value: string | null) => value || "-" },
-    { title: "操作", fixed: "right", width: 90, render: (_, row) => <>
+    { title: "操作", fixed: "right", width: 140, render: (_, row) => <Space size={2}>
+      {row.files_found > 0 && <Button type="link" className={styles.linkButton} onClick={() => navigate(`/telegram/resource-files?task_id=${row.id}`)}>查看文件</Button>}
       {(["queued", "running"] as const).includes(row.status as "queued" | "running") && <Button danger type="link" className={styles.linkButton} onClick={() => runAction(row, "cancel")}>取消</Button>}
       {(["failed", "cancelled"] as const).includes(row.status as "failed" | "cancelled") && <Button type="link" className={styles.linkButton} onClick={() => runAction(row, "retry")}>重试</Button>}
-    </> },
+    </Space> },
   ];
 
   return <div className={styles.page}><section className={styles.surface}>
@@ -105,7 +120,7 @@ export function Component() {
       <Form.Item><Space><Button type="primary" htmlType="submit">查询</Button><Button onClick={() => { filterForm.resetFields(); setPage(1); setFilters({}); }}>重置</Button><Button onClick={() => setCreateOpen(true)}>创建任务</Button></Space></Form.Item>
     </Form>
     {error && <Alert className={styles.alert} type="error" showIcon title={error} />}
-    <div className={styles.table}><Table<TelegramResourceTask> rowKey="id" size="small" loading={loading} columns={columns} dataSource={rows} pagination={false} scroll={{ x: 1360 }} /></div>
+    <div className={styles.table}><Table<TelegramResourceTask> rowKey="id" size="small" loading={loading} columns={columns} dataSource={rows} pagination={false} scroll={{ x: 1570 }} /></div>
     <div className={styles.pagination}><Pagination current={page} pageSize={pageSize} total={total} showSizeChanger pageSizeOptions={[20, 50, 100]} onChange={(nextPage, nextSize) => { setPage(nextSize === pageSize ? nextPage : 1); setPageSize(nextSize); }} /></div>
     <Modal title="创建资源任务" open={createOpen} width={720} okText="创建任务" cancelText="取消" confirmLoading={submitting} onOk={() => createForm.submit()} onCancel={() => setCreateOpen(false)}>
       <Form form={createForm} layout="vertical" className={businessStyles.modalGrid} initialValues={{ file_types: [], source_mode: "smart", source_dialog_ids: [], max_downloads: 10 }} onFinish={create}>
