@@ -115,7 +115,6 @@ export default function ConsoleLayout() {
             inlineCollapsed={collapsed}
             items={menu}
             selectedKeys={[selectedPath]}
-            defaultOpenKeys={["telegram", "xianyu", "system"]}
             onClick={({ key }) => navigate(key)}
             className={styles.menu}
           />
