@@ -1,0 +1,21 @@
+{% extends "base.html" %}{% block content %}
+<div class="card mx-auto p-4 text-center login-card">
+  <h1 class="h3">Telegram 未登录</h1>
+  {% if not configured %}<div class="alert alert-warning">请复制 <code>.env.example</code> 为 <code>.env</code>，填写 TG_API_ID 和 TG_API_HASH 后重启。</div>{% endif %}
+  {% if qr.status == "connecting" %}
+    <div class="spinner-border text-primary my-3" role="status"></div><p>正在连接 Telegram…</p>
+  {% elif qr.status == "waiting" %}
+    <p>请使用手机 Telegram 扫描二维码登录</p><img class="qr mx-auto" src="{{ qr.image }}" alt="Telegram 登录二维码">
+    <p class="text-muted mt-3">Telegram → 设置 → 设备 → 链接桌面设备</p>
+    <form method="post" action="/login/qr"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="btn btn-outline-primary">刷新二维码</button></form>
+  {% elif qr.status == "2fa" %}
+    <p>账号启用了两步验证，请输入 Telegram 云密码。密码只用于本次登录，不会保存。</p>
+    {% if qr.error %}<div class="alert alert-danger">{{ qr.error }}</div>{% endif %}
+    <form method="post" action="/login/2fa"><input type="hidden" name="csrf" value="{{ csrf }}"><input class="form-control mb-3" type="password" name="password" required autocomplete="current-password"><button class="btn btn-primary">完成登录</button></form>
+  {% else %}
+    {% if qr.error %}<div class="alert alert-danger">{{ qr.error }}</div>{% endif %}
+    <form method="post" action="/login/qr"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="btn btn-primary" {% if not configured %}disabled{% endif %}>生成二维码</button></form>
+  {% endif %}
+</div>
+{% endblock %}
+{% block scripts %}{% if qr.status in ("connecting", "waiting", "success") %}<script>pollLogin({{ 'true' if qr.status == 'connecting' else 'false' }})</script>{% endif %}{% endblock %}

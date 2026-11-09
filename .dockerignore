@@ -1,0 +1,9 @@
+.git
+.idea
+.playwright-cli
+**/node_modules
+**/dist
+server/log
+server/uploads
+tmp
+requirements

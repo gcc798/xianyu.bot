@@ -1,0 +1,10 @@
+{% extends "base.html" %}{% block content %}
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4"><div><h1 class="h3 mb-1">概览</h1><span class="text-muted">上次扫描：{{ latest.finished_at if latest and latest.finished_at else '尚未扫描' }}</span></div>
+<div><form method="post" action="/scan"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="btn btn-primary">快速扫描</button></form></div></div>
+<div id="scan-progress" class="alert alert-info d-none"><div class="progress mb-2"><div class="progress-bar" style="width:0%"></div></div><span></span></div>
+<div class="row row-cols-2 row-cols-md-4 row-cols-xl-8 g-3 mb-4">
+{% for label,key in [('总计','total'),('群组','groups_count'),('频道','channels_count'),('异常','abnormal'),('静音','muted'),('归档','archived'),('我创建','created_by_me'),('未读','unread')] %}<div class="col"><div class="card stat"><div class="card-body"><small>{{ label }}</small><strong>{{ summary[key] }}</strong></div></div></div>{% endfor %}
+</div>
+<a class="btn btn-outline-primary" href="/groups?sort=last_message&order=desc">查看全部群聊与频道</a>
+{% endblock %}
+{% block scripts %}<script>pollScan()</script>{% endblock %}
