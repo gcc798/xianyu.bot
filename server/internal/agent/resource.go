@@ -46,6 +46,7 @@ type resourceObjectStore interface {
 	BucketExists(ctx context.Context, bucket string) (bool, error)
 	// MakeBucket 创建存储桶。
 	MakeBucket(ctx context.Context, bucket string, opts minio.MakeBucketOptions) error
+	RemoveObject(ctx context.Context, bucket, objectKey string, opts minio.RemoveObjectOptions) error
 }
 
 // ResourceCatalog 管理资源目录、交付任务和对象存储。
@@ -91,6 +92,116 @@ func (s *ResourceCatalog) List(ctx context.Context, ownerID uint, input xyReques
 	resources := make([]model.Resource, 0)
 	err := db.Scopes(input.Paginate()).Order("id DESC").Find(&resources).Error
 	return resources, total, err
+}
+
+// ListTasks 按所有者分页查询 Agent 资源获取任务。
+func (s *ResourceCatalog) ListTasks(ctx context.Context, ownerID uint, input xyRequest.ResourceTaskSearch) ([]model.ResourceTask, int64, error) {
+	if ownerID == 0 {
+		return nil, 0, errors.New("用户未登录")
+	}
+	db := s.db.WithContext(ctx).Model(&model.ResourceTask{}).Where("owner_id = ?", ownerID)
+	if state := strings.TrimSpace(input.State); state != "" {
+		db = db.Where("state = ?", state)
+	}
+	var total int64
+	if err := db.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+	tasks := make([]model.ResourceTask, 0)
+	err := db.Scopes(input.Paginate()).Order("id DESC").Find(&tasks).Error
+	return tasks, total, err
+}
+
+// RegisterTelegramResource 将 Telegram 下载文件登记到所有者的资源目录。
+func (s *ResourceCatalog) RegisterTelegramResource(ctx context.Context, input xyRequest.RegisterTelegramResource) (model.Resource, error) {
+	if input.OwnerID == 0 || strings.TrimSpace(input.Name) == "" || input.Size < 1 || !sha256Pattern.MatchString(input.SHA256) ||
+		!strings.HasPrefix(input.ObjectKey, "telegram/") || strings.Contains(input.ObjectKey, "..") || strings.TrimSpace(input.ExternalID) == "" {
+		return model.Resource{}, errors.New("Telegram 资源信息无效")
+	}
+	store, bucket, err := s.storage()
+	if err != nil {
+		return model.Resource{}, err
+	}
+	object, err := store.StatObject(ctx, bucket, input.ObjectKey, minio.StatObjectOptions{})
+	if err != nil {
+		return model.Resource{}, fmt.Errorf("检查 Telegram 资源对象: %w", err)
+	}
+	if object.Size != input.Size {
+		return model.Resource{}, errors.New("Telegram 资源大小不匹配")
+	}
+	var resource model.Resource
+	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		err := tx.Where("bucket = ? AND object_key = ?", bucket, input.ObjectKey).First(&resource).Error
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			resource = model.Resource{
+				OwnerID: input.OwnerID, Name: input.Name, Size: input.Size, MIMEType: input.MIMEType,
+				SHA256: input.SHA256, Bucket: bucket, ObjectKey: input.ObjectKey, State: "available",
+			}
+			if err := tx.Create(&resource).Error; err != nil {
+				return err
+			}
+		} else if err != nil {
+			return err
+		} else if resource.OwnerID != input.OwnerID {
+			return errors.New("Telegram 资源已属于其他用户")
+		}
+		var source model.ResourceSource
+		err = tx.Where("resource_id = ? AND mcp_server_code = ? AND external_id = ?", resource.ID, "telegram", input.ExternalID).First(&source).Error
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			source = model.ResourceSource{
+				ResourceID: resource.ID, MCPServerCode: "telegram", ExternalID: input.ExternalID,
+				SourceName: input.SourceName, SourceReference: input.SourceReference,
+			}
+			return tx.Create(&source).Error
+		}
+		return err
+	})
+	return resource, err
+}
+
+// DeleteTelegramResource 删除所有者名下已完成的 Telegram 文件及资源记录。
+func (s *ResourceCatalog) DeleteTelegramResource(ctx context.Context, input xyRequest.DeleteTelegramResource, fileID uint) error {
+	if input.OwnerID == 0 || fileID == 0 {
+		return errors.New("Telegram 文件参数无效")
+	}
+	var file struct {
+		ObjectKey      string `gorm:"column:object_key"`
+		DownloadStatus string `gorm:"column:download_status"`
+		UploadStatus   string `gorm:"column:upload_status"`
+	}
+	if err := s.db.WithContext(ctx).Table("tel_resource_files").Select("object_key, download_status, upload_status").Where("id = ? AND owner_id = ?", fileID, input.OwnerID).Take(&file).Error; err != nil {
+		return err
+	}
+	if file.DownloadStatus == "queued" || file.DownloadStatus == "downloading" || file.UploadStatus == "pending" || file.UploadStatus == "uploading" {
+		return errors.New("文件仍在处理中，暂不能删除")
+	}
+	store, bucket, err := s.storage()
+	if err != nil {
+		return err
+	}
+	if file.ObjectKey != "" {
+		if !strings.HasPrefix(file.ObjectKey, "telegram/") {
+			return errors.New("Telegram 文件存储键无效")
+		}
+		if err := store.RemoveObject(ctx, bucket, file.ObjectKey, minio.RemoveObjectOptions{}); err != nil {
+			return fmt.Errorf("删除 Telegram 对象: %w", err)
+		}
+	}
+	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if file.ObjectKey != "" {
+			if err := tx.Where("owner_id = ? AND bucket = ? AND object_key = ?", input.OwnerID, bucket, file.ObjectKey).Delete(&model.Resource{}).Error; err != nil {
+				return err
+			}
+		}
+		result := tx.Exec("DELETE FROM tel_resource_files WHERE id = ? AND owner_id = ?", fileID, input.OwnerID)
+		if result.Error != nil {
+			return result.Error
+		}
+		if result.RowsAffected == 0 {
+			return gorm.ErrRecordNotFound
+		}
+		return nil
+	})
 }
 
 // Get 查询所有者名下的资源详情和来源。
@@ -312,7 +423,7 @@ func (s *ResourceCatalog) CompleteDelivery(ctx context.Context, taskID uint, tok
 			return errors.New("上传对象与候选资源大小不匹配")
 		}
 		resource = model.Resource{
-			OwnerID: task.OwnerID, TaskID: task.ID, Name: candidate.Name, Size: size,
+			OwnerID: task.OwnerID, TaskID: new(task.ID), Name: candidate.Name, Size: size,
 			MIMEType: candidate.MIMEType, SHA256: checksum, Bucket: bucket,
 			ObjectKey: task.UploadObjectKey, State: "available",
 		}

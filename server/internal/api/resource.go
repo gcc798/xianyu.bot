@@ -1,6 +1,8 @@
 package api
 
 import (
+	"strings"
+
 	"github.com/gcc798/xianyu.bot/internal/agent"
 	xyRequest "github.com/gcc798/xianyu.bot/internal/model/request"
 	"github.com/gcc798/xianyu.bot/internal/model/response"
@@ -31,6 +33,55 @@ func (a *ResourceAPI) List(c *gin.Context) {
 		return
 	}
 	response.OkWithDetailed(response.PageResult{List: resources, Total: total, Page: input.Page, PageSize: input.PageSize}, "获取成功", c)
+}
+
+// ImportTelegramResource 处理 Telegram 服务内部的资源登记请求。
+func (a *ResourceAPI) ImportTelegramResource(c *gin.Context) {
+	var input xyRequest.RegisterTelegramResource
+	if err := c.ShouldBindJSON(&input); err != nil {
+		response.FailWithMessage(err.Error(), c)
+		return
+	}
+	input.Name = strings.TrimSpace(input.Name)
+	resource, err := a.resources.RegisterTelegramResource(c.Request.Context(), input)
+	if err != nil {
+		failAccount("登记 Telegram 资源失败", err, c)
+		return
+	}
+	response.OkWithData(gin.H{"resource": resource}, c)
+}
+
+// DeleteTelegramResource 处理 Telegram 服务内部的文件删除请求。
+func (a *ResourceAPI) DeleteTelegramResource(c *gin.Context) {
+	fileID, ok := pathID(c)
+	if !ok {
+		return
+	}
+	var input xyRequest.DeleteTelegramResource
+	if err := c.ShouldBindJSON(&input); err != nil {
+		response.FailWithMessage(err.Error(), c)
+		return
+	}
+	if err := a.resources.DeleteTelegramResource(c.Request.Context(), input, fileID); err != nil {
+		failAccount("删除 Telegram 资源失败", err, c)
+		return
+	}
+	response.OkWithData(gin.H{"ok": true}, c)
+}
+
+// ListTasks 处理 Agent 资源获取任务列表请求。
+func (a *ResourceAPI) ListTasks(c *gin.Context) {
+	var input xyRequest.ResourceTaskSearch
+	if err := c.ShouldBindQuery(&input); err != nil {
+		response.FailWithMessage(err.Error(), c)
+		return
+	}
+	tasks, total, err := a.resources.ListTasks(c.Request.Context(), security.GetUserID(c), input)
+	if err != nil {
+		failAccount("获取资源任务列表失败", err, c)
+		return
+	}
+	response.OkWithDetailed(response.PageResult{List: tasks, Total: total, Page: input.Page, PageSize: input.PageSize}, "获取成功", c)
 }
 
 // Get 处理详情查询请求。

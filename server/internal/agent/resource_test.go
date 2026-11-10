@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/url"
+	"strings"
 	"testing"
 	"time"
 
@@ -21,6 +22,7 @@ import (
 type fakeResourceObjectStore struct {
 	size          int64 // size 是模拟对象大小。
 	bucketCreated bool  // bucketCreated 标记存储桶已创建。
+	removed       []string
 }
 
 // PresignedPutObject 提供测试辅助能力。
@@ -49,13 +51,65 @@ func (s *fakeResourceObjectStore) MakeBucket(context.Context, string, minio.Make
 	return nil
 }
 
+func (s *fakeResourceObjectStore) RemoveObject(_ context.Context, _, objectKey string, _ minio.RemoveObjectOptions) error {
+	s.removed = append(s.removed, objectKey)
+	return nil
+}
+
+func TestRegisterTelegramResourceScopesAndDeduplicatesOwnerData(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	require.NoError(t, err)
+	require.NoError(t, db.AutoMigrate(&model.Resource{}, &model.ResourceSource{}))
+	catalog := &ResourceCatalog{db: db, objectStore: &fakeResourceObjectStore{size: 123}, bucket: "resources"}
+	input := xyRequest.RegisterTelegramResource{
+		OwnerID: 11, Name: "Go.pdf", Size: 123, MIMEType: "application/pdf", SHA256: strings.Repeat("a", 64),
+		ObjectKey: "telegram/1/2-Go.pdf", SourceName: "Go 资料", SourceReference: "telegram://1/2", ExternalID: "1:2",
+	}
+	resource, err := catalog.RegisterTelegramResource(t.Context(), input)
+	require.NoError(t, err)
+	require.Nil(t, resource.TaskID)
+	require.Equal(t, uint(11), resource.OwnerID)
+	_, err = catalog.RegisterTelegramResource(t.Context(), input)
+	require.NoError(t, err)
+	var count int64
+	require.NoError(t, db.Model(&model.Resource{}).Count(&count).Error)
+	require.EqualValues(t, 1, count)
+	require.NoError(t, db.Model(&model.ResourceSource{}).Count(&count).Error)
+	require.EqualValues(t, 1, count)
+	_, err = catalog.RegisterTelegramResource(t.Context(), xyRequest.RegisterTelegramResource{OwnerID: 22, Name: input.Name, Size: input.Size, SHA256: input.SHA256, ObjectKey: input.ObjectKey, ExternalID: input.ExternalID})
+	require.ErrorContains(t, err, "其他用户")
+}
+
+func TestDeleteTelegramResourceRequiresOwnerAndRemovesUnifiedRecord(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	require.NoError(t, err)
+	require.NoError(t, db.AutoMigrate(&model.Resource{}))
+	store := &fakeResourceObjectStore{}
+	catalog := &ResourceCatalog{db: db, objectStore: store, bucket: "resources"}
+	ownerResource := model.Resource{OwnerID: 11, Name: "Go.pdf", Size: 123, Bucket: "resources", ObjectKey: "telegram/1/2-Go.pdf"}
+	require.NoError(t, db.Create(&ownerResource).Error)
+	require.NoError(t, db.Exec("CREATE TABLE tel_resource_files (id integer, owner_id integer, object_key text, download_status text, upload_status text)").Error)
+	require.NoError(t, db.Exec("INSERT INTO tel_resource_files VALUES (5, 11, ?, 'success', 'success')", ownerResource.ObjectKey).Error)
+	input := xyRequest.DeleteTelegramResource{OwnerID: 22}
+	err = catalog.DeleteTelegramResource(t.Context(), input, 5)
+	require.ErrorIs(t, err, gorm.ErrRecordNotFound)
+	require.Empty(t, store.removed)
+
+	input.OwnerID = 11
+	require.NoError(t, catalog.DeleteTelegramResource(t.Context(), input, 5))
+	require.Equal(t, []string{ownerResource.ObjectKey}, store.removed)
+	var remaining int64
+	require.NoError(t, db.Model(&model.Resource{}).Where("deleted_at IS NULL").Count(&remaining).Error)
+	require.Zero(t, remaining)
+}
+
 // TestResourceCatalogScopesQueriesByOwner 验证对应测试场景。
 func TestResourceCatalogScopesQueriesByOwner(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
 	require.NoError(t, db.AutoMigrate(&model.Resource{}, &model.ResourceSource{}, &model.ResourceTask{}))
-	ownerResource := model.Resource{OwnerID: 11, TaskID: 1, Name: "Go.pdf", Size: 100, Bucket: "secret-bucket", ObjectKey: "owners/11/go.pdf"}
-	otherResource := model.Resource{OwnerID: 22, TaskID: 2, Name: "Private.pdf", Size: 200, Bucket: "secret-bucket", ObjectKey: "owners/22/private.pdf"}
+	ownerResource := model.Resource{OwnerID: 11, TaskID: new(uint(1)), Name: "Go.pdf", Size: 100, Bucket: "secret-bucket", ObjectKey: "owners/11/go.pdf"}
+	otherResource := model.Resource{OwnerID: 22, TaskID: new(uint(2)), Name: "Private.pdf", Size: 200, Bucket: "secret-bucket", ObjectKey: "owners/22/private.pdf"}
 	require.NoError(t, db.Create(&ownerResource).Error)
 	require.NoError(t, db.Create(&otherResource).Error)
 	require.NoError(t, db.Create(&model.ResourceSource{ResourceID: ownerResource.ID, MCPServerCode: "telegram", ExternalID: "candidate", SourceName: "Go 资料"}).Error)
@@ -76,6 +130,11 @@ func TestResourceCatalogScopesQueriesByOwner(t *testing.T) {
 
 	_, err = catalog.GetTask(t.Context(), 11, 2)
 	require.True(t, errors.Is(err, gorm.ErrRecordNotFound))
+	tasks, taskTotal, err := catalog.ListTasks(t.Context(), 11, xyRequest.ResourceTaskSearch{})
+	require.NoError(t, err)
+	require.EqualValues(t, 1, taskTotal)
+	require.Len(t, tasks, 1)
+	require.Equal(t, uint(11), tasks[0].OwnerID)
 
 	payload, err := json.Marshal(detail)
 	require.NoError(t, err)

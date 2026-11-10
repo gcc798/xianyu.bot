@@ -14,12 +14,11 @@ func TestTelegramRequestPreservesUpstreamPath(t *testing.T) {
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		require.Equal(t, "/api/resources/tasks/7", r.URL.Path)
 		require.Equal(t, "page=2", r.URL.RawQuery)
-		require.Equal(t, "test-token", r.Header.Get("X-Internal-Token"))
+		require.Empty(t, r.Header.Get("X-Internal-Token"))
 		_, _ = w.Write([]byte(`{"ok":true}`))
 	}))
 	t.Cleanup(upstream.Close)
 	t.Setenv("TELEGRAM_SERVICE_URL", upstream.URL)
-	t.Setenv("TELEGRAM_INTERNAL_TOKEN", "test-token")
 
 	context, _ := gin.CreateTestContext(httptest.NewRecorder())
 	context.Params = gin.Params{{Key: "path", Value: "/api/resources/tasks/7"}}

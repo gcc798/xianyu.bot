@@ -118,7 +118,6 @@ class ResourceCandidateTest(unittest.IsolatedAsyncioTestCase):
         service.acquisitions = {}
         return service
 
-    @patch.dict(os.environ, {"TELEGRAM_INTERNAL_TOKEN": "candidate-test-secret"})
     async def test_group_name_containing_search_character_uses_interactive_search(self):
         service = self.service([message()])
         service.db.dialog_record.update(name="搜书群", is_group=True, is_broadcast=False)
@@ -140,7 +139,6 @@ class ResourceCandidateTest(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(message_source_usernames(linked), {"book_search", "novelfiles", "morebooks"})
 
-    @patch.dict(os.environ, {"TELEGRAM_INTERNAL_TOKEN": "candidate-test-secret"})
     async def test_searches_known_source_returned_by_interactive_group(self):
         service = self.service([])
         search_group = {**service.db.dialog_record, "id": 7, "name": "搜书群", "username": "book_search", "is_group": True, "is_broadcast": False}
@@ -155,31 +153,26 @@ class ResourceCandidateTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(candidates[0]["source"]["name"], "图书频道")
         self.assertEqual(service.telegram.client.sent, [("book_search", "Go")])
 
-    @patch.dict(os.environ, {"TELEGRAM_INTERNAL_TOKEN": "candidate-test-secret"})
     async def test_search_and_inspect_do_not_download(self):
         service = self.service([message()])
         candidates = await service.search_candidates("Go", ["pdf"], 5)
         self.assertEqual(len(candidates), 1)
         self.assertEqual(candidates[0]["license"], "unknown")
-        self.assertNotIn("candidate-test-secret", candidates[0]["candidate_id"])
-
         inspected = await service.inspect_candidate(candidates[0]["candidate_id"])
         self.assertEqual(inspected["name"], "Go并发编程.pdf")
         self.assertEqual(inspected["source"]["name"], "Go 资料")
         self.assertEqual(service.telegram.client.entity_requests, ["go_docs", "go_docs"])
 
-    @patch.dict(os.environ, {"TELEGRAM_INTERNAL_TOKEN": "candidate-test-secret"})
     async def test_rejects_tampered_and_changed_candidates(self):
         service = self.service([message()])
         candidate = (await service.search_candidates("Go", None, 1))[0]["candidate_id"]
         with self.assertRaisesRegex(ResourceCapabilityError, "候选 ID 无效"):
-            await service.inspect_candidate(candidate + "x")
+            await service.inspect_candidate(candidate + "!")
 
         service.telegram.client.messages = [message("901")]
         with self.assertRaisesRegex(ResourceCapabilityError, "已发生变化"):
             await service.inspect_candidate(candidate)
 
-    @patch.dict(os.environ, {"TELEGRAM_INTERNAL_TOKEN": "candidate-test-secret"})
     async def test_acquisition_downloads_exact_candidate_and_completes_delivery(self):
         with tempfile.TemporaryDirectory() as directory:
             service = self.service([message()])
@@ -204,7 +197,6 @@ class ResourceCandidateTest(unittest.IsolatedAsyncioTestCase):
             progress_paths = [call.args[0] for call in service._backend_json.call_args_list if call.args[0].endswith("/progress")]
             self.assertEqual(len(progress_paths), 3)
 
-    @patch.dict(os.environ, {"TELEGRAM_INTERNAL_TOKEN": "candidate-test-secret"})
     async def test_acquisition_reports_failure_to_backend(self):
         with tempfile.TemporaryDirectory() as directory:
             service = self.service([message()])

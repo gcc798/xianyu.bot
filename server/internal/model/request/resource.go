@@ -8,6 +8,30 @@ type ResourceSearch struct {
 	State      string `json:"state" form:"state"`       // State 按资源可用状态筛选。
 }
 
+// ResourceTaskSearch 描述资源获取任务的分页与状态筛选条件。
+type ResourceTaskSearch struct {
+	Pagination        // Pagination 提供页码与每页数量。
+	State      string `json:"state" form:"state"` // State 按任务状态筛选。
+}
+
+// RegisterTelegramResource 描述 Telegram 下载完成后登记的资源信息。
+type RegisterTelegramResource struct {
+	OwnerID         uint   `json:"ownerId" binding:"required"`             // OwnerID 是资源所属的系统用户 ID。
+	Name            string `json:"name" binding:"required,max=500"`        // Name 是资源文件名。
+	Size            int64  `json:"size" binding:"required,min=1"`          // Size 是资源大小，单位为字节。
+	MIMEType        string `json:"mimeType" binding:"max=200"`             // MIMEType 是资源媒体类型。
+	SHA256          string `json:"sha256" binding:"required,len=64"`       // SHA256 是资源内容摘要。
+	ObjectKey       string `json:"objectKey" binding:"required,max=1000"`  // ObjectKey 是 Telegram 下载对象的存储键。
+	SourceName      string `json:"sourceName" binding:"max=500"`           // SourceName 是 Telegram 来源名称。
+	SourceReference string `json:"sourceReference" binding:"max=1000"`     // SourceReference 是 Telegram 来源引用。
+	ExternalID      string `json:"externalId" binding:"required,max=1000"` // ExternalID 是 Telegram 消息的稳定标识。
+}
+
+// DeleteTelegramResource 描述 Telegram 文件删除请求。
+type DeleteTelegramResource struct {
+	OwnerID uint `json:"ownerId" binding:"required"` // OwnerID 是文件所属的系统用户 ID。
+}
+
 // CompleteResourceDelivery 描述资源上传完成后的校验信息。
 type CompleteResourceDelivery struct {
 	Size   int64  `json:"size" binding:"required"`   // Size 是已上传对象的字节数。

@@ -1,4 +1,4 @@
-import { Navigate, createBrowserRouter } from "react-router-dom";
+import { Navigate, createBrowserRouter, redirect } from "react-router-dom";
 import ConsoleLayout from "../layouts/ConsoleLayout";
 import RouteErrorPage, { NotFoundPage } from "../pages/error/RouteErrorPage";
 import { AdminRoutes, ProtectedRoutes, RouteFallback } from "./RouteGuards";
@@ -35,6 +35,16 @@ export const router = createBrowserRouter(
               HydrateFallback: RouteFallback,
             },
             {
+              path: "resources/tasks",
+              lazy: () => import("../pages/resources/ResourceTasksPage"),
+              HydrateFallback: RouteFallback,
+            },
+            {
+              path: "resources/files",
+              lazy: () => import("../pages/telegram/resource-files/TelegramResourceFilesPage"),
+              HydrateFallback: RouteFallback,
+            },
+            {
               path: "profile",
               lazy: () => import("../pages/profile/ProfilePage"),
               HydrateFallback: RouteFallback,
@@ -51,13 +61,11 @@ export const router = createBrowserRouter(
             },
             {
               path: "telegram/resource-tasks",
-              lazy: () => import("../pages/telegram/resource-tasks/TelegramResourceTasksPage"),
-              HydrateFallback: RouteFallback,
+              element: <Navigate to="/resources/tasks" replace />,
             },
             {
               path: "telegram/resource-files",
-              lazy: () => import("../pages/telegram/resource-files/TelegramResourceFilesPage"),
-              HydrateFallback: RouteFallback,
+              loader: ({ request }) => redirect(`/resources/files${new URL(request.url).search}`),
             },
             {
               path: "telegram/settings",
@@ -135,6 +143,11 @@ export const router = createBrowserRouter(
                 {
                   path: "system/ai-settings",
                   lazy: () => import("../pages/system/ai-settings/AISettingsPage"),
+                  HydrateFallback: RouteFallback,
+                },
+                {
+                  path: "telegram/api-ids",
+                  lazy: () => import("../pages/telegram/api-ids/TelegramAPIIDsPage"),
                   HydrateFallback: RouteFallback,
                 },
               ],

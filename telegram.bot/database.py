@@ -25,6 +25,7 @@ class Database:
         with self.connect() as db:
             db.execute(f"UPDATE {TABLES['scan_history']} SET status='interrupted', finished_at=%s WHERE status='running'", (now_iso(),))
             db.execute("UPDATE tel_resource_tasks SET status='failed',completed_at=NOW(),error_message='service restarted' WHERE status='running'")
+            db.execute("UPDATE tel_resource_files SET download_status=CASE WHEN download_status='downloading' THEN 'failed' ELSE download_status END,upload_status=CASE WHEN download_status='downloading' OR upload_status='uploading' THEN 'failed' ELSE upload_status END,error_message='service restarted',completed_at=NOW() WHERE download_status='downloading' OR upload_status='uploading'")
             db.execute("UPDATE tel_acquisition_tasks SET state='failed',completed_at=NOW(),error_code='internal_error',error_message='service restarted' WHERE state IN ('queued','running')")
 
     @contextmanager
@@ -171,20 +172,23 @@ class Database:
         with self.connect() as db:
             return db.execute("SELECT id,name,username,dialog_type FROM tel_dialogs WHERE status!='left' ORDER BY id").fetchall()
 
-    def create_resource_task(self, keyword: str, file_types: list[str], source_ids: list[int], max_downloads: int, source_mode: str = "manual", source_strategy: str = "manual") -> dict:
+    def create_resource_task(self, owner_id: int, keyword: str, file_types: list[str], source_ids: list[int], max_downloads: int, source_mode: str = "manual", source_strategy: str = "manual") -> dict:
         visibility, visibility_params = self._adult_visibility()
         adult_filter = f" AND {visibility}" if visibility else ""
         with self.connect() as db:
             allowed = db.execute(f"SELECT d.id FROM tel_dialogs d WHERE d.id=ANY(%s) AND d.status='normal' AND d.resource_compliance_status='allowed' AND d.username IS NOT NULL AND (d.is_group OR d.is_broadcast){adult_filter}", (source_ids, *visibility_params)).fetchall()
             if len(allowed) != len(set(source_ids)):
                 raise ValueError("搜索范围包含未扫描、非公开或状态异常的群组/频道")
-            return db.execute("INSERT INTO tel_resource_tasks(keyword,file_types,source_dialog_ids,max_downloads,source_mode,source_strategy) VALUES(%s,%s,%s,%s,%s,%s) RETURNING *", (keyword, file_types, source_ids, max_downloads, source_mode, source_strategy)).fetchone()
+            return db.execute("INSERT INTO tel_resource_tasks(owner_id,keyword,file_types,source_dialog_ids,max_downloads,source_mode,source_strategy) VALUES(%s,%s,%s,%s,%s,%s,%s) RETURNING *", (owner_id, keyword, file_types, source_ids, max_downloads, source_mode, source_strategy)).fetchone()
 
-    def resource_task(self, task_id: int) -> dict | None:
+    def resource_task(self, task_id: int, owner_id: int | None = None) -> dict | None:
         visibility, visibility_params = self._adult_visibility()
         adult_filter = f" AND {visibility}" if visibility else ""
         with self.connect() as db:
-            row = db.execute("SELECT * FROM tel_resource_tasks WHERE id=%s", (task_id,)).fetchone()
+            if owner_id is None:
+                row = db.execute("SELECT * FROM tel_resource_tasks WHERE id=%s", (task_id,)).fetchone()
+            else:
+                row = db.execute("SELECT * FROM tel_resource_tasks WHERE id=%s AND owner_id=%s", (task_id, owner_id)).fetchone()
             if row:
                 row["sources"] = db.execute(f"SELECT d.id,d.telegram_id,d.name,d.username,d.dialog_type,d.status,d.resource_compliance_status FROM tel_dialogs d WHERE d.id=ANY(%s){adult_filter} ORDER BY array_position(%s::bigint[],d.id)", (row["source_dialog_ids"], *visibility_params, row["source_dialog_ids"])).fetchall()
             return row
@@ -195,6 +199,7 @@ class Database:
             where.append("t.keyword ILIKE %s"); params.append(f"%{filters['q']}%")
         if filters.get("status"):
             where.append("t.status=%s"); params.append(filters["status"])
+        where.append("t.owner_id=%s"); params.append(filters["owner_id"])
         base = """ FROM tel_resource_tasks t
             LEFT JOIN LATERAL (
                 SELECT id,original_filename,file_size,bytes_downloaded,download_status,upload_status
@@ -249,7 +254,7 @@ class Database:
                 db.execute(f"UPDATE tel_acquisition_tasks SET {assignments} WHERE id=%s", (*values.values(), task_id))
 
     def update_resource_task(self, task_id: int, **values) -> None:
-        allowed = {"status", "files_found", "files_completed", "error_message", "started_at", "completed_at", "cancel_requested"}
+        allowed = {"status", "files_found", "files_completed", "error_message", "started_at", "completed_at", "cancel_requested", "source_dialog_ids", "source_strategy"}
         if not values or not set(values) <= allowed:
             raise ValueError("invalid task update")
         with self.connect() as db:
@@ -266,15 +271,16 @@ class Database:
         extension = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
         with self.connect() as db:
             row = db.execute("""
-                INSERT INTO tel_resource_files(task_id,telegram_chat_id,telegram_message_id,telegram_file_id,original_filename,file_type,file_size,mime_type)
-                VALUES(%s,%s,%s,%s,%s,%s,%s,%s) ON CONFLICT(telegram_chat_id,telegram_message_id) DO NOTHING RETURNING *
-            """, (task_id, dialog["telegram_id"], message_id, file_id, filename, extension, file_size, mime_type)).fetchone()
+                INSERT INTO tel_resource_files(owner_id,task_id,telegram_chat_id,telegram_message_id,telegram_file_id,original_filename,file_type,file_size,mime_type)
+                VALUES((SELECT owner_id FROM tel_resource_tasks WHERE id=%s),%s,%s,%s,%s,%s,%s,%s,%s) ON CONFLICT(telegram_chat_id,telegram_message_id) DO NOTHING RETURNING *
+            """, (task_id, task_id, dialog["telegram_id"], message_id, file_id, filename, extension, file_size, mime_type)).fetchone()
             if not row:
                 return None
             db.execute("""
                 INSERT INTO tel_resource_sources(file_id,dialog_id,telegram_chat_id,telegram_message_id,source_name,source_username,message_text)
                 VALUES(%s,%s,%s,%s,%s,%s,%s)
             """, (row["id"], dialog["id"], dialog["telegram_id"], message_id, dialog["name"], dialog["username"], message_text[:4000]))
+            row.update(source_name=dialog["name"], source_username=dialog["username"])
             return row
 
     def update_resource_file(self, file_id: int, **values) -> None:
@@ -285,31 +291,25 @@ class Database:
             assignments = ",".join(f"{key}=%s" for key in values)
             db.execute(f"UPDATE tel_resource_files SET {assignments} WHERE id=%s", (*values.values(), file_id))
 
-    def resource_file(self, file_id: int) -> dict | None:
+    def resource_file(self, file_id: int, owner_id: int) -> dict | None:
         with self.connect() as db:
-            return db.execute("SELECT f.*,s.source_name,s.source_username FROM tel_resource_files f JOIN tel_resource_sources s ON s.file_id=f.id WHERE f.id=%s", (file_id,)).fetchone()
+            return db.execute("SELECT f.*,s.source_name,s.source_username FROM tel_resource_files f JOIN tel_resource_sources s ON s.file_id=f.id WHERE f.id=%s AND f.owner_id=%s", (file_id, owner_id)).fetchone()
 
-    def resource_task_files(self, task_id: int) -> list[dict]:
+    def resource_task_files(self, task_id: int, owner_id: int) -> list[dict]:
         with self.connect() as db:
-            return db.execute("SELECT id,object_key FROM tel_resource_files WHERE task_id=%s ORDER BY id", (task_id,)).fetchall()
+            return db.execute("SELECT id,object_key FROM tel_resource_files WHERE task_id=%s AND owner_id=%s ORDER BY id", (task_id, owner_id)).fetchall()
 
-    def delete_resource_file(self, file_id: int) -> None:
-        with self.connect() as db:
-            if db.execute("DELETE FROM tel_resource_files WHERE id=%s RETURNING id", (file_id,)).fetchone() is None:
-                raise ValueError("资源文件不存在")
-
-    def delete_resource_task(self, task_id: int, delete_files: bool) -> None:
+    def delete_resource_task(self, task_id: int, delete_files: bool, owner_id: int) -> None:
         with self.connect() as db:
             if delete_files:
-                db.execute("DELETE FROM tel_resource_files WHERE task_id=%s", (task_id,))
+                db.execute("DELETE FROM tel_resource_files WHERE task_id=%s AND owner_id=%s", (task_id, owner_id))
             else:
-                db.execute("UPDATE tel_resource_files SET task_id=NULL WHERE task_id=%s", (task_id,))
-            db.execute("DELETE FROM tel_acquisition_tasks WHERE resource_task_id=%s", (task_id,))
-            if db.execute("DELETE FROM tel_resource_tasks WHERE id=%s RETURNING id", (task_id,)).fetchone() is None:
+                db.execute("UPDATE tel_resource_files SET task_id=NULL WHERE task_id=%s AND owner_id=%s", (task_id, owner_id))
+            if db.execute("DELETE FROM tel_resource_tasks WHERE id=%s AND owner_id=%s RETURNING id", (task_id, owner_id)).fetchone() is None:
                 raise ValueError("资源任务不存在")
 
     def list_resource_files(self, filters: dict, page: int = 1, page_size: int = 20) -> tuple[list[dict], int]:
-        where, params = ["TRUE"], []
+        where, params = ["f.owner_id=%s"], [filters["owner_id"]]
         for key, column in (("task_id", "f.task_id"), ("file_type", "f.file_type"), ("status", "f.download_status"), ("source_id", "s.dialog_id")):
             if filters.get(key) not in (None, ""):
                 where.append(f"{column}=%s"); params.append(filters[key])

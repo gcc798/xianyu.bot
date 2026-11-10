@@ -181,6 +181,35 @@ CREATE TABLE public.s_users (
     enable bigint DEFAULT 1
 );
 
+--
+-- Name: s_telegram_api_configs; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.s_telegram_api_configs (
+    id bigint NOT NULL,
+    created_at timestamp with time zone,
+    updated_at timestamp with time zone,
+    deleted_at timestamp with time zone,
+    name character varying(100) NOT NULL,
+    api_id bigint NOT NULL,
+    api_hash text NOT NULL,
+    flood_wait_until timestamp with time zone,
+    last_flood_wait_seconds bigint DEFAULT 0 NOT NULL,
+    CONSTRAINT s_telegram_api_configs_pkey PRIMARY KEY (id),
+    CONSTRAINT uq_s_telegram_api_configs_name UNIQUE (name),
+    CONSTRAINT uq_s_telegram_api_configs_api_id UNIQUE (api_id)
+);
+
+
+--
+-- Name: s_telegram_api_configs_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.s_telegram_api_configs_id_seq
+    START WITH 1 INCREMENT BY 1 NO MINVALUE NO MAXVALUE CACHE 1;
+
+ALTER SEQUENCE public.s_telegram_api_configs_id_seq OWNED BY public.s_telegram_api_configs.id;
+
 
 --
 -- Name: s_users_id_seq; Type: SEQUENCE; Schema: public; Owner: -
@@ -332,6 +361,7 @@ ALTER SEQUENCE public.tel_leave_history_id_seq OWNED BY public.tel_leave_history
 
 CREATE TABLE public.tel_resource_files (
     id bigint NOT NULL,
+    owner_id bigint NOT NULL,
     task_id bigint,
     telegram_chat_id bigint NOT NULL,
     telegram_message_id bigint NOT NULL,
@@ -415,6 +445,7 @@ ALTER SEQUENCE public.tel_resource_sources_id_seq OWNED BY public.tel_resource_s
 
 CREATE TABLE public.tel_resource_tasks (
     id bigint NOT NULL,
+    owner_id bigint NOT NULL,
     keyword text NOT NULL,
     file_types text[] DEFAULT '{}'::text[] NOT NULL,
     source_dialog_ids bigint[] DEFAULT '{}'::bigint[] NOT NULL,
@@ -1631,7 +1662,7 @@ CREATE TABLE public.xy_resources (
     updated_at timestamp with time zone,
     deleted_at timestamp with time zone,
     owner_id bigint NOT NULL,
-    task_id bigint NOT NULL,
+    task_id bigint,
     name character varying(500) NOT NULL,
     size bigint NOT NULL,
     mime_type character varying(200),
@@ -1704,6 +1735,8 @@ ALTER TABLE ONLY public.s_login_logs ALTER COLUMN id SET DEFAULT nextval('public
 --
 
 ALTER TABLE ONLY public.s_users ALTER COLUMN id SET DEFAULT nextval('public.s_users_id_seq'::regclass);
+
+ALTER TABLE ONLY public.s_telegram_api_configs ALTER COLUMN id SET DEFAULT nextval('public.s_telegram_api_configs_id_seq'::regclass);
 
 
 --
@@ -2390,6 +2423,8 @@ CREATE INDEX idx_s_users_username ON public.s_users USING btree (username);
 
 CREATE INDEX idx_s_users_uuid ON public.s_users USING btree (uuid);
 
+CREATE INDEX idx_s_telegram_api_configs_deleted_at ON public.s_telegram_api_configs USING btree (deleted_at);
+
 
 --
 -- Name: idx_tel_resource_files_filter; Type: INDEX; Schema: public; Owner: -
@@ -2397,12 +2432,22 @@ CREATE INDEX idx_s_users_uuid ON public.s_users USING btree (uuid);
 
 CREATE INDEX idx_tel_resource_files_filter ON public.tel_resource_files USING btree (download_status, file_type);
 
+-- Name: idx_tel_resource_files_owner; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_tel_resource_files_owner ON public.tel_resource_files USING btree (owner_id);
+
 
 --
 -- Name: idx_tel_resource_files_task; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX idx_tel_resource_files_task ON public.tel_resource_files USING btree (task_id);
+
+-- Name: idx_tel_resource_tasks_owner; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_tel_resource_tasks_owner ON public.tel_resource_tasks USING btree (owner_id);
 
 
 --

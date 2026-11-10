@@ -27,7 +27,7 @@ TG_PROXY_PORT=17891
 
 浏览器打开 <http://127.0.0.1:8080>。首次使用点击“生成二维码”，用手机 Telegram 的“设置 → 设备 → 链接桌面设备”扫码。登录 session 保存在 PostgreSQL `xianyu_bot.tel_settings` 中，应按凭据保护，不要导出或分享。
 
-Streamable HTTP MCP 端点为 `/mcp/`，固定提供渠道、来源、资源和通用任务工具。调用必须携带 `x-internal-token`，其值来自 `TELEGRAM_INTERNAL_TOKEN`；未配置令牌时 MCP 端点拒绝服务。
+Streamable HTTP MCP 端点为 `/mcp/`，固定提供渠道、来源、资源和通用任务工具。服务部署在可信内网中，MCP 与 Go 内部接口不额外校验共享令牌。资源任务和文件操作仍按 `owner_id` 做用户隔离。
 
 ## 使用
 
@@ -50,7 +50,11 @@ Compose 中的服务统一使用 `xianyu.bot` 网络。闲鱼助手后台映射�
 
 Telegram 与 Go 后端共用 `xianyu_bot` 数据库，Telegram 表统一使用 `tel_` 前缀；PostgreSQL 通过宿主机 `15432` 端口连接。表结构由根工程的单一 `init.sql` 初始化，Telegram 进程不动态建表。
 
-资源任务表为 `tel_resource_tasks`、`tel_resource_files`、`tel_resource_sources`。文件临时落在项目根目录 `tmp/telegram/`，上传 RustFS 后立即删除；网页经 Go 后端 JWT 鉴权代理访问，不暴露 RustFS 凭据。
+Telegram 应用凭据由 Go 维护在 `s_telegram_api_configs`，API Hash 加密存储。Compose 项目根目录 `.env` 默认使用数据库配置：`TG_API_CREDENTIAL_SOURCE=database`；设为 `env` 时沿用 `telegram.bot/.env` 中的 `TG_API_ID` 和 `TG_API_HASH`，不会在两种来源间自动回退。数据库模式下 Python 每个资源任务开始前选择未限流且 API ID 最大的配置；任务中遇到 FloodWait 会记录限流截止时间、切换下一个可用配置并重试当前 Telegram 操作，累计 5 个不同 API ID 限流后任务失败。切换在同一登录 Session 上进行；若 Telegram 未授权新客户端，则任务明确失败。管理列表不会返回明文 API Hash。
+
+资源任务表为 `tel_resource_tasks`、`tel_resource_files`、`tel_resource_sources`。任务和文件记录带有所有者 ID；网页请求经 Go JWT 代理传递已认证用户 ID，Python 查询、预览、下载和删除均按所有者过滤。任务与消息来源记录用于 Telegram 重试和运维；文件下载完成后由 Go 在 `xy_resources` 统一登记，可供资源库和闲鱼上架流程使用。文件临时落在项目根目录 `tmp/telegram/`，上传 RustFS 后立即删除；网页不暴露 RustFS 凭据。
+
+现有数据库升级时必须先备份，并将没有所有者字段的历史 Telegram 任务和文件显式归属给管理员（用户 ID 1）；禁止将历史共享数据直接开放给普通用户。初始化 SQL 仅适用于空库，不会自动升级已有数据库。
 
 ```bash
 docker compose up -d --build

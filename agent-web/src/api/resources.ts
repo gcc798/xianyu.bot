@@ -1,5 +1,5 @@
 import type { PageResult } from "../models/http";
-import type { Resource, ResourceDetail } from "../models/resource";
+import type { AgentResourceTask, Resource, ResourceDetail } from "../models/resource";
 import { queryString, request } from "./client";
 
 export const resourcesApi = {
@@ -13,4 +13,8 @@ export const resourcesApi = {
   get: (ID: number) => request<{ resource: ResourceDetail }>(`/xy/resources/${ID}`),
   download: (ID: number) =>
     request<{ downloadUrl: string; expiresAt: string }>(`/xy/resources/${ID}/download`),
+  tasks: (input: { page: number; pageSize: number; state?: string }) =>
+    request<PageResult<AgentResourceTask>>(`/xy/resource-tasks${queryString(input)}`),
+  cancelTask: (ID: number) =>
+    request<{ task: AgentResourceTask }>(`/xy/resource-tasks/${ID}/cancel`, { method: "POST" }),
 };

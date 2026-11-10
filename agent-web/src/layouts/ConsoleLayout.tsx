@@ -21,13 +21,14 @@ const { Header, Sider, Content } = Layout;
 const routeTitles: Record<string, string> = {
   "/overview": "运营总览",
   "/bot": "Bot",
-  "/resources": "资源管理",
+  "/resources": "资源库",
+  "/resources/tasks": "采集任务",
+  "/resources/files": "文件运维",
   "/profile": "个人设置",
   "/telegram/overview": "Telegram 总览",
   "/telegram/dialogs": "Telegram 会话",
-  "/telegram/resource-tasks": "资源任务",
-  "/telegram/resource-files": "资源文件",
   "/telegram/settings": "Telegram 设置",
+  "/telegram/api-ids": "Telegram API ID",
   "/xianyu/accounts": "账号管理",
   "/xianyu/products": "商品管理",
   "/xianyu/orders": "订单管理",
@@ -62,7 +63,16 @@ export default function ConsoleLayout() {
   const menu: MenuProps["items"] = [
     { key: "/overview", icon: <AppstoreOutlined />, label: "总览" },
     { key: "/bot", icon: <RobotOutlined />, label: "Bot" },
-    { key: "/resources", icon: <DatabaseOutlined />, label: "资源管理" },
+    {
+      key: "resources",
+      icon: <DatabaseOutlined />,
+      label: "资源中心",
+      children: [
+        { key: "/resources", label: "资源库" },
+        { key: "/resources/tasks", label: "采集任务" },
+        { key: "/resources/files", label: "文件运维" },
+      ],
+    },
     {
       key: "telegram",
       icon: <SendOutlined />,
@@ -70,9 +80,8 @@ export default function ConsoleLayout() {
       children: [
         { key: "/telegram/overview", label: "总览" },
         { key: "/telegram/dialogs", label: "会话" },
-        { key: "/telegram/resource-tasks", label: "资源任务" },
-        { key: "/telegram/resource-files", label: "资源文件" },
         { key: "/telegram/settings", label: "设置" },
+        ...(isAdmin ? [{ key: "/telegram/api-ids", label: "API ID" }] : []),
       ],
     },
     {
@@ -165,9 +174,11 @@ export default function ConsoleLayout() {
                 ? "系统设置"
                 : location.pathname.startsWith("/telegram")
                   ? "Telegram"
-                  : location.pathname === "/profile"
-                    ? "账号"
-                    : "闲鱼自动化"}
+                  : location.pathname.startsWith("/resources")
+                    ? "资源中心"
+                    : location.pathname === "/profile"
+                      ? "账号"
+                      : "闲鱼自动化"}
             </span>
             <i>/</i>
             <strong>{currentTitle}</strong>

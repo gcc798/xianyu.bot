@@ -298,7 +298,6 @@ export function Component() {
               查询
             </Button>
             <Button onClick={reset}>重置</Button>
-            <Button onClick={() => void load()}>刷新</Button>
           </Space>
         </div>
         {error && <Alert className={styles.alert} type="error" showIcon title={error} />}

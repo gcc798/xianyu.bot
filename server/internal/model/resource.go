@@ -67,7 +67,7 @@ func (ResourceTask) TableName() string { return "xy_resource_tasks" }
 type Resource struct {
 	Timestamps        // Timestamps 保存资源记录的生命周期字段。
 	OwnerID    uint   `json:"-" gorm:"not null;index:idx_xy_resources_owner"`  // OwnerID 是资源所属的系统用户 ID。
-	TaskID     uint   `json:"taskId" gorm:"not null;index"`                    // TaskID 是生成资源的任务 ID。
+	TaskID     *uint  `json:"taskId" gorm:"index"`                             // TaskID 是生成资源的任务 ID。
 	Name       string `json:"name" gorm:"size:500;not null"`                   // Name 是资源显示名称。
 	Size       int64  `json:"size" gorm:"not null"`                            // Size 是资源字节数。
 	MIMEType   string `json:"mimeType" gorm:"size:200"`                        // MIMEType 是资源媒体类型。

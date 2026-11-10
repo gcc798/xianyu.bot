@@ -20,12 +20,15 @@ func (r *ResourceRouter) Init(private *gin.RouterGroup) {
 	private.GET("xy/resources", r.handlers.Resource.List)
 	private.GET("xy/resources/:id", r.handlers.Resource.Get)
 	private.GET("xy/resources/:id/download", r.handlers.Resource.Download)
+	private.GET("xy/resource-tasks", r.handlers.Resource.ListTasks)
 	private.GET("xy/resource-tasks/:id", r.handlers.Resource.GetTask)
 	private.POST("xy/resource-tasks/:id/cancel", r.handlers.Resource.CancelTask)
 }
 
 // InitInternal 执行InitInternal操作。
 func (r *ResourceRouter) InitInternal(internal *gin.RouterGroup) {
+	internal.POST("telegram-resources/import", r.handlers.Resource.ImportTelegramResource)
+	internal.DELETE("telegram-resources/files/:id", r.handlers.Resource.DeleteTelegramResource)
 	internal.POST("resource-tasks/:id/upload", r.handlers.Resource.PresignDelivery)
 	internal.POST("resource-tasks/:id/progress", r.handlers.Resource.UpdateDelivery)
 	internal.POST("resource-tasks/:id/complete", r.handlers.Resource.CompleteDelivery)

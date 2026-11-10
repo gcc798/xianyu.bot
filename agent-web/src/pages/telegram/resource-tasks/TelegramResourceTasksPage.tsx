@@ -49,6 +49,11 @@ const stageMeta: Record<TelegramResourceTask["current_stage"], { label: string; 
 const sourceModeLabel = (task: TelegramResourceTask) => {
   if (task.source_mode === "all") return "全部来源";
   if (task.source_mode === "manual") return "手动选择";
+  if (task.source_strategy === "pending") {
+    if (task.status === "failed") return "智能 · 规划失败";
+    if (task.status === "cancelled") return "智能 · 已取消";
+    return "智能 · 规划中";
+  }
   return task.source_strategy === "ai" ? "智能 · AI" : "智能 · 本地";
 };
 
@@ -175,7 +180,10 @@ export function Component() {
     {
       title: "范围",
       width: 150,
-      render: (_, row) => `${sourceModeLabel(row)} · ${row.source_dialog_ids.length} 个`,
+      render: (_, row) =>
+        row.source_strategy === "pending"
+          ? sourceModeLabel(row)
+          : `${sourceModeLabel(row)} · ${row.source_dialog_ids.length} 个`,
     },
     {
       title: "结果",
@@ -228,7 +236,7 @@ export function Component() {
             <Button
               type="link"
               className={styles.linkButton}
-              onClick={() => navigate(`/telegram/resource-files?task_id=${row.id}`)}
+              onClick={() => navigate(`/resources/files?task_id=${row.id}`)}
             >
               查看文件
             </Button>

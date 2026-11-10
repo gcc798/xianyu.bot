@@ -4,7 +4,6 @@ import asyncio
 import base64
 import binascii
 import hashlib
-import hmac
 import http.client
 import json
 import logging
@@ -15,6 +14,8 @@ from urllib.parse import urlsplit
 import zipfile
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+
+from telethon import errors
 
 from storage import RustFS, safe_filename
 
@@ -367,6 +368,9 @@ class ResourceService:
                 if len(candidates) >= limit:
                     return candidates
             except Exception as exc:
+                if isinstance(exc, errors.FloodWaitError):
+                    await self.telegram.record_flood_wait(exc)
+                    raise
                 failed_sources += 1
                 LOGGER.warning("Interactive resource search skipped source %s: %s", dialog["id"], exc)
         history_candidates = discovered + ranked
@@ -386,6 +390,9 @@ class ResourceService:
                     if len(candidates) >= limit:
                         return candidates
             except Exception as exc:
+                if isinstance(exc, errors.FloodWaitError):
+                    await self.telegram.record_flood_wait(exc)
+                    raise
                 failed_sources += 1
                 LOGGER.warning("Resource search skipped source %s: %s", dialog["id"], exc)
         if failed_sources == len(dialogs):
@@ -463,22 +470,16 @@ class ResourceService:
         return await self.telegram.call(self.telegram.client.get_entity, dialog.get("username") or dialog["telegram_id"])
 
     def _encode_candidate(self, source_id: int, message_id: int, file_id: str) -> str:
-        secret = os.getenv("TELEGRAM_INTERNAL_TOKEN", "").encode()
-        if not secret:
-            raise ResourceCapabilityError("internal_error", "候选签名密钥未配置")
         payload = json.dumps({"s": source_id, "m": message_id, "f": file_id, "t": int(datetime.now(timezone.utc).timestamp())}, separators=(",", ":")).encode()
         encoded = base64.urlsafe_b64encode(payload).rstrip(b"=")
-        signature = hmac.new(secret, encoded, hashlib.sha256).digest()
-        return f"{encoded.decode()}.{base64.urlsafe_b64encode(signature).rstrip(b'=').decode()}"
+        return encoded.decode()
 
     def _decode_candidate(self, candidate_id: str) -> dict:
-        secret = os.getenv("TELEGRAM_INTERNAL_TOKEN", "").encode()
         try:
-            encoded, encoded_signature = candidate_id.split(".", 1)
-            signature = _decode_base64(encoded_signature)
-            if not secret or not hmac.compare_digest(signature, hmac.new(secret, encoded.encode(), hashlib.sha256).digest()):
+            decoded = _decode_base64(candidate_id)
+            if base64.urlsafe_b64encode(decoded).rstrip(b"=").decode() != candidate_id:
                 raise ValueError
-            payload = json.loads(_decode_base64(encoded))
+            payload = json.loads(decoded)
             issued_at = datetime.fromtimestamp(int(payload["t"]), timezone.utc)
             if datetime.now(timezone.utc) - issued_at > CANDIDATE_TTL or issued_at > datetime.now(timezone.utc) + timedelta(minutes=1):
                 raise ValueError
@@ -538,8 +539,8 @@ class ResourceService:
         self.db.save_adult_dialog_ids(adult_ids)
         return "ai"
 
-    def cancel(self, task_id: int) -> None:
-        task = self.db.resource_task(task_id)
+    def cancel(self, task_id: int, owner_id: int) -> None:
+        task = self.db.resource_task(task_id, owner_id)
         if not task or task["status"] not in {"queued", "running"}:
             raise ValueError("任务不存在或当前状态不能取消")
         self.db.update_resource_task(task_id, status="cancelled", cancel_requested=True, completed_at=datetime.now(timezone.utc))
@@ -547,35 +548,48 @@ class ResourceService:
         if download:
             download.cancel()
 
-    def retry(self, task_id: int) -> None:
-        task = self.db.resource_task(task_id)
+    def retry(self, task_id: int, owner_id: int) -> None:
+        task = self.db.resource_task(task_id, owner_id)
         if not task or task["status"] not in {"failed", "cancelled"}:
             raise ValueError("仅失败或已取消任务可以重试")
         found, completed = self.db.prepare_resource_retry(task_id)
         self.db.update_resource_task(task_id, status="queued", files_found=found, files_completed=completed, error_message=None, completed_at=None, cancel_requested=False)
         self.enqueue(task_id)
 
-    def delete_task(self, task_id: int, delete_files: bool) -> None:
-        task = self.db.resource_task(task_id)
+    def delete_task(self, task_id: int, delete_files: bool, owner_id: int) -> None:
+        task = self.db.resource_task(task_id, owner_id)
         if not task:
             raise ValueError("资源任务不存在")
         if task["status"] in {"queued", "running"}:
             raise ValueError("请先取消任务，再执行删除")
-        files = self.db.resource_task_files(task_id) if delete_files else []
+        files = self.db.resource_task_files(task_id, owner_id) if delete_files else []
         for file in files:
-            if file["object_key"]:
-                self.storage.delete(file["object_key"])
-        self.db.delete_resource_task(task_id, delete_files)
+            self._delete_telegram_resource(file["id"], owner_id)
+        self.db.delete_resource_task(task_id, delete_files, owner_id)
 
-    def delete_file(self, file_id: int) -> None:
-        file = self.db.resource_file(file_id)
+    def delete_file(self, file_id: int, owner_id: int) -> None:
+        file = self.db.resource_file(file_id, owner_id)
         if not file:
             raise ValueError("资源文件不存在")
         if file["download_status"] in {"queued", "downloading"} or file["upload_status"] in {"pending", "uploading"}:
             raise ValueError("文件仍在处理中，暂不能删除")
-        if file["object_key"]:
-            self.storage.delete(file["object_key"])
-        self.db.delete_resource_file(file_id)
+        self._delete_telegram_resource(file_id, owner_id)
+
+    def _delete_telegram_resource(self, file_id: int, owner_id: int) -> None:
+        base_url = os.getenv("XIANYU_INTERNAL_URL", "http://server:8888").rstrip("/")
+        request = urllib.request.Request(
+            f"{base_url}/xy/internal/telegram-resources/files/{file_id}",
+            data=json.dumps({"ownerId": owner_id}).encode(),
+            headers={"Content-Type": "application/json"},
+            method="DELETE",
+        )
+        try:
+            with urllib.request.urlopen(request, timeout=30) as response:
+                result = json.load(response)
+        except Exception as exc:
+            raise RuntimeError("Telegram 文件删除失败") from exc
+        if result.get("code") != 0:
+            raise RuntimeError("资源目录拒绝删除 Telegram 文件")
 
     async def _worker(self) -> None:
         while True:
@@ -590,12 +604,29 @@ class ResourceService:
         if not task or task["status"] != "queued":
             return
         self.db.update_resource_task(task_id, status="running", started_at=datetime.now(timezone.utc), error_message=None)
+        flooded_api_ids: set[int] = set()
         try:
+            if getattr(self.telegram, "credential_source", "env") == "database":
+                await self.telegram.refresh_api_credentials()
             if not self.telegram.authorized:
-                await self.telegram.connect()
+                if getattr(self.telegram, "credential_source", "env") == "database":
+                    await self.telegram.call_with_fallback(self.telegram.connect, flooded_api_ids)
+                else:
+                    await self.telegram.connect()
             if not self.telegram.authorized:
                 raise RuntimeError("Telegram 未登录")
-            await self.telegram._ensure_connected()
+            if getattr(self.telegram, "credential_source", "env") == "database":
+                await self.telegram.call_with_fallback(self.telegram._ensure_connected, flooded_api_ids)
+            else:
+                await self.telegram._ensure_connected()
+            if task["source_mode"] == "smart" and task["source_strategy"] == "pending":
+                source_ids, strategy = await self.plan_sources(task["keyword"], task["source_mode"], [])
+                if self._cancelled(task_id):
+                    return
+                self.db.update_resource_task(task_id, source_dialog_ids=source_ids, source_strategy=strategy)
+                task = self.db.resource_task(task_id)
+                if not task:
+                    return
             completed = task["files_completed"]
             found = task["files_found"]
             failed = 0
@@ -605,35 +636,62 @@ class ResourceService:
                 if self._cancelled(task_id):
                     self.db.update_resource_task(task_id, status="cancelled", completed_at=datetime.now(timezone.utc))
                     return
-                entity = await self._dialog_entity(dialog)
-                async for message in self.telegram.client.iter_messages(entity, search=task["keyword"], limit=max(task["max_downloads"] * 20, 100)):
-                    if completed >= task["max_downloads"]:
-                        break
-                    if self._cancelled(task_id):
-                        self.db.update_resource_task(task_id, status="cancelled", completed_at=datetime.now(timezone.utc))
-                        return
-                    meta = self._match(message, task)
-                    if not meta:
-                        continue
-                    record = self.db.claim_resource_file(task_id, dialog, message.id, meta["file_id"], meta["filename"], meta["size"], meta["mime_type"], message.raw_text or "")
-                    if not record:
-                        continue
-                    found += 1
-                    self.db.update_resource_task(task_id, files_found=found)
-                    if await self._download(task_id, record, message):
-                        completed += 1
-                        self.db.update_resource_task(task_id, files_completed=completed)
-                    elif self._cancelled(task_id):
-                        return
-                    else:
-                        failed += 1
-                if completed >= task["max_downloads"]:
+                if getattr(self.telegram, "credential_source", "env") == "database":
+                    entity = await self.telegram.call_with_fallback(
+                        lambda: self.telegram.client.get_entity(dialog.get("username") or dialog["telegram_id"]),
+                        flooded_api_ids,
+                    )
+                else:
+                    entity = await self._dialog_entity(dialog)
+                try:
+                    async for message in self._resource_messages(entity, task["keyword"], max(task["max_downloads"] * 20, 100), flooded_api_ids):
+                        if found >= task["max_downloads"]:
+                            break
+                        if self._cancelled(task_id):
+                            self.db.update_resource_task(task_id, status="cancelled", completed_at=datetime.now(timezone.utc))
+                            return
+                        meta = self._match(message, task)
+                        if not meta:
+                            continue
+                        record = self.db.claim_resource_file(task_id, dialog, message.id, meta["file_id"], meta["filename"], meta["size"], meta["mime_type"], message.raw_text or "")
+                        if not record:
+                            continue
+                        found += 1
+                        self.db.update_resource_task(task_id, files_found=found)
+                        if await self._download(task_id, record, message, flooded_api_ids):
+                            completed += 1
+                            self.db.update_resource_task(task_id, files_completed=completed)
+                        elif self._cancelled(task_id):
+                            return
+                        else:
+                            failed += 1
+                except errors.FloodWaitError:
+                    raise
+                if found >= task["max_downloads"]:
                     break
             self.db.update_resource_task(task_id, status="failed" if failed else "completed", error_message=f"{failed} 个文件下载或上传失败" if failed else None, completed_at=datetime.now(timezone.utc))
         except asyncio.CancelledError:
             raise
         except Exception as exc:
-            self.db.update_resource_task(task_id, status="failed", error_message=str(exc)[:2000], completed_at=datetime.now(timezone.utc))
+            message = f"FloodWait: {exc.seconds} seconds" if isinstance(exc, errors.FloodWaitError) else str(exc)
+            self.db.update_resource_task(task_id, status="failed", error_message=message[:2000], completed_at=datetime.now(timezone.utc))
+
+    async def _resource_messages(self, entity, keyword: str, limit: int, flooded_api_ids: set[int]):
+        offset_id = 0
+        yielded = 0
+        while yielded < limit:
+            try:
+                async for message in self.telegram.client.iter_messages(
+                    entity, search=keyword, limit=limit - yielded, offset_id=offset_id,
+                ):
+                    offset_id = message.id
+                    yielded += 1
+                    yield message
+                return
+            except errors.FloodWaitError as exc:
+                if getattr(self.telegram, "credential_source", "env") != "database":
+                    raise
+                await self.telegram.switch_after_flood_wait(exc, flooded_api_ids)
 
     def _match(self, message, task: dict) -> dict | None:
         document = getattr(message, "document", None)
@@ -653,14 +711,25 @@ class ResourceService:
             return None
         return {"filename": cleaned, "size": size, "mime_type": getattr(file, "mime_type", None), "file_id": str(document.id)}
 
-    async def _download(self, task_id: int, record: dict, message) -> bool:
+    async def _download(self, task_id: int, record: dict, message, flooded_api_ids: set[int] | None = None) -> bool:
         task_dir = self.tmp_root / str(task_id)
         task_dir.mkdir(parents=True, exist_ok=True)
         path = task_dir / f"{record['id']}-{safe_filename(record['original_filename'])}"
         self.db.update_resource_file(record["id"], download_status="downloading", attempts=record["attempts"] + 1)
         try:
             try:
-                download = asyncio.create_task(self.telegram.call(self.telegram.client.download_media, message, file=str(path)))
+                if flooded_api_ids is not None and getattr(self.telegram, "credential_source", "env") == "database":
+                    async def download_with_fallback():
+                        while True:
+                            try:
+                                return await self.telegram.client.download_media(message, file=str(path))
+                            except errors.FloodWaitError as exc:
+                                path.unlink(missing_ok=True)
+                                await self.telegram.switch_after_flood_wait(exc, flooded_api_ids)
+
+                    download = asyncio.create_task(download_with_fallback())
+                else:
+                    download = asyncio.create_task(self.telegram.call(self.telegram.client.download_media, message, file=str(path)))
                 self.active_downloads[task_id] = download
                 try:
                     async with asyncio.timeout(DOWNLOAD_TIMEOUT_SECONDS):
@@ -678,9 +747,20 @@ class ResourceService:
                 raise RuntimeError("文件超过大小限制")
             self._validate_download(path, record["file_type"])
             now = datetime.now(timezone.utc)
-            object_key = f"telegram/{now:%Y}/{now:%m}/{task_id}/{record['id']}-{safe_filename(record['original_filename'])}"
-            self.db.update_resource_file(record["id"], bytes_downloaded=path.stat().st_size, download_status="success", upload_status="uploading")
+            object_key = record.get("object_key") or f"telegram/{now:%Y}/{now:%m}/{task_id}/{record['id']}-{safe_filename(record['original_filename'])}"
+            size = path.stat().st_size
+            self.db.update_resource_file(record["id"], bytes_downloaded=size, download_status="success", upload_status="uploading", object_key=object_key)
             await asyncio.to_thread(self.storage.upload, path, object_key, record["mime_type"])
+            await asyncio.to_thread(
+                self._register_telegram_resource,
+                {
+                    "ownerId": record["owner_id"], "name": record["original_filename"], "size": size,
+                    "mimeType": record["mime_type"] or "", "sha256": await asyncio.to_thread(_sha256_file, path),
+                    "objectKey": object_key, "sourceName": record["source_name"],
+                    "sourceReference": f"telegram://{record['telegram_chat_id']}/{record['telegram_message_id']}",
+                    "externalId": f"{record['telegram_chat_id']}:{record['telegram_message_id']}",
+                },
+            )
             self.db.update_resource_file(record["id"], upload_status="success", object_key=object_key, completed_at=now, error_message=None)
             return True
         except asyncio.CancelledError:
@@ -696,6 +776,8 @@ class ResourceService:
             return False
         except Exception as exc:
             self.db.update_resource_file(record["id"], download_status="failed", upload_status="failed", error_message=str(exc)[:2000], completed_at=datetime.now(timezone.utc))
+            if isinstance(exc, errors.FloodWaitError):
+                raise
             return False
         finally:
             path.unlink(missing_ok=True)
@@ -715,6 +797,22 @@ class ResourceService:
                 raise RuntimeError("ZIP 内容超过安全限制")
             if any(item.flag_bits & 1 or Path(item.filename).suffix.lower() in BLOCKED_ARCHIVE_EXTENSIONS for item in entries):
                 raise RuntimeError("ZIP 包含加密内容或明显危险文件")
+
+    def _register_telegram_resource(self, payload: dict) -> None:
+        base_url = os.getenv("XIANYU_INTERNAL_URL", "http://server:8888").rstrip("/")
+        request = urllib.request.Request(
+            base_url + "/xy/internal/telegram-resources/import",
+            data=json.dumps(payload, ensure_ascii=False).encode(),
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        try:
+            with urllib.request.urlopen(request, timeout=30) as response:
+                result = json.load(response)
+        except Exception as exc:
+            raise RuntimeError("资源目录登记失败") from exc
+        if result.get("code") != 0:
+            raise RuntimeError("资源目录拒绝登记 Telegram 文件")
 
     def _cancelled(self, task_id: int) -> bool:
         task = self.db.resource_task(task_id)

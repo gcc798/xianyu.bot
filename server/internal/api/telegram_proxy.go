@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/gcc798/xianyu.bot/internal/model/response"
+	"github.com/gcc798/xianyu.bot/internal/security"
 	"github.com/gin-gonic/gin"
 )
 
@@ -68,7 +69,7 @@ func telegramRequest(c *gin.Context) (*http.Response, error) {
 			request.Header.Set(name, value)
 		}
 	}
-	request.Header.Set("X-Internal-Token", os.Getenv("TELEGRAM_INTERNAL_TOKEN"))
+	request.Header.Set("X-Console-User-ID", fmt.Sprint(security.GetUserID(c)))
 	upstream, err := telegramHTTPClient.Do(request)
 	if err != nil {
 		return nil, fmt.Errorf("Telegram 服务不可用")

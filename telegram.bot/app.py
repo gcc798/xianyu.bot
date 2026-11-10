@@ -12,10 +12,9 @@ from typing import Literal
 from urllib.parse import urlencode, urlparse
 
 import uvicorn
-from botocore.exceptions import BotoCoreError, ClientError
 from dotenv import load_dotenv
 from fastapi import FastAPI, Form, HTTPException, Request
-from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
+from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel, Field, field_validator, model_validator
@@ -33,12 +32,15 @@ load_dotenv(ROOT / ".env")
 (ROOT / "exports").mkdir(exist_ok=True)
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 db = Database(os.getenv("DATABASE_URL", "postgresql://xianyu:xianyu_assistant@postgres:5432/xianyu_assistant"))
+credential_source = os.getenv("TG_API_CREDENTIAL_SOURCE", "env").strip().lower()
+if credential_source not in {"env", "database"}:
+    raise ValueError("TG_API_CREDENTIAL_SOURCE 必须是 env 或 database")
 api_id_text, api_hash = os.getenv("TG_API_ID", ""), os.getenv("TG_API_HASH", "")
-api_id = int(api_id_text) if api_id_text.isdigit() and api_id_text != "123456" else None
-api_hash = api_hash if api_hash and api_hash != "replace_with_your_api_hash" else None
+api_id = int(api_id_text) if credential_source == "env" and api_id_text.isdigit() and api_id_text != "123456" else None
+api_hash = api_hash if credential_source == "env" and api_hash and api_hash != "replace_with_your_api_hash" else None
 proxy_host, proxy_port = os.getenv("TG_PROXY_HOST", "").strip(), os.getenv("TG_PROXY_PORT", "").strip()
 proxy = ("socks5", proxy_host, int(proxy_port)) if proxy_host and proxy_port.isdigit() else None
-service = TelegramService(api_id, api_hash, db, proxy)
+service = TelegramService(api_id, api_hash, db, proxy, credential_source)
 resources = ResourceService(service, db, RustFS())
 service.refresh_adult_dialogs = resources.refresh_adult_dialogs
 telegram_mcp, telegram_mcp_app = build_mcp(service, resources, db)
@@ -48,6 +50,10 @@ csrf_token = secrets.token_urlsafe(32)
 @asynccontextmanager
 async def lifespan(_app):
     # Telegram may be unreachable; local Web UI must still start immediately.
+    try:
+        await service.refresh_api_credentials()
+    except Exception as exc:
+        logging.getLogger(__name__).warning("Telegram API 配置暂不可用: %s", exc)
     connect_task = asyncio.create_task(service.connect()) if service.has_session else None
     async with telegram_mcp.session_manager.run():
         await resources.start()
@@ -78,12 +84,6 @@ async def healthz():
 
 @app.middleware("http")
 async def disable_script_cache(request: Request, call_next):
-    if request.url.path.startswith("/mcp"):
-        internal_token = os.getenv("TELEGRAM_INTERNAL_TOKEN", "")
-        if not internal_token:
-            return JSONResponse({"detail": "服务访问令牌未配置"}, status_code=503)
-        if not secrets.compare_digest(request.headers.get("x-internal-token", ""), internal_token):
-            return JSONResponse({"detail": "访问令牌无效"}, status_code=403)
     response = await call_next(request)
     if request.url.path == "/static/app.js":
         response.headers["Cache-Control"] = "no-store"
@@ -152,12 +152,14 @@ class LeaveDialogsInput(BaseModel):
     confirm: str
 
 
-def internal_access(request: Request):
-    internal_token = os.getenv("TELEGRAM_INTERNAL_TOKEN", "")
-    # shortcut: an unset token relies on the Docker port staying loopback-only, require a token before external exposure.
-    if not internal_token or secrets.compare_digest(request.headers.get("x-internal-token", ""), internal_token):
-        return
-    raise HTTPException(403, "Telegram 内部访问令牌未配置或不匹配")
+def console_user_id(request: Request) -> int:
+    try:
+        user_id = int(request.headers.get("x-console-user-id", ""))
+    except ValueError as exc:
+        raise HTTPException(401, "用户身份无效") from exc
+    if user_id < 1:
+        raise HTTPException(401, "缺少用户身份")
+    return user_id
 
 
 def check_csrf(token: str):
@@ -288,7 +290,6 @@ async def settings(request: Request):
 
 @app.get("/api/admin/status")
 async def admin_status(request: Request):
-    internal_access(request)
     return {
         "authorized": service.authorized,
         "configured": bool(service.client),
@@ -301,7 +302,6 @@ async def admin_status(request: Request):
 
 @app.post("/api/admin/login/qr")
 async def admin_login_qr(request: Request):
-    internal_access(request)
     try:
         service.start_qr()
     except Exception as exc:
@@ -312,20 +312,17 @@ async def admin_login_qr(request: Request):
 
 @app.get("/api/admin/login/status")
 async def admin_login_status(request: Request):
-    internal_access(request)
     return service.qr
 
 
 @app.post("/api/admin/login/2fa")
 async def admin_login_2fa(payload: TelegramPasswordInput, request: Request):
-    internal_access(request)
     await service.submit_2fa(payload.password)
     return service.qr
 
 
 @app.post("/api/admin/scan")
 async def admin_start_scan(request: Request):
-    internal_access(request)
     require_login()
     scan_id = service.start_scan()
     return {"started": scan_id is not None, "task_id": scan_id, "progress": service.progress}
@@ -333,7 +330,6 @@ async def admin_start_scan(request: Request):
 
 @app.get("/api/admin/scan/status")
 async def admin_scan_status(request: Request):
-    internal_access(request)
     require_login()
     return service.progress
 
@@ -350,7 +346,6 @@ async def admin_dialogs(
     sort: str = "last_message",
     order: str = "desc",
 ):
-    internal_access(request)
     require_login()
     if page < 1 or not 1 <= page_size <= 100:
         raise HTTPException(400, "分页参数无效")
@@ -363,7 +358,6 @@ async def admin_dialogs(
 
 @app.post("/api/admin/dialogs/leave")
 async def admin_leave_dialogs(payload: LeaveDialogsInput, request: Request):
-    internal_access(request)
     require_login()
     if payload.confirm.strip() != "退出":
         raise HTTPException(400, "请输入“退出”确认")
@@ -381,7 +375,6 @@ async def admin_leave_dialogs(payload: LeaveDialogsInput, request: Request):
 
 @app.get("/api/admin/dialogs/export")
 async def admin_export_dialogs(request: Request):
-    internal_access(request)
     require_login()
     content = "\ufeff" + db.export_csv(filters_from(request))
     filename = f"telegram-dialogs-{datetime.now():%Y%m%d-%H%M%S}.csv"
@@ -390,7 +383,6 @@ async def admin_export_dialogs(request: Request):
 
 @app.get("/api/admin/settings")
 async def admin_settings(request: Request):
-    internal_access(request)
     return {
         "telegram_api_configured": bool(service.client),
         "authorized": service.authorized,
@@ -407,14 +399,12 @@ async def admin_settings(request: Request):
 
 @app.post("/api/admin/settings/adult-mode")
 async def update_adult_mode(payload: AdultModeInput, request: Request):
-    internal_access(request)
     db.set_adult_mode(payload.adult_mode)
     return {"adult_mode": db.adult_mode(), "adult_dialog_count": len(db.adult_dialog_ids())}
 
 
 @app.post("/api/admin/settings/ai")
 async def update_ai_settings(payload: AISettingsInput, request: Request):
-    internal_access(request)
     requested_ai_settings(payload)
     db.setting("ai_base_url", payload.base_url)
     db.setting("ai_model", payload.model)
@@ -425,25 +415,26 @@ async def update_ai_settings(payload: AISettingsInput, request: Request):
 
 @app.post("/api/admin/settings/ai/probe")
 async def probe_ai_settings(payload: AISettingsInput, request: Request):
-    internal_access(request)
     return {"available": await resources.probe_ai(requested_ai_settings(payload))}
 
 
 @app.get("/api/resources/options")
 async def resource_options(request: Request):
-    internal_access(request)
     file_types = [{"value": value, **metadata} for value, metadata in FILE_TYPE_DICTIONARY.items()]
     return {"dialogs": db.resource_dialogs(), "file_types": file_types, "max_file_size": resources.max_file_size}
 
 
 @app.post("/api/resources/tasks", status_code=201)
 async def create_resource_task(payload: ResourceTaskInput, request: Request):
-    internal_access(request)
+    owner_id = console_user_id(request)
     if not service.authorized:
         raise HTTPException(409, "Telegram 未登录，请先在 Telegram 服务页面完成登录")
     try:
-        source_ids, strategy = await resources.plan_sources(payload.keyword.strip(), payload.source_mode, payload.source_dialog_ids)
-        task = db.create_resource_task(payload.keyword.strip(), payload.file_types, source_ids, payload.max_downloads, payload.source_mode, strategy)
+        if payload.source_mode == "smart":
+            source_ids, strategy = [], "pending"
+        else:
+            source_ids, strategy = await resources.plan_sources(payload.keyword.strip(), payload.source_mode, payload.source_dialog_ids)
+        task = db.create_resource_task(owner_id, payload.keyword.strip(), payload.file_types, source_ids, payload.max_downloads, payload.source_mode, strategy)
     except ValueError as exc:
         raise HTTPException(400, str(exc)) from exc
     resources.enqueue(task["id"])
@@ -452,20 +443,19 @@ async def create_resource_task(payload: ResourceTaskInput, request: Request):
 
 @app.get("/api/resources/tasks")
 async def resource_tasks(request: Request, page: int = 1, page_size: int = 20, q: str = "", status: str = ""):
-    internal_access(request)
+    owner_id = console_user_id(request)
     if page < 1 or not 1 <= page_size <= 100:
         raise HTTPException(400, "分页参数无效")
     if status and status not in {"queued", "running", "completed", "failed", "cancelled"}:
         raise HTTPException(400, "任务状态无效")
-    filters = {"q": q.strip()[:200], "status": status}
+    filters = {"q": q.strip()[:200], "status": status, "owner_id": owner_id}
     rows, total = db.list_resource_tasks(filters, page, page_size)
     return {"list": rows, "total": total, "page": page, "page_size": page_size}
 
 
 @app.get("/api/resources/tasks/{task_id}")
 async def resource_task(task_id: int, request: Request):
-    internal_access(request)
-    task = db.resource_task(task_id)
+    task = db.resource_task(task_id, console_user_id(request))
     if not task:
         raise HTTPException(404, "任务不存在")
     return task
@@ -473,9 +463,9 @@ async def resource_task(task_id: int, request: Request):
 
 @app.post("/api/resources/tasks/{task_id}/cancel")
 async def cancel_resource_task(task_id: int, request: Request):
-    internal_access(request)
+    owner_id = console_user_id(request)
     try:
-        resources.cancel(task_id)
+        resources.cancel(task_id, owner_id)
     except ValueError as exc:
         raise HTTPException(409, str(exc)) from exc
     return {"ok": True}
@@ -483,9 +473,9 @@ async def cancel_resource_task(task_id: int, request: Request):
 
 @app.post("/api/resources/tasks/{task_id}/retry")
 async def retry_resource_task(task_id: int, request: Request):
-    internal_access(request)
+    owner_id = console_user_id(request)
     try:
-        resources.retry(task_id)
+        resources.retry(task_id, owner_id)
     except ValueError as exc:
         raise HTTPException(409, str(exc)) from exc
     return {"ok": True}
@@ -493,29 +483,28 @@ async def retry_resource_task(task_id: int, request: Request):
 
 @app.delete("/api/resources/tasks/{task_id}")
 async def delete_resource_task(task_id: int, request: Request, delete_files: bool = False):
-    internal_access(request)
+    owner_id = console_user_id(request)
     try:
-        resources.delete_task(task_id, delete_files)
+        resources.delete_task(task_id, delete_files, owner_id)
     except ValueError as exc:
         raise HTTPException(409, str(exc)) from exc
-    except (BotoCoreError, ClientError) as exc:
-        raise HTTPException(502, "RustFS 文件删除失败") from exc
+    except RuntimeError as exc:
+        raise HTTPException(502, str(exc)) from exc
     return {"ok": True}
 
 
 @app.get("/api/resources/files")
 async def resource_files(request: Request, page: int = 1, page_size: int = 20, task_id: int | None = None, filename: str = "", file_type: str = "", status: str = "", source_id: int | None = None):
-    internal_access(request)
+    owner_id = console_user_id(request)
     if page < 1 or not 1 <= page_size <= 100:
         raise HTTPException(400, "分页参数无效")
-    filters = {"task_id": task_id, "filename": filename[:200], "file_type": file_type[:12], "status": status[:20], "source_id": source_id}
+    filters = {"owner_id": owner_id, "task_id": task_id, "filename": filename[:200], "file_type": file_type[:12], "status": status[:20], "source_id": source_id}
     rows, total = db.list_resource_files(filters, page, page_size)
     return {"list": rows, "total": total, "page": page, "page_size": page_size}
 
 
 def resource_redirect(file_id: int, request: Request, inline: bool):
-    internal_access(request)
-    item = db.resource_file(file_id)
+    item = db.resource_file(file_id, console_user_id(request))
     if not item or item["upload_status"] != "success" or not item["object_key"]:
         raise HTTPException(404, "文件不存在或尚未上传完成")
     previewable = FILE_TYPE_DICTIONARY.get(item["file_type"], {}).get("preview") is not None
@@ -536,13 +525,13 @@ async def download_resource_file(file_id: int, request: Request):
 
 @app.delete("/api/resources/files/{file_id}")
 async def delete_resource_file(file_id: int, request: Request):
-    internal_access(request)
+    owner_id = console_user_id(request)
     try:
-        resources.delete_file(file_id)
+        resources.delete_file(file_id, owner_id)
     except ValueError as exc:
         raise HTTPException(409, str(exc)) from exc
-    except (BotoCoreError, ClientError) as exc:
-        raise HTTPException(502, "RustFS 文件删除失败") from exc
+    except RuntimeError as exc:
+        raise HTTPException(502, str(exc)) from exc
     return {"ok": True}
 
 

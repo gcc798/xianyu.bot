@@ -1,5 +1,7 @@
 import asyncio
 from datetime import datetime, timedelta, timezone
+from io import BytesIO
+import json
 import os
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -14,7 +16,7 @@ import resource_service
 from resource_service import ResourceService, rank_sources
 from storage import safe_filename
 from telegram_service import TelegramService
-from telethon import functions, types
+from telethon import errors, functions, types
 
 
 def test_resource_validation():
@@ -127,7 +129,7 @@ def test_resource_cancel_interrupts_active_download():
             record = {"id": 3, "attempts": 0, "original_filename": "video.mp4", "file_type": "mp4", "mime_type": "video/mp4"}
             running = asyncio.create_task(service._download(9, record, SimpleNamespace()))
             await started.wait()
-            service.cancel(9)
+            service.cancel(9, 11)
             assert await asyncio.wait_for(running, 0.2) is False
             assert service.db.task["status"] == "cancelled"
             assert service.db.file_updates[-1]["original_filename"] == "video（已中止）.mp4"
@@ -143,51 +145,53 @@ def test_resource_deletion_keeps_or_removes_related_files():
         task = {"id": 9, "status": "completed"}
         files = [{"id": 3, "object_key": "telegram/3.pdf"}, {"id": 4, "object_key": None}]
         deleted_tasks = []
-        deleted_files = []
 
-        def resource_task(self, _task_id):
+        def resource_task(self, _task_id, _owner_id=None):
             return self.task
 
-        def resource_task_files(self, _task_id):
+        def resource_task_files(self, _task_id, _owner_id=None):
             return self.files
 
-        def delete_resource_task(self, task_id, delete_files):
+        def delete_resource_task(self, task_id, delete_files, _owner_id):
             self.deleted_tasks.append((task_id, delete_files))
 
-        def resource_file(self, _file_id):
+        def resource_file(self, _file_id, _owner_id=None):
             return {"id": 3, "object_key": "telegram/3.pdf", "download_status": "success", "upload_status": "success"}
-
-        def delete_resource_file(self, file_id):
-            self.deleted_files.append(file_id)
-
-    class FakeStorage:
-        deleted = []
-
-        def delete(self, object_key):
-            self.deleted.append(object_key)
 
     service = ResourceService.__new__(ResourceService)
     service.db = FakeDatabase()
-    service.storage = FakeStorage()
+    deleted_files = []
+    service._delete_telegram_resource = lambda file_id, owner_id: deleted_files.append((file_id, owner_id))
 
-    service.delete_task(9, False)
+    service.delete_task(9, False, 11)
     assert service.db.deleted_tasks == [(9, False)]
-    assert service.storage.deleted == []
+    assert deleted_files == []
 
-    service.delete_task(9, True)
+    service.delete_task(9, True, 11)
     assert service.db.deleted_tasks[-1] == (9, True)
-    assert service.storage.deleted == ["telegram/3.pdf"]
+    assert deleted_files == [(3, 11), (4, 11)]
 
-    service.delete_file(3)
-    assert service.db.deleted_files == [3]
-    assert service.storage.deleted == ["telegram/3.pdf", "telegram/3.pdf"]
+    service.delete_file(3, 11)
+    assert deleted_files[-1] == (3, 11)
 
     service.db.task = {"id": 10, "status": "running"}
     try:
-        service.delete_task(10, True)
+        service.delete_task(10, True, 11)
         raise AssertionError("running task was deleted")
     except ValueError as exc:
         assert "先取消任务" in str(exc)
+
+
+def test_telegram_download_registers_resource_with_go_owner():
+    service = ResourceService.__new__(ResourceService)
+    with patch("resource_service.urllib.request.urlopen") as urlopen:
+        urlopen.return_value.__enter__.return_value = BytesIO(b'{"code":0,"data":{"resource":{}}}')
+        service._register_telegram_resource({"ownerId": 11, "externalId": "1:2"})
+
+    request = urlopen.call_args.args[0]
+    assert request.full_url.endswith("/xy/internal/telegram-resources/import")
+    assert request.get_header("X-telegram-internal-token") is None
+    assert json.loads(request.data) == {"ownerId": 11, "externalId": "1:2"}
 
 
 def test_adult_dialog_filter_uses_cached_ids_without_ai():
@@ -263,6 +267,112 @@ def test_ai_probe_does_not_refresh_adult_cache():
         resource_service.request_ai_json = original
 
 
+def test_smart_source_planning_runs_in_the_queued_worker():
+    async def scenario():
+        task = {
+            "id": 1,
+            "status": "queued",
+            "keyword": "authorized training",
+            "source_mode": "smart",
+            "source_strategy": "pending",
+            "source_dialog_ids": [],
+            "sources": [],
+            "files_found": 0,
+            "files_completed": 0,
+            "max_downloads": 1,
+            "cancel_requested": False,
+        }
+
+        class FakeDatabase:
+            def resource_task(self, _task_id):
+                return dict(task)
+
+            def update_resource_task(self, _task_id, **values):
+                task.update(values)
+
+        class FakeTelegram:
+            authorized = True
+
+            async def _ensure_connected(self):
+                return None
+
+        service = ResourceService.__new__(ResourceService)
+        service.db = FakeDatabase()
+        service.telegram = FakeTelegram()
+        service.plan_sources = AsyncMock(return_value=([17], "ai"))
+
+        await service._run(1)
+
+        service.plan_sources.assert_awaited_once_with("authorized training", "smart", [])
+        assert task["source_dialog_ids"] == [17]
+        assert task["source_strategy"] == "ai"
+        assert task["status"] == "completed"
+
+    asyncio.run(scenario())
+
+
+def test_resource_task_attempt_limit_includes_failed_downloads():
+    async def scenario():
+        task = {
+            "id": 1,
+            "status": "queued",
+            "keyword": "training",
+            "file_types": [],
+            "source_mode": "manual",
+            "source_strategy": "manual",
+            "sources": [{"id": 2, "telegram_id": 22, "name": "Training", "username": "training_group", "status": "normal", "resource_compliance_status": "allowed"}],
+            "files_found": 0,
+            "files_completed": 0,
+            "max_downloads": 1,
+            "cancel_requested": False,
+        }
+        candidates = [
+            SimpleNamespace(id=10, document=SimpleNamespace(id=110), file=SimpleNamespace(name="training.txt", size=100, mime_type="text/plain"), raw_text="training"),
+            SimpleNamespace(id=11, document=SimpleNamespace(id=111), file=SimpleNamespace(name="training.txt", size=200, mime_type="text/plain"), raw_text="training"),
+        ]
+        claimed = []
+
+        class FakeDatabase:
+            def resource_task(self, _task_id):
+                return dict(task)
+
+            def update_resource_task(self, _task_id, **values):
+                task.update(values)
+
+            def claim_resource_file(self, _task_id, _dialog, message_id, *_args):
+                claimed.append(message_id)
+                return {"id": message_id, "attempts": 0}
+
+        class FakeClient:
+            async def iter_messages(self, *_args, **_kwargs):
+                for candidate in candidates:
+                    yield candidate
+
+        class FakeTelegram:
+            authorized = True
+            client = FakeClient()
+
+            async def _ensure_connected(self):
+                return None
+
+        service = ResourceService.__new__(ResourceService)
+        service.db = FakeDatabase()
+        service.telegram = FakeTelegram()
+        service.max_file_size = 1024
+        service._dialog_entity = AsyncMock(return_value=object())
+        service._download = AsyncMock(return_value=False)
+
+        await service._run(1)
+
+        assert claimed == [10]
+        service._download.assert_awaited_once()
+        assert task["files_found"] == 1
+        assert task["files_completed"] == 0
+        assert task["status"] == "failed"
+
+    asyncio.run(scenario())
+
+
 def test_metadata_scan_storage():
     now = datetime.now(timezone.utc)
     assert "长期无消息" in cleanup_tags({"last_message_at": (now - timedelta(days=200)).isoformat(), "status": "normal"}, now)
@@ -293,24 +403,28 @@ def test_metadata_scan_storage():
             db.update_scan(scan_id, status="completed", finished_at=now)
             db.record_leave(row, "failed", "test")
             task_keyword = "training-" + uuid.uuid4().hex
-            task = db.create_resource_task(task_keyword, ["pdf"], [dialog_id], 2)
-            tasks, total = db.list_resource_tasks({"q": task_keyword[9:20], "status": "queued"})
+            owner_id = 11
+            task = db.create_resource_task(owner_id, task_keyword, ["pdf"], [dialog_id], 2)
+            tasks, total = db.list_resource_tasks({"q": task_keyword[9:20], "status": "queued", "owner_id": owner_id})
             assert total == 1 and tasks[0]["id"] == task["id"]
-            assert db.list_resource_tasks({"q": task_keyword, "status": "completed"})[1] == 0
+            assert db.list_resource_tasks({"q": task_keyword, "status": "completed", "owner_id": owner_id})[1] == 0
+            assert db.list_resource_tasks({"q": task_keyword, "owner_id": 999})[1] == 0
+            assert db.resource_task(task["id"], 999) is None
             manager = ResourceService(SimpleNamespace(), db, SimpleNamespace())
-            manager.cancel(task["id"])
+            manager.cancel(task["id"], owner_id)
             assert db.resource_task(task["id"])["status"] == "cancelled"
-            manager.retry(task["id"])
+            manager.retry(task["id"], owner_id)
             assert db.resource_task(task["id"])["status"] == "queued"
             telegram_file_id = "file-" + uuid.uuid4().hex
             resource = db.claim_resource_file(task["id"], row, 99, telegram_file_id, "training.pdf", 123, "application/pdf", "authorized training")
             assert resource and db.claim_resource_file(task["id"], row, 99, telegram_file_id, "training.pdf", 123, "application/pdf", "authorized training") is None
             db.update_resource_task(task["id"], status="running")
             db.update_resource_file(resource["id"], download_status="downloading")
-            running_tasks, _ = db.list_resource_tasks({"q": task_keyword})
+            running_tasks, _ = db.list_resource_tasks({"q": task_keyword, "owner_id": owner_id})
             assert running_tasks[0]["current_stage"] == "downloading" and running_tasks[0]["current_file_name"] == "training.pdf"
             db.update_resource_file(resource["id"], download_status="success", upload_status="success", object_key="telegram/test/training.pdf", completed_at=now)
-            assert db.resource_file(resource["id"])["source_name"] == row["name"]
+            assert db.resource_file(resource["id"], owner_id)["source_name"] == row["name"]
+            assert db.resource_file(resource["id"], 999) is None
             db.update_resource_task(task["id"], status="cancelled", cancel_requested=True, completed_at=now)
             assert db.resource_task(task["id"])["status"] == "cancelled"
             acquisition, created = db.create_acquisition_task(task["id"], "candidate-test", "acquisition-" + uuid.uuid4().hex)
@@ -410,6 +524,176 @@ def test_connect_retries_transient_failure():
     assert service.authorized is True
 
 
+def test_call_does_not_retry_flood_wait():
+    service = TelegramService.__new__(TelegramService)
+    action = AsyncMock(side_effect=errors.FloodWaitError(request=None, capture=37))
+
+    with patch("telegram_service.asyncio.sleep", new=AsyncMock()) as sleep:
+        try:
+            asyncio.run(service.call(action))
+            raise AssertionError("FloodWait was swallowed")
+        except errors.FloodWaitError:
+            pass
+
+    action.assert_awaited_once()
+    sleep.assert_not_awaited()
+
+
+def test_resource_task_records_flood_wait_without_waiting():
+    task = {
+        "id": 9, "status": "queued", "keyword": "k8s", "source_mode": "manual",
+        "source_strategy": "manual", "sources": [{
+            "status": "normal", "resource_compliance_status": "allowed", "username": "group",
+        }], "files_completed": 0, "files_found": 0, "max_downloads": 1,
+    }
+    updates = []
+
+    class FakeDatabase:
+        def resource_task(self, _task_id):
+            return task
+
+        def update_resource_task(self, _task_id, **values):
+            task.update(values)
+            updates.append(values)
+
+    class FakeClient:
+        async def iter_messages(self, *_args, **_kwargs):
+            raise errors.FloodWaitError(request=None, capture=86400)
+            yield
+
+    class FakeTelegram:
+        authorized = True
+        client = FakeClient()
+
+        async def _ensure_connected(self):
+            pass
+
+    service = ResourceService.__new__(ResourceService)
+    service.db = FakeDatabase()
+    service.telegram = FakeTelegram()
+    service._dialog_entity = AsyncMock(return_value=object())
+    service._cancelled = lambda _task_id: False
+
+    asyncio.run(service._run(9))
+
+    assert task["status"] == "failed"
+    assert task["error_message"] == "FloodWait: 86400 seconds"
+    assert len(updates) == 2
+
+
+def test_switch_after_flood_wait_marks_config_and_selects_lower_api_id():
+    service = TelegramService.__new__(TelegramService)
+    service.api_id = 21724
+    service.api_hash = "hash-21724"
+    service.credential_source = "database"
+    service.authorized = True
+    service.record_flood_wait = AsyncMock()
+    service.refresh_api_credentials = AsyncMock(side_effect=lambda: setattr(service, "api_id", 16623))
+    service._ensure_connected = AsyncMock()
+    service.client = SimpleNamespace(is_user_authorized=AsyncMock(return_value=True))
+    flooded = set()
+
+    asyncio.run(service.switch_after_flood_wait(errors.FloodWaitError(request=None, capture=30), flooded))
+
+    assert flooded == {21724}
+    assert service.api_id == 16623
+    assert service.authorized is True
+    service.record_flood_wait.assert_awaited_once()
+
+
+def test_fifth_flood_wait_stops_resource_task():
+    service = TelegramService.__new__(TelegramService)
+    service.api_id = 4
+    service.credential_source = "database"
+    service.record_flood_wait = AsyncMock()
+    service.refresh_api_credentials = AsyncMock()
+    flooded = {8, 6, 5, 21724}
+
+    try:
+        asyncio.run(service.switch_after_flood_wait(errors.FloodWaitError(request=None, capture=60), flooded))
+        raise AssertionError("the fifth FloodWait did not stop the task")
+    except RuntimeError as exc:
+        assert "5 个 Telegram API ID" in str(exc)
+
+    assert flooded == {8, 6, 5, 21724, 4}
+    service.refresh_api_credentials.assert_not_awaited()
+
+
+def test_resource_task_resumes_after_switching_api_id():
+    task = {
+        "id": 19, "status": "queued", "keyword": "k8s", "file_types": [],
+        "source_mode": "manual", "source_strategy": "manual", "sources": [{
+            "id": 2, "telegram_id": 22, "name": "K8s", "username": "k8s_group",
+            "status": "normal", "resource_compliance_status": "allowed",
+        }], "files_completed": 0, "files_found": 0, "max_downloads": 1,
+    }
+    candidate = SimpleNamespace(
+        id=101, document=SimpleNamespace(id=201),
+        file=SimpleNamespace(name="k8s.txt", size=10, mime_type="text/plain"), raw_text="k8s",
+    )
+    updates = []
+
+    class FakeDatabase:
+        def resource_task(self, _task_id):
+            return task
+
+        def update_resource_task(self, _task_id, **values):
+            task.update(values)
+            updates.append(values)
+
+        def claim_resource_file(self, *_args):
+            return {"id": 201, "attempts": 0}
+
+    class FakeClient:
+        def __init__(self):
+            self.scans = 0
+
+        async def get_entity(self, _entity):
+            return object()
+
+        async def iter_messages(self, *_args, **_kwargs):
+            self.scans += 1
+            if self.scans == 1:
+                raise errors.FloodWaitError(request=None, capture=30)
+            yield candidate
+
+    class FakeTelegram:
+        credential_source = "database"
+        authorized = True
+        api_id = 21724
+
+        def __init__(self):
+            self.client = FakeClient()
+
+        async def _ensure_connected(self):
+            pass
+
+        async def refresh_api_credentials(self):
+            pass
+
+        async def switch_after_flood_wait(self, exc, flooded):
+            flooded.add(self.api_id)
+            self.api_id = 16623
+
+        async def call_with_fallback(self, operation, _flooded):
+            return await operation()
+
+    service = ResourceService.__new__(ResourceService)
+    service.db = FakeDatabase()
+    service.telegram = FakeTelegram()
+    service.max_file_size = 1024
+    service._cancelled = lambda _task_id: False
+    service._download = AsyncMock(return_value=True)
+
+    asyncio.run(service._run(19))
+
+    assert task["status"] == "completed", task
+    assert task["files_found"] == 1
+    assert task["files_completed"] == 1
+    assert service.telegram.client.scans == 2
+    service._download.assert_awaited_once()
+
+
 if __name__ == "__main__":
     test_resource_validation()
     test_adult_dialog_filter_uses_cached_ids_without_ai()
@@ -419,4 +703,8 @@ if __name__ == "__main__":
     test_qr_login_migrates_before_rendering()
     test_join_records_the_joined_dialog()
     test_connect_retries_transient_failure()
+    test_call_does_not_retry_flood_wait()
+    test_switch_after_flood_wait_marks_config_and_selects_lower_api_id()
+    test_fifth_flood_wait_stops_resource_task()
+    test_resource_task_resumes_after_switching_api_id()
     print("ok")
