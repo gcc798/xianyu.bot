@@ -31,8 +31,8 @@ Xianyu Tool -> Service
 - Service 不依赖 Gin，也不持有 Agent。
 - Agent 通过 Tool 使用闲鱼业务；进程内调用不走 MCP。
 - 外部资源能力通过 MCP 接入。
-- Telegram 批量扫描与 Agent/MCP 获取共用 Go 资源目录；Telegram 下载完成后由 Go 按用户归属登记统一资源，文件删除也由 Go 同步清理对象和目录记录。
-- Telegram 扫描任务和文件运维记录按 Go 代理传入的用户 ID 隔离；资源文件最终记录在 `xy_resources`，来源保存在 `xy_resource_sources`。当前 Telegram 任务的 CRUD 与 worker 进度仍由 `telegram.bot` 持久化，后续可继续迁入 Go；跨进程仅保留排队与取消等执行器通知。
+- Telegram 批量采集任务、来源目录、选源策略和任务 worker 由 Go 管理；Go 通过 Telegram MCP 搜索消息，并使用短期对象上传地址调用 Python 下载文件，随后按用户归属登记到 `xy_resources` 和 `xy_resource_sources`。
+- Python 仍管理 Telegram Session，并暂时保留会话扫描/退群、成人模式设置和历史文件运维所需的数据库访问；这些业务数据尚未全部迁移到 Go。Python 的旧批量采集 worker 已停止启动，避免与 Go 同时消费 `tel_resource_tasks`。
 - Telegram API 应用凭据和 FloodWait 截止时间由 Go 管理，Hash 使用现有凭据加密；Telegram Python 服务按配置模式从 Go 内部接口取得最高且未限流的 API ID，任务遇到 FloodWait 后切换配置并继续，连续 5 个不同 API ID 限流时失败。
 - Agent 从配置快照读取按优先级排序的模型，使用 Eino 模型 Failover 在同次运行内降级；轨迹只记录模型名称和失败摘要，不记录凭据。
 - PostgreSQL 由依赖注入传递，不使用包级数据库。
