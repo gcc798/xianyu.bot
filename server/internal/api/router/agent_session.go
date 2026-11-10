@@ -18,6 +18,7 @@ func NewAgentSessionRouter(handlers *api.API) *AgentSessionRouter {
 // Init 注册当前模块路由。
 func (r *AgentSessionRouter) Init(private *gin.RouterGroup) {
 	private.POST("xy/ai/agent/runs/:id/approve", r.handlers.AgentSession.ApproveRun)
+	private.GET("xy/ai/agent/tools", r.handlers.AgentSession.ToolCatalog)
 	group := private.Group("xy/ai/agent/sessions")
 	group.POST("", r.handlers.AgentSession.Create)
 	group.GET("", r.handlers.AgentSession.List)

@@ -1,4 +1,5 @@
 import type {
+  AgentToolCatalogEntry,
   AgentEvent,
   Directive,
   Session,
@@ -10,6 +11,9 @@ import { acceptRenewedToken, accessToken, apiBaseURL, request } from "./client";
 
 export const listSessions = () =>
   request<PageResult<Session>>("/xy/ai/agent/sessions?page=1&pageSize=100");
+
+export const listAgentTools = () =>
+  request<{ list: AgentToolCatalogEntry[] }>("/xy/ai/agent/tools");
 
 export const createSession = () =>
   request<{ session: Session }>("/xy/ai/agent/sessions", {

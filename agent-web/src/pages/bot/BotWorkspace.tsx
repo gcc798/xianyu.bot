@@ -9,6 +9,7 @@ import {
   deleteSession,
   getSession,
   getTrajectory,
+  listAgentTools,
   listSessions,
   sendMessage,
   streamEvents,
@@ -16,6 +17,7 @@ import {
 } from "../../api/agent";
 import type {
   AgentEvent,
+  AgentToolCatalogEntry,
   Approval,
   ChatMessage,
   Directive,
@@ -25,18 +27,10 @@ import type {
 import TrajectoryPanel from "./components/TrajectoryPanel";
 import SessionSidebar from "./components/SessionSidebar";
 
-const capabilities = [
-  ["skill", "resource-discovery", "理解目标并编排资源检索"],
-  ["skill", "telegram-resource", "使用当前 MCP 的资源能力"],
-  ["tool", "dialog_list", "列出可访问的群组与频道"],
-  ["tool", "dialog_resolve", "解析群组、频道或链接"],
-  ["tool", "message_send", "向指定会话发送检索词"],
-  ["tool", "message_list", "等待并读取新消息"],
-  ["tool", "message_search", "检索指定会话历史消息"],
-  ["tool", "resource_inspect", "查看候选资源详情"],
-  ["tool", "resource_acquire", "确认后获取候选资源"],
-  ["tool", "task_get", "查询异步任务进度"],
-] as const;
+const skills = [
+  { type: "skill" as const, code: "resource-discovery", name: "resource-discovery", description: "理解目标并编排资源检索", source: "Skill" },
+  { type: "skill" as const, code: "telegram-resource", name: "telegram-resource", description: "使用当前 MCP 的资源能力", source: "Skill" },
+];
 const terminalEvents = new Set(["run.completed", "run.failed", "run.cancelled"]);
 
 export default function BotWorkspace() {
@@ -47,12 +41,14 @@ export default function BotWorkspace() {
   const [approvals, setApprovals] = useState<Approval[]>([]);
   const [draft, setDraft] = useState("");
   const [directives, setDirectives] = useState<Directive[]>([]);
+  const [availableTools, setAvailableTools] = useState<AgentToolCatalogEntry[]>([]);
   const [running, setRunning] = useState(false);
   const [cancelling, setCancelling] = useState(false);
   const [runId, setRunId] = useState(0);
   const [lastEventId, setLastEventId] = useState(0);
   const [error, setError] = useState("");
   const [slashOpen, setSlashOpen] = useState(false);
+  const [slashIndex, setSlashIndex] = useState(0);
   const [operationsOpen, setOperationsOpen] = useState(false);
   const [trajectoryOpen, setTrajectoryOpen] = useState(false);
   const [historyCollapsed, setHistoryCollapsed] = useState(false);
@@ -69,11 +65,36 @@ export default function BotWorkspace() {
   const [slashType, ...slashWords] = slashQuery.split(/\s+/);
   const slashTerm =
     slashType === "skill" || slashType === "tool" ? slashWords.join(" ") : slashQuery;
-  const filteredCapabilities = capabilities.filter(
-    ([type, name, description]) =>
-      (!["skill", "tool"].includes(slashType) || type === slashType) &&
-      (!slashTerm || `${name} ${description}`.toLowerCase().includes(slashTerm)),
+  const capabilities = useMemo(
+    () => [...skills, ...availableTools],
+    [availableTools],
   );
+  const filteredCapabilities = capabilities.filter(
+    (item) =>
+      (!["skill", "tool"].includes(slashType) || item.type === slashType) &&
+      (!slashTerm || `${item.name} ${item.description} ${item.source}`.toLowerCase().includes(slashTerm)),
+  );
+
+  useEffect(() => {
+    let alive = true;
+    listAgentTools()
+      .then(({ list }) => {
+        if (alive) setAvailableTools(list || []);
+      })
+      .catch(() => {
+        if (alive) setAvailableTools([]);
+      });
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!filteredCapabilities.length) return;
+    document
+      .querySelector(`[data-slash-index="${slashIndex % filteredCapabilities.length}"]`)
+      ?.scrollIntoView({ block: "nearest" });
+  }, [slashIndex, filteredCapabilities.length]);
 
   const refreshSessions = useCallback(async () => {
     const data = await listSessions();
@@ -475,7 +496,9 @@ export default function BotWorkspace() {
               {directives.map((directive) => (
                 <span key={directive.type} className={directive.type}>
                   <b>{directive.type}</b>
-                  {directive.name}
+                  {directive.type === "tool"
+                    ? `${availableTools.find((item) => item.code === directive.name)?.name || directive.name} · ${availableTools.find((item) => item.code === directive.name)?.source || "Tool"}`
+                    : directive.name}
                   <button
                     onClick={() =>
                       setDirectives((items) => items.filter((item) => item.type !== directive.type))
@@ -488,28 +511,30 @@ export default function BotWorkspace() {
             </div>
           )}
           {slashOpen && (
-            <div className="slash-picker">
-              <header>
-                <strong>选择 Skill 或 Tool</strong>
-                <small>输入 /skill 或 /tool 筛选</small>
-              </header>
-              {filteredCapabilities.map(([type, name, description]) => (
+            <div className="slash-picker" role="listbox" aria-label="Skill 和 Tool">
+              {filteredCapabilities.map((capability, index) => (
                 <button
-                  key={`${type}-${name}`}
-                  className={type}
+                  key={`${capability.type}-${capability.code}`}
+                  className={`${capability.type}${slashIndex % filteredCapabilities.length === index ? " selected" : ""}`}
+                  data-slash-index={index}
                   onMouseDown={(event) => {
                     event.preventDefault();
-                    selectCapability(type, name);
+                    selectCapability(capability.type, capability.type === "tool" ? capability.code : capability.name);
                   }}
+                  onMouseEnter={() => setSlashIndex(index)}
+                  role="option"
+                  aria-selected={slashIndex % filteredCapabilities.length === index}
                 >
-                  <span>{type === "skill" ? "◇" : "⌘"}</span>
                   <div>
-                    <strong>{name}</strong>
-                    <small>{description}</small>
+                    <strong>{capability.name}</strong>
+                    <small>{capability.description}</small>
                   </div>
-                  <em>{type}</em>
+                  <em>{capability.type === "skill" ? "Skill" : capability.source}</em>
                 </button>
               ))}
+              {!filteredCapabilities.length && (
+                <p className="slash-empty">没有匹配的 Skill 或 Tool</p>
+              )}
             </div>
           )}
           <div className="composer">
@@ -520,6 +545,7 @@ export default function BotWorkspace() {
               placeholder="输入运营问题或任务，输入 / 选择 Skill 或 Tool"
               onChange={(event) => {
                 setDraft(event.target.value);
+                setSlashIndex(0);
                 setSlashOpen(/(?:^|\s)\/[^\n/]*$/.test(event.target.value));
               }}
               onCompositionStart={() => {
@@ -530,7 +556,21 @@ export default function BotWorkspace() {
               }}
               onKeyDown={(event) => {
                 if (event.nativeEvent.isComposing || composingRef.current) return;
-                if (event.key === "Escape") setSlashOpen(false);
+                if (slashOpen && event.key === "ArrowDown" && filteredCapabilities.length) {
+                  event.preventDefault();
+                  setSlashIndex((index) => {
+                    return (index + 1) % filteredCapabilities.length;
+                  });
+                } else if (slashOpen && event.key === "ArrowUp" && filteredCapabilities.length) {
+                  event.preventDefault();
+                  setSlashIndex((index) => {
+                    return (index - 1 + filteredCapabilities.length) % filteredCapabilities.length;
+                  });
+                } else if (slashOpen && event.key === "Enter" && filteredCapabilities.length) {
+                  event.preventDefault();
+                  const capability = filteredCapabilities[slashIndex % filteredCapabilities.length];
+                  selectCapability(capability.type, capability.type === "tool" ? capability.code : capability.name);
+                } else if (event.key === "Escape") setSlashOpen(false);
                 if (event.key === "Enter" && !event.shiftKey && !slashOpen) {
                   event.preventDefault();
                   void submit();

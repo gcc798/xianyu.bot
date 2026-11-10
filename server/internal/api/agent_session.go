@@ -42,6 +42,12 @@ func (a *AgentSessionAPI) Create(c *gin.Context) {
 	response.OkWithData(gin.H{"session": session}, c)
 }
 
+// ToolCatalog 返回当前可用的 Agent 工具目录。
+func (a *AgentSessionAPI) ToolCatalog(c *gin.Context) {
+	c.Header("Cache-Control", "no-store")
+	response.OkWithData(gin.H{"list": a.runner.ToolCatalog(c.Request.Context())}, c)
+}
+
 // List 处理列表查询请求。
 func (a *AgentSessionAPI) List(c *gin.Context) {
 	var input xyRequest.AgentSessionSearch

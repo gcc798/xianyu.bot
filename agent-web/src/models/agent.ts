@@ -1,5 +1,14 @@
 export type Directive = { type: "skill" | "tool"; name: string };
 
+export type AgentToolCatalogEntry = {
+  code: string;
+  name: string;
+  description: string;
+  source: string;
+  providerCode?: string;
+  type: "tool";
+};
+
 export type Session = {
   ID: number;
   title: string;

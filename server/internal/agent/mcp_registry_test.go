@@ -3,8 +3,10 @@ package agent
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 
+	agenttool "github.com/gcc798/xianyu.bot/internal/agent/tool"
 	"github.com/gcc798/xianyu.bot/internal/model"
 	"github.com/glebarez/sqlite"
 	"github.com/mark3labs/mcp-go/mcp"
@@ -44,6 +46,38 @@ func TestMCPRegistryDiscoversEnabledServersAndKeepsAvailableOnes(t *testing.T) {
 	require.Equal(t, "available", available.LastStatus)
 	require.Equal(t, "unavailable", broken.LastStatus)
 	require.NotEmpty(t, broken.LastError)
+}
+
+func TestRunnerToolCatalogIncludesLocalAndAvailableMCPTools(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	require.NoError(t, err)
+	require.NoError(t, db.AutoMigrate(&model.MCPServer{}))
+	require.NoError(t, db.Create(&[]model.MCPServer{
+		{Name: "Telegram", Code: "telegram", BaseURL: "http://telegram/mcp", Enabled: true, RequestTimeoutSeconds: 15},
+		{Name: "离线服务", Code: "offline", BaseURL: "http://offline/mcp", Enabled: true, RequestTimeoutSeconds: 15},
+	}).Error)
+	registry := agenttool.NewRegistry()
+	require.NoError(t, registry.Register(agenttool.NewCurrentTime()))
+	mcpRegistry := &MCPRegistry{db: db, connect: func(_ context.Context, server model.MCPServer) (*mcpConnection, error) {
+		if server.Code == "offline" {
+			return nil, errors.New("connection refused")
+		}
+		return &mcpConnection{
+			Server: server, Client: new(fakeMCPClient),
+			Tools: []mcp.Tool{
+				{Name: "dialog_list", Description: "列出会话", InputSchema: mcp.ToolInputSchema{Type: "object"}},
+				{Name: strings.Repeat("a", 120), Description: "超长编码", InputSchema: mcp.ToolInputSchema{Type: "object"}},
+			},
+		}, nil
+	}}
+	runner := &Runner{db: db, registry: mcpRegistry, tools: registry}
+
+	entries := runner.ToolCatalog(t.Context())
+	require.Len(t, entries, 2)
+	require.Equal(t, ToolCatalogEntry{Code: "current_time", Name: "获取当前时间", Description: "获取服务端当前日期、时间、星期和时区。回答今天、明天、当前时间、星期几等依赖当前时间的问题时必须调用，不得猜测。", Source: "本地", Type: "tool"}, entries[0])
+	require.Equal(t, "telegram__dialog_list", entries[1].Code)
+	require.Equal(t, "Telegram", entries[1].Source)
+	require.Equal(t, "telegram", entries[1].ProviderCode)
 }
 
 // TestMCPRegistryFailsWhenNoEnabledServerIsAvailable 验证对应测试场景。

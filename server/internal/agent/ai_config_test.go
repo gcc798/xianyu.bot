@@ -76,6 +76,13 @@ func TestMCPCodeValidation(t *testing.T) {
 	require.ErrorContains(t, err, "编码必须")
 }
 
+func TestMCPServerAcceptsDockerServiceURL(t *testing.T) {
+	input := validMCPInput()
+	input.BaseURL = "http://telegram:8080/mcp/"
+	_, err := buildMCPServer(input)
+	require.NoError(t, err)
+}
+
 // validModelInput 提供测试辅助能力。
 func validModelInput() xyRequest.SaveAIModel {
 	return xyRequest.SaveAIModel{

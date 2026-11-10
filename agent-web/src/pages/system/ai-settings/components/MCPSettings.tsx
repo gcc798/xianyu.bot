@@ -1,8 +1,23 @@
-import { App, Button, Form, Input, InputNumber, Modal, Space, Switch, Table, Tag } from "antd";
+import {
+  App,
+  Button,
+  Empty,
+  Form,
+  Input,
+  InputNumber,
+  Modal,
+  Space,
+  Switch,
+  Table,
+  Tag,
+  Typography,
+} from "antd";
 import type { TableColumnsType } from "antd";
 import { useCallback, useEffect, useState } from "react";
 import { aiConfigApi } from "../../../../api/ai-config";
+import { listAgentTools } from "../../../../api/agent";
 import type { MCPServer, MCPServerInput } from "../../../../models/ai-config";
+import type { AgentToolCatalogEntry } from "../../../../models/agent";
 import styles from "../AISettingsPage.module.css";
 
 const emptyServer: MCPServerInput = {
@@ -20,6 +35,7 @@ export function MCPSettings() {
   const { message, modal } = App.useApp();
   const [form] = Form.useForm<MCPServerInput>();
   const [rows, setRows] = useState<MCPServer[]>([]);
+  const [tools, setTools] = useState<AgentToolCatalogEntry[]>([]);
   const [editing, setEditing] = useState<MCPServer | null | undefined>();
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -27,7 +43,10 @@ export function MCPSettings() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      setRows((await aiConfigApi.mcpServers()).list);
+      const catalog = await listAgentTools();
+      const servers = await aiConfigApi.mcpServers();
+      setRows(servers.list);
+      setTools(catalog.list.filter((item) => item.providerCode));
     } catch (cause) {
       message.error(cause instanceof Error ? cause.message : "MCP 服务加载失败");
     } finally {
@@ -84,7 +103,11 @@ export function MCPSettings() {
       dataIndex: "lastStatus",
       width: 110,
       render: (value: string) => (
-        <Tag color={value === "healthy" ? "success" : "default"}>{value || "unknown"}</Tag>
+        <Tag
+          color={value === "available" ? "success" : value === "unavailable" ? "error" : "default"}
+        >
+          {value === "available" ? "可用" : value === "unavailable" ? "不可用" : "未检查"}
+        </Tag>
       ),
     },
     {
@@ -127,6 +150,24 @@ export function MCPSettings() {
         dataSource={rows}
         pagination={false}
         scroll={{ x: 1000 }}
+        expandable={{
+          expandedRowRender: (server) => {
+            const serverTools = tools.filter((item) => item.providerCode === server.code);
+            return serverTools.length ? (
+              <Space direction="vertical" size={4}>
+                {serverTools.map((item) => (
+                  <div key={item.code}>
+                    <Typography.Text strong>{item.name}</Typography.Text>
+                    <Typography.Text type="secondary">{` · ${item.description}`}</Typography.Text>
+                  </div>
+                ))}
+              </Space>
+            ) : (
+              <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="当前没有可用 Tool" />
+            );
+          },
+          rowExpandable: (server) => server.enabled,
+        }}
       />
       <Modal
         open={editing !== undefined}
@@ -150,7 +191,20 @@ export function MCPSettings() {
             name="baseUrl"
             label="服务地址"
             className={styles.span2}
-            rules={[{ required: true, type: "url" }]}
+            rules={[
+              { required: true, message: "请输入服务地址" },
+              {
+                validator: async (_, value: string | undefined) => {
+                  if (!value) return;
+                  try {
+                    const url = new URL(value);
+                    if (!/^https?:\/\//i.test(value) || !url.hostname) throw new Error();
+                  } catch {
+                    throw new Error("请输入有效的 HTTP 或 HTTPS 地址");
+                  }
+                },
+              },
+            ]}
           >
             <Input />
           </Form.Item>

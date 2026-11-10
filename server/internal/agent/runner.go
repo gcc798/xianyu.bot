@@ -61,12 +61,55 @@ type Runner struct {
 	workers   map[uint]context.CancelFunc // workers 保存本进程运行任务。
 }
 
+// ToolCatalogEntry 描述当前可供 Agent 调用的工具及其来源。
+type ToolCatalogEntry struct {
+	Code         string `json:"code"`                   // Code 是工具稳定编码。
+	Name         string `json:"name"`                   // Name 是工具名称。
+	Description  string `json:"description"`            // Description 说明工具能力。
+	Source       string `json:"source"`                 // Source 是本地或 MCP 服务名称。
+	ProviderCode string `json:"providerCode,omitempty"` // ProviderCode 是 MCP 服务编码。
+	Type         string `json:"type"`                   // Type 标识工具来源类型。
+}
+
 // NewRunner 创建 Agent 运行器。
 func NewRunner(ctx context.Context, db *gorm.DB, registry *MCPRegistry, resources *ResourceCatalog, events *EventHub, tools *agenttool.Registry) *Runner {
 	return &Runner{
 		root: rootContext(ctx), db: db, registry: registry, tools: tools, resources: resources, events: events,
 		workers: make(map[uint]context.CancelFunc),
 	}
+}
+
+// ToolCatalog 返回本地工具和当前可发现的 MCP 工具；不可用的 MCP 工具不会进入目录。
+func (s *Runner) ToolCatalog(ctx context.Context) []ToolCatalogEntry {
+	entries := make([]ToolCatalogEntry, 0)
+	if s.tools != nil {
+		for _, registeredTool := range s.tools.List() {
+			definition := registeredTool.Definition()
+			entries = append(entries, ToolCatalogEntry{
+				Code: definition.Code, Name: definition.Name, Description: definition.Description,
+				Source: "本地", Type: "tool",
+			})
+		}
+	}
+	connections, _ := s.mcpRegistryOrDefault().Discover(ctx)
+	defer func() { _ = closeMCPConnections(connections) }()
+	for _, connection := range connections {
+		for _, remote := range connection.Tools {
+			remoteTool, err := newMCPAgentTool(s.db, connection, remote)
+			if err != nil {
+				continue
+			}
+			definition := remoteTool.Definition()
+			if !agentToolNamePattern.MatchString(definition.Code) {
+				continue
+			}
+			entries = append(entries, ToolCatalogEntry{
+				Code: definition.Code, Name: definition.Name, Description: definition.Description,
+				Source: connection.Server.Name, ProviderCode: connection.Server.Code, Type: "tool",
+			})
+		}
+	}
+	return entries
 }
 
 // RunResult 表示 Agent 运行及其最终回复。
