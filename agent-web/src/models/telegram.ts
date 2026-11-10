@@ -76,18 +76,15 @@ export type TelegramSettings = {
 
 export type TelegramAISettingsInput = { base_url: string; api_key: string; model: string };
 
-export type TelegramResourceDialog = Pick<
-  TelegramDialog,
-  | "id"
-  | "telegram_id"
-  | "name"
-  | "username"
-  | "dialog_type"
-  | "is_group"
-  | "is_broadcast"
-  | "member_count"
-  | "last_message_at"
->;
+export type TelegramResourceDialog = {
+  id: number;
+  telegramId: number;
+  name: string;
+  username: string | null;
+  dialogType: string;
+  isGroup: boolean;
+  isBroadcast: boolean;
+};
 export type TelegramFilePreviewKind = "image" | "video" | "audio" | "pdf" | "text";
 export type TelegramFileTypeOption = {
   value: string;
@@ -100,45 +97,36 @@ export type TelegramResourceOptions = {
   file_types: TelegramFileTypeOption[];
   max_file_size: number;
 };
+export type TelegramResourceTaskOptions = {
+  dialogs: TelegramResourceDialog[];
+  fileTypes: string[];
+  maxFileSize: number;
+};
 export type TelegramResourceTaskInput = {
   keyword: string;
-  file_types: string[];
-  source_mode: "smart" | "all" | "manual";
-  source_dialog_ids: number[];
-  max_downloads: number;
+  fileTypes: string[];
+  sourceMode: "smart" | "all" | "manual";
+  sourceDialogIds: number[];
+  maxDownloads: number;
 };
 export type TelegramResourceTask = TelegramResourceTaskInput & {
   id: number;
   status: "queued" | "running" | "completed" | "failed" | "cancelled";
-  files_found: number;
-  files_completed: number;
-  error_message: string | null;
-  created_at: string;
-  started_at: string | null;
-  completed_at: string | null;
-  cancel_requested: boolean;
-  source_strategy: string;
-  current_stage:
-    | "queued"
-    | "searching"
-    | "downloading"
-    | "uploading"
-    | "completed"
-    | "no_result"
-    | "failed"
-    | "cancelled";
-  current_file_id: number | null;
-  current_file_name: string | null;
-  current_file_size: number | null;
-  current_file_bytes: number | null;
-  current_download_status: TelegramResourceFile["download_status"] | null;
-  current_upload_status: TelegramResourceFile["upload_status"] | null;
+  filesFound: number;
+  filesCompleted: number;
+  errorMessage: string | null;
+  createdAt: string;
+  startedAt: string | null;
+  completedAt: string | null;
+  cancelRequested: boolean;
+  sourceStrategy: string;
+  sourceDialogIds: number[];
 };
 export type TelegramResourceTaskPage = {
   list: TelegramResourceTask[];
   total: number;
   page: number;
-  page_size: number;
+  pageSize: number;
 };
 
 export type TelegramResourceFile = {

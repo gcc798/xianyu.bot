@@ -3,15 +3,16 @@ import type {
   TelegramDialogPage,
   TelegramQR,
   TelegramResourceFilePage,
-  TelegramResourceOptions,
   TelegramResourceTask,
   TelegramResourceTaskInput,
+  TelegramResourceTaskOptions,
   TelegramResourceTaskPage,
+  TelegramResourceOptions,
   TelegramScan,
   TelegramSettings,
   TelegramStatus,
 } from "../models/telegram";
-import { acceptRenewedToken, accessToken, apiBaseURL, queryString } from "./client";
+import { acceptRenewedToken, accessToken, apiBaseURL, queryString, request } from "./client";
 
 const basePath = "/xy/proxy/telegram";
 
@@ -103,22 +104,6 @@ export const telegramApi = {
       body: JSON.stringify(input),
     }),
   resourceOptions: () => telegramRequest<TelegramResourceOptions>("/api/resources/options"),
-  resourceTasks: (input: { page: number; page_size: number; q?: string; status?: string }) =>
-    telegramRequest<TelegramResourceTaskPage>(`/api/resources/tasks${queryString(input)}`),
-  createResourceTask: (input: TelegramResourceTaskInput) =>
-    telegramRequest<TelegramResourceTask>("/api/resources/tasks", {
-      method: "POST",
-      body: JSON.stringify(input),
-    }),
-  cancelResourceTask: (id: number) =>
-    telegramRequest<{ ok: boolean }>(`/api/resources/tasks/${id}/cancel`, { method: "POST" }),
-  retryResourceTask: (id: number) =>
-    telegramRequest<{ ok: boolean }>(`/api/resources/tasks/${id}/retry`, { method: "POST" }),
-  deleteResourceTask: (id: number, deleteFiles: boolean) =>
-    telegramRequest<{ ok: boolean }>(
-      `/api/resources/tasks/${id}${queryString({ delete_files: deleteFiles })}`,
-      { method: "DELETE" },
-    ),
   resourceFiles: (input: {
     page: number;
     page_size: number;
@@ -132,4 +117,30 @@ export const telegramApi = {
     telegramFile(`/api/resources/files/${id}/${action}`),
   deleteResourceFile: (id: number) =>
     telegramRequest<{ ok: boolean }>(`/api/resources/files/${id}`, { method: "DELETE" }),
+};
+
+export const telegramResourceApi = {
+  options: async () => {
+    const [options, sources] = await Promise.all([
+      request<TelegramResourceTaskOptions>("/xy/telegram/resource-options"),
+      request<{ dialogs: TelegramResourceTaskOptions["dialogs"] }>("/xy/telegram/resource-sources"),
+    ]);
+    return { ...options, dialogs: sources.dialogs };
+  },
+  syncSources: () =>
+    request<{ dialogs: TelegramResourceTaskOptions["dialogs"] }>(
+      "/xy/telegram/resource-sources/sync",
+      { method: "POST" },
+    ),
+  tasks: (input: { page: number; pageSize: number; state?: string }) =>
+    request<TelegramResourceTaskPage>(`/xy/telegram/resource-tasks${queryString(input)}`),
+  createTask: (input: TelegramResourceTaskInput) =>
+    request<{ task: TelegramResourceTask }>("/xy/telegram/resource-tasks", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  cancelTask: (id: number) =>
+    request<{ task: TelegramResourceTask }>(`/xy/telegram/resource-tasks/${id}/cancel`, {
+      method: "POST",
+    }),
 };
