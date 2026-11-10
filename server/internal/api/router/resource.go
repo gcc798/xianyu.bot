@@ -17,6 +17,12 @@ func NewResourceRouter(handlers *api.API) *ResourceRouter {
 
 // Init 注册当前模块路由。
 func (r *ResourceRouter) Init(private *gin.RouterGroup) {
+	private.GET("xy/telegram/resource-options", r.handlers.Resource.TelegramResourceOptions)
+	private.GET("xy/telegram/resource-sources", r.handlers.Resource.TelegramSources)
+	private.POST("xy/telegram/resource-sources/sync", r.handlers.Resource.SyncTelegramSources)
+	private.POST("xy/telegram/resource-tasks", r.handlers.Resource.CreateTelegramTask)
+	private.GET("xy/telegram/resource-tasks", r.handlers.Resource.ListTelegramTasks)
+	private.POST("xy/telegram/resource-tasks/:id/cancel", r.handlers.Resource.CancelTelegramTask)
 	private.GET("xy/resources", r.handlers.Resource.List)
 	private.GET("xy/resources/:id", r.handlers.Resource.Get)
 	private.GET("xy/resources/:id/download", r.handlers.Resource.Download)

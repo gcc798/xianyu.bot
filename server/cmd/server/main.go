@@ -68,6 +68,7 @@ func run() error {
 	events := agent.NewEventHub(db)
 	mcpRegistry := agent.NewMCPRegistry(db)
 	resources := agent.NewResourceCatalog(db, events, mcpRegistry)
+	resources.StartTelegramTasks(ctx)
 	sessions := agent.NewSession(db)
 	aiConfig := agent.NewAIConfig(db)
 	localTools := agenttool.NewRegistry()

@@ -460,6 +460,8 @@ CREATE TABLE public.tel_resource_tasks (
     cancel_requested boolean DEFAULT false NOT NULL,
     source_mode text DEFAULT 'manual'::text NOT NULL,
     source_strategy text DEFAULT 'manual'::text NOT NULL,
+    source_selection jsonb DEFAULT '[]'::jsonb NOT NULL,
+    file_types_json jsonb DEFAULT '[]'::jsonb NOT NULL,
     CONSTRAINT tel_resource_tasks_max_downloads_check CHECK (((max_downloads >= 1) AND (max_downloads <= 100))),
     CONSTRAINT tel_resource_tasks_status_check CHECK ((status = ANY (ARRAY['queued'::text, 'running'::text, 'completed'::text, 'failed'::text, 'cancelled'::text])))
 );

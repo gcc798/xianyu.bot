@@ -95,6 +95,9 @@ func (s *Runner) ToolCatalog(ctx context.Context) []ToolCatalogEntry {
 	defer func() { _ = closeMCPConnections(connections) }()
 	for _, connection := range connections {
 		for _, remote := range connection.Tools {
+			if remote.Name == "telegram_upload" {
+				continue
+			}
 			remoteTool, err := newMCPAgentTool(s.db, connection, remote)
 			if err != nil {
 				continue
@@ -523,6 +526,9 @@ func buildEinoTools(db *gorm.DB, registry *agenttool.Registry, connections []*mc
 	}
 	for _, connection := range connections {
 		for _, definition := range connection.Tools {
+			if definition.Name == "telegram_upload" {
+				continue
+			}
 			implementation, err := newMCPAgentTool(db, connection, definition)
 			if err != nil {
 				return nil, err
