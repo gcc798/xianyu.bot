@@ -49,6 +49,9 @@ func run() error {
 	if db == nil {
 		return fmt.Errorf("PostgreSQL database name is required")
 	}
+	if err := infra.MigratePostgres(ctx, db); err != nil {
+		return fmt.Errorf("migrate PostgreSQL: %w", err)
+	}
 	mailSender := mail.NewSender(settings.Email)
 	var sendNotificationEmail func(string, string) error
 	if settings.Email.To != "" {
