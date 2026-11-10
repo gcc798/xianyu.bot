@@ -36,7 +36,6 @@ services:
       XIANYU_JWT_SIGNING_KEY: ${XIANYU_JWT_SIGNING_KEY:-change-this-before-production}
       XIANYU_POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-xianyu_bot}
       TELEGRAM_SERVICE_URL: http://telegram:8080
-      TELEGRAM_INTERNAL_TOKEN: ${TELEGRAM_INTERNAL_TOKEN:-}
       RUSTFS_ENDPOINT: http://rustfs:9000
       RUSTFS_ACCESS_KEY: ${RUSTFS_ACCESS_KEY:-rustfs-local}
       RUSTFS_SECRET_KEY: ${RUSTFS_SECRET_KEY:-rustfs-local-secret}
@@ -90,7 +89,6 @@ services:
         required: false
     environment:
       DATABASE_URL: postgresql://xianyu_bot:${POSTGRES_PASSWORD:-xianyu_bot}@postgres:5432/xianyu_bot
-      TELEGRAM_INTERNAL_TOKEN: ${TELEGRAM_INTERNAL_TOKEN:-}
       XIANYU_INTERNAL_URL: http://server:8888
       TG_RESOURCE_CONCURRENCY: ${TG_RESOURCE_CONCURRENCY:-1}
       TG_RESOURCE_MAX_FILE_MB: ${TG_RESOURCE_MAX_FILE_MB:-200}
@@ -98,6 +96,7 @@ services:
       TG_RESOURCE_AI_API_KEY: ${TG_RESOURCE_AI_API_KEY:-}
       TG_RESOURCE_AI_MODEL: ${TG_RESOURCE_AI_MODEL:-}
       TELEGRAM_TMP_ROOT: /workspace/tmp/telegram
+      TG_API_CREDENTIAL_SOURCE: ${TG_API_CREDENTIAL_SOURCE:-database}
       RUSTFS_ENDPOINT: http://rustfs:9000
       RUSTFS_ACCESS_KEY: ${RUSTFS_ACCESS_KEY:-rustfs-local}
       RUSTFS_SECRET_KEY: ${RUSTFS_SECRET_KEY:-rustfs-local-secret}
@@ -106,6 +105,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      server:
+        condition: service_started
       rustfs:
         condition: service_started
     ports:

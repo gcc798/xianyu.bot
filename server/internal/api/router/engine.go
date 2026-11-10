@@ -43,9 +43,11 @@ func (r *Router) Engine(jwt *security.JWT) *gin.Engine {
 	r.BusinessEvent.Init(private)
 	r.TelegramProxy.Init(private)
 	r.AIConfig.Init(private)
+	r.TelegramAPI.Init(private)
 	r.Resource.Init(private)
 	r.AgentSession.Init(private)
 	r.Resource.InitInternal(engine.Group("/xy/internal"))
+	r.TelegramAPI.InitInternal(engine.Group("/xy/internal"))
 
 	zap.L().Info("router register success")
 	return engine

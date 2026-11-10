@@ -4,8 +4,11 @@ import asyncio
 import base64
 import io
 import logging
+import json
+import os
 import re
 from datetime import datetime, timezone
+from urllib.request import Request, urlopen
 
 import qrcode
 from telethon import TelegramClient, errors, functions, types
@@ -15,9 +18,12 @@ log = logging.getLogger(__name__)
 
 
 class TelegramService:
-    def __init__(self, api_id: int | None, api_hash: str | None, db, proxy: tuple | None = None):
+    def __init__(self, api_id: int | None, api_hash: str | None, db, proxy: tuple | None = None, credential_source: str = "env"):
         self.db = db
         self.proxy = proxy
+        self.api_id = api_id
+        self.api_hash = api_hash
+        self.credential_source = credential_source
         session_string = db.setting("telegram_session") or ""
         self.has_session = bool(session_string)
         self.client = TelegramClient(
@@ -46,6 +52,9 @@ class TelegramService:
                 return
             except Exception as exc:
                 log.warning("Telegram connection failed: %s", exc)
+                if isinstance(exc, errors.FloodWaitError):
+                    await self.record_flood_wait(exc)
+                    raise
                 if attempt < 2:
                     await asyncio.sleep(attempt + 1)
 
@@ -61,20 +70,93 @@ class TelegramService:
             if self.authorized:
                 self.db.setting("telegram_session", self.client.session.save())
             await self.client.disconnect()
+        self.authorized = False
 
     async def call(self, func, *args, **kwargs):
-        for attempt in range(2):
+        try:
+            return await func(*args, **kwargs)
+        except errors.FloodWaitError as exc:
+            await self.record_flood_wait(exc)
+            raise
+
+    async def call_with_fallback(self, operation, flooded_api_ids: set[int]):
+        while True:
             try:
-                return await func(*args, **kwargs)
+                return await operation()
             except errors.FloodWaitError as exc:
-                if attempt:
-                    raise
-                log.warning("Telegram FloodWait: waiting %s seconds", exc.seconds)
-                await asyncio.sleep(exc.seconds)
+                await self.switch_after_flood_wait(exc, flooded_api_ids)
+
+    async def switch_after_flood_wait(self, exc, flooded_api_ids: set[int]):
+        api_id = self.api_id
+        if api_id:
+            flooded_api_ids.add(api_id)
+        await self.record_flood_wait(exc)
+        if self.credential_source != "database":
+            raise exc
+        if len(flooded_api_ids) >= 5:
+            raise RuntimeError(f"连续 {len(flooded_api_ids)} 个 Telegram API ID 触发 FloodWait，任务已停止") from exc
+        try:
+            await self.refresh_api_credentials()
+        except RuntimeError as switch_error:
+            raise RuntimeError(f"已切换尝试 {len(flooded_api_ids)} 个 Telegram API ID，但没有更多未限流配置") from switch_error
+        if self.api_id == api_id:
+            raise RuntimeError("没有可切换的 Telegram API ID") from exc
+        try:
+            await self._ensure_connected()
+        except errors.FloodWaitError as next_exc:
+            await self.switch_after_flood_wait(next_exc, flooded_api_ids)
+            return
+        if not await self.client.is_user_authorized():
+            raise RuntimeError(f"切换到 API ID {self.api_id} 后 Telegram Session 未授权") from exc
+        self.authorized = True
+
+    async def refresh_api_credentials(self):
+        if getattr(self, "credential_source", "env") != "database":
+            return
+        credential = await asyncio.to_thread(self._active_api_credential)
+        api_id, api_hash = credential["apiId"], credential["apiHash"]
+        if self.api_id == api_id and self.api_hash == api_hash:
+            return
+        if self.client:
+            await self.disconnect()
+        self._set_client(api_id, api_hash)
+
+    async def record_flood_wait(self, exc):
+        if getattr(self, "credential_source", "env") != "database" or not getattr(self, "api_id", None):
+            return
+        payload = {"apiId": self.api_id, "seconds": int(exc.seconds)}
+        try:
+            await asyncio.to_thread(self._internal_api, "telegram-api-configs/flood-wait", payload)
+        except Exception as report_error:
+            log.warning("Telegram FloodWait 状态保存失败: %s", report_error)
+
+    def _set_client(self, api_id, api_hash):
+        self.api_id, self.api_hash = api_id, api_hash
+        self.client = TelegramClient(
+            StringSession(self.db.setting("telegram_session") or ""), api_id, api_hash,
+            flood_sleep_threshold=0, connection_retries=0, retry_delay=1,
+            auto_reconnect=False, receive_updates=False, proxy=self.proxy,
+        )
+
+    def _active_api_credential(self):
+        return self._internal_api("telegram-api-configs/active")
+
+    @staticmethod
+    def _internal_api(path, payload=None):
+        base_url = os.getenv("XIANYU_INTERNAL_URL", "http://server:8888").rstrip("/")
+        request = Request(
+            f"{base_url}/xy/internal/{path}",
+            data=json.dumps(payload).encode() if payload is not None else None,
+            headers={"Content-Type": "application/json"},
+            method="POST" if payload is not None else "GET",
+        )
+        with urlopen(request, timeout=5) as response:
+            result = json.load(response)
+        if result.get("code") != 0:
+            raise RuntimeError(result.get("msg") or "Go 服务拒绝 Telegram API 配置请求")
+        return result.get("data", {})
 
     def start_qr(self):
-        if not self.client:
-            raise RuntimeError("请先在 .env 配置 TG_API_ID 和 TG_API_HASH")
         if self.qr_task:
             self.qr_task.cancel()
         self.qr = {"status": "connecting", "image": None, "error": None}
@@ -82,6 +164,9 @@ class TelegramService:
 
     async def _start_qr(self):
         try:
+            await self.refresh_api_credentials()
+            if not self.client:
+                raise RuntimeError("请配置 Telegram API ID 和 Hash")
             await self._ensure_connected()
             login = await self.call(self.client.qr_login)
             if not await self._prepare_qr(login):
@@ -183,6 +268,8 @@ class TelegramService:
             self.db.update_scan(scan_id, finished_at=datetime.now(timezone.utc).isoformat(), status="completed")
             self.progress.update(status="completed", name="", message=f"扫描完成：成功 {success}，失败 {failed}")
         except Exception as exc:
+            if isinstance(exc, errors.FloodWaitError):
+                await self.record_flood_wait(exc)
             log.exception("Scan failed")
             self.db.update_scan(scan_id, finished_at=datetime.now(timezone.utc).isoformat(), status="failed", error_message=str(exc))
             self.progress.update(status="failed", message=str(exc))

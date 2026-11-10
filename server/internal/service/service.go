@@ -25,6 +25,7 @@ type Service struct {
 	QRLogin          *QRLogin                 // QRLogin 管理二维码登录会话。
 	WebSocket        *WebSocketService        // WebSocket 管理闲鱼消息连接。
 	BusinessEvent    *BusinessEvent           // BusinessEvent 记录业务审计事件。
+	TelegramAPI      *TelegramAPIConfig       // TelegramAPI 管理 Telegram 应用凭据。
 }
 
 // New 组装共享同一数据库和根上下文的全部业务服务。
@@ -52,6 +53,7 @@ func New(ctx context.Context, db *gorm.DB, sendNotificationEmail func(string, st
 		Status: NewStatus(db), Account: accounts, Product: products, ReplyRule: rules, DeliveryRule: deliveryRules,
 		Delivery: deliveries, Relist: relists, Order: orders, Message: messages,
 		QRLogin: NewQRLogin(root, accounts), WebSocket: webSocket, BusinessEvent: events,
+		TelegramAPI: NewTelegramAPIConfig(db),
 	}
 }
 
