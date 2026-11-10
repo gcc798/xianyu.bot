@@ -8,7 +8,6 @@ import (
 
 // Service 汇总 HTTP 层直接使用的系统与闲鱼业务服务。
 type Service struct {
-	RevokedTokens    *RevokedTokenService     // RevokedTokens 管理登录令牌撤销。
 	User             *UserService             // User 管理系统用户。
 	Dictionary       *DictionaryService       // Dictionary 管理系统字典。
 	DictionaryDetail *DictionaryDetailService // DictionaryDetail 管理字典条目。
@@ -48,7 +47,7 @@ func New(ctx context.Context, db *gorm.DB, sendNotificationEmail func(string, st
 	orders.sender = webSocket
 	webSocket.delivery = deliveries
 	return &Service{
-		RevokedTokens: NewRevokedTokenService(db), User: NewUserService(db),
+		User:       NewUserService(db),
 		Dictionary: NewDictionaryService(db), DictionaryDetail: NewDictionaryDetailService(db), LoginLog: NewLoginLogService(db),
 		Status: NewStatus(db), Account: accounts, Product: products, ReplyRule: rules, DeliveryRule: deliveryRules,
 		Delivery: deliveries, Relist: relists, Order: orders, Message: messages,

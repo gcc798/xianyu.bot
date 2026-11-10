@@ -29,12 +29,8 @@ export async function login(input: LoginRequest) {
   return session;
 }
 
-export async function logout() {
-  try {
-    await request<EmptyResponse>("/jwt/jsonInBlacklist", { method: "POST" });
-  } finally {
-    clearStoredAuth();
-  }
+export function logout() {
+  clearStoredAuth();
 }
 
 export function getCurrentUser() {

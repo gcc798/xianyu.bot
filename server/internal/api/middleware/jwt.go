@@ -5,7 +5,6 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/gcc798/xianyu.bot/internal/auth"
 	"github.com/gcc798/xianyu.bot/internal/model"
 	"github.com/gcc798/xianyu.bot/internal/security"
 	"github.com/golang-jwt/jwt/v5"
@@ -21,12 +20,6 @@ func JWTAuth(jwtManager *security.JWT) gin.HandlerFunc {
 		token := security.GetToken(c)
 		if token == "" {
 			response.NoAuth("未登录或非法访问，请登录", c)
-			c.Abort()
-			return
-		}
-		if auth.IsTokenRevoked(token) {
-			response.NoAuth("您的帐户异地登陆或令牌失效", c)
-			security.ClearToken(c)
 			c.Abort()
 			return
 		}

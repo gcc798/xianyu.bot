@@ -60,7 +60,6 @@ func run() error {
 		}
 	}
 	services := service.New(ctx, db, sendNotificationEmail)
-	services.RevokedTokens.Load()
 	if err := agent.Initialize(ctx, db); err != nil {
 		return fmt.Errorf("initialize Agent: %w", err)
 	}

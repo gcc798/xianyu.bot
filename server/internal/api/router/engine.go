@@ -26,7 +26,6 @@ func (r *Router) Engine(jwt *security.JWT) *gin.Engine {
 	})
 
 	r.Auth.Init(public)
-	r.JWT.Init(private)
 	r.User.Init(private)
 	r.Dictionary.Init(private)
 	r.DictionaryDetail.Init(private)

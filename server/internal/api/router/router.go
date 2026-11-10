@@ -4,7 +4,6 @@ import "github.com/gcc798/xianyu.bot/internal/api"
 
 // Router 汇总后端路由模块。
 type Router struct {
-	JWT              *JWTRouter               // JWT 注册令牌管理路由。
 	Auth             *AuthRouter              // Auth 注册认证路由。
 	User             *UserRouter              // User 注册用户路由。
 	Dictionary       *DictionaryRouter        // Dictionary 注册字典路由。
@@ -30,7 +29,7 @@ type Router struct {
 // New 创建路由模块集合。
 func New(handlers *api.API) *Router {
 	return &Router{
-		JWT: NewJWTRouter(handlers), Auth: NewAuthRouter(handlers), User: NewUserRouter(handlers),
+		Auth: NewAuthRouter(handlers), User: NewUserRouter(handlers),
 		Dictionary: NewDictionaryRouter(handlers), DictionaryDetail: NewDictionaryDetailRouter(handlers), LoginLog: NewLoginLogRouter(handlers),
 		Status: NewStatusRouter(handlers), Account: NewAccountRouter(handlers), Product: NewProductRouter(handlers),
 		ReplyRule: NewReplyRuleRouter(handlers), DeliveryRule: NewDeliveryRuleRouter(handlers), Message: NewMessageRouter(handlers),

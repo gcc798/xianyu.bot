@@ -19,7 +19,6 @@ func NewUserAPI(services *service.Service, jwt *security.JWT) *UserAPI {
 
 // API 汇总后端 HTTP 处理器。
 type API struct {
-	JWT              *JWTAPI               // JWT 处理令牌吊销请求。
 	User             *UserAPI              // User 处理用户请求。
 	Dictionary       *DictionaryAPI        // Dictionary 处理字典请求。
 	DictionaryDetail *DictionaryDetailAPI  // DictionaryDetail 处理字典项请求。
@@ -52,7 +51,7 @@ func New(
 	events *agent.EventHub,
 ) *API {
 	return &API{
-		JWT: NewJWTAPI(services), User: NewUserAPI(services, jwt),
+		User:       NewUserAPI(services, jwt),
 		Dictionary: NewDictionaryAPI(services), DictionaryDetail: NewDictionaryDetailAPI(services), LoginLog: NewLoginLogAPI(services),
 		Status: NewStatusAPI(services), Account: NewAccountAPI(services), Product: NewProductAPI(services),
 		ReplyRule: NewReplyRuleAPI(services), DeliveryRule: NewDeliveryRuleAPI(services), Message: NewMessageAPI(services),
