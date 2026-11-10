@@ -19,7 +19,10 @@ class FakeTelegram:
         return await function(*args, **kwargs)
 
     async def join(self, _reference):
-        return FakeDatabase.dialog_record.copy()
+        return DialogFixture.dialog_record.copy()
+
+    def _dialog_data(self, dialog):
+        return DialogFixture.dialog_record | {"telegram_id": dialog.entity.id}
 
 
 class FakeResources:
@@ -29,7 +32,7 @@ class FakeResources:
         return f"{dialog_id}:{message_id}:{file_id}"
 
 
-class FakeDatabase:
+class DialogFixture:
     dialog_record = {
         "id": 7, "telegram_id": 700, "name": "搜书群", "username": "books",
         "dialog_type": "超级群", "is_group": True, "is_broadcast": False,
@@ -66,7 +69,12 @@ class FakeClient:
         )]
 
     async def get_entity(self, identifier):
-        return SimpleNamespace(id=700, title="搜书群", username="books", megagroup=True, broadcast=False) if identifier == "books" else identifier
+        return SimpleNamespace(id=700, title="搜书群", username="books", megagroup=True, broadcast=False) if identifier in {"books", 700} else identifier
+
+    async def get_dialogs(self, limit=None):
+        _ = limit
+        entity = await self.get_entity("books")
+        return [SimpleNamespace(entity=entity)]
 
     async def send_message(self, entity, text):
         self.sent.append((entity.id, text))
@@ -81,14 +89,14 @@ class FakeClient:
 
 class MCPContractTest(unittest.IsolatedAsyncioTestCase):
     def server(self):
-        server, _ = build_mcp(FakeTelegram(), FakeResources(), FakeDatabase())
+        server, _ = build_mcp(FakeTelegram(), FakeResources())
         return server
 
     def authorized_server(self):
         telegram = FakeTelegram()
         telegram.client = FakeClient()
         telegram.authorized = True
-        server, _ = build_mcp(telegram, FakeResources(), FakeDatabase())
+        server, _ = build_mcp(telegram, FakeResources())
         return server, telegram
 
     async def test_exposes_fixed_tool_contract(self):
@@ -98,8 +106,7 @@ class MCPContractTest(unittest.IsolatedAsyncioTestCase):
             [tool.name for tool in tools.tools],
             [
                 "channel_get_info", "channel_get_status",
-                "dialog_list", "dialog_resolve", "dialog_join", "message_send", "message_list", "message_search",
-                "source_sync", "resource_inspect", "resource_acquire", "task_get", "task_cancel",
+                "dialog_list", "dialog_resolve", "dialog_join", "message_send", "message_list", "message_search", "telegram_upload",
             ],
         )
 
@@ -108,24 +115,24 @@ class MCPContractTest(unittest.IsolatedAsyncioTestCase):
         async with Client(server) as client:
             dialogs = json.loads((await client.call_tool("dialog_list", {"query": "搜"})).content[0].text)
             joined = json.loads((await client.call_tool("dialog_join", {"reference": "https://t.me/books"})).content[0].text)
-            sent = json.loads((await client.call_tool("message_send", {"dialog_id": 7, "text": "斗破苍穹"})).content[0].text)
-            listed = json.loads((await client.call_tool("message_list", {"dialog_id": 7, "after_message_id": 10})).content[0].text)
-            searched = json.loads((await client.call_tool("message_search", {"dialog_id": 7, "query": "斗破苍穹"})).content[0].text)
+            sent = json.loads((await client.call_tool("message_send", {"dialog_id": 700, "text": "斗破苍穹"})).content[0].text)
+            listed = json.loads((await client.call_tool("message_list", {"dialog_id": 700, "after_message_id": 10})).content[0].text)
+            searched = json.loads((await client.call_tool("message_search", {"dialog_id": 700, "query": "斗破苍穹"})).content[0].text)
 
         self.assertEqual(dialogs["data"]["dialogs"][0]["name"], "搜书群")
         self.assertTrue(joined["data"]["accessible"])
         self.assertEqual(sent["data"]["message"]["id"], 10)
         self.assertEqual(telegram.client.sent, [(700, "斗破苍穹")])
-        self.assertEqual(listed["data"]["messages"][0]["file"]["candidate_id"], "7:11:900")
+        self.assertEqual(listed["data"]["messages"][0]["file"]["candidate_id"], "700:11:900")
         self.assertEqual(listed["data"]["messages"][0]["links"], ["https://t.me/novels"])
         self.assertEqual(searched["data"]["next_message_id"], 11)
 
-    async def test_invalid_task_id_returns_contract_error(self):
+    async def test_business_task_tools_are_not_exposed(self):
         async with Client(self.server()) as client:
-            result = await client.call_tool("task_get", {"task_id": "invalid"})
-        payload = json.loads(result.content[0].text)
-        self.assertEqual(payload["status"], "failed")
-        self.assertEqual(payload["error"]["code"], "invalid_argument")
+            tools = await client.list_tools()
+        self.assertNotIn("source_sync", [tool.name for tool in tools.tools])
+        self.assertNotIn("resource_acquire", [tool.name for tool in tools.tools])
+        self.assertNotIn("task_cancel", [tool.name for tool in tools.tools])
 
     async def test_status_does_not_expose_credentials(self):
         async with Client(self.server()) as client:
@@ -134,7 +141,7 @@ class MCPContractTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(payload, {"status": "success", "data": {"state": "disabled"}, "error": None})
 
     async def test_streamable_http_accepts_docker_service_host(self):
-        server, _ = build_mcp(FakeTelegram(), FakeResources(), FakeDatabase())
+        server, _ = build_mcp(FakeTelegram(), FakeResources())
         middleware = TransportSecurityMiddleware(server.session_manager.security_settings)
         request = Request({
             "type": "http",

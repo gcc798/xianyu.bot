@@ -322,5 +322,4 @@ class TelegramService:
         joined = next((dialog for dialog in dialogs if dialog.entity.id in joined_ids), None)
         if joined is None:
             raise RuntimeError("加入成功但未读取到会话")
-        dialog_id = self.db.upsert_dialog(self._dialog_data(joined))
-        return self.db.dialog(dialog_id)
+        return self._dialog_data(joined)

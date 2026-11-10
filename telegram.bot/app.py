@@ -8,7 +8,6 @@ import socket
 from contextlib import asynccontextmanager, suppress
 from datetime import datetime
 from pathlib import Path
-from typing import Literal
 from urllib.parse import urlencode, urlparse
 
 import uvicorn
@@ -22,7 +21,7 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 from analyzer import cleanup_tags, telegram_link
 from database import Database
 from mcp_server import build_mcp
-from resource_service import DEFAULT_TYPES, FILE_TYPE_DICTIONARY, ResourceService
+from resource_service import FILE_TYPE_DICTIONARY, ResourceService
 from storage import RustFS
 from telegram_service import TelegramService
 
@@ -43,7 +42,7 @@ proxy = ("socks5", proxy_host, int(proxy_port)) if proxy_host and proxy_port.isd
 service = TelegramService(api_id, api_hash, db, proxy, credential_source)
 resources = ResourceService(service, db, RustFS())
 service.refresh_adult_dialogs = resources.refresh_adult_dialogs
-telegram_mcp, telegram_mcp_app = build_mcp(service, resources, db)
+telegram_mcp, telegram_mcp_app = build_mcp(service, resources)
 csrf_token = secrets.token_urlsafe(32)
 
 
@@ -56,7 +55,6 @@ async def lifespan(_app):
         logging.getLogger(__name__).warning("Telegram API 配置暂不可用: %s", exc)
     connect_task = asyncio.create_task(service.connect()) if service.has_session else None
     async with telegram_mcp.session_manager.run():
-        await resources.start()
         yield
         if connect_task and not connect_task.done():
             connect_task.cancel()
@@ -97,28 +95,6 @@ def context(request: Request, **values):
 def require_login():
     if not service.authorized:
         raise HTTPException(401, "Telegram 未登录")
-
-
-class ResourceTaskInput(BaseModel):
-    keyword: str = Field(min_length=2, max_length=200)
-    file_types: list[str] = Field(default_factory=list, max_length=len(DEFAULT_TYPES))
-    source_mode: Literal["smart", "all", "manual"] = "smart"
-    source_dialog_ids: list[int] = Field(default_factory=list, max_length=100)
-    max_downloads: int = Field(default=10, ge=1, le=100)
-
-    @field_validator("file_types")
-    @classmethod
-    def validate_types(cls, values: list[str]) -> list[str]:
-        cleaned = list(dict.fromkeys(value.lower().lstrip(".").strip() for value in values))
-        if any(value not in DEFAULT_TYPES for value in cleaned):
-            raise ValueError("文件类型不在资源字典中")
-        return cleaned
-
-    @model_validator(mode="after")
-    def validate_sources(self):
-        if self.source_mode == "manual" and not self.source_dialog_ids:
-            raise ValueError("手动选择模式至少需要一个搜索来源")
-        return self
 
 
 class TelegramPasswordInput(BaseModel):
@@ -422,75 +398,6 @@ async def probe_ai_settings(payload: AISettingsInput, request: Request):
 async def resource_options(request: Request):
     file_types = [{"value": value, **metadata} for value, metadata in FILE_TYPE_DICTIONARY.items()]
     return {"dialogs": db.resource_dialogs(), "file_types": file_types, "max_file_size": resources.max_file_size}
-
-
-@app.post("/api/resources/tasks", status_code=201)
-async def create_resource_task(payload: ResourceTaskInput, request: Request):
-    owner_id = console_user_id(request)
-    if not service.authorized:
-        raise HTTPException(409, "Telegram 未登录，请先在 Telegram 服务页面完成登录")
-    try:
-        if payload.source_mode == "smart":
-            source_ids, strategy = [], "pending"
-        else:
-            source_ids, strategy = await resources.plan_sources(payload.keyword.strip(), payload.source_mode, payload.source_dialog_ids)
-        task = db.create_resource_task(owner_id, payload.keyword.strip(), payload.file_types, source_ids, payload.max_downloads, payload.source_mode, strategy)
-    except ValueError as exc:
-        raise HTTPException(400, str(exc)) from exc
-    resources.enqueue(task["id"])
-    return task
-
-
-@app.get("/api/resources/tasks")
-async def resource_tasks(request: Request, page: int = 1, page_size: int = 20, q: str = "", status: str = ""):
-    owner_id = console_user_id(request)
-    if page < 1 or not 1 <= page_size <= 100:
-        raise HTTPException(400, "分页参数无效")
-    if status and status not in {"queued", "running", "completed", "failed", "cancelled"}:
-        raise HTTPException(400, "任务状态无效")
-    filters = {"q": q.strip()[:200], "status": status, "owner_id": owner_id}
-    rows, total = db.list_resource_tasks(filters, page, page_size)
-    return {"list": rows, "total": total, "page": page, "page_size": page_size}
-
-
-@app.get("/api/resources/tasks/{task_id}")
-async def resource_task(task_id: int, request: Request):
-    task = db.resource_task(task_id, console_user_id(request))
-    if not task:
-        raise HTTPException(404, "任务不存在")
-    return task
-
-
-@app.post("/api/resources/tasks/{task_id}/cancel")
-async def cancel_resource_task(task_id: int, request: Request):
-    owner_id = console_user_id(request)
-    try:
-        resources.cancel(task_id, owner_id)
-    except ValueError as exc:
-        raise HTTPException(409, str(exc)) from exc
-    return {"ok": True}
-
-
-@app.post("/api/resources/tasks/{task_id}/retry")
-async def retry_resource_task(task_id: int, request: Request):
-    owner_id = console_user_id(request)
-    try:
-        resources.retry(task_id, owner_id)
-    except ValueError as exc:
-        raise HTTPException(409, str(exc)) from exc
-    return {"ok": True}
-
-
-@app.delete("/api/resources/tasks/{task_id}")
-async def delete_resource_task(task_id: int, request: Request, delete_files: bool = False):
-    owner_id = console_user_id(request)
-    try:
-        resources.delete_task(task_id, delete_files, owner_id)
-    except ValueError as exc:
-        raise HTTPException(409, str(exc)) from exc
-    except RuntimeError as exc:
-        raise HTTPException(502, str(exc)) from exc
-    return {"ok": True}
 
 
 @app.get("/api/resources/files")

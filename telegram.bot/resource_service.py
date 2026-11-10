@@ -9,6 +9,8 @@ import json
 import logging
 import os
 import re
+import shutil
+import tempfile
 import urllib.request
 from urllib.parse import urlsplit
 import zipfile
@@ -774,6 +776,7 @@ class ResourceService:
                 completed_at=datetime.now(timezone.utc),
             )
             return False
+
         except Exception as exc:
             self.db.update_resource_file(record["id"], download_status="failed", upload_status="failed", error_message=str(exc)[:2000], completed_at=datetime.now(timezone.utc))
             if isinstance(exc, errors.FloodWaitError):
@@ -785,6 +788,36 @@ class ResourceService:
                 task_dir.rmdir()
             except OSError:
                 pass
+
+    async def download_and_upload(self, telegram_id: int, message_id: int, upload_url: str) -> dict:
+        if telegram_id == 0 or message_id <= 0 or not upload_url:
+            raise ResourceCapabilityError("invalid_argument", "Telegram 消息引用无效")
+        if not self.telegram.authorized:
+            raise ResourceCapabilityError("authentication_required", "Telegram 尚未登录")
+        await self.telegram._ensure_connected()
+        entity = await self.telegram.call(self.telegram.client.get_entity, telegram_id)
+        message = await self.telegram.call(self.telegram.client.get_messages, entity, ids=message_id)
+        metadata = self._match(message, {"keyword": "", "file_types": []}) if message else None
+        if not metadata or metadata["size"] > self.max_file_size:
+            raise ResourceCapabilityError("resource_changed", "Telegram 文件不存在或超过大小限制")
+        temp_dir = Path(tempfile.mkdtemp(prefix="telegram-upload-", dir=self.tmp_root))
+        path = temp_dir / safe_filename(metadata["filename"])
+        try:
+            downloaded = await self.telegram.call(self.telegram.client.download_media, message, file=str(path))
+            if not downloaded or not path.is_file():
+                raise ResourceCapabilityError("download_failed", "Telegram 文件下载失败", retryable=True)
+            size = path.stat().st_size
+            if size != metadata["size"]:
+                raise ResourceCapabilityError("resource_changed", "Telegram 文件大小已发生变化")
+            self._validate_download(path, path.suffix.lower().lstrip("."))
+            digest = await asyncio.to_thread(_sha256_file, path)
+            await asyncio.to_thread(_put_file, upload_url, path, metadata["mime_type"])
+            return {
+                "name": metadata["filename"], "size": size, "mime_type": metadata["mime_type"],
+                "sha256": digest,
+            }
+        finally:
+            shutil.rmtree(temp_dir, ignore_errors=True)
 
     def _validate_download(self, path: Path, file_type: str) -> None:
         if file_type != "zip":

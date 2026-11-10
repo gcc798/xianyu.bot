@@ -466,7 +466,7 @@ def test_qr_login_migrates_before_rendering():
     assert login._resp is imported
 
 
-def test_join_records_the_joined_dialog():
+def test_join_returns_dialog_without_writing_directory():
     entity = SimpleNamespace(id=700, username="books")
 
     class Client:
@@ -483,12 +483,7 @@ def test_join_records_the_joined_dialog():
 
     class FakeDatabase:
         def upsert_dialog(self, dialog):
-            assert dialog == {"telegram_id": 700}
-            return 7
-
-        def dialog(self, dialog_id):
-            assert dialog_id == 7
-            return {"id": 7, "telegram_id": 700, "status": "normal"}
+            raise AssertionError("Telegram directory writes belong to Go")
 
     service = TelegramService.__new__(TelegramService)
     service.client = Client()
@@ -496,7 +491,7 @@ def test_join_records_the_joined_dialog():
     service._dialog_data = lambda dialog: {"telegram_id": dialog.entity.id}
 
     joined = asyncio.run(service.join("https://t.me/books"))
-    assert joined["id"] == 7
+    assert joined["telegram_id"] == 700
 
 
 def test_connect_retries_transient_failure():
@@ -701,7 +696,7 @@ if __name__ == "__main__":
     test_ai_probe_does_not_refresh_adult_cache()
     test_metadata_scan_storage()
     test_qr_login_migrates_before_rendering()
-    test_join_records_the_joined_dialog()
+    test_join_returns_dialog_without_writing_directory()
     test_connect_retries_transient_failure()
     test_call_does_not_retry_flood_wait()
     test_switch_after_flood_wait_marks_config_and_selects_lower_api_id()

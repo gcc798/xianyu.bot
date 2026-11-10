@@ -24,9 +24,6 @@ class Database:
         self.dsn = dsn
         with self.connect() as db:
             db.execute(f"UPDATE {TABLES['scan_history']} SET status='interrupted', finished_at=%s WHERE status='running'", (now_iso(),))
-            db.execute("UPDATE tel_resource_tasks SET status='failed',completed_at=NOW(),error_message='service restarted' WHERE status='running'")
-            db.execute("UPDATE tel_resource_files SET download_status=CASE WHEN download_status='downloading' THEN 'failed' ELSE download_status END,upload_status=CASE WHEN download_status='downloading' OR upload_status='uploading' THEN 'failed' ELSE upload_status END,error_message='service restarted',completed_at=NOW() WHERE download_status='downloading' OR upload_status='uploading'")
-            db.execute("UPDATE tel_acquisition_tasks SET state='failed',completed_at=NOW(),error_code='internal_error',error_message='service restarted' WHERE state IN ('queued','running')")
 
     @contextmanager
     def connect(self):

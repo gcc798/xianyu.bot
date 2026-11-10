@@ -214,6 +214,17 @@ class ResourceCandidateTest(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(failure.args[2]["errorCode"], "delivery_failed")
             self.assertEqual(failure.args[2]["errorMessage"], "资源获取失败")
 
+    async def test_internal_upload_validates_download_before_put(self):
+        with tempfile.TemporaryDirectory() as directory:
+            service = self.service([message()])
+            service.tmp_root = Path(directory)
+            with patch("resource_service._put_file") as upload:
+                result = await service.download_and_upload(700, 11, "http://rustfs/upload")
+
+        self.assertEqual(result["size"], 2048)
+        self.assertEqual(len(result["sha256"]), 64)
+        upload.assert_called_once()
+
 
 if __name__ == "__main__":
     unittest.main()
