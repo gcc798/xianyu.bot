@@ -20,6 +20,7 @@
 - 函数和变量使用业务名称，例如 `cancelResourceTask`、`selectedAccount`，避免 `handleData`、`manager` 等空泛命名。
 - 不创建只有参数透传作用的 Service、Repository 或通用 Hook。
 - DTO 使用明确类型；禁止用 `any`、宽泛对象或新旧字段兼容分支掩盖合同不一致。
+- 业务枚举的 code/name 来自后端字典选项；页面不得硬编码 code 到 name 的映射。遵守[枚举与字典规范](enum-conventions.md)。
 
 ## 中文注释
 
