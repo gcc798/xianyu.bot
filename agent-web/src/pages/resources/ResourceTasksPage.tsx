@@ -1,28 +1,45 @@
-import { Alert, App, Button, Pagination, Progress, Space, Table, Tabs, Tag } from "antd";
+import {
+  Alert,
+  App,
+  Button,
+  Modal,
+  Pagination,
+  Progress,
+  Space,
+  Table,
+  Tabs,
+  Tag,
+  Tooltip,
+  Typography,
+} from "antd";
 import type { TableColumnsType } from "antd";
 import { useCallback, useEffect, useState } from "react";
 import { resourcesApi } from "../../api/resources";
+import { dictionaryName, useDictionaryOptions } from "../../hooks/useDictionaryOptions";
 import type { AgentResourceTask } from "../../models/resource";
 import styles from "../../styles/page.module.css";
 import { formatDateTime } from "../../utils/format";
 import { Component as TelegramResourceTasksPage } from "../telegram/resource-tasks/TelegramResourceTasksPage";
 
-const stateMeta: Record<AgentResourceTask["state"], { label: string; color?: string }> = {
-  queued: { label: "排队中", color: "processing" },
-  running: { label: "执行中", color: "processing" },
-  completed: { label: "已完成", color: "success" },
-  failed: { label: "失败", color: "error" },
-  cancelled: { label: "已取消" },
+const stateColor: Record<string, string> = {
+  queued: "processing",
+  running: "processing",
+  completed: "success",
+  failed: "error",
 };
 
 function AgentTasks() {
   const { message, modal } = App.useApp();
+  const { options: taskStates } = useDictionaryOptions("agent_resource_task_state");
   const [rows, setRows] = useState<AgentResourceTask[]>([]);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [selectedError, setSelectedError] = useState<{ taskId: number; message: string } | null>(
+    null,
+  );
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -76,7 +93,7 @@ function AgentTasks() {
       dataIndex: "state",
       width: 100,
       render: (state: AgentResourceTask["state"]) => (
-        <Tag color={stateMeta[state].color}>{stateMeta[state].label}</Tag>
+        <Tag color={stateColor[state] ?? "default"}>{dictionaryName(taskStates, state)}</Tag>
       ),
     },
     { title: "创建时间", dataIndex: "CreatedAt", width: 160, render: formatDateTime },
@@ -84,7 +101,46 @@ function AgentTasks() {
       title: "错误",
       dataIndex: "errorMessage",
       ellipsis: true,
-      render: (errorMessage: string) => errorMessage || "-",
+      render: (errorMessage: string, task) =>
+        errorMessage ? (
+          <Tooltip
+            title={
+              <span
+                style={{
+                  display: "block",
+                  maxWidth: 420,
+                  whiteSpace: "pre-wrap",
+                  overflowWrap: "anywhere",
+                }}
+              >
+                {errorMessage}
+              </span>
+            }
+            placement="topLeft"
+          >
+            <Button
+              type="link"
+              className={styles.linkButton}
+              aria-label={`查看任务 ${task.ID} 错误详情`}
+              onClick={() => setSelectedError({ taskId: task.ID, message: errorMessage })}
+            >
+              <span
+                style={{
+                  display: "block",
+                  maxWidth: 190,
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                  textAlign: "left",
+                }}
+              >
+                {errorMessage}
+              </span>
+            </Button>
+          </Tooltip>
+        ) : (
+          "-"
+        ),
     },
     {
       title: "操作",
@@ -114,6 +170,18 @@ function AgentTasks() {
             scroll={{ x: 900 }}
           />
         </div>
+        <Modal
+          title={selectedError ? `任务 #${selectedError.taskId} 错误详情` : "错误详情"}
+          open={Boolean(selectedError)}
+          footer={null}
+          onCancel={() => setSelectedError(null)}
+        >
+          <Typography.Paragraph
+            style={{ marginBottom: 0, whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}
+          >
+            {selectedError?.message}
+          </Typography.Paragraph>
+        </Modal>
         <div className={styles.pagination}>
           <Pagination
             current={page}

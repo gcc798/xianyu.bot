@@ -70,7 +70,7 @@ class FakeTelegram:
 class FakeDatabase:
     dialog_record = {
         "id": 7, "telegram_id": 700, "name": "Go 资料", "username": "go_docs",
-        "dialog_type": "频道", "last_message_at": datetime.now(timezone.utc),
+        "dialog_type": "channel", "last_message_at": datetime.now(timezone.utc),
         "is_group": False, "is_broadcast": True,
         "status": "normal", "resource_compliance_status": "allowed",
     }

@@ -35,7 +35,7 @@ class FakeResources:
 class DialogFixture:
     dialog_record = {
         "id": 7, "telegram_id": 700, "name": "搜书群", "username": "books",
-        "dialog_type": "超级群", "is_group": True, "is_broadcast": False,
+        "dialog_type": "megagroup", "is_group": True, "is_broadcast": False,
         "last_message_id": 10, "last_message_at": datetime(2026, 10, 30, tzinfo=timezone.utc), "status": "normal",
     }
 

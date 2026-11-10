@@ -79,3 +79,14 @@ func (s *DictionaryAPI) List(c *gin.Context) {
 	}
 	response.OkWithDetailed(list, "获取成功", c)
 }
+
+// Options 返回供业务页面使用的字典编码和名称。
+func (s *DictionaryAPI) Options(c *gin.Context) {
+	options, err := s.service.Dictionary.Options(c.Request.Context())
+	if err != nil {
+		zap.L().Error("获取字典选项失败", zap.Error(err))
+		response.FailWithMessage("获取失败", c)
+		return
+	}
+	response.OkWithData(options, c)
+}

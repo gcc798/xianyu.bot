@@ -3,22 +3,25 @@ import type { TableColumnsType } from "antd";
 import { useCallback, useEffect, useState } from "react";
 import { accountsApi } from "../../../api/accounts";
 import { automationApi } from "../../../api/automation";
+import { dictionaryName, useDictionaryOptions } from "../../../hooks/useDictionaryOptions";
 import type { XianyuAccount } from "../../../models/account";
 import type { DeliveryTask } from "../../../models/automation";
 import styles from "../../../styles/page.module.css";
 import { formatDateTime } from "../../../utils/format";
 
-const taskStatuses: Record<string, { label: string; color: string }> = {
-  pending: { label: "等待执行", color: "default" },
-  sending: { label: "发送中", color: "processing" },
-  sent_unconfirmed: { label: "待确认", color: "warning" },
-  failed: { label: "失败", color: "error" },
-  unknown: { label: "结果未知", color: "warning" },
-  confirmed: { label: "已确认", color: "success" },
+const taskStatusColor: Record<string, string> = {
+  pending: "default",
+  sending: "processing",
+  sent_unconfirmed: "warning",
+  failed: "error",
+  unknown: "warning",
+  confirmed: "success",
 };
 
 export function Component() {
   const { message, modal } = App.useApp();
+  const { options: taskStatuses } = useDictionaryOptions("delivery_task_status");
+  const { options: deliveryModes } = useDictionaryOptions("delivery_mode");
   const [rows, setRows] = useState<DeliveryTask[]>([]);
   const [accounts, setAccounts] = useState<XianyuAccount[]>([]);
   const [page, setPage] = useState(1);
@@ -92,7 +95,7 @@ export function Component() {
       width: 90,
       render: (value: string) => (
         <Tag color={value === "card" ? "processing" : "default"}>
-          {value === "card" ? "卡密" : "文本"}
+          {dictionaryName(deliveryModes, value)}
         </Tag>
       ),
     },
@@ -101,8 +104,11 @@ export function Component() {
       dataIndex: "status",
       width: 100,
       render: (value: string) => {
-        const item = taskStatuses[value] ?? { label: value, color: "default" };
-        return <Tag color={item.color}>{item.label}</Tag>;
+        return (
+          <Tag color={taskStatusColor[value] ?? "default"}>
+            {dictionaryName(taskStatuses, value)}
+          </Tag>
+        );
       },
     },
     { title: "尝试次数", dataIndex: "attempts", width: 90 },
@@ -161,10 +167,7 @@ export function Component() {
             value={status}
             placeholder="全部状态"
             style={{ width: 140 }}
-            options={Object.entries(taskStatuses).map(([value, item]) => ({
-              value,
-              label: item.label,
-            }))}
+            options={taskStatuses.map(({ code, name }) => ({ value: code, label: name }))}
             onChange={(value) => {
               setStatus(value);
               setPage(1);

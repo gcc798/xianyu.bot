@@ -16,7 +16,7 @@ func TestTelegramResourceTaskOwnershipAndCancellation(t *testing.T) {
 	require.NoError(t, db.AutoMigrate(&model.TelegramDialog{}, &model.TelegramResourceTask{}))
 	require.NoError(t, db.Exec("CREATE TABLE tel_settings (key text PRIMARY KEY, value text)").Error)
 	require.NoError(t, db.Create(&model.TelegramDialog{
-		TelegramID: 100, Name: "公开群", DialogType: "群组", IsGroup: true, Status: "normal",
+		TelegramID: 100, Name: "公开群", DialogType: "group", IsGroup: true, Status: "normal",
 		ResourceComplianceStatus: "allowed",
 	}).Error)
 	resources := NewResourceCatalog(db, nil, nil)

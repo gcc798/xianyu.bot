@@ -14,12 +14,16 @@ import type { TableColumnsType } from "antd";
 import { useCallback, useEffect, useState } from "react";
 import type { Key } from "react";
 import { telegramApi } from "../../../api/telegram";
+import { dictionaryName, useDictionaryOptions } from "../../../hooks/useDictionaryOptions";
 import type { TelegramDialog } from "../../../models/telegram";
 import styles from "../../../styles/page.module.css";
 import { formatDateTime } from "../../../utils/format";
 
 export function Component() {
   const { message, modal } = App.useApp();
+  const { options: dialogStatuses } = useDictionaryOptions("telegram_dialog_status");
+  const { options: dialogFilters } = useDictionaryOptions("telegram_dialog_filter");
+  const { options: dialogTypes } = useDictionaryOptions("telegram_dialog_type");
   const [rows, setRows] = useState<TelegramDialog[]>([]);
   const [selected, setSelected] = useState<Key[]>([]);
   const [page, setPage] = useState(1),
@@ -112,7 +116,7 @@ export function Component() {
       title: "类型",
       dataIndex: "dialog_type",
       width: 100,
-      render: (value: string) => <Tag>{value}</Tag>,
+      render: (value: string) => <Tag>{dictionaryName(dialogTypes, value)}</Tag>,
     },
     {
       title: "成员",
@@ -127,7 +131,7 @@ export function Component() {
       width: 90,
       render: (value: string) => (
         <Tag color={value === "normal" ? "success" : "warning"}>
-          {value === "normal" ? "正常" : value}
+          {dictionaryName(dialogStatuses, value)}
         </Tag>
       ),
     },
@@ -167,15 +171,7 @@ export function Component() {
             value={filter}
             placeholder="全部会话"
             style={{ width: 140 }}
-            options={[
-              { value: "groups", label: "群组" },
-              { value: "channels", label: "频道" },
-              { value: "normal", label: "正常" },
-              { value: "invalid", label: "异常" },
-              { value: "muted", label: "已静音" },
-              { value: "archived", label: "已归档" },
-              { value: "creator", label: "我创建的" },
-            ]}
+            options={dialogFilters.map(({ code, name }) => ({ value: code, label: name }))}
             onChange={(value) => {
               setFilter(value);
               setPage(1);

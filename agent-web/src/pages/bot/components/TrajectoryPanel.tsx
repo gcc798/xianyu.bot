@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { getToolCall, getTrajectory } from "../../../api/agent";
+import { dictionaryName, useDictionaryOptions } from "../../../hooks/useDictionaryOptions";
 import type { AgentEvent, ToolCallDetail } from "../../../models/agent";
 
 type Props = { sessionId: number; onClose: () => void };
@@ -17,36 +18,8 @@ const tabs: { id: InspectorTab; label: string }[] = [
   { id: "raw", label: "Raw JSON" },
 ];
 
-const eventLabels: Record<string, string> = {
-  "run.started": "开始运行",
-  "run.completed": "运行完成",
-  "run.failed": "运行失败",
-  "run.cancelled": "运行取消",
-  "turn.started": "Turn 开始",
-  "turn.completed": "Turn 完成",
-  "turn.failed": "Turn 失败",
-  "step.started": "Step 开始",
-  "step.completed": "Step 完成",
-  "step.failed": "Step 失败",
-  "system.prompt": "System Prompt",
-  "request.snapshot": "模型请求快照",
-  "model.attempt.started": "模型请求",
-  "model.attempt.completed": "模型返回",
-  "model.attempt.failed": "模型失败",
-  "model.fallback": "模型降级",
-  "model.unavailable": "模型不可用",
-  "assistant.message": "Assistant 消息",
-  "tool.started": "Tool 调用",
-  "tool.completed": "Tool 返回",
-  "tool.failed": "Tool 失败",
-  "approval.required": "等待确认",
-  "skill.loaded": "加载 Skill",
-  "task.created": "创建任务",
-  "task.updated": "任务更新",
-  "task.completed": "任务完成",
-};
-
 export default function TrajectoryPanel({ sessionId, onClose }: Props) {
+  const { options: eventTypes } = useDictionaryOptions("agent_event_type");
   const [events, setEvents] = useState<AgentEvent[]>([]);
   const [selected, setSelected] = useState<AgentEvent | null>(null);
   const [toolCall, setToolCall] = useState<ToolCallDetail | null>(null);
@@ -150,7 +123,7 @@ export default function TrajectoryPanel({ sessionId, onClose }: Props) {
                 style={{
                   left: `${((new Date(event.createdAt || 0).getTime() - timelineStart) / timelineSpan) * 96 + 2}%`,
                 }}
-                title={`${eventLabels[event.type] || event.type} · ${formatClock(event.createdAt)}`}
+                title={`${dictionaryName(eventTypes, event.type)} · ${formatClock(event.createdAt)}`}
                 onClick={() => setSelected(event)}
               />
             ))}
@@ -204,7 +177,7 @@ export default function TrajectoryPanel({ sessionId, onClose }: Props) {
                         {eventIcon(event.type)}
                       </span>
                       <div>
-                        <strong>{eventLabels[event.type] || event.type}</strong>
+                        <strong>{dictionaryName(eventTypes, event.type)}</strong>
                         <small>{eventSummary(event)}</small>
                       </div>
                       <time>{formatClock(event.createdAt)}</time>
@@ -245,7 +218,7 @@ export default function TrajectoryPanel({ sessionId, onClose }: Props) {
                       {eventIcon(selected.type)}
                     </span>
                     <div>
-                      <strong>{eventLabels[selected.type] || selected.type}</strong>
+                      <strong>{dictionaryName(eventTypes, selected.type)}</strong>
                       <small>
                         EVENT #{selected.id} · {selected.type}
                       </small>

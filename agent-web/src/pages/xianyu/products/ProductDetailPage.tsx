@@ -16,6 +16,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { automationApi } from "../../../api/automation";
 import { productsApi } from "../../../api/products";
+import { dictionaryName, useDictionaryOptions } from "../../../hooks/useDictionaryOptions";
 import type { BusinessEvent } from "../../../models/automation";
 import type { Product, ProductSettingInput } from "../../../models/product";
 import pageStyles from "../../../styles/page.module.css";
@@ -23,22 +24,24 @@ import { formatDateTime, formatMoney } from "../../../utils/format";
 import ProductSettingModal from "./components/ProductSettingModal";
 import styles from "../../../styles/detail.module.css";
 
-const statusMeta: Record<string, { label: string; color: string }> = {
-  on_sale: { label: "在售", color: "success" },
-  offline: { label: "已下架", color: "default" },
-  sold: { label: "已售出", color: "warning" },
+const productStatusColor: Record<string, string> = {
+  on_sale: "success",
+  offline: "default",
+  sold: "warning",
 };
 
-const eventStatusMeta: Record<string, { label: string; color: string }> = {
-  success: { label: "成功", color: "success" },
-  failed: { label: "失败", color: "error" },
-  unknown: { label: "结果未知", color: "warning" },
+const eventStatusColor: Record<string, string> = {
+  success: "success",
+  failed: "error",
+  unknown: "warning",
 };
 
 export function Component() {
   const { id } = useParams();
   const productID = Number(id);
   const { message } = App.useApp();
+  const { options: productStatuses } = useDictionaryOptions("product_status");
+  const { options: eventStatuses } = useDictionaryOptions("business_event_status");
   const [product, setProduct] = useState<Product>();
   const [events, setEvents] = useState<BusinessEvent[]>([]);
   const [loading, setLoading] = useState(true);
@@ -109,15 +112,13 @@ export function Component() {
     );
   }
 
-  const status = statusMeta[product.status] ?? {
-    label: product.status || "未知",
-    color: "default",
-  };
+  const statusColor = productStatusColor[product.status] ?? "default";
+  const statusName = dictionaryName(productStatuses, product.status) || "未知";
   const overview: DescriptionsProps["items"] = [
     { key: "externalProductId", label: "闲鱼商品 ID", children: product.externalProductId },
     { key: "account", label: "所属账号", children: product.accountLabel },
     { key: "price", label: "销售价格", children: formatMoney(product.priceCent) },
-    { key: "status", label: "商品状态", children: <Tag color={status.color}>{status.label}</Tag> },
+    { key: "status", label: "商品状态", children: <Tag color={statusColor}>{statusName}</Tag> },
     { key: "type", label: "商品类型", children: product.virtualProduct ? "虚拟商品" : "实物商品" },
     { key: "updated", label: "最后同步", children: formatDateTime(product.UpdatedAt) },
   ];
@@ -163,8 +164,11 @@ export function Component() {
       dataIndex: "status",
       width: 110,
       render: (value: string) => {
-        const item = eventStatusMeta[value] ?? { label: value, color: "default" };
-        return <Tag color={item.color}>{item.label}</Tag>;
+        return (
+          <Tag color={eventStatusColor[value] ?? "default"}>
+            {dictionaryName(eventStatuses, value)}
+          </Tag>
+        );
       },
     },
     {
@@ -189,7 +193,7 @@ export function Component() {
             <Link to="/xianyu/products">返回商品列表</Link>
             <div className={styles.title}>
               <h1>{product.title}</h1>
-              <Tag color={status.color}>{status.label}</Tag>
+              <Tag color={statusColor}>{statusName}</Tag>
             </div>
           </div>
           {product.status === "on_sale" && (

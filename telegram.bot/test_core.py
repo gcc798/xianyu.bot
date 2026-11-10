@@ -209,7 +209,7 @@ def test_adult_dialog_filter_uses_cached_ids_without_ai():
             return None
 
         def adult_classification_dialogs(self):
-            return [{"id": 7, "name": "test", "username": "test", "dialog_type": "频道"}, {"id": 8, "name": "safe", "username": "safe", "dialog_type": "频道"}]
+            return [{"id": 7, "name": "test", "username": "test", "dialog_type": "channel"}, {"id": 8, "name": "safe", "username": "safe", "dialog_type": "channel"}]
 
         def save_adult_dialog_ids(self, dialog_ids):
             self.saved = dialog_ids
@@ -388,7 +388,7 @@ def test_metadata_scan_storage():
     db = Database(dsn)
     telegram_id = -int(uuid.uuid4().int % 9_000_000_000_000_000_000) - 1
     settings_key = "codex_test_" + str(uuid.uuid4())
-    item = {"telegram_id": telegram_id, "access_hash": None, "name": "Codex test " + str(uuid.uuid4()), "username": "codex_test_" + uuid.uuid4().hex, "dialog_type": "普通群", "member_count": 2, "is_channel": False, "is_group": True, "is_megagroup": False, "is_broadcast": False, "is_archived": False, "is_muted": False, "unread_count": 0, "last_message_id": 3, "last_message_at": now, "last_read_message_id": 2, "is_creator": True, "status": "normal"}
+    item = {"telegram_id": telegram_id, "access_hash": None, "name": "Codex test " + str(uuid.uuid4()), "username": "codex_test_" + uuid.uuid4().hex, "dialog_type": "group", "member_count": 2, "is_channel": False, "is_group": True, "is_megagroup": False, "is_broadcast": False, "is_archived": False, "is_muted": False, "unread_count": 0, "last_message_id": 3, "last_message_at": now, "last_read_message_id": 2, "is_creator": True, "status": "normal"}
     with db.connect() as conn:
         try:
             dialog_id = db.upsert_dialog(item)

@@ -17,6 +17,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { accountsApi } from "../../../api/accounts";
 import { messagesApi } from "../../../api/messages";
+import { dictionaryName, useDictionaryOptions } from "../../../hooks/useDictionaryOptions";
 import type { XianyuAccount } from "../../../models/account";
 import type { XianyuMessage } from "../../../models/message";
 import { formatDateTime } from "../../../utils/format";
@@ -26,6 +27,7 @@ import pageStyles from "../../../styles/page.module.css";
 type RangeValue = GetProps<typeof DatePicker.RangePicker>["value"];
 
 export function Component() {
+  const { options: directions } = useDictionaryOptions("message_direction");
   const { message, modal } = App.useApp();
   const [searchParams] = useSearchParams();
   const initialAccountID = Number(searchParams.get("accountId")) || undefined;
@@ -182,7 +184,7 @@ export function Component() {
       width: 75,
       render: (value: string) => (
         <Tag color={value === "inbound" ? "processing" : "default"}>
-          {value === "inbound" ? "买家发来" : "卖家发出"}
+          {dictionaryName(directions, value)}
         </Tag>
       ),
     },
@@ -248,10 +250,7 @@ export function Component() {
             value={direction}
             placeholder="全部方向"
             style={{ width: 130 }}
-            options={[
-              { value: "inbound", label: "买家发来" },
-              { value: "outbound", label: "卖家发出" },
-            ]}
+            options={directions.map(({ code, name }) => ({ value: code, label: name }))}
             onChange={(value) => {
               setDirection(value);
               setPage(1);

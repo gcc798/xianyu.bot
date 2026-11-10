@@ -2,6 +2,7 @@ import { Alert, App, Button, Input, Pagination, Space, Switch, Table, Tag, Toolt
 import type { TableColumnsType } from "antd";
 import { useCallback, useEffect, useState } from "react";
 import { accountsApi } from "../../../api/accounts";
+import { dictionaryName, useDictionaryOptions } from "../../../hooks/useDictionaryOptions";
 import type {
   AccountCredentialInput,
   WebSocketStatus,
@@ -15,22 +16,24 @@ import CredentialModal from "./components/CredentialModal";
 import QRLoginModal from "./components/QRLoginModal";
 import { useAccountQRLogin } from "./hooks/useAccountQRLogin";
 
-const accountStatus: Record<string, { label: string; color: string }> = {
-  ready: { label: "正常", color: "success" },
-  expired: { label: "已失效", color: "error" },
-  verification_required: { label: "需验证", color: "warning" },
-  unconfigured: { label: "未配置", color: "default" },
+const accountStatusColor: Record<string, string> = {
+  ready: "success",
+  expired: "error",
+  verification_required: "warning",
+  unconfigured: "default",
 };
 
-const connectionStatus: Record<string, { label: string; color: string }> = {
-  connected: { label: "已连接", color: "success" },
-  connecting: { label: "连接中", color: "processing" },
-  reconnecting: { label: "重连中", color: "warning" },
-  failed: { label: "需处理", color: "error" },
+const connectionStatusColor: Record<string, string> = {
+  connected: "success",
+  connecting: "processing",
+  reconnecting: "warning",
+  failed: "error",
 };
 
 export function Component() {
   const { message, modal } = App.useApp();
+  const { options: accountStatuses } = useDictionaryOptions("account_status");
+  const { options: connectionStatuses } = useDictionaryOptions("account_connection_status");
   const [rows, setRows] = useState<XianyuAccount[]>([]);
   const [connections, setConnections] = useState<Record<number, WebSocketStatus>>({});
   const [page, setPage] = useState(1);
@@ -143,7 +146,7 @@ export function Component() {
           item.ID === record.ID ? { ...item, status: response.login.status } : item,
         ),
       );
-      message.info(accountStatus[response.login.status]?.label || response.login.status);
+      message.info(dictionaryName(accountStatuses, response.login.status));
     } finally {
       setBusyID(0);
     }
@@ -187,10 +190,10 @@ export function Component() {
 
   const renderConnection = (record: XianyuAccount) => {
     const connection = connections[record.ID];
-    const status = connectionStatus[connection?.state] || { label: "未连接", color: "default" };
+    const statusName = connection ? dictionaryName(connectionStatuses, connection.state) : "未连接";
     return (
       <div>
-        <Tag color={status.color}>{status.label}</Tag>
+        <Tag color={connectionStatusColor[connection?.state ?? ""] ?? "default"}>{statusName}</Tag>
         {connection?.lastError && (
           <Tooltip title={connection.lastError}>
             <div className={businessStyles.errorText}>{connection.lastError}</div>
@@ -289,10 +292,11 @@ export function Component() {
       title: "登录态",
       dataIndex: "status",
       width: 76,
-      render: (value: string) => {
-        const status = accountStatus[value] || { label: value || "未知", color: "default" };
-        return <Tag color={status.color}>{status.label}</Tag>;
-      },
+      render: (value: string) => (
+        <Tag color={accountStatusColor[value] ?? "default"}>
+          {dictionaryName(accountStatuses, value) || "未知"}
+        </Tag>
+      ),
     },
     {
       title: "消息连接",

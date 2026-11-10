@@ -1,5 +1,6 @@
 import { Form, Input, Modal, Select, Space, Switch } from "antd";
 import { useEffect } from "react";
+import { useDictionaryOptions } from "../../../../hooks/useDictionaryOptions";
 import type { DeliveryRule, DeliveryRuleInput } from "../../../../models/automation";
 import type { Product } from "../../../../models/product";
 
@@ -21,6 +22,7 @@ export function DeliveryRuleModal({
   onSave,
 }: Props) {
   const [form] = Form.useForm<DeliveryRuleInput>();
+  const { options: deliveryModes } = useDictionaryOptions("delivery_mode");
   const mode = Form.useWatch("mode", form);
 
   useEffect(() => {
@@ -71,10 +73,7 @@ export function DeliveryRuleModal({
           <Form.Item name="mode" label="发货模式" rules={[{ required: true }]}>
             <Select
               style={{ width: 150 }}
-              options={[
-                { value: "text", label: "文本发货" },
-                { value: "card", label: "卡密发货" },
-              ]}
+              options={deliveryModes.map(({ code, name }) => ({ value: code, label: name }))}
             />
           </Form.Item>
           <Form.Item name="enabled" label="启用" valuePropName="checked">

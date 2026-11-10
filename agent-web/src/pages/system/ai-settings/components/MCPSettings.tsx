@@ -15,6 +15,7 @@ import {
 import type { TableColumnsType } from "antd";
 import { useCallback, useEffect, useState } from "react";
 import { aiConfigApi } from "../../../../api/ai-config";
+import { dictionaryName, useDictionaryOptions } from "../../../../hooks/useDictionaryOptions";
 import { listAgentTools } from "../../../../api/agent";
 import type { MCPServer, MCPServerInput } from "../../../../models/ai-config";
 import type { AgentToolCatalogEntry } from "../../../../models/agent";
@@ -33,6 +34,7 @@ const emptyServer: MCPServerInput = {
 
 export function MCPSettings() {
   const { message, modal } = App.useApp();
+  const { options: healthStatuses } = useDictionaryOptions("mcp_health_status");
   const [form] = Form.useForm<MCPServerInput>();
   const [rows, setRows] = useState<MCPServer[]>([]);
   const [tools, setTools] = useState<AgentToolCatalogEntry[]>([]);
@@ -106,7 +108,7 @@ export function MCPSettings() {
         <Tag
           color={value === "available" ? "success" : value === "unavailable" ? "error" : "default"}
         >
-          {value === "available" ? "可用" : value === "unavailable" ? "不可用" : "未检查"}
+          {value ? dictionaryName(healthStatuses, value) : "未检查"}
         </Tag>
       ),
     },

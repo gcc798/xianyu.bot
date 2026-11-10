@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { accountsApi } from "../../../api/accounts";
 import { productsApi } from "../../../api/products";
+import { dictionaryName, useDictionaryOptions } from "../../../hooks/useDictionaryOptions";
 import type { XianyuAccount } from "../../../models/account";
 import type { Product, ProductSettingInput } from "../../../models/product";
 import { formatMoney } from "../../../utils/format";
@@ -11,14 +12,15 @@ import businessStyles from "../../../styles/business.module.css";
 import pageStyles from "../../../styles/page.module.css";
 import ProductSettingModal from "./components/ProductSettingModal";
 
-const productStatus: Record<string, { label: string; color: string }> = {
-  on_sale: { label: "在售", color: "success" },
-  offline: { label: "已下架", color: "default" },
-  sold: { label: "已售出", color: "warning" },
+const productStatusColor: Record<string, string> = {
+  on_sale: "success",
+  offline: "default",
+  sold: "warning",
 };
 
 export function Component() {
   const { message } = App.useApp();
+  const { options: productStatuses } = useDictionaryOptions("product_status");
   const [rows, setRows] = useState<Product[]>([]);
   const [accounts, setAccounts] = useState<XianyuAccount[]>([]);
   const [page, setPage] = useState(1);
@@ -159,8 +161,11 @@ export function Component() {
       dataIndex: "status",
       width: 74,
       render: (value: string) => {
-        const item = productStatus[value] || { label: value || "未知", color: "default" };
-        return <Tag color={item.color}>{item.label}</Tag>;
+        return (
+          <Tag color={productStatusColor[value] ?? "default"}>
+            {dictionaryName(productStatuses, value) || "未知"}
+          </Tag>
+        );
       },
     },
     {
@@ -240,11 +245,7 @@ export function Component() {
             value={status}
             placeholder="全部状态"
             style={{ width: 140 }}
-            options={[
-              { value: "on_sale", label: "在售" },
-              { value: "offline", label: "已下架" },
-              { value: "sold", label: "已售出" },
-            ]}
+            options={productStatuses.map(({ code, name }) => ({ value: code, label: name }))}
             onChange={(value) => {
               setStatus(value);
               setPage(1);

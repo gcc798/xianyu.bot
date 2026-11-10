@@ -127,7 +127,7 @@ def build_mcp(telegram, resources) -> tuple[MCPServer, Any]:
             message = await telegram.call(telegram.client.send_message, entity, text)
         except Exception:
             return _failed("capability_unavailable", "消息发送失败", True)
-        dialog = {"id": dialog_id, "telegram_id": dialog_id, "name": getattr(entity, "title", None) or str(dialog_id), "username": getattr(entity, "username", None), "dialog_type": "频道" if getattr(entity, "broadcast", False) else "群组"}
+        dialog = {"id": dialog_id, "telegram_id": dialog_id, "name": getattr(entity, "title", None) or str(dialog_id), "username": getattr(entity, "username", None), "dialog_type": "channel" if getattr(entity, "broadcast", False) else "group"}
         return success({"dialog": _dialog_payload(dialog), "message": _message_payload(resources, dialog, message)})
 
     @server.tool()
@@ -255,7 +255,7 @@ async def _read_messages(telegram, resources, dialog_id: int, after_message_id: 
             await asyncio.sleep(min(1, max(deadline - asyncio.get_running_loop().time(), 0)))
     except Exception:
         return _failed("capability_unavailable", "消息读取失败", True)
-    dialog = {"id": dialog_id, "telegram_id": dialog_id, "name": getattr(entity, "title", None) or str(dialog_id), "username": getattr(entity, "username", None), "dialog_type": "频道" if getattr(entity, "broadcast", False) else "群组"}
+    dialog = {"id": dialog_id, "telegram_id": dialog_id, "name": getattr(entity, "title", None) or str(dialog_id), "username": getattr(entity, "username", None), "dialog_type": "channel" if getattr(entity, "broadcast", False) else "group"}
     return success({
         "dialog": _dialog_payload(dialog), "messages": [_message_payload(resources, dialog, message) for message in messages],
         "next_message_id": max((message.id for message in messages), default=after_message_id),

@@ -18,7 +18,9 @@ func NewDictionaryRouter(handlers *api.API) *DictionaryRouter {
 
 // Init 注册当前模块路由。
 func (s *DictionaryRouter) Init(router *gin.RouterGroup) {
-	dictionary := router.Group("sysDictionary").Use(middleware.AdminOnly())
+	dictionary := router.Group("sysDictionary")
+	dictionary.GET("options", s.handlers.Dictionary.Options)
+	dictionary.Use(middleware.AdminOnly())
 	dictionary.POST("createSysDictionary", s.handlers.Dictionary.Create)
 	dictionary.DELETE("deleteSysDictionary", s.handlers.Dictionary.Delete)
 	dictionary.PUT("updateSysDictionary", s.handlers.Dictionary.Update)

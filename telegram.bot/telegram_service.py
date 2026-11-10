@@ -286,7 +286,7 @@ class TelegramService:
         return {
             "telegram_id": entity.id, "access_hash": getattr(entity, "access_hash", None),
             "name": dialog.name or "(未命名)", "username": getattr(entity, "username", None),
-            "dialog_type": "超级群" if is_megagroup else ("频道" if is_channel else "普通群"),
+            "dialog_type": "megagroup" if is_megagroup else ("channel" if is_channel else "group"),
             "member_count": getattr(entity, "participants_count", None), "is_channel": is_channel,
             "is_group": not is_channel or is_megagroup, "is_megagroup": is_megagroup,
             "is_broadcast": bool(getattr(entity, "broadcast", False)), "is_archived": bool(dialog.archived),

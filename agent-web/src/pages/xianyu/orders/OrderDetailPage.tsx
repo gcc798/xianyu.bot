@@ -4,27 +4,30 @@ import { useCallback, useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { automationApi } from "../../../api/automation";
 import { ordersApi } from "../../../api/orders";
+import { dictionaryName, useDictionaryOptions } from "../../../hooks/useDictionaryOptions";
 import type { BusinessEvent } from "../../../models/automation";
 import type { Order } from "../../../models/order";
 import styles from "../../../styles/detail.module.css";
 import pageStyles from "../../../styles/page.module.css";
 import { formatDateTime, formatMoney } from "../../../utils/format";
 
-const statusMeta: Record<string, { label: string; color: string }> = {
-  pending_delivery: { label: "待发货", color: "warning" },
-  shipped: { label: "已发货", color: "success" },
-  unknown: { label: "待识别", color: "default" },
+const orderStatusColor: Record<string, string> = {
+  pending_delivery: "warning",
+  shipped: "success",
+  unknown: "default",
 };
 
-const eventStatusMeta: Record<string, { label: string; color: string }> = {
-  success: { label: "成功", color: "success" },
-  failed: { label: "失败", color: "error" },
-  unknown: { label: "结果未知", color: "warning" },
+const eventStatusColor: Record<string, string> = {
+  success: "success",
+  failed: "error",
+  unknown: "warning",
 };
 
 export function Component() {
   const { id } = useParams();
   const orderID = Number(id);
+  const { options: orderStatuses } = useDictionaryOptions("order_status");
+  const { options: eventStatuses } = useDictionaryOptions("business_event_status");
   const [order, setOrder] = useState<Order>();
   const [events, setEvents] = useState<BusinessEvent[]>([]);
   const [loading, setLoading] = useState(true);
@@ -75,10 +78,11 @@ export function Component() {
     );
   }
 
-  const status = statusMeta[order.status] ?? { label: order.status || "未知", color: "default" };
+  const statusColor = orderStatusColor[order.status] ?? "default";
+  const statusName = dictionaryName(orderStatuses, order.status) || "未知";
   const overview: DescriptionsProps["items"] = [
     { key: "externalOrderId", label: "闲鱼订单号", children: order.externalOrderId },
-    { key: "status", label: "订单状态", children: <Tag color={status.color}>{status.label}</Tag> },
+    { key: "status", label: "订单状态", children: <Tag color={statusColor}>{statusName}</Tag> },
     { key: "product", label: "成交商品", children: order.productTitle },
     { key: "productId", label: "闲鱼商品 ID", children: order.externalProductId || "-" },
     { key: "sku", label: "成交规格", children: order.skuKey || "-" },
@@ -100,8 +104,11 @@ export function Component() {
       dataIndex: "status",
       width: 110,
       render: (value: string) => {
-        const item = eventStatusMeta[value] ?? { label: value, color: "default" };
-        return <Tag color={item.color}>{item.label}</Tag>;
+        return (
+          <Tag color={eventStatusColor[value] ?? "default"}>
+            {dictionaryName(eventStatuses, value)}
+          </Tag>
+        );
       },
     },
     {
@@ -121,7 +128,7 @@ export function Component() {
             <Link to="/xianyu/orders">返回订单列表</Link>
             <div className={styles.title}>
               <h1>{order.externalOrderId}</h1>
-              <Tag color={status.color}>{status.label}</Tag>
+              <Tag color={statusColor}>{statusName}</Tag>
             </div>
           </div>
         </div>

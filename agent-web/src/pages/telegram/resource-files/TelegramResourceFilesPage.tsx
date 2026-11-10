@@ -14,21 +14,11 @@ import type { TableColumnsType } from "antd";
 import { useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { telegramApi } from "../../../api/telegram";
+import { dictionaryName, useDictionaryOptions } from "../../../hooks/useDictionaryOptions";
 import type { TelegramResourceFile, TelegramResourceOptions } from "../../../models/telegram";
 import styles from "../../../styles/page.module.css";
 import { formatDateTime, formatFileSize } from "../../../utils/format";
 import { ResourcePreviewModal } from "./components/ResourcePreviewModal";
-
-const fileStatusLabel: Record<string, string> = {
-  queued: "排队中",
-  downloading: "下载中",
-  success: "成功",
-  failed: "失败",
-  cancelled: "已取消",
-  duplicate: "重复",
-  pending: "待上传",
-  uploading: "上传中",
-};
 
 const statusColor = (value: string) =>
   value === "success"
@@ -40,6 +30,7 @@ const statusColor = (value: string) =>
         : "processing";
 export function Component() {
   const { message, modal } = App.useApp();
+  const { options: fileStatuses } = useDictionaryOptions("telegram_file_status");
   const [searchParams] = useSearchParams();
   const initialTaskId = Number(searchParams.get("task_id"));
   const [options, setOptions] = useState<TelegramResourceOptions>({
@@ -177,7 +168,7 @@ export function Component() {
       dataIndex: "download_status",
       width: 100,
       render: (value: string) => (
-        <Tag color={statusColor(value)}>{fileStatusLabel[value] || value}</Tag>
+        <Tag color={statusColor(value)}>{dictionaryName(fileStatuses, value)}</Tag>
       ),
     },
     {
@@ -185,7 +176,7 @@ export function Component() {
       dataIndex: "upload_status",
       width: 100,
       render: (value: string) => (
-        <Tag color={statusColor(value)}>{fileStatusLabel[value] || value}</Tag>
+        <Tag color={statusColor(value)}>{dictionaryName(fileStatuses, value)}</Tag>
       ),
     },
     {
@@ -272,9 +263,7 @@ export function Component() {
             value={status}
             placeholder="全部状态"
             style={{ width: 140 }}
-            options={["queued", "downloading", "success", "failed", "cancelled", "duplicate"].map(
-              (value) => ({ value, label: fileStatusLabel[value] }),
-            )}
+            options={fileStatuses.map(({ code, name }) => ({ value: code, label: name }))}
             onChange={(value) => {
               setStatus(value);
               setPage(1);

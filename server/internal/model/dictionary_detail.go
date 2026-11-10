@@ -17,5 +17,5 @@ type DictionaryDetail struct {
 
 // TableName 返回字典条目表名。
 func (DictionaryDetail) TableName() string {
-	return "s_dictionary_details"
+	return "s_dict_detail"
 }

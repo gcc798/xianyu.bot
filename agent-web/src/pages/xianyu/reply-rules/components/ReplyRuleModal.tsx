@@ -1,5 +1,6 @@
 import { Form, Input, InputNumber, Modal, Select, Space, Switch } from "antd";
 import { useEffect } from "react";
+import { useDictionaryOptions } from "../../../../hooks/useDictionaryOptions";
 import type { ReplyRule, ReplyRuleInput } from "../../../../models/automation";
 import type { Product } from "../../../../models/product";
 
@@ -21,6 +22,7 @@ export function ReplyRuleModal({
   onSave,
 }: Props) {
   const [form] = Form.useForm<ReplyRuleInput>();
+  const { options: ruleTypeOptions } = useDictionaryOptions("reply_rule_type");
   const type = Form.useWatch("type", form);
 
   useEffect(() => {
@@ -63,14 +65,11 @@ export function ReplyRuleModal({
         <Form.Item name="type" label="规则类型" rules={[{ required: true }]}>
           <Select
             disabled={record?.type === "exact"}
-            options={
-              record?.type === "exact"
-                ? [{ value: "exact", label: "精确匹配" }]
-                : [
-                    { value: "fuzzy", label: "模糊匹配" },
-                    { value: "fallback", label: "兜底回复" },
-                  ]
-            }
+            options={ruleTypeOptions
+              .filter(({ code }) =>
+                record?.type === "exact" ? code === "exact" : code !== "exact",
+              )
+              .map(({ code, name }) => ({ value: code, label: name }))}
           />
         </Form.Item>
         {type !== "fallback" && (

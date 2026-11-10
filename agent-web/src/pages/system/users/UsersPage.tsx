@@ -14,7 +14,8 @@ import {
 import type { TableColumnsType } from "antd";
 import { useCallback, useEffect, useState } from "react";
 import { systemApi } from "../../../api/system";
-import { ADMIN_AUTHORITY_ID, USER_AUTHORITY_ID } from "../../../models/auth";
+import { dictionaryName, useDictionaryOptions } from "../../../hooks/useDictionaryOptions";
+import { USER_AUTHORITY_ID } from "../../../models/auth";
 import type { CreateUserRequest, UpdateUserRequest, UserRecord } from "../../../models/system";
 import styles from "../../../styles/page.module.css";
 
@@ -31,6 +32,8 @@ type UserForm = {
 
 export function Component() {
   const { message, modal } = App.useApp();
+  const { options: userRoles } = useDictionaryOptions("user_role");
+  const { options: userStatuses } = useDictionaryOptions("user_status");
   const [form] = Form.useForm<UserForm>();
   const [rows, setRows] = useState<UserRecord[]>([]);
   const [page, setPage] = useState(1);
@@ -174,7 +177,7 @@ export function Component() {
       title: "角色",
       dataIndex: "authorityId",
       width: 110,
-      render: (value: number) => (value === ADMIN_AUTHORITY_ID ? "管理员" : "普通用户"),
+      render: (value: number) => dictionaryName(userRoles, value),
     },
     { title: "手机号", dataIndex: "phone", width: 150, render: (value: string) => value || "—" },
     { title: "邮箱", dataIndex: "email", ellipsis: true, render: (value: string) => value || "—" },
@@ -183,7 +186,7 @@ export function Component() {
       dataIndex: "enable",
       width: 96,
       render: (value: number) => (
-        <Tag color={value === 1 ? "success" : "default"}>{value === 1 ? "启用" : "停用"}</Tag>
+        <Tag color={value === 1 ? "success" : "warning"}>{dictionaryName(userStatuses, value)}</Tag>
       ),
     },
     {
@@ -285,18 +288,18 @@ export function Component() {
           <Space size={12} style={{ display: "flex" }}>
             <Form.Item name="authorityId" label="角色" style={{ flex: 1 }}>
               <Select
-                options={[
-                  { label: "普通用户", value: USER_AUTHORITY_ID },
-                  { label: "管理员", value: ADMIN_AUTHORITY_ID },
-                ]}
+                options={userRoles.flatMap(({ code, name }) => {
+                  const value = Number(code);
+                  return Number.isSafeInteger(value) ? [{ label: name, value }] : [];
+                })}
               />
             </Form.Item>
             <Form.Item name="enable" label="状态" style={{ flex: 1 }}>
               <Select
-                options={[
-                  { label: "启用", value: 1 },
-                  { label: "停用", value: 2 },
-                ]}
+                options={userStatuses.flatMap(({ code, name }) => {
+                  const value = Number(code);
+                  return Number.isSafeInteger(value) ? [{ label: name, value }] : [];
+                })}
               />
             </Form.Item>
           </Space>

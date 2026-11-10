@@ -3,27 +3,21 @@ import type { TableColumnsType } from "antd";
 import { useCallback, useEffect, useState } from "react";
 import { accountsApi } from "../../../api/accounts";
 import { automationApi } from "../../../api/automation";
+import { dictionaryName, useDictionaryOptions } from "../../../hooks/useDictionaryOptions";
 import type { XianyuAccount } from "../../../models/account";
 import type { BusinessEvent } from "../../../models/automation";
 import styles from "../../../styles/page.module.css";
 import { formatDateTime } from "../../../utils/format";
 
-const eventTypes: Record<string, string> = {
-  message: "消息接收",
-  delivery: "自动发货",
-  relist: "自动续售",
-  order_sync: "订单同步",
-  product_sync: "商品同步",
-  login_check: "登录检查",
-};
-
-const eventStatuses: Record<string, { label: string; color: string }> = {
-  success: { label: "成功", color: "success" },
-  failed: { label: "失败", color: "error" },
-  unknown: { label: "结果未知", color: "warning" },
+const eventStatusColor: Record<string, string> = {
+  success: "success",
+  failed: "error",
+  unknown: "warning",
 };
 
 export function Component() {
+  const { options: eventTypes } = useDictionaryOptions("business_event_type");
+  const { options: eventStatuses } = useDictionaryOptions("business_event_status");
   const [rows, setRows] = useState<BusinessEvent[]>([]);
   const [accounts, setAccounts] = useState<XianyuAccount[]>([]);
   const [page, setPage] = useState(1);
@@ -91,16 +85,17 @@ export function Component() {
       title: "类型",
       dataIndex: "type",
       width: 110,
-      render: (value: string) => <Tag>{eventTypes[value] ?? value}</Tag>,
+      render: (value: string) => <Tag>{dictionaryName(eventTypes, value)}</Tag>,
     },
     {
       title: "状态",
       dataIndex: "status",
       width: 100,
-      render: (value: string) => {
-        const item = eventStatuses[value] ?? { label: value, color: "default" };
-        return <Tag color={item.color}>{item.label}</Tag>;
-      },
+      render: (value: string) => (
+        <Tag color={eventStatusColor[value] ?? "default"}>
+          {dictionaryName(eventStatuses, value)}
+        </Tag>
+      ),
     },
     { title: "摘要", dataIndex: "summary", width: 250, ellipsis: true },
     {
@@ -181,7 +176,7 @@ export function Component() {
             value={type}
             placeholder="全部类型"
             style={{ width: 140 }}
-            options={Object.entries(eventTypes).map(([value, label]) => ({ value, label }))}
+            options={eventTypes.map(({ code, name }) => ({ value: code, label: name }))}
             onChange={(value) => {
               setType(value);
               setPage(1);
@@ -192,10 +187,7 @@ export function Component() {
             value={status}
             placeholder="全部状态"
             style={{ width: 130 }}
-            options={Object.entries(eventStatuses).map(([value, item]) => ({
-              value,
-              label: item.label,
-            }))}
+            options={eventStatuses.map(({ code, name }) => ({ value: code, label: name }))}
             onChange={(value) => {
               setStatus(value);
               setPage(1);

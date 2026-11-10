@@ -4,19 +4,21 @@ import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { accountsApi } from "../../../api/accounts";
 import { ordersApi } from "../../../api/orders";
+import { dictionaryName, useDictionaryOptions } from "../../../hooks/useDictionaryOptions";
 import type { XianyuAccount } from "../../../models/account";
 import type { Order } from "../../../models/order";
 import { formatDateTime, formatMoney } from "../../../utils/format";
 import pageStyles from "../../../styles/page.module.css";
 
-const orderStatus: Record<string, { label: string; color: string }> = {
-  pending_delivery: { label: "待发货", color: "warning" },
-  shipped: { label: "已发货", color: "success" },
-  unknown: { label: "待识别", color: "default" },
+const orderStatusColor: Record<string, string> = {
+  pending_delivery: "warning",
+  shipped: "success",
+  unknown: "default",
 };
 
 export function Component() {
   const { message } = App.useApp();
+  const { options: orderStatuses } = useDictionaryOptions("order_status");
   const [rows, setRows] = useState<Order[]>([]);
   const [accounts, setAccounts] = useState<XianyuAccount[]>([]);
   const [page, setPage] = useState(1);
@@ -106,8 +108,11 @@ export function Component() {
       dataIndex: "status",
       width: 85,
       render: (value: string) => {
-        const item = orderStatus[value] || { label: value || "未知", color: "default" };
-        return <Tag color={item.color}>{item.label}</Tag>;
+        return (
+          <Tag color={orderStatusColor[value] ?? "default"}>
+            {dictionaryName(orderStatuses, value) || "未知"}
+          </Tag>
+        );
       },
     },
     { title: "更新时间", dataIndex: "UpdatedAt", width: 140, render: formatDateTime },
@@ -147,11 +152,7 @@ export function Component() {
             value={status}
             placeholder="全部状态"
             style={{ width: 140 }}
-            options={[
-              { value: "pending_delivery", label: "待发货" },
-              { value: "shipped", label: "已发货" },
-              { value: "unknown", label: "待识别" },
-            ]}
+            options={orderStatuses.map(({ code, name }) => ({ value: code, label: name }))}
             onChange={(value) => {
               setStatus(value);
               setPage(1);

@@ -5,6 +5,7 @@ import type {
   DictionaryDetail,
   DictionaryDetailInput,
   DictionaryInput,
+  DictionaryOptions,
   LoginLog,
   UpdateUserRequest,
   UserRecord,
@@ -13,6 +14,7 @@ import type {
 import { queryString, request } from "./client";
 
 export const systemApi = {
+  dictionaryOptions: () => request<DictionaryOptions>("/sysDictionary/options"),
   users: (input: UserSearch) =>
     request<PageResult<UserRecord>>("/user/getUserList", {
       method: "POST",

@@ -76,6 +76,9 @@ export type DictionaryDetailInput = Pick<
   "label" | "value" | "extend" | "status" | "sort" | "sysDictionaryID" | "parentID"
 > & { ID?: number };
 
+export type DictionaryOption = { code: string; name: string };
+export type DictionaryOptions = Record<string, DictionaryOption[]>;
+
 export type LoginLog = {
   ID: number;
   CreatedAt: string;

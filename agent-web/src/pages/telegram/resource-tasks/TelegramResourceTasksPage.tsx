@@ -12,10 +12,13 @@ import {
   Space,
   Table,
   Tag,
+  Tooltip,
+  Typography,
 } from "antd";
 import type { TableColumnsType } from "antd";
 import { useCallback, useEffect, useState } from "react";
 import { telegramResourceApi } from "../../../api/telegram";
+import { dictionaryName, useDictionaryOptions } from "../../../hooks/useDictionaryOptions";
 import type {
   TelegramResourceTask,
   TelegramResourceTaskInput,
@@ -25,22 +28,29 @@ import businessStyles from "../../../styles/business.module.css";
 import styles from "../../../styles/page.module.css";
 import { formatDateTime } from "../../../utils/format";
 
-const statusMeta: Record<TelegramResourceTask["status"], { label: string; color?: string }> = {
-  queued: { label: "排队中", color: "processing" },
-  running: { label: "执行中", color: "processing" },
-  completed: { label: "已完成", color: "success" },
-  failed: { label: "失败", color: "error" },
-  cancelled: { label: "已取消" },
+const statusColor: Record<string, string> = {
+  queued: "processing",
+  running: "processing",
+  completed: "success",
+  failed: "error",
 };
 
-function sourceModeLabel(task: TelegramResourceTask) {
-  if (task.sourceMode === "all") return "全部来源";
-  if (task.sourceMode === "manual") return "手动选择";
-  return task.sourceStrategy === "ai" ? "智能 · AI" : "智能 · 本地";
+function sourceModeLabel(
+  task: TelegramResourceTask,
+  modes: { code: string; name: string }[],
+  strategies: { code: string; name: string }[],
+) {
+  if (task.sourceMode === "smart") {
+    return `${dictionaryName(modes, task.sourceMode)} · ${dictionaryName(strategies, task.sourceStrategy)}`;
+  }
+  return dictionaryName(modes, task.sourceMode);
 }
 
 export function Component() {
   const { message, modal } = App.useApp();
+  const { options: taskStatuses } = useDictionaryOptions("telegram_resource_task_status");
+  const { options: sourceModes } = useDictionaryOptions("telegram_resource_source_mode");
+  const { options: sourceStrategies } = useDictionaryOptions("telegram_resource_source_strategy");
   const [createForm] = Form.useForm<TelegramResourceTaskInput>();
   const sourceMode = Form.useWatch("sourceMode", createForm);
   const [options, setOptions] = useState<TelegramResourceTaskOptions>({
@@ -58,6 +68,9 @@ export function Component() {
   const [submitting, setSubmitting] = useState(false);
   const [syncingSources, setSyncingSources] = useState(false);
   const [error, setError] = useState("");
+  const [selectedError, setSelectedError] = useState<{ taskId: number; message: string } | null>(
+    null,
+  );
 
   const load = useCallback(
     async (quiet = false) => {
@@ -151,7 +164,8 @@ export function Component() {
     {
       title: "范围",
       width: 180,
-      render: (_, task) => `${sourceModeLabel(task)} · ${task.sourceDialogIds.length} 个`,
+      render: (_, task) =>
+        `${sourceModeLabel(task, sourceModes, sourceStrategies)} · ${task.sourceDialogIds.length} 个`,
     },
     {
       title: "结果",
@@ -164,7 +178,7 @@ export function Component() {
       dataIndex: "status",
       width: 100,
       render: (value: TelegramResourceTask["status"]) => (
-        <Tag color={statusMeta[value].color}>{statusMeta[value].label}</Tag>
+        <Tag color={statusColor[value] ?? "default"}>{dictionaryName(taskStatuses, value)}</Tag>
       ),
     },
     {
@@ -177,7 +191,46 @@ export function Component() {
       title: "错误",
       dataIndex: "errorMessage",
       ellipsis: true,
-      render: (value: string) => value || "-",
+      render: (value: string | null, task) =>
+        value ? (
+          <Tooltip
+            title={
+              <span
+                style={{
+                  display: "block",
+                  maxWidth: 420,
+                  whiteSpace: "pre-wrap",
+                  overflowWrap: "anywhere",
+                }}
+              >
+                {value}
+              </span>
+            }
+            placement="topLeft"
+          >
+            <Button
+              type="link"
+              className={styles.linkButton}
+              aria-label={`查看任务 ${task.id} 错误详情`}
+              onClick={() => setSelectedError({ taskId: task.id, message: value })}
+            >
+              <span
+                style={{
+                  display: "block",
+                  maxWidth: 190,
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                  textAlign: "left",
+                }}
+              >
+                {value}
+              </span>
+            </Button>
+          </Tooltip>
+        ) : (
+          "-"
+        ),
     },
     {
       title: "操作",
@@ -202,10 +255,7 @@ export function Component() {
             placeholder="全部状态"
             style={{ width: 150 }}
             value={status}
-            options={Object.entries(statusMeta).map(([value, meta]) => ({
-              value,
-              label: meta.label,
-            }))}
+            options={taskStatuses.map(({ code, name }) => ({ value: code, label: name }))}
             onChange={(value) => {
               setPage(1);
               setStatus(value);
@@ -229,6 +279,18 @@ export function Component() {
             locale={{ emptyText: "暂无资源采集任务" }}
           />
         </div>
+        <Modal
+          title={selectedError ? `任务 #${selectedError.taskId} 错误详情` : "错误详情"}
+          open={Boolean(selectedError)}
+          footer={null}
+          onCancel={() => setSelectedError(null)}
+        >
+          <Typography.Paragraph
+            style={{ marginBottom: 0, whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}
+          >
+            {selectedError?.message}
+          </Typography.Paragraph>
+        </Modal>
         <div className={styles.pagination}>
           <Pagination
             current={page}
@@ -288,11 +350,7 @@ export function Component() {
               <Radio.Group
                 optionType="button"
                 buttonStyle="solid"
-                options={[
-                  { value: "smart", label: "智能" },
-                  { value: "all", label: "全部" },
-                  { value: "manual", label: "手动" },
-                ]}
+                options={sourceModes.map(({ code, name }) => ({ value: code, label: name }))}
               />
             </Form.Item>
             {sourceMode === "manual" && (

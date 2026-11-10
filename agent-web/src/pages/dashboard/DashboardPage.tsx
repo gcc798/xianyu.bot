@@ -3,6 +3,7 @@ import type { TableColumnsType } from "antd";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { accountsApi } from "../../api/accounts";
 import { dashboardApi } from "../../api/dashboard";
+import { dictionaryName, useDictionaryOptions } from "../../hooks/useDictionaryOptions";
 import type { XianyuAccount } from "../../models/account";
 import type { BusinessEvent } from "../../models/automation";
 import type {
@@ -26,13 +27,14 @@ function presetRange(preset: Exclude<DatePreset, "custom">): [number, number] {
   return [start.getTime(), end];
 }
 
-const eventStatuses: Record<string, { label: string; color: string }> = {
-  success: { label: "成功", color: "success" },
-  failed: { label: "失败", color: "error" },
-  unknown: { label: "结果未知", color: "warning" },
+const eventStatusColor: Record<string, string> = {
+  success: "success",
+  failed: "error",
+  unknown: "warning",
 };
 
 export function Component() {
+  const { options: eventStatuses } = useDictionaryOptions("business_event_status");
   const [accounts, setAccounts] = useState<XianyuAccount[]>([]);
   const [accountId, setAccountId] = useState<number>();
   const [preset, setPreset] = useState<DatePreset>("7d");
@@ -129,8 +131,11 @@ export function Component() {
       dataIndex: "status",
       width: 100,
       render: (value: string) => {
-        const item = eventStatuses[value] || { label: value, color: "default" };
-        return <Tag color={item.color}>{item.label}</Tag>;
+        return (
+          <Tag color={eventStatusColor[value] ?? "default"}>
+            {dictionaryName(eventStatuses, value)}
+          </Tag>
+        );
       },
     },
     {

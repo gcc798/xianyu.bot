@@ -2,6 +2,7 @@ import { Alert, App, Button, Input, Pagination, Select, Space, Table, Tag } from
 import type { TableColumnsType } from "antd";
 import { useCallback, useEffect, useState } from "react";
 import { automationApi } from "../../../api/automation";
+import { dictionaryName, useDictionaryOptions } from "../../../hooks/useDictionaryOptions";
 import { productsApi } from "../../../api/products";
 import type { DeliveryRule, DeliveryRuleInput } from "../../../models/automation";
 import type { Product } from "../../../models/product";
@@ -11,6 +12,7 @@ import { ResourceImportModal } from "./components/ResourceImportModal";
 
 export function Component() {
   const { message, modal } = App.useApp();
+  const { options: deliveryModes } = useDictionaryOptions("delivery_mode");
   const [rows, setRows] = useState<DeliveryRule[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [page, setPage] = useState(1);
@@ -144,7 +146,7 @@ export function Component() {
       width: 100,
       render: (value: string) => (
         <Tag color={value === "card" ? "processing" : "default"}>
-          {value === "card" ? "卡密发货" : "文本发货"}
+          {dictionaryName(deliveryModes, value)}
         </Tag>
       ),
     },
@@ -225,10 +227,7 @@ export function Component() {
             value={mode}
             placeholder="全部模式"
             style={{ width: 130 }}
-            options={[
-              { value: "text", label: "文本发货" },
-              { value: "card", label: "卡密发货" },
-            ]}
+            options={deliveryModes.map(({ code, name }) => ({ value: code, label: name }))}
             onChange={(value) => {
               setMode(value);
               setPage(1);

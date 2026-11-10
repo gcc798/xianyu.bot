@@ -2,20 +2,22 @@ import { Alert, App, Button, Input, Pagination, Select, Space, Table, Tag } from
 import type { TableColumnsType } from "antd";
 import { useCallback, useEffect, useState } from "react";
 import { automationApi } from "../../../api/automation";
+import { dictionaryName, useDictionaryOptions } from "../../../hooks/useDictionaryOptions";
 import { productsApi } from "../../../api/products";
 import type { ReplyRule, ReplyRuleInput } from "../../../models/automation";
 import type { Product } from "../../../models/product";
 import styles from "../../../styles/page.module.css";
 import { ReplyRuleModal } from "./components/ReplyRuleModal";
 
-const ruleTypes: Record<string, { label: string; color: string }> = {
-  exact: { label: "精确匹配", color: "default" },
-  fuzzy: { label: "模糊匹配", color: "processing" },
-  fallback: { label: "兜底回复", color: "warning" },
+const ruleTypeColor: Record<string, string> = {
+  exact: "default",
+  fuzzy: "processing",
+  fallback: "warning",
 };
 
 export function Component() {
   const { message, modal } = App.useApp();
+  const { options: ruleTypeOptions } = useDictionaryOptions("reply_rule_type");
   const [rows, setRows] = useState<ReplyRule[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [page, setPage] = useState(1);
@@ -104,10 +106,11 @@ export function Component() {
       title: "类型",
       dataIndex: "type",
       width: 100,
-      render: (value: string) => {
-        const item = ruleTypes[value] ?? { label: value, color: "default" };
-        return <Tag color={item.color}>{item.label}</Tag>;
-      },
+      render: (value: string) => (
+        <Tag color={ruleTypeColor[value] ?? "default"}>
+          {dictionaryName(ruleTypeOptions, value)}
+        </Tag>
+      ),
     },
     {
       title: "触发关键词",
@@ -176,11 +179,7 @@ export function Component() {
             value={type}
             placeholder="全部类型"
             style={{ width: 130 }}
-            options={[
-              { value: "exact", label: "精确匹配" },
-              { value: "fuzzy", label: "模糊匹配" },
-              { value: "fallback", label: "兜底回复" },
-            ]}
+            options={ruleTypeOptions.map(({ code, name }) => ({ value: code, label: name }))}
             onChange={(value) => {
               setType(value);
               setPage(1);

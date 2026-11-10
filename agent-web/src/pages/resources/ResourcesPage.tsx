@@ -2,6 +2,7 @@ import { Alert, App, Button, Input, Pagination, Select, Space, Table, Tag } from
 import type { TableColumnsType } from "antd";
 import { useCallback, useEffect, useState } from "react";
 import { resourcesApi } from "../../api/resources";
+import { dictionaryName, useDictionaryOptions } from "../../hooks/useDictionaryOptions";
 import type { Resource, ResourceDetail } from "../../models/resource";
 import styles from "../../styles/page.module.css";
 import { formatDateTime, formatFileSize } from "../../utils/format";
@@ -9,6 +10,7 @@ import { ResourceDetailDrawer } from "./components/ResourceDetailDrawer";
 
 export function Component() {
   const { message } = App.useApp();
+  const { options: resourceStates } = useDictionaryOptions("resource_state");
   const [rows, setRows] = useState<Resource[]>([]);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
@@ -93,7 +95,7 @@ export function Component() {
       width: 90,
       render: (value: string) => (
         <Tag color={value === "available" ? "success" : "default"}>
-          {value === "available" ? "可用" : value}
+          {dictionaryName(resourceStates, value)}
         </Tag>
       ),
     },
@@ -150,10 +152,7 @@ export function Component() {
             value={state}
             placeholder="全部状态"
             style={{ width: 130 }}
-            options={[
-              { value: "available", label: "可用" },
-              { value: "deleted", label: "已删除" },
-            ]}
+            options={resourceStates.map(({ code, name }) => ({ value: code, label: name }))}
             onChange={(value) => {
               setState(value);
               setPage(1);

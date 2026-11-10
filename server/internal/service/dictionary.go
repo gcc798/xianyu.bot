@@ -6,6 +6,7 @@ import (
 
 	"github.com/gcc798/xianyu.bot/internal/model"
 	"github.com/gcc798/xianyu.bot/internal/model/request"
+	"github.com/gcc798/xianyu.bot/internal/model/response"
 	"gorm.io/gorm"
 )
 
@@ -74,6 +75,32 @@ func (dictionaryService *DictionaryService) List(ctx context.Context, search req
 	}
 	err := query.Preload("Children").Find(&dictionaries).Error
 	return dictionaries, err
+}
+
+// Options 返回所有启用字典项的业务编码与展示名称。
+func (dictionaryService *DictionaryService) Options(ctx context.Context) (map[string][]response.DictionaryOption, error) {
+	var rows []struct {
+		Type string `gorm:"column:type"`
+		Code string `gorm:"column:code"`
+		Name string `gorm:"column:name"`
+		Sort int    `gorm:"column:sort"`
+	}
+	err := dictionaryService.db.WithContext(ctx).
+		Table("s_dict AS d").
+		Select("d.type, dd.value AS code, dd.label AS name, dd.sort").
+		Joins("JOIN s_dict_detail AS dd ON dd.sys_dictionary_id = d.id").
+		Where("d.status IS TRUE AND dd.status IS TRUE AND d.deleted_at IS NULL AND dd.deleted_at IS NULL").
+		Order("d.type, dd.sort, dd.id").
+		Scan(&rows).Error
+	if err != nil {
+		return nil, err
+	}
+
+	options := make(map[string][]response.DictionaryOption)
+	for _, row := range rows {
+		options[row.Type] = append(options[row.Type], response.DictionaryOption{Code: row.Code, Name: row.Name})
+	}
+	return options, nil
 }
 
 // checkCircularReference 沿父链检查 currentID 是否会形成字典环路。
