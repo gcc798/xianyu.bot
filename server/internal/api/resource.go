@@ -181,6 +181,20 @@ func (a *ResourceAPI) Download(c *gin.Context) {
 	response.OkWithData(gin.H{"downloadUrl": downloadURL, "expiresAt": expiresAt}, c)
 }
 
+// Preview 为当前用户生成资源在线预览地址。
+func (a *ResourceAPI) Preview(c *gin.Context) {
+	resourceID, ok := pathID(c)
+	if !ok {
+		return
+	}
+	previewURL, expiresAt, err := a.resources.Preview(c.Request.Context(), security.GetUserID(c), resourceID)
+	if err != nil {
+		failAccount("获取资源预览地址失败", err, c)
+		return
+	}
+	response.OkWithData(gin.H{"previewUrl": previewURL, "expiresAt": expiresAt}, c)
+}
+
 // GetTask 处理资源任务查询请求。
 func (a *ResourceAPI) GetTask(c *gin.Context) {
 	taskID, ok := pathID(c)

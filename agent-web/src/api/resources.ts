@@ -11,6 +11,8 @@ export const resourcesApi = {
     state?: string;
   }) => request<PageResult<Resource>>(`/xy/resources${queryString(input)}`),
   get: (ID: number) => request<{ resource: ResourceDetail }>(`/xy/resources/${ID}`),
+  preview: (ID: number) =>
+    request<{ previewUrl: string; expiresAt: string }>(`/xy/resources/${ID}/preview`),
   download: (ID: number) =>
     request<{ downloadUrl: string; expiresAt: string }>(`/xy/resources/${ID}/download`),
   tasks: (input: { page: number; pageSize: number; state?: string }) =>

@@ -23,6 +23,7 @@ type fakeResourceObjectStore struct {
 	size          int64 // size 是模拟对象大小。
 	bucketCreated bool  // bucketCreated 标记存储桶已创建。
 	removed       []string
+	getParams     []url.Values
 }
 
 // PresignedPutObject 提供测试辅助能力。
@@ -31,7 +32,8 @@ func (s *fakeResourceObjectStore) PresignedPutObject(_ context.Context, _, objec
 }
 
 // PresignedGetObject 提供测试辅助能力。
-func (s *fakeResourceObjectStore) PresignedGetObject(_ context.Context, _, objectKey string, _ time.Duration, _ url.Values) (*url.URL, error) {
+func (s *fakeResourceObjectStore) PresignedGetObject(_ context.Context, _, objectKey string, _ time.Duration, params url.Values) (*url.URL, error) {
+	s.getParams = append(s.getParams, params)
 	return url.Parse("http://rustfs:9000/download/" + objectKey)
 }
 
@@ -147,6 +149,12 @@ func TestResourceCatalogScopesQueriesByOwner(t *testing.T) {
 	require.True(t, expiresAt.After(time.Now()))
 	_, _, err = catalog.Download(t.Context(), 11, otherResource.ID)
 	require.True(t, errors.Is(err, gorm.ErrRecordNotFound))
+	_, _, err = catalog.Preview(t.Context(), 22, ownerResource.ID)
+	require.True(t, errors.Is(err, gorm.ErrRecordNotFound))
+	_, _, err = catalog.Preview(t.Context(), 11, ownerResource.ID)
+	require.NoError(t, err)
+	require.Equal(t, "inline; filename=\"Go.pdf\"", catalog.objectStore.(*fakeResourceObjectStore).getParams[1].Get("response-content-disposition"))
+	require.Equal(t, "attachment; filename=\"Go.pdf\"", catalog.objectStore.(*fakeResourceObjectStore).getParams[0].Get("response-content-disposition"))
 }
 
 // TestResourceDeliveryGrantAndCompletion 验证对应测试场景。

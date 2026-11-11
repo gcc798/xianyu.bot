@@ -276,6 +276,15 @@ func (s *ResourceCatalog) CancelTask(ctx context.Context, ownerID, taskID uint) 
 
 // Download 为可用资源生成短期下载地址。
 func (s *ResourceCatalog) Download(ctx context.Context, ownerID, resourceID uint) (string, time.Time, error) {
+	return s.resourceURL(ctx, ownerID, resourceID, false)
+}
+
+// Preview 为所有者生成短期在线预览地址。
+func (s *ResourceCatalog) Preview(ctx context.Context, ownerID, resourceID uint) (string, time.Time, error) {
+	return s.resourceURL(ctx, ownerID, resourceID, true)
+}
+
+func (s *ResourceCatalog) resourceURL(ctx context.Context, ownerID, resourceID uint, inline bool) (string, time.Time, error) {
 	if ownerID == 0 || resourceID == 0 {
 		return "", time.Time{}, errors.New("资源 ID 不能为空")
 	}
@@ -288,11 +297,15 @@ func (s *ResourceCatalog) Download(ctx context.Context, ownerID, resourceID uint
 		return "", time.Time{}, err
 	}
 	expiresAt := time.Now().Add(resourceDownloadTTL)
+	disposition := "attachment"
+	if inline {
+		disposition = "inline"
+	}
 	downloadURL, err := store.PresignedGetObject(ctx, resource.Bucket, resource.ObjectKey, resourceDownloadTTL, url.Values{
-		"response-content-disposition": {fmt.Sprintf(`attachment; filename="%s"`, strings.ReplaceAll(resource.Name, `"`, ""))},
+		"response-content-disposition": {fmt.Sprintf(`%s; filename="%s"`, disposition, strings.ReplaceAll(resource.Name, `"`, ""))},
 	})
 	if err != nil {
-		return "", time.Time{}, fmt.Errorf("生成资源下载地址: %w", err)
+		return "", time.Time{}, fmt.Errorf("生成资源访问地址: %w", err)
 	}
 	return downloadURL.String(), expiresAt, nil
 }

@@ -7,6 +7,7 @@ import type { Resource, ResourceDetail } from "../../models/resource";
 import styles from "../../styles/page.module.css";
 import { formatDateTime, formatFileSize } from "../../utils/format";
 import { ResourceDetailDrawer } from "./components/ResourceDetailDrawer";
+import { ResourcePreviewModal } from "./components/ResourcePreviewModal";
 
 export function Component() {
   const { message } = App.useApp();
@@ -23,6 +24,9 @@ export function Component() {
   const [error, setError] = useState("");
   const [detail, setDetail] = useState<ResourceDetail>();
   const [detailLoading, setDetailLoading] = useState(false);
+  const [preview, setPreview] = useState<{ resource: Resource; url: string }>();
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [previewError, setPreviewError] = useState("");
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -59,6 +63,19 @@ export function Component() {
       message.error(cause instanceof Error ? cause.message : "下载地址获取失败");
     }
   };
+  const openPreview = async (record: Resource) => {
+    setPreviewLoading(true);
+    setPreviewError("");
+    setPreview({ resource: record, url: "" });
+    try {
+      const data = await resourcesApi.preview(record.ID);
+      setPreview({ resource: record, url: data.previewUrl });
+    } catch (cause) {
+      setPreviewError(cause instanceof Error ? cause.message : "预览地址获取失败");
+    } finally {
+      setPreviewLoading(false);
+    }
+  };
 
   const columns: TableColumnsType<Resource> = [
     {
@@ -75,7 +92,8 @@ export function Component() {
         <Button
           type="link"
           className={styles.linkButton}
-          onClick={() => void openDetail(record.ID)}
+          disabled={record.state !== "available"}
+          onClick={() => void openPreview(record)}
         >
           {value}
         </Button>
@@ -102,17 +120,26 @@ export function Component() {
     { title: "创建时间", dataIndex: "CreatedAt", width: 150, render: formatDateTime },
     {
       title: "操作",
-      width: 80,
+      width: 130,
       fixed: "right",
       render: (_, record) => (
-        <Button
-          type="link"
-          className={styles.linkButton}
-          disabled={record.state !== "available"}
-          onClick={() => void download(record)}
-        >
-          下载
-        </Button>
+        <Space size={4}>
+          <Button
+            type="link"
+            className={styles.linkButton}
+            onClick={() => void openDetail(record.ID)}
+          >
+            详情
+          </Button>
+          <Button
+            type="link"
+            className={styles.linkButton}
+            disabled={record.state !== "available"}
+            onClick={() => void download(record)}
+          >
+            下载
+          </Button>
+        </Space>
       ),
     },
   ];
@@ -195,6 +222,13 @@ export function Component() {
         resource={detail}
         loading={detailLoading}
         onClose={() => setDetail(undefined)}
+      />
+      <ResourcePreviewModal
+        resource={preview?.resource}
+        url={preview?.url || ""}
+        loading={previewLoading}
+        error={previewError}
+        onClose={() => setPreview(undefined)}
       />
     </div>
   );

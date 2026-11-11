@@ -25,6 +25,7 @@ func (r *ResourceRouter) Init(private *gin.RouterGroup) {
 	private.POST("xy/telegram/resource-tasks/:id/cancel", r.handlers.Resource.CancelTelegramTask)
 	private.GET("xy/resources", r.handlers.Resource.List)
 	private.GET("xy/resources/:id", r.handlers.Resource.Get)
+	private.GET("xy/resources/:id/preview", r.handlers.Resource.Preview)
 	private.GET("xy/resources/:id/download", r.handlers.Resource.Download)
 	private.GET("xy/resource-tasks", r.handlers.Resource.ListTasks)
 	private.GET("xy/resource-tasks/:id", r.handlers.Resource.GetTask)
