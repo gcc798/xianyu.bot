@@ -2,9 +2,10 @@ package request
 
 // DeliveryRuleSearch 描述自动发货规则列表的筛选条件。
 type DeliveryRuleSearch struct {
-	PageInfo         // PageInfo 提供分页和关键词条件。
-	ProductID uint   `json:"productId" form:"productId"` // ProductID 仅返回指定商品的规则。
-	Mode      string `json:"mode" form:"mode"`           // Mode 仅返回指定发货模式的规则。
+	PageInfo           // PageInfo 提供分页和关键词条件。
+	ProductID   uint   `json:"productId" form:"productId"`     // ProductID 仅返回指定商品的规则。
+	Mode        string `json:"mode" form:"mode"`               // Mode 仅返回指定发货模式的规则。
+	EnabledOnly bool   `json:"enabledOnly" form:"enabledOnly"` // EnabledOnly 仅返回启用规则。
 }
 
 // SaveDeliveryRule 描述创建或更新自动发货规则的输入。

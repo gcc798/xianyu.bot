@@ -32,6 +32,9 @@ func (s *ReplyRule) List(ctx context.Context, ownerID uint, input xyRequest.Repl
 	if input.ProductID != 0 {
 		db = db.Where("r.product_id = ?", input.ProductID)
 	}
+	if input.EnabledOnly {
+		db = db.Where("r.enabled = ?", true)
+	}
 	if input.Type != "" {
 		if input.Type == model.ReplyRuleFuzzy {
 			db = db.Where("r.type IN ?", []string{model.ReplyRuleExact, model.ReplyRuleFuzzy})

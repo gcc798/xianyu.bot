@@ -30,6 +30,9 @@ func (s *DeliveryRule) List(ctx context.Context, ownerID uint, input xyRequest.D
 	if input.ProductID != 0 {
 		db = db.Where("r.product_id = ?", input.ProductID)
 	}
+	if input.EnabledOnly {
+		db = db.Where("r.enabled = ?", true)
+	}
 	if input.Mode != "" {
 		db = db.Where("r.mode = ?", input.Mode)
 	}

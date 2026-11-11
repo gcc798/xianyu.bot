@@ -218,6 +218,13 @@ func (s *Message) List(ctx context.Context, ownerID uint, input xyRequest.Messag
 	if input.AccountID != 0 {
 		db = db.Where("m.account_id = ?", input.AccountID)
 	}
+	if input.ProductID != 0 {
+		db = db.Where(`EXISTS (
+			SELECT 1 FROM xy_products AS p
+			WHERE p.id = ? AND p.owner_id = m.owner_id AND p.account_id = m.account_id
+				AND p.external_product_id = m.external_product_id AND p.deleted_at IS NULL
+		)`, input.ProductID)
+	}
 	if input.Direction != "" {
 		if input.Direction != "inbound" && input.Direction != "outbound" {
 			return nil, 0, errors.New("消息方向无效")

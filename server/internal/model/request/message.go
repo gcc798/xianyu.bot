@@ -4,6 +4,7 @@ package request
 type MessageSearch struct {
 	Pagination               // Pagination 提供页码与每页数量。
 	AccountID         uint   `json:"accountId" form:"accountId"`                 // AccountID 仅返回指定闲鱼账号的消息。
+	ProductID         uint   `json:"productId" form:"productId"`                 // ProductID 仅返回指定商品的消息。
 	SessionID         string `json:"sessionId" form:"sessionId"`                 // SessionID 仅返回指定会话的消息。
 	Direction         string `json:"direction" form:"direction"`                 // Direction 仅返回指定收发方向的消息。
 	ExternalProductID string `json:"externalProductId" form:"externalProductId"` // ExternalProductID 仅返回指定闲鱼商品的消息。

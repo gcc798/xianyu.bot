@@ -84,6 +84,10 @@ func TestDeliveryReservesEncryptedCardOnce(t *testing.T) {
 	require.NoError(t, err)
 	require.EqualValues(t, 2, total)
 	require.Len(t, list, 2)
+	list, total, err = service.ListTasks(t.Context(), 10, xyRequest.DeliveryTaskSearch{ProductID: product.ID})
+	require.NoError(t, err)
+	require.EqualValues(t, 2, total)
+	require.Len(t, list, 2)
 
 	close(sender.release)
 	require.Eventually(t, func() bool {

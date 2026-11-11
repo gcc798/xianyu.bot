@@ -2,9 +2,10 @@ package request
 
 // ReplyRuleSearch 描述自动回复规则列表的筛选条件。
 type ReplyRuleSearch struct {
-	PageInfo         // PageInfo 提供分页和关键词条件。
-	ProductID uint   `json:"productId" form:"productId"` // ProductID 仅返回指定商品的规则。
-	Type      string `json:"type" form:"type"`           // Type 仅返回指定匹配类型的规则。
+	PageInfo           // PageInfo 提供分页和关键词条件。
+	ProductID   uint   `json:"productId" form:"productId"`     // ProductID 仅返回指定商品的规则。
+	Type        string `json:"type" form:"type"`               // Type 仅返回指定匹配类型的规则。
+	EnabledOnly bool   `json:"enabledOnly" form:"enabledOnly"` // EnabledOnly 仅返回启用规则。
 }
 
 // SaveReplyRule 描述创建或更新自动回复规则的输入。

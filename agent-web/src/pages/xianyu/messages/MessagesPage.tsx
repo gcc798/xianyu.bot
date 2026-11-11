@@ -17,9 +17,11 @@ import { useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { accountsApi } from "../../../api/accounts";
 import { messagesApi } from "../../../api/messages";
+import { productsApi } from "../../../api/products";
 import { dictionaryName, useDictionaryOptions } from "../../../hooks/useDictionaryOptions";
 import type { XianyuAccount } from "../../../models/account";
 import type { XianyuMessage } from "../../../models/message";
+import type { Product } from "../../../models/product";
 import { formatDateTime } from "../../../utils/format";
 import businessStyles from "../../../styles/business.module.css";
 import pageStyles from "../../../styles/page.module.css";
@@ -35,10 +37,12 @@ export function Component() {
   const initialEnd = Number(searchParams.get("endTime")) || undefined;
   const [rows, setRows] = useState<XianyuMessage[]>([]);
   const [accounts, setAccounts] = useState<XianyuAccount[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [total, setTotal] = useState(0);
   const [accountId, setAccountId] = useState<number | undefined>(initialAccountID);
+  const [productId, setProductId] = useState<number>();
   const [direction, setDirection] = useState<string>();
   const [externalProductId, setExternalProductId] = useState("");
   const [buyerName, setBuyerName] = useState("");
@@ -61,7 +65,14 @@ export function Component() {
     setLoading(true);
     setError("");
     try {
-      const response = await messagesApi.list({ page, pageSize, accountId, direction, ...applied });
+      const response = await messagesApi.list({
+        page,
+        pageSize,
+        accountId,
+        productId,
+        direction,
+        ...applied,
+      });
       setRows(response.list);
       setTotal(response.total);
     } catch (cause) {
@@ -69,7 +80,7 @@ export function Component() {
     } finally {
       setLoading(false);
     }
-  }, [page, pageSize, accountId, direction, applied]);
+  }, [page, pageSize, accountId, productId, direction, applied]);
 
   useEffect(() => {
     void load();
@@ -79,6 +90,12 @@ export function Component() {
       .list({ page: 1, pageSize: 100 })
       .then((response) => setAccounts(response.list))
       .catch((cause) => setError(cause instanceof Error ? cause.message : "账号加载失败"));
+  }, []);
+  useEffect(() => {
+    void productsApi
+      .listAll()
+      .then(setProducts)
+      .catch(() => undefined);
   }, []);
 
   const applyFilters = () => {
@@ -94,6 +111,7 @@ export function Component() {
 
   const reset = () => {
     setAccountId(undefined);
+    setProductId(undefined);
     setDirection(undefined);
     setExternalProductId("");
     setBuyerName("");
@@ -241,6 +259,19 @@ export function Component() {
             options={accounts.map((account) => ({ value: account.ID, label: account.label }))}
             onChange={(value) => {
               setAccountId(value);
+              setPage(1);
+            }}
+          />
+          <Select
+            allowClear
+            showSearch
+            optionFilterProp="label"
+            value={productId}
+            placeholder="全部商品"
+            style={{ width: 200 }}
+            options={products.map((product) => ({ value: product.ID, label: product.title }))}
+            onChange={(value) => {
+              setProductId(value);
               setPage(1);
             }}
           />

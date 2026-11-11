@@ -32,6 +32,10 @@ func TestWebSocketTokenIsEncryptedAndCached(t *testing.T) {
 		require.NotEmpty(t, data["deviceId"])
 		require.NotEmpty(t, request.URL.Query().Get("sign"))
 		require.Equal(t, "a21ybx.im.0.0", request.URL.Query().Get("spm_cnt"))
+		require.Equal(t, "%5Bobject%20Object%5D", request.URL.Query().Get("dangerouslySetWindvaneParams"))
+		require.Equal(t, "token", request.URL.Query().Get("smToken"))
+		require.Equal(t, "sm", request.URL.Query().Get("queryToken"))
+		require.Equal(t, "sm", request.URL.Query().Get("sm"))
 		require.Equal(t, "same-site", request.Header.Get("Sec-Fetch-Site"))
 		require.Contains(t, request.Header.Get("Cookie"), "cna=device-cookie")
 		http.SetCookie(writer, &http.Cookie{Name: "_m_h5_tk", Value: "new-token_expiry", Path: "/"})
@@ -77,6 +81,35 @@ func TestWebSocketTokenIsEncryptedAndCached(t *testing.T) {
 	require.Equal(t, int64(1), calls.Load())
 	_, _, err = tokenService.Get(t.Context(), 11, created.ID)
 	require.Error(t, err)
+}
+
+// TestWebSocketTokenRequiresSuccessfulMTopRet 防止失败响应中的残留 Token 被当作有效令牌。
+func TestWebSocketTokenRequiresSuccessfulMTopRet(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
+		_, _ = writer.Write([]byte(`{"ret":"FAIL_SYS_SESSION_EXPIRED::会话过期","data":{"accessToken":"stale-token"}}`))
+	}))
+	t.Cleanup(server.Close)
+
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	require.NoError(t, err)
+	require.NoError(t, db.AutoMigrate(&model.Account{}, &model.Credential{}))
+	t.Setenv(credentialKeyEnvironment, base64.StdEncoding.EncodeToString([]byte("0123456789abcdef0123456789abcdef")))
+	accountService := &Account{db: db}
+	created, err := accountService.Create(t.Context(), 10, xyRequest.CreateAccount{Label: "过期账号"})
+	require.NoError(t, err)
+	require.NoError(t, accountService.SaveCredential(t.Context(), 10, xyRequest.SaveCredential{
+		ID: created.ID, Cookie: "unb=user-demo; cna=device-cookie; _m_h5_tk=token_expiry",
+	}))
+
+	tokenService := NewWebSocketToken(db, &BusinessEvent{db: db})
+	tokenService.endpoint = server.URL
+	_, _, err = tokenService.Get(t.Context(), 10, created.ID)
+	expired, ok := errors.AsType[CredentialExpiredError](err)
+	require.True(t, ok)
+	require.True(t, expired.NonRetryable())
+	require.EqualError(t, err, "闲鱼登录已过期，请重新扫码登录")
+	require.NoError(t, db.First(&created, created.ID).Error)
+	require.Equal(t, "expired", created.Status)
 }
 
 // TestWebSocketTokenMarksAccountWhenVerificationIsRequired 验证对应测试场景。

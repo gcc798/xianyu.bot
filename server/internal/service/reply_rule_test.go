@@ -39,6 +39,13 @@ func TestReplyRuleResolveOrderAndOwnerIsolation(t *testing.T) {
 	require.EqualValues(t, 4, ownerTotal)
 	require.Len(t, ownerList, 4)
 	require.Equal(t, model.ReplyRuleFallback, ownerList[len(ownerList)-1].Type)
+	require.NoError(t, service.Save(t.Context(), 10, xyRequest.SaveReplyRule{
+		ProductID: product.ID, Type: model.ReplyRuleFuzzy, Keyword: "停用", Enabled: false, Content: "停用规则",
+	}))
+	enabledRules, enabledTotal, err := service.List(t.Context(), 10, xyRequest.ReplyRuleSearch{ProductID: product.ID, EnabledOnly: true})
+	require.NoError(t, err)
+	require.EqualValues(t, 4, enabledTotal)
+	require.Len(t, enabledRules, 4)
 
 	match, err := service.Resolve(t.Context(), 10, product.ID, "怎么卖")
 	require.NoError(t, err)

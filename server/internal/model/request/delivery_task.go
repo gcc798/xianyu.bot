@@ -10,6 +10,7 @@ type ImportDeliveryResources struct {
 type DeliveryTaskSearch struct {
 	PageInfo         // PageInfo 提供分页和关键词条件。
 	AccountID uint   `json:"accountId" form:"accountId"` // AccountID 仅返回指定闲鱼账号的任务。
+	ProductID uint   `json:"productId" form:"productId"` // ProductID 仅返回指定商品的任务。
 	Status    string `json:"status" form:"status"`       // Status 仅返回指定状态的任务。
 	Keyword   string `json:"keyword" form:"keyword"`     // Keyword 在订单与错误信息中检索。
 }

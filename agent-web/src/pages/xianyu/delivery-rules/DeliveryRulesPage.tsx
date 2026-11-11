@@ -1,6 +1,7 @@
 import { Alert, App, Button, Input, Pagination, Select, Space, Table, Tag } from "antd";
 import type { TableColumnsType } from "antd";
 import { useCallback, useEffect, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { automationApi } from "../../../api/automation";
 import { dictionaryName, useDictionaryOptions } from "../../../hooks/useDictionaryOptions";
 import { productsApi } from "../../../api/products";
@@ -11,6 +12,7 @@ import { DeliveryRuleModal } from "./components/DeliveryRuleModal";
 import { ResourceImportModal } from "./components/ResourceImportModal";
 
 export function Component() {
+  const [searchParams] = useSearchParams();
   const { message, modal } = App.useApp();
   const { options: deliveryModes } = useDictionaryOptions("delivery_mode");
   const [rows, setRows] = useState<DeliveryRule[]>([]);
@@ -18,7 +20,9 @@ export function Component() {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [total, setTotal] = useState(0);
-  const [productId, setProductId] = useState<number>();
+  const [productId, setProductId] = useState<number | undefined>(
+    () => Number(searchParams.get("productId")) || undefined,
+  );
   const [mode, setMode] = useState<string>();
   const [keyword, setKeyword] = useState("");
   const [query, setQuery] = useState("");
@@ -54,8 +58,8 @@ export function Component() {
   }, [load]);
   useEffect(() => {
     void productsApi
-      .list({ page: 1, pageSize: 100, status: "on_sale" })
-      .then((data) => setProducts(data.list))
+      .listAll()
+      .then(setProducts)
       .catch(() => undefined);
   }, []);
 

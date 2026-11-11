@@ -4,9 +4,11 @@ import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { accountsApi } from "../../../api/accounts";
 import { ordersApi } from "../../../api/orders";
+import { productsApi } from "../../../api/products";
 import { dictionaryName, useDictionaryOptions } from "../../../hooks/useDictionaryOptions";
 import type { XianyuAccount } from "../../../models/account";
 import type { Order } from "../../../models/order";
+import type { Product } from "../../../models/product";
 import { formatDateTime, formatMoney } from "../../../utils/format";
 import pageStyles from "../../../styles/page.module.css";
 
@@ -21,10 +23,12 @@ export function Component() {
   const { options: orderStatuses } = useDictionaryOptions("order_status");
   const [rows, setRows] = useState<Order[]>([]);
   const [accounts, setAccounts] = useState<XianyuAccount[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [total, setTotal] = useState(0);
   const [accountId, setAccountId] = useState<number>();
+  const [productId, setProductId] = useState<number>();
   const [status, setStatus] = useState<string>();
   const [keyword, setKeyword] = useState("");
   const [query, setQuery] = useState("");
@@ -36,7 +40,14 @@ export function Component() {
     setLoading(true);
     setError("");
     try {
-      const response = await ordersApi.list({ page, pageSize, accountId, status, keyword: query });
+      const response = await ordersApi.list({
+        page,
+        pageSize,
+        accountId,
+        productId,
+        status,
+        keyword: query,
+      });
       setRows(response.list);
       setTotal(response.total);
     } catch (cause) {
@@ -44,7 +55,7 @@ export function Component() {
     } finally {
       setLoading(false);
     }
-  }, [page, pageSize, accountId, status, query]);
+  }, [page, pageSize, accountId, productId, status, query]);
 
   useEffect(() => {
     void load();
@@ -54,6 +65,12 @@ export function Component() {
       .list({ page: 1, pageSize: 100 })
       .then((response) => setAccounts(response.list))
       .catch((cause) => setError(cause instanceof Error ? cause.message : "账号加载失败"));
+  }, []);
+  useEffect(() => {
+    void productsApi
+      .listAll()
+      .then(setProducts)
+      .catch(() => undefined);
   }, []);
 
   const syncPending = async () => {
@@ -127,6 +144,7 @@ export function Component() {
 
   const reset = () => {
     setAccountId(undefined);
+    setProductId(undefined);
     setStatus(undefined);
     setKeyword("");
     setQuery("");
@@ -144,6 +162,19 @@ export function Component() {
             options={accounts.map((account) => ({ value: account.ID, label: account.label }))}
             onChange={(value) => {
               setAccountId(value);
+              setPage(1);
+            }}
+          />
+          <Select
+            allowClear
+            showSearch
+            optionFilterProp="label"
+            value={productId}
+            placeholder="全部商品"
+            style={{ width: 200 }}
+            options={products.map((product) => ({ value: product.ID, label: product.title }))}
+            onChange={(value) => {
+              setProductId(value);
               setPage(1);
             }}
           />

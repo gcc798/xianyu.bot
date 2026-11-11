@@ -62,9 +62,11 @@ func TestMessageHandleIsIdempotentAndOwnerIsolated(t *testing.T) {
 func TestMessageListFiltersByExplicitFields(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
-	require.NoError(t, db.AutoMigrate(&model.Account{}, &model.Message{}, &model.ConversationTakeover{}))
+	require.NoError(t, db.AutoMigrate(&model.Account{}, &model.Product{}, &model.Message{}, &model.ConversationTakeover{}))
 	account := model.Account{OwnerID: 10, Label: "消息账号", Status: "ready", Enabled: true}
 	require.NoError(t, db.Create(&account).Error)
+	product := model.Product{OwnerID: 10, AccountID: account.ID, ExternalProductID: "item-1", Title: "测试商品"}
+	require.NoError(t, db.Create(&product).Error)
 	for _, item := range []model.Message{
 		{OwnerID: 10, AccountID: account.ID, PNMID: "in-1", Content: "价格是多少", SenderUserName: "买家甲", ExternalProductID: "item-1", MessageTime: 1000, Direction: "inbound", Source: "remote"},
 		{OwnerID: 10, AccountID: account.ID, PNMID: "out-1", Content: "回复价格", SenderUserName: "卖家", ExternalProductID: "item-1", MessageTime: 1050, Direction: "outbound", Source: "remote"},
@@ -81,6 +83,9 @@ func TestMessageListFiltersByExplicitFields(t *testing.T) {
 	require.EqualValues(t, 1, total)
 	require.Len(t, list, 1)
 	require.Equal(t, "in-1", list[0].PNMID)
+	list, total, err = service.List(t.Context(), 10, xyRequest.MessageSearch{ProductID: product.ID})
+	require.NoError(t, err)
+	require.EqualValues(t, 2, total)
 	_, _, err = service.List(t.Context(), 10, xyRequest.MessageSearch{Direction: "invalid"})
 	require.ErrorContains(t, err, "消息方向无效")
 	_, _, err = service.List(t.Context(), 10, xyRequest.MessageSearch{StartTime: 2, EndTime: 1})

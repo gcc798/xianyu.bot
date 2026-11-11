@@ -29,6 +29,9 @@ func TestDeliveryRulePrefersSKUAndChecksOwner(t *testing.T) {
 		ProductID: product.ID, SKUKey: "sku-red", SKUName: "红色", Mode: model.DeliveryModeCard,
 		Template: "您的卡密：{card}", Enabled: true,
 	}))
+	require.NoError(t, service.Save(t.Context(), 10, xyRequest.SaveDeliveryRule{
+		ProductID: product.ID, SKUKey: "disabled", Mode: model.DeliveryModeText, Template: "停用规则", Enabled: false,
+	}))
 
 	match, err := service.Resolve(t.Context(), 10, product.ID, "sku-red")
 	require.NoError(t, err)
@@ -38,6 +41,10 @@ func TestDeliveryRulePrefersSKUAndChecksOwner(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, match.SKUKey)
 	require.Equal(t, "商品通用内容", match.Template)
+	enabledRules, enabledTotal, err := service.List(t.Context(), 10, xyRequest.DeliveryRuleSearch{ProductID: product.ID, EnabledOnly: true})
+	require.NoError(t, err)
+	require.EqualValues(t, 2, enabledTotal)
+	require.Len(t, enabledRules, 2)
 
 	list, total, err := service.List(t.Context(), 11, xyRequest.DeliveryRuleSearch{})
 	require.NoError(t, err)

@@ -21,6 +21,7 @@ export type MessageSearch = {
   page: number;
   pageSize: number;
   accountId?: number;
+  productId?: number;
   sessionId?: string;
   direction?: string;
   externalProductId?: string;

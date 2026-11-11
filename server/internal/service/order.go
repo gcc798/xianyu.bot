@@ -145,6 +145,9 @@ func (s *Order) List(ctx context.Context, ownerID uint, input xyRequest.OrderSea
 	if input.AccountID != 0 {
 		db = db.Where("o.account_id = ?", input.AccountID)
 	}
+	if input.ProductID != 0 {
+		db = db.Where("o.product_id = ?", input.ProductID)
+	}
 	if status := strings.TrimSpace(input.Status); status != "" {
 		db = db.Where("o.status = ?", status)
 	}

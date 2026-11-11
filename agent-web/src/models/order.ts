@@ -20,5 +20,6 @@ export type OrderSearch = {
   pageSize: number;
   keyword?: string;
   accountId?: number;
+  productId?: number;
   status?: string;
 };

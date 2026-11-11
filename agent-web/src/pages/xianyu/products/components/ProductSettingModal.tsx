@@ -1,4 +1,7 @@
-import { Alert, Form, Input, InputNumber, Modal, Switch } from "antd";
+import { Alert, Form, Input, InputNumber, Modal, Space, Switch } from "antd";
+import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
+import { automationApi } from "../../../../api/automation";
 import type { Product, ProductSettingInput } from "../../../../models/product";
 import styles from "../../../../styles/business.module.css";
 
@@ -14,6 +17,42 @@ type ProductSettingForm = Omit<ProductSettingInput, "productId">;
 export default function ProductSettingModal({ product, loading, onCancel, onSave }: Props) {
   const [form] = Form.useForm<ProductSettingForm>();
   const autoRelist = Form.useWatch("autoRelistEnabled", form);
+  const [ruleStatus, setRuleStatus] = useState({
+    loading: false,
+    failed: false,
+    reply: false,
+    delivery: false,
+  });
+
+  useEffect(() => {
+    if (!product) return;
+    let active = true;
+    setRuleStatus({ loading: true, failed: false, reply: false, delivery: false });
+    void Promise.all([
+      automationApi.replyRules({ page: 1, pageSize: 1, productId: product.ID, enabledOnly: true }),
+      automationApi.deliveryRules({
+        page: 1,
+        pageSize: 1,
+        productId: product.ID,
+        enabledOnly: true,
+      }),
+    ])
+      .then(([replyRules, deliveryRules]) => {
+        if (active)
+          setRuleStatus({
+            loading: false,
+            failed: false,
+            reply: replyRules.total > 0,
+            delivery: deliveryRules.total > 0,
+          });
+      })
+      .catch(() => {
+        if (active) setRuleStatus({ loading: false, failed: true, reply: false, delivery: false });
+      });
+    return () => {
+      active = false;
+    };
+  }, [product]);
 
   return (
     <Modal
@@ -53,11 +92,40 @@ export default function ProductSettingModal({ product, loading, onCancel, onSave
           <Switch />
         </Form.Item>
         <Form.Item name="autoReplyEnabled" label="自动回复" valuePropName="checked">
-          <Switch />
+          <Switch
+            loading={ruleStatus.loading}
+            disabled={ruleStatus.loading || (!ruleStatus.reply && !product?.autoReplyEnabled)}
+          />
         </Form.Item>
         <Form.Item name="autoDeliveryEnabled" label="自动发货" valuePropName="checked">
-          <Switch />
+          <Switch
+            loading={ruleStatus.loading}
+            disabled={ruleStatus.loading || (!ruleStatus.delivery && !product?.autoDeliveryEnabled)}
+          />
         </Form.Item>
+        {!ruleStatus.loading &&
+          (ruleStatus.failed || !ruleStatus.reply || !ruleStatus.delivery) && (
+            <Alert
+              className="ant-form-item-wide"
+              type={ruleStatus.failed ? "error" : "warning"}
+              showIcon
+              title={
+                ruleStatus.failed
+                  ? "规则状态检查失败，无法确认自动化是否已配置。"
+                  : "配置并启用对应规则后，才能开启商品自动化。"
+              }
+              action={
+                <Space size={12}>
+                  {!ruleStatus.reply && (
+                    <Link to={`/xianyu/reply-rules?productId=${product?.ID}`}>配置回复规则</Link>
+                  )}
+                  {!ruleStatus.delivery && (
+                    <Link to={`/xianyu/delivery-rules?productId=${product?.ID}`}>配置发货规则</Link>
+                  )}
+                </Space>
+              }
+            />
+          )}
         <Form.Item name="autoRelistEnabled" label="自动续售" valuePropName="checked">
           <Switch />
         </Form.Item>

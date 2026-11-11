@@ -119,6 +119,9 @@ func (s *Delivery) ListTasks(ctx context.Context, ownerID uint, input xyRequest.
 	if input.AccountID != 0 {
 		db = db.Where("t.account_id = ?", input.AccountID)
 	}
+	if input.ProductID != 0 {
+		db = db.Where("o.product_id = ?", input.ProductID)
+	}
 	if status := strings.TrimSpace(input.Status); status != "" {
 		db = db.Where("t.status = ?", status)
 	}

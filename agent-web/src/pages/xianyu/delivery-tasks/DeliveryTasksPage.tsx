@@ -3,9 +3,11 @@ import type { TableColumnsType } from "antd";
 import { useCallback, useEffect, useState } from "react";
 import { accountsApi } from "../../../api/accounts";
 import { automationApi } from "../../../api/automation";
+import { productsApi } from "../../../api/products";
 import { dictionaryName, useDictionaryOptions } from "../../../hooks/useDictionaryOptions";
 import type { XianyuAccount } from "../../../models/account";
 import type { DeliveryTask } from "../../../models/automation";
+import type { Product } from "../../../models/product";
 import styles from "../../../styles/page.module.css";
 import { formatDateTime } from "../../../utils/format";
 
@@ -24,10 +26,12 @@ export function Component() {
   const { options: deliveryModes } = useDictionaryOptions("delivery_mode");
   const [rows, setRows] = useState<DeliveryTask[]>([]);
   const [accounts, setAccounts] = useState<XianyuAccount[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [total, setTotal] = useState(0);
   const [accountId, setAccountId] = useState<number>();
+  const [productId, setProductId] = useState<number>();
   const [status, setStatus] = useState<string>();
   const [keyword, setKeyword] = useState("");
   const [query, setQuery] = useState("");
@@ -42,6 +46,7 @@ export function Component() {
         page,
         pageSize,
         accountId,
+        productId,
         status,
         keyword: query,
       });
@@ -52,7 +57,7 @@ export function Component() {
     } finally {
       setLoading(false);
     }
-  }, [page, pageSize, accountId, status, query]);
+  }, [page, pageSize, accountId, productId, status, query]);
 
   useEffect(() => {
     void load();
@@ -61,6 +66,12 @@ export function Component() {
     void accountsApi
       .list({ page: 1, pageSize: 100 })
       .then((data) => setAccounts(data.list))
+      .catch(() => undefined);
+  }, []);
+  useEffect(() => {
+    void productsApi
+      .listAll()
+      .then(setProducts)
       .catch(() => undefined);
   }, []);
 
@@ -141,6 +152,7 @@ export function Component() {
   };
   const reset = () => {
     setAccountId(undefined);
+    setProductId(undefined);
     setStatus(undefined);
     setKeyword("");
     setQuery("");
@@ -159,6 +171,19 @@ export function Component() {
             options={accounts.map((account) => ({ value: account.ID, label: account.label }))}
             onChange={(value) => {
               setAccountId(value);
+              setPage(1);
+            }}
+          />
+          <Select
+            allowClear
+            showSearch
+            optionFilterProp="label"
+            value={productId}
+            placeholder="全部商品"
+            style={{ width: 200 }}
+            options={products.map((product) => ({ value: product.ID, label: product.title }))}
+            onChange={(value) => {
+              setProductId(value);
               setPage(1);
             }}
           />

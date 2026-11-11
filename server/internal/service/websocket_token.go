@@ -48,6 +48,15 @@ func (e *VerificationRequiredError) NonRetryable() bool { return true }
 // ActionURL 返回用户需要访问的安全验证地址。
 func (e *VerificationRequiredError) ActionURL() string { return e.URL }
 
+// CredentialExpiredError 表示闲鱼登录凭据已失效。
+type CredentialExpiredError struct{}
+
+// Error 返回重新登录提示。
+func (CredentialExpiredError) Error() string { return "闲鱼登录已过期，请重新扫码登录" }
+
+// NonRetryable 表明自动重连无法恢复已失效的登录凭据。
+func (CredentialExpiredError) NonRetryable() bool { return true }
+
 // WebSocketToken 获取、缓存并加密保存闲鱼消息连接令牌。
 type WebSocketToken struct {
 	db                   *gorm.DB       // db 读取账号凭据并保存刷新结果。
@@ -109,6 +118,7 @@ func (s *WebSocketToken) Get(ctx context.Context, ownerID, accountID uint) (stri
 		deviceID = strings.ToUpper(uuid.NewString()) + "-" + unb
 	}
 
+	initialCookie := cookie
 	var token string
 	for attempt := range 2 {
 		token, cookie, err = s.fetch(ctx, cookie, deviceID)
@@ -142,7 +152,46 @@ func (s *WebSocketToken) Get(ctx context.Context, ownerID, accountID uint) (stri
 			}
 			return "", "", verification
 		}
+		if _, expired := errors.AsType[CredentialExpiredError](err); expired {
+			var cipherCookie string
+			if cookie != initialCookie {
+				cipherCookie, err = encryptCredential(s.db, cookie, credentialAAD(accountID, "cookie"))
+				if err != nil {
+					return "", "", errors.Join(CredentialExpiredError{}, fmt.Errorf("保存闲鱼更新后的 Cookie: %w", err))
+				}
+			}
+			statusErr := db.Transaction(func(tx *gorm.DB) error {
+				if cipherCookie != "" {
+					result := tx.Model(&model.Credential{}).
+						Where("id = ? AND account_id = ? AND version = ?", credential.ID, accountID, credential.Version).
+						Updates(map[string]any{"cookie_ciphertext": cipherCookie, "version": gorm.Expr("version + 1")})
+					if result.Error != nil {
+						return result.Error
+					}
+					if result.RowsAffected != 1 {
+						return errors.New("凭证已被其他操作更新，请重试")
+					}
+				}
+				return tx.Model(&model.Account{}).Where("id = ? AND owner_id = ?", accountID, ownerID).Update("status", "expired").Error
+			})
+			return "", "", errors.Join(CredentialExpiredError{}, statusErr)
+		}
 		if attempt == 1 || !waitContext(ctx, 500*time.Millisecond) {
+			if cookie != initialCookie {
+				cipherCookie, encryptErr := encryptCredential(s.db, cookie, credentialAAD(accountID, "cookie"))
+				if encryptErr != nil {
+					return "", "", errors.Join(err, fmt.Errorf("保存闲鱼更新后的 Cookie: %w", encryptErr))
+				}
+				persistResult := db.Model(&model.Credential{}).
+					Where("id = ? AND account_id = ? AND version = ?", credential.ID, accountID, credential.Version).
+					Updates(map[string]any{"cookie_ciphertext": cipherCookie, "version": gorm.Expr("version + 1")})
+				if persistResult.Error != nil {
+					return "", "", errors.Join(err, fmt.Errorf("保存闲鱼更新后的 Cookie: %w", persistResult.Error))
+				}
+				if persistResult.RowsAffected != 1 {
+					return "", "", errors.Join(err, errors.New("保存闲鱼更新后的 Cookie: 凭证已被其他操作更新，请重试"))
+				}
+			}
 			return "", "", err
 		}
 	}
@@ -223,7 +272,8 @@ func (s *WebSocketToken) fetch(ctx context.Context, cookie, deviceID string) (st
 		"sign": hex.EncodeToString(hash[:]), "v": "1.0", "type": "originaljson",
 		"accountSite": "xianyu", "dataType": "json", "timeout": "20000",
 		"api": "mtop.taobao.idlemessage.pc.login.token", "sessionOption": "AutoLoginOnly",
-		"spm_cnt": "a21ybx.im.0.0", "spm_pre": "a21ybx.item.want.1.14ad3da6ALVq3n", "log_id": "14ad3da6ALVq3n",
+		"dangerouslySetWindvaneParams": "%5Bobject%20Object%5D", "smToken": "token", "queryToken": "sm", "sm": "sm",
+		"spm_cnt": "a21ybx.im.0.0", "spm_pre": "a21ybx.home.sidebar.1.4c053da6vYwnmf", "log_id": "4c053da6vYwnmf",
 	} {
 		query.Set(key, value)
 	}
@@ -261,7 +311,7 @@ func (s *WebSocketToken) fetch(ctx context.Context, cookie, deviceID string) (st
 	}
 	mergedCookie := mergeResponseCookies(parseCookieHeader(cookie), response.Cookies())
 	var payload struct {
-		Ret  []string `json:"ret"` // Ret 包含 MTop 状态码与消息。
+		Ret  json.RawMessage `json:"ret"` // Ret 包含 MTop 状态码与消息。
 		Data struct {
 			AccessToken string `json:"accessToken"` // AccessToken 是消息连接令牌。
 			URL         string `json:"url"`         // URL 是安全验证地址。
@@ -270,13 +320,35 @@ func (s *WebSocketToken) fetch(ctx context.Context, cookie, deviceID string) (st
 	if err := json.Unmarshal(body, &payload); err != nil {
 		return "", mergedCookie, errors.New("闲鱼 Token 响应格式无法识别")
 	}
-	for _, result := range payload.Ret {
+	var ret []string
+	if err := json.Unmarshal(payload.Ret, &ret); err != nil {
+		var singleRet string
+		if json.Unmarshal(payload.Ret, &singleRet) == nil {
+			ret = []string{singleRet}
+		}
+	}
+	for _, result := range ret {
+		if strings.Contains(result, "FAIL_SYS_SESSION_EXPIRED") || strings.Contains(result, "FAIL_SYS_TOKEN_EXOIRED") || strings.Contains(result, "FAIL_SYS_TOKEN_EXPIRED") {
+			return "", mergedCookie, CredentialExpiredError{}
+		}
 		if strings.Contains(result, "FAIL_SYS_USER_VALIDATE") || strings.Contains(result, "RGV587_ERROR") || strings.Contains(result, "被挤爆啦") {
 			return "", mergedCookie, &VerificationRequiredError{URL: safeVerificationURL(payload.Data.URL)}
 		}
 	}
+	for _, result := range ret {
+		if strings.Contains(result, "SUCCESS::调用成功") {
+			if payload.Data.AccessToken != "" {
+				return payload.Data.AccessToken, mergedCookie, nil
+			}
+			return "", mergedCookie, errors.New("闲鱼 Token 接口返回成功但缺少 WebSocket Token")
+		}
+	}
+	if len(ret) > 0 {
+		code, _, _ := strings.Cut(ret[0], "::")
+		return "", mergedCookie, fmt.Errorf("闲鱼 Token 接口失败（%s）", code)
+	}
 	if payload.Data.AccessToken == "" {
 		return "", mergedCookie, errors.New("闲鱼未返回 WebSocket Token")
 	}
-	return payload.Data.AccessToken, mergedCookie, nil
+	return "", mergedCookie, errors.New("闲鱼 Token 接口未确认请求成功")
 }

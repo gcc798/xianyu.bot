@@ -33,8 +33,13 @@ export function useAccountQRLogin({ onConfirmed, onError }: UseAccountQRLoginOpt
           )
         ) {
           if (response.login.status === "confirmed") {
+            request.current += 1;
+            if (timer.current) window.clearTimeout(timer.current);
+            timer.current = undefined;
+            setOpen(false);
+            setLogin(null);
             message.success("扫码登录成功");
-            void onConfirmed();
+            await onConfirmed();
           }
           return;
         }

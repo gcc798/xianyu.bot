@@ -4,6 +4,7 @@ package request
 type OrderSearch struct {
 	PageInfo         // PageInfo 提供分页和关键词条件。
 	AccountID uint   `json:"accountId" form:"accountId"` // AccountID 仅返回指定闲鱼账号的订单。
+	ProductID uint   `json:"productId" form:"productId"` // ProductID 仅返回指定商品的订单。
 	Status    string `json:"status" form:"status"`       // Status 仅返回指定状态的订单。
 }
 

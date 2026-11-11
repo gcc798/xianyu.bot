@@ -17,6 +17,7 @@ export const automationApi = {
     keyword?: string;
     productId?: number;
     type?: string;
+    enabledOnly?: boolean;
   }) => request<PageResult<ReplyRule>>(`/xy/reply-rule/list${queryString(input)}`),
   saveReplyRule: (input: ReplyRuleInput) =>
     request<EmptyResponse>("/xy/reply-rule/save", { method: "POST", body: JSON.stringify(input) }),
@@ -28,6 +29,7 @@ export const automationApi = {
     keyword?: string;
     productId?: number;
     mode?: string;
+    enabledOnly?: boolean;
   }) => request<PageResult<DeliveryRule>>(`/xy/delivery-rule/list${queryString(input)}`),
   saveDeliveryRule: (input: DeliveryRuleInput) =>
     request<EmptyResponse>("/xy/delivery-rule/save", {
@@ -48,6 +50,7 @@ export const automationApi = {
     pageSize: number;
     keyword?: string;
     accountId?: number;
+    productId?: number;
     status?: string;
   }) => request<PageResult<DeliveryTask>>(`/xy/delivery-rule/task-list${queryString(input)}`),
   retryDeliveryTask: (ID: number) =>
