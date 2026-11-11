@@ -33,23 +33,38 @@ func (TelegramDialog) TableName() string { return "tel_dialogs" }
 
 // TelegramResourceTask 保存 Go 管理的 Telegram 批量采集任务。
 type TelegramResourceTask struct {
-	ID              uint       `json:"id" gorm:"primaryKey"`                                                                            // ID 是采集任务 ID。
-	OwnerID         uint       `json:"-" gorm:"not null;index"`                                                                         // OwnerID 是任务所属用户。
-	Keyword         string     `json:"keyword" gorm:"not null"`                                                                         // Keyword 是消息检索词。
-	MaxDownloads    int        `json:"maxDownloads" gorm:"not null"`                                                                    // MaxDownloads 是文件数量上限。
-	FileTypes       []string   `json:"fileTypes" gorm:"column:file_types_json;serializer:json;type:jsonb;not null;default:'[]'"`        // FileTypes 是允许的文件扩展名。
-	Status          string     `json:"status" gorm:"not null;default:queued"`                                                           // Status 是任务状态。
-	FilesFound      int        `json:"filesFound"`                                                                                      // FilesFound 是符合条件的文件数。
-	FilesCompleted  int        `json:"filesCompleted"`                                                                                  // FilesCompleted 是成功登记的文件数。
-	ErrorMessage    string     `json:"errorMessage"`                                                                                    // ErrorMessage 是安全错误说明。
-	StartedAt       *time.Time `json:"startedAt"`                                                                                       // StartedAt 是开始时间。
-	CompletedAt     *time.Time `json:"completedAt"`                                                                                     // CompletedAt 是结束时间。
-	CancelRequested bool       `json:"cancelRequested"`                                                                                 // CancelRequested 表示用户请求取消。
-	SourceMode      string     `json:"sourceMode" gorm:"not null"`                                                                      // SourceMode 是来源选择方式。
-	SourceStrategy  string     `json:"sourceStrategy" gorm:"not null"`                                                                  // SourceStrategy 是实际选源策略。
-	SourceDialogIDs []uint     `json:"sourceDialogIds" gorm:"column:source_selection;serializer:json;type:jsonb;not null;default:'[]'"` // SourceDialogIDs 是来源记录 ID。
-	CreatedAt       time.Time  `json:"createdAt"`                                                                                       // CreatedAt 是创建时间。
-	UpdatedAt       time.Time  `json:"updatedAt"`                                                                                       // UpdatedAt 是更新时间。
+	ID              uint                  `json:"id" gorm:"primaryKey"`                                                                            // ID 是采集任务 ID。
+	OwnerID         uint                  `json:"-" gorm:"not null;index"`                                                                         // OwnerID 是任务所属用户。
+	Keyword         string                `json:"keyword" gorm:"not null"`                                                                         // Keyword 是消息检索词。
+	MaxDownloads    int                   `json:"maxDownloads" gorm:"not null"`                                                                    // MaxDownloads 是文件数量上限。
+	FileTypes       []string              `json:"fileTypes" gorm:"column:file_types_json;serializer:json;type:jsonb;not null;default:'[]'"`        // FileTypes 是允许的文件扩展名。
+	Status          string                `json:"status" gorm:"not null;default:queued"`                                                           // Status 是任务状态。
+	FilesFound      int                   `json:"filesFound"`                                                                                      // FilesFound 是符合条件的文件数。
+	FilesCompleted  int                   `json:"filesCompleted"`                                                                                  // FilesCompleted 是成功登记的文件数。
+	ErrorMessage    string                `json:"errorMessage"`                                                                                    // ErrorMessage 是安全错误说明。
+	ErrorCode       string                `json:"errorCode" gorm:"not null;default:''"`                                                            // ErrorCode 是稳定的错误分类。
+	ErrorStage      string                `json:"errorStage" gorm:"not null;default:''"`                                                           // ErrorStage 是发生错误的任务阶段。
+	FailureCount    int                   `json:"failureCount" gorm:"not null;default:0"`                                                          // FailureCount 是失败步骤总数。
+	FailureDetails  []TelegramTaskFailure `json:"failureDetails" gorm:"column:failure_details;serializer:json;type:jsonb;not null;default:'[]'"`   // FailureDetails 是数量受限的失败样例。
+	StartedAt       *time.Time            `json:"startedAt"`                                                                                       // StartedAt 是开始时间。
+	CompletedAt     *time.Time            `json:"completedAt"`                                                                                     // CompletedAt 是结束时间。
+	CancelRequested bool                  `json:"cancelRequested"`                                                                                 // CancelRequested 表示用户请求取消。
+	SourceMode      string                `json:"sourceMode" gorm:"not null"`                                                                      // SourceMode 是来源选择方式。
+	SourceStrategy  string                `json:"sourceStrategy" gorm:"not null"`                                                                  // SourceStrategy 是实际选源策略。
+	SourceDialogIDs []uint                `json:"sourceDialogIds" gorm:"column:source_selection;serializer:json;type:jsonb;not null;default:'[]'"` // SourceDialogIDs 是来源记录 ID。
+	CreatedAt       time.Time             `json:"createdAt"`                                                                                       // CreatedAt 是创建时间。
+	UpdatedAt       time.Time             `json:"updatedAt"`                                                                                       // UpdatedAt 是更新时间。
+}
+
+// TelegramTaskFailure 描述一个可诊断的采集失败步骤。
+type TelegramTaskFailure struct {
+	Stage             string `json:"stage"`                       // Stage 是发生错误的任务阶段。
+	Code              string `json:"code"`                        // Code 是稳定的错误分类。
+	Message           string `json:"message"`                     // Message 是已清理的错误说明。
+	SourceID          uint   `json:"sourceId,omitempty"`          // SourceID 是失败来源记录 ID。
+	Retryable         bool   `json:"retryable"`                   // Retryable 表示是否适合稍后重试。
+	RetryAfterSeconds int64  `json:"retryAfterSeconds,omitempty"` // RetryAfterSeconds 是服务端建议等待秒数。
+	DurationMS        int64  `json:"durationMs,omitempty"`        // DurationMS 是本次调用耗时毫秒数。
 }
 
 // TelegramResourceOptions 返回采集表单可选项。

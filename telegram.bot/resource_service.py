@@ -789,13 +789,16 @@ class ResourceService:
             except OSError:
                 pass
 
-    async def download_and_upload(self, telegram_id: int, message_id: int, upload_url: str) -> dict:
+    async def download_and_upload(
+        self, telegram_id: int, message_id: int, upload_url: str,
+        dialog_type: str = "", username: str | None = None, access_hash: int | None = None,
+    ) -> dict:
         if telegram_id == 0 or message_id <= 0 or not upload_url:
             raise ResourceCapabilityError("invalid_argument", "Telegram 消息引用无效")
         if not self.telegram.authorized:
             raise ResourceCapabilityError("authentication_required", "Telegram 尚未登录")
         await self.telegram._ensure_connected()
-        entity = await self.telegram.call(self.telegram.client.get_entity, telegram_id)
+        entity = await self.telegram.resolve_entity(telegram_id, dialog_type, username, access_hash)
         message = await self.telegram.call(self.telegram.client.get_messages, entity, ids=message_id)
         metadata = self._match(message, {"keyword": "", "file_types": []}) if message else None
         if not metadata or metadata["size"] > self.max_file_size:

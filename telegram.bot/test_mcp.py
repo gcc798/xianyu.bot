@@ -6,8 +6,9 @@ from types import SimpleNamespace
 from mcp import Client
 from mcp.server.transport_security import TransportSecurityMiddleware
 from starlette.requests import Request
+from telethon import errors
 
-from mcp_server import build_mcp
+from mcp_server import _exception_failure, build_mcp
 
 
 class FakeTelegram:
@@ -17,6 +18,10 @@ class FakeTelegram:
 
     async def call(self, function, *args, **kwargs):
         return await function(*args, **kwargs)
+
+    async def resolve_entity(self, telegram_id, dialog_type="", username=None, access_hash=None):
+        self.resolved_reference = (telegram_id, dialog_type, username, access_hash)
+        return await self.call(self.client.get_entity, username or telegram_id)
 
     async def join(self, _reference):
         return DialogFixture.dialog_record.copy()
@@ -139,6 +144,51 @@ class MCPContractTest(unittest.IsolatedAsyncioTestCase):
             result = await client.call_tool("channel_get_status", {})
         payload = json.loads(result.content[0].text)
         self.assertEqual(payload, {"status": "success", "data": {"state": "disabled"}, "error": None})
+
+    async def test_message_search_preserves_disconnect_cause(self):
+        server, telegram = self.authorized_server()
+
+        async def disconnected(*_args, **_kwargs):
+            raise RuntimeError("Cannot send requests while disconnected")
+            yield None
+
+        telegram.client.iter_messages = disconnected
+        async with Client(server) as client:
+            result = await client.call_tool("message_search", {
+                "dialog_id": 700, "query": "资料", "task_id": 42,
+            })
+
+        payload = json.loads(result.content[0].text)
+        self.assertEqual(payload["error"]["code"], "telegram_disconnected")
+        self.assertIn("连接已断开", payload["error"]["message"])
+
+    async def test_message_search_passes_peer_reference_to_telegram_service(self):
+        server, telegram = self.authorized_server()
+        async with Client(server) as client:
+            result = await client.call_tool("message_search", {
+                "dialog_id": 700, "query": "资料", "dialog_type": "channel",
+                "username": "books", "access_hash": 901,
+            })
+
+        payload = json.loads(result.content[0].text)
+        self.assertEqual(payload["status"], "success")
+        self.assertEqual(telegram.resolved_reference, (700, "channel", "books", 901))
+
+    async def test_flood_wait_includes_retry_after(self):
+        payload = _exception_failure(errors.FloodWaitError(request=None, capture=37), "search_failed", "消息检索失败")
+        self.assertEqual(payload["error"]["code"], "telegram_flood_wait")
+        self.assertEqual(payload["error"]["retryAfterSeconds"], 37)
+        self.assertIn("37 秒", payload["error"]["message"])
+
+    async def test_error_message_redacts_urls_and_credentials(self):
+        payload = _exception_failure(
+            RuntimeError("PUT https://store.local/object?signature=secret failed token=abc123"),
+            "delivery_failed", "文件交付失败",
+        )
+        message = payload["error"]["message"]
+        self.assertNotIn("store.local", message)
+        self.assertNotIn("secret", message)
+        self.assertNotIn("abc123", message)
 
     async def test_streamable_http_accepts_docker_service_host(self):
         server, _ = build_mcp(FakeTelegram(), FakeResources())

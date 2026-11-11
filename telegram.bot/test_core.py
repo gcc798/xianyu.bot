@@ -689,6 +689,17 @@ def test_resource_task_resumes_after_switching_api_id():
     service._download.assert_awaited_once()
 
 
+def test_resolve_entity_uses_channel_access_hash():
+    service = TelegramService.__new__(TelegramService)
+    service.client = SimpleNamespace(get_entity=AsyncMock(side_effect=lambda reference: reference))
+
+    peer = asyncio.run(service.resolve_entity(700, "channel", access_hash=901))
+
+    assert isinstance(peer, types.InputPeerChannel)
+    assert peer.channel_id == 700
+    assert peer.access_hash == 901
+
+
 if __name__ == "__main__":
     test_resource_validation()
     test_adult_dialog_filter_uses_cached_ids_without_ai()
@@ -702,4 +713,5 @@ if __name__ == "__main__":
     test_switch_after_flood_wait_marks_config_and_selects_lower_api_id()
     test_fifth_flood_wait_stops_resource_task()
     test_resource_task_resumes_after_switching_api_id()
+    test_resolve_entity_uses_channel_access_hash()
     print("ok")

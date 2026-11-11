@@ -32,7 +32,7 @@ func TestMigratePostgresInitializesEmptyDatabase(t *testing.T) {
 
 	var version int64
 	require.NoError(t, db.Raw(`SELECT max(version_id) FROM goose_db_version WHERE is_applied`).Scan(&version).Error)
-	require.Equal(t, int64(202611100007), version)
+	require.Equal(t, int64(202611100008), version)
 	var hasJWTBlacklist bool
 	require.NoError(t, db.Raw("SELECT to_regclass('public.jwt_blacklists') IS NOT NULL").Scan(&hasJWTBlacklist).Error)
 	require.False(t, hasJWTBlacklist)
@@ -42,6 +42,12 @@ func TestMigratePostgresInitializesEmptyDatabase(t *testing.T) {
 		WHERE table_schema = 'public' AND table_name = 'tel_resource_tasks' AND column_name = 'updated_at'
 	)`).Scan(&hasUpdatedAt).Error)
 	require.True(t, hasUpdatedAt)
+	var hasFailureDetails bool
+	require.NoError(t, db.Raw(`SELECT EXISTS (
+		SELECT 1 FROM information_schema.columns
+		WHERE table_schema = 'public' AND table_name = 'tel_resource_tasks' AND column_name = 'failure_details'
+	)`).Scan(&hasFailureDetails).Error)
+	require.True(t, hasFailureDetails)
 	var orderStatusCount int64
 	require.NoError(t, db.Raw(`SELECT count(*) FROM s_dict_detail d
 		JOIN s_dict s ON s.id = d.sys_dictionary_id

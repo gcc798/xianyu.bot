@@ -66,6 +66,10 @@ class FakeTelegram:
     async def call(self, function, *args, **kwargs):
         return await function(*args, **kwargs)
 
+    async def resolve_entity(self, telegram_id, dialog_type="", username=None, access_hash=None):
+        self.resolved_reference = (telegram_id, dialog_type, username, access_hash)
+        return await self.call(self.client.get_entity, username or telegram_id)
+
 
 class FakeDatabase:
     dialog_record = {

@@ -109,12 +109,25 @@ export type TelegramResourceTaskInput = {
   sourceDialogIds: number[];
   maxDownloads: number;
 };
+export type TelegramTaskFailure = {
+  stage: string;
+  code: string;
+  message: string;
+  sourceId?: number;
+  retryable: boolean;
+  retryAfterSeconds?: number;
+  durationMs?: number;
+};
 export type TelegramResourceTask = TelegramResourceTaskInput & {
   id: number;
   status: "queued" | "running" | "completed" | "failed" | "cancelled";
   filesFound: number;
   filesCompleted: number;
   errorMessage: string | null;
+  errorCode: string;
+  errorStage: string;
+  failureCount: number;
+  failureDetails: TelegramTaskFailure[];
   createdAt: string;
   startedAt: string | null;
   completedAt: string | null;

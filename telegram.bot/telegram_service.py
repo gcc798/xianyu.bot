@@ -79,6 +79,17 @@ class TelegramService:
             await self.record_flood_wait(exc)
             raise
 
+    async def resolve_entity(self, telegram_id: int, dialog_type: str = "", username: str | None = None, access_hash: int | None = None):
+        if dialog_type in {"channel", "megagroup"} and access_hash is not None:
+            reference = types.InputPeerChannel(telegram_id, access_hash)
+        elif dialog_type == "group":
+            reference = types.InputPeerChat(telegram_id)
+        elif username:
+            reference = username
+        else:
+            reference = telegram_id
+        return await self.call(self.client.get_entity, reference)
+
     async def call_with_fallback(self, operation, flooded_api_ids: set[int]):
         while True:
             try:

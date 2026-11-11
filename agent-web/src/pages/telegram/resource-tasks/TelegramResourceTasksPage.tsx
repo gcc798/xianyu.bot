@@ -2,6 +2,7 @@ import {
   Alert,
   App,
   Button,
+  Descriptions,
   Form,
   Input,
   InputNumber,
@@ -68,9 +69,7 @@ export function Component() {
   const [submitting, setSubmitting] = useState(false);
   const [syncingSources, setSyncingSources] = useState(false);
   const [error, setError] = useState("");
-  const [selectedError, setSelectedError] = useState<{ taskId: number; message: string } | null>(
-    null,
-  );
+  const [selectedTask, setSelectedTask] = useState<TelegramResourceTask | null>(null);
 
   const load = useCallback(
     async (quiet = false) => {
@@ -212,7 +211,7 @@ export function Component() {
               type="link"
               className={styles.linkButton}
               aria-label={`查看任务 ${task.id} 错误详情`}
-              onClick={() => setSelectedError({ taskId: task.id, message: value })}
+              onClick={() => setSelectedTask(task)}
             >
               <span
                 style={{
@@ -280,16 +279,77 @@ export function Component() {
           />
         </div>
         <Modal
-          title={selectedError ? `任务 #${selectedError.taskId} 错误详情` : "错误详情"}
-          open={Boolean(selectedError)}
+          title={selectedTask ? `任务 #${selectedTask.id} 错误详情` : "错误详情"}
+          open={Boolean(selectedTask)}
           footer={null}
-          onCancel={() => setSelectedError(null)}
+          onCancel={() => setSelectedTask(null)}
         >
-          <Typography.Paragraph
-            style={{ marginBottom: 0, whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}
-          >
-            {selectedError?.message}
-          </Typography.Paragraph>
+          {selectedTask && (
+            <Space direction="vertical" size={12} style={{ width: "100%" }}>
+              <Typography.Paragraph
+                style={{ marginBottom: 0, whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}
+              >
+                {selectedTask.errorMessage}
+              </Typography.Paragraph>
+              <Descriptions
+                size="small"
+                column={1}
+                items={[
+                  { key: "stage", label: "失败阶段", children: selectedTask.errorStage || "-" },
+                  { key: "code", label: "错误分类", children: selectedTask.errorCode || "-" },
+                  { key: "count", label: "失败步骤", children: selectedTask.failureCount },
+                ]}
+              />
+              {selectedTask.failureDetails.length > 0 && (
+                <div>
+                  <Typography.Text strong>失败样例</Typography.Text>
+                  {selectedTask.failureDetails.map((failure, index) => (
+                    <div
+                      key={`${failure.stage}-${failure.code}-${failure.sourceId ?? "task"}-${index}`}
+                      style={{ borderTop: "1px solid #dce1e8", marginTop: 8, paddingTop: 8 }}
+                    >
+                      <Space size={8} wrap>
+                        <Typography.Text>{failure.stage}</Typography.Text>
+                        <Typography.Text code>{failure.code}</Typography.Text>
+                        {failure.sourceId != null && (
+                          <Typography.Text type="secondary">
+                            来源 #{failure.sourceId}
+                          </Typography.Text>
+                        )}
+                        {failure.retryAfterSeconds != null && failure.retryAfterSeconds > 0 ? (
+                          <Typography.Text type="warning">
+                            建议等待 {failure.retryAfterSeconds} 秒后重试
+                          </Typography.Text>
+                        ) : failure.retryable ? (
+                          <Typography.Text type="secondary">可重试</Typography.Text>
+                        ) : null}
+                        {failure.durationMs != null && (
+                          <Typography.Text type="secondary">
+                            耗时 {failure.durationMs} ms
+                          </Typography.Text>
+                        )}
+                      </Space>
+                      <Typography.Paragraph
+                        style={{
+                          margin: "4px 0 0",
+                          whiteSpace: "pre-wrap",
+                          overflowWrap: "anywhere",
+                        }}
+                      >
+                        {failure.message}
+                      </Typography.Paragraph>
+                    </div>
+                  ))}
+                  {selectedTask.failureCount > selectedTask.failureDetails.length && (
+                    <Typography.Text type="secondary">
+                      显示前 {selectedTask.failureDetails.length} 条，共 {selectedTask.failureCount}{" "}
+                      项
+                    </Typography.Text>
+                  )}
+                </div>
+              )}
+            </Space>
+          )}
         </Modal>
         <div className={styles.pagination}>
           <Pagination
