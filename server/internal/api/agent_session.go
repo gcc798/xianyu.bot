@@ -207,6 +207,21 @@ func (a *AgentSessionAPI) ApproveRun(c *gin.Context) {
 	response.OkWithData(gin.H{"tool": call.ToolName, "status": call.Status}, c)
 }
 
+// RejectRun 处理 Agent 工具审批拒绝请求。
+func (a *AgentSessionAPI) RejectRun(c *gin.Context) {
+	runID, ok := pathID(c)
+	if !ok {
+		return
+	}
+	call, err := a.runner.Reject(c.Request.Context(), security.GetUserID(c), runID)
+	if err != nil {
+		zap.L().Error("拒绝 Agent 操作失败", zap.Error(err))
+		response.FailWithMessage("拒绝操作失败", c)
+		return
+	}
+	response.OkWithData(gin.H{"tool": call.ToolName, "status": call.Status}, c)
+}
+
 // Events 建立 Agent 事件流。
 func (a *AgentSessionAPI) Events(c *gin.Context) {
 	sessionID, ok := pathID(c)

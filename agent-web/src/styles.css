@@ -542,6 +542,12 @@ button {
   color: #8d8164;
   font-size: 10px;
 }
+.approval-actions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 8px;
+}
 .approval button {
   padding: 7px 11px;
   border: 1px solid #dbbd72;
@@ -550,6 +556,40 @@ button {
   background: white;
   font-size: 11px;
   cursor: pointer;
+}
+.approval button:disabled {
+  cursor: wait;
+  opacity: 0.55;
+}
+.approval .approval-reject {
+  border-color: #e2c9c6;
+  color: #a43c35;
+}
+.approval-feedback {
+  margin: 0 0 18px;
+  padding: 12px 15px;
+  border: 1px solid #c9e3d7;
+  border-radius: 8px;
+  background: #f3faf6;
+  color: #176b4b;
+}
+.approval-feedback.rejected {
+  border-color: #dce1e8;
+  background: #f7f8fa;
+  color: #4e5867;
+}
+.approval-feedback.failed {
+  border-color: #ebc9c6;
+  background: #fff6f5;
+  color: #a3332e;
+}
+.approval-feedback strong {
+  font-size: 12px;
+}
+.approval-feedback p {
+  margin: 4px 0 0;
+  font-size: 11px;
+  line-height: 1.5;
 }
 .composer-wrap {
   position: relative;

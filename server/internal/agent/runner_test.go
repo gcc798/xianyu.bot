@@ -93,6 +93,10 @@ func TestAgentRunnerRecordsModelFailure(t *testing.T) {
 func TestAgentInstructionContainsIdentityWithoutRuntimeTime(t *testing.T) {
 	require.Contains(t, xyAgentInstruction, "你是闲鱼自动化助手，帮助用户完成资源检索、资源下载和闲鱼运营工作")
 	require.NotContains(t, xyAgentInstruction, "当前时间：")
+	require.Contains(t, xyOperationsInstruction, "账号配置、二维码登录、Cookie、Token")
+	require.Contains(t, xyOperationsInstruction, "approval_required 只代表等待审批")
+	require.Contains(t, xyOperationsInstruction, "unknown 表示平台结果未确认，禁止重试")
+	require.Contains(t, xyOperationsInstruction, "不得在对话中索取、接收或复述卡密")
 }
 
 // TestAgentFailureMessageExplainsInvalidAPIKey 验证无效凭据不会只显示运行失败。

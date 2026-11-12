@@ -23,23 +23,28 @@ export function Component() {
   const [productId, setProductId] = useState<number | undefined>(
     () => Number(searchParams.get("productId")) || undefined,
   );
+  const importRuleId = Number(searchParams.get("importRuleId")) || undefined;
   const [mode, setMode] = useState<string>();
   const [keyword, setKeyword] = useState("");
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(false);
+  const [loaded, setLoaded] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [editing, setEditing] = useState<DeliveryRule | null | undefined>();
   const [importRule, setImportRule] = useState<DeliveryRule | null>(null);
   const [resourceText, setResourceText] = useState("");
+  const [handoffHandled, setHandoffHandled] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
+    setLoaded(false);
     setError("");
     try {
       const data = await automationApi.deliveryRules({
         page,
         pageSize,
+        ruleId: importRuleId,
         productId,
         mode,
         keyword: query,
@@ -50,8 +55,9 @@ export function Component() {
       setError(cause instanceof Error ? cause.message : "发货规则加载失败");
     } finally {
       setLoading(false);
+      setLoaded(true);
     }
-  }, [page, pageSize, productId, mode, query]);
+  }, [page, pageSize, importRuleId, productId, mode, query]);
 
   useEffect(() => {
     void load();
@@ -62,6 +68,13 @@ export function Component() {
       .then(setProducts)
       .catch(() => undefined);
   }, []);
+  useEffect(() => {
+    if (!importRuleId || loading || !loaded || error || handoffHandled) return;
+    setHandoffHandled(true);
+    const rule = rows.find((item) => item.ID === importRuleId && item.mode === "card");
+    if (rule) setImportRule(rule);
+    else message.error("未找到当前用户可导入的卡密规则");
+  }, [error, handoffHandled, importRuleId, loaded, loading, message, rows]);
 
   const save = async (input: DeliveryRuleInput) => {
     if (input.mode === "card" && !input.template.includes("{card}")) {

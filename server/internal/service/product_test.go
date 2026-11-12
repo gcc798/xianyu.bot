@@ -240,3 +240,44 @@ func TestUpdateSettingUsesOriginalDescriptionUnlessCustomized(t *testing.T) {
 	require.NoError(t, db.First(&item, item.ID).Error)
 	require.Equal(t, "用户自定义续售正文", publishSnapshotDescription(item.PublishSnapshot))
 }
+
+// TestPatchSettingPreservesOmittedFieldsAndRollsBackInvalidUpdates 验证局部设置不会覆盖未提及字段。
+func TestPatchSettingPreservesOmittedFieldsAndRollsBackInvalidUpdates(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	require.NoError(t, err)
+	require.NoError(t, db.AutoMigrate(&model.Product{}, &model.ProductSetting{}))
+	product := model.Product{OwnerID: 10, AccountID: 20, ExternalProductID: "item-1", Title: "商品标题", Status: "on_sale"}
+	require.NoError(t, db.Create(&product).Error)
+	setting := model.ProductSetting{
+		ProductID: product.ID, VirtualProduct: true, AutoReplyEnabled: true,
+		AutoDeliveryEnabled: true, AutoRelistEnabled: false, ReplyDelaySeconds: 12,
+		RelistDelaySeconds: 90, RelistDescription: "续售描述", RelistImageURLs: "https://img.example/a.jpg",
+		RelistAddress: "杭州市",
+	}
+	require.NoError(t, db.Create(&setting).Error)
+	service := &Product{db: db}
+	falseValue := false
+	newDelay := 30
+	require.ErrorIs(t, service.PatchSetting(t.Context(), 11, xyRequest.PatchProductSetting{
+		ProductID: product.ID, AutoReplyEnabled: &falseValue,
+	}), gorm.ErrRecordNotFound)
+	require.NoError(t, service.PatchSetting(t.Context(), 10, xyRequest.PatchProductSetting{
+		ProductID: product.ID, AutoReplyEnabled: &falseValue, ReplyDelaySeconds: &newDelay,
+	}))
+	require.NoError(t, db.First(&setting, "product_id = ?", product.ID).Error)
+	require.True(t, setting.VirtualProduct)
+	require.False(t, setting.AutoReplyEnabled)
+	require.True(t, setting.AutoDeliveryEnabled)
+	require.Equal(t, 30, setting.ReplyDelaySeconds)
+	require.Equal(t, 90, setting.RelistDelaySeconds)
+	require.Equal(t, "续售描述", setting.RelistDescription)
+	require.Equal(t, "https://img.example/a.jpg", setting.RelistImageURLs)
+	require.Equal(t, "杭州市", setting.RelistAddress)
+
+	invalidDelay := 3601
+	require.ErrorContains(t, service.PatchSetting(t.Context(), 10, xyRequest.PatchProductSetting{
+		ProductID: product.ID, ReplyDelaySeconds: &invalidDelay,
+	}), "回复延迟必须在 0 到 3600 秒之间")
+	require.NoError(t, db.First(&setting, "product_id = ?", product.ID).Error)
+	require.Equal(t, 30, setting.ReplyDelaySeconds)
+}

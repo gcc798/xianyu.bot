@@ -60,6 +60,37 @@ func (s *Runner) Approve(ctx context.Context, ownerID, runID uint) (model.AgentR
 	return call, nil
 }
 
+// Reject 拒绝指定运行中的首个待审批工具调用，不执行其业务能力。
+func (s *Runner) Reject(ctx context.Context, ownerID, runID uint) (model.AgentRunTool, error) {
+	if ownerID == 0 || runID == 0 {
+		return model.AgentRunTool{}, errors.New("运行标识不能为空")
+	}
+	var run model.AgentRun
+	if err := s.db.WithContext(ctx).Where("id = ? AND owner_id = ?", runID, ownerID).First(&run).Error; err != nil {
+		return model.AgentRunTool{}, err
+	}
+	var call model.AgentRunTool
+	if err := s.db.WithContext(ctx).Where("run_id = ? AND status = ?", runID, "waiting_approval").Order("id").First(&call).Error; err != nil {
+		return model.AgentRunTool{}, err
+	}
+	completedAt := time.Now()
+	result := s.db.WithContext(ctx).Model(&call).Where("status = ?", "waiting_approval").Updates(map[string]any{
+		"status": "rejected", "error_code": "approval_rejected", "error_message": "用户拒绝执行", "completed_at": completedAt,
+	})
+	if result.Error != nil {
+		return model.AgentRunTool{}, result.Error
+	}
+	if result.RowsAffected != 1 {
+		return model.AgentRunTool{}, errors.New("待确认操作正在处理")
+	}
+	call.Status, call.ErrorCode, call.ErrorMessage, call.CompletedAt = "rejected", "approval_rejected", "用户拒绝执行", &completedAt
+	s.publish(run.SessionID, "approval.rejected", map[string]any{
+		"runId": run.ID, "callId": call.CallID, "tool": call.ToolName,
+		"toolCode": call.ToolCode, "toolName": call.ToolName, "status": "rejected",
+	})
+	return call, nil
+}
+
 // executeApproval 执行已认领的审批调用并同步资源任务状态。
 func (s *Runner) executeApproval(ctx context.Context, run model.AgentRun, call *model.AgentRunTool) error {
 	implementation, closeTool, err := s.approvalTool(ctx, call)

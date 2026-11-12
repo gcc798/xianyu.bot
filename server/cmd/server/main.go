@@ -77,7 +77,7 @@ func run() error {
 	if err := localTools.Register(agenttool.NewCurrentTime()); err != nil {
 		return fmt.Errorf("register current time Agent tool: %w", err)
 	}
-	if err := xianyutool.Register(localTools, services.Account, services.Product, services.Order, services.Message); err != nil {
+	if err := xianyutool.Register(localTools, services.Account, services.Product, services.Order, services.Message, services.Delivery, services.ReplyRule, services.DeliveryRule, services.BusinessEvent, services.Relist); err != nil {
 		return fmt.Errorf("register Xianyu Agent tools: %w", err)
 	}
 	runner := agent.NewRunner(ctx, db, mcpRegistry, resources, events, localTools)

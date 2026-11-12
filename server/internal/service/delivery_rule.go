@@ -27,6 +27,9 @@ func (s *DeliveryRule) List(ctx context.Context, ownerID uint, input xyRequest.D
 		return nil, 0, errors.New("用户未登录")
 	}
 	db := s.db.WithContext(ctx).Table("xy_delivery_rules AS r").Where("r.owner_id = ? AND r.deleted_at IS NULL", ownerID)
+	if input.RuleID != 0 {
+		db = db.Where("r.id = ?", input.RuleID)
+	}
 	if input.ProductID != 0 {
 		db = db.Where("r.product_id = ?", input.ProductID)
 	}

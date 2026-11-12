@@ -26,3 +26,17 @@ type UpdateProductSetting struct {
 	RelistImageURLs     string `json:"relistImageUrls"`     // RelistImageURLs 是重发图片地址集合的序列化值。
 	RelistAddress       string `json:"relistAddress"`       // RelistAddress 是重发商品的所在地。
 }
+
+// PatchProductSetting 描述只更新明确提供字段的商品自动化配置。
+type PatchProductSetting struct {
+	ProductID           uint    `json:"productId"`                     // ProductID 是目标本地商品 ID。
+	VirtualProduct      *bool   `json:"virtualProduct,omitempty"`      // VirtualProduct 更新虚拟商品标识。
+	AutoReplyEnabled    *bool   `json:"autoReplyEnabled,omitempty"`    // AutoReplyEnabled 更新自动回复开关。
+	AutoDeliveryEnabled *bool   `json:"autoDeliveryEnabled,omitempty"` // AutoDeliveryEnabled 更新自动发货开关。
+	AutoRelistEnabled   *bool   `json:"autoRelistEnabled,omitempty"`   // AutoRelistEnabled 更新自动续售开关。
+	ReplyDelaySeconds   *int    `json:"replyDelaySeconds,omitempty"`   // ReplyDelaySeconds 更新回复延迟。
+	RelistDelaySeconds  *int    `json:"relistDelaySeconds,omitempty"`  // RelistDelaySeconds 更新续售延迟。
+	RelistDescription   *string `json:"relistDescription,omitempty"`   // RelistDescription 更新续售描述。
+	RelistImageURLs     *string `json:"relistImageUrls,omitempty"`     // RelistImageURLs 更新续售图片。
+	RelistAddress       *string `json:"relistAddress,omitempty"`       // RelistAddress 更新续售所在地。
+}

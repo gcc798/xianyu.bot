@@ -417,15 +417,72 @@ func (s *Product) UpdateSetting(ctx context.Context, ownerID uint, input xyReque
 	if ownerID == 0 || input.ProductID == 0 {
 		return errors.New("商品 ID 不能为空")
 	}
+	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		return s.updateSetting(ctx, tx, ownerID, input)
+	})
+}
+
+// PatchSetting 按 ownerID 原子更新商品自动化配置中明确提供的字段。
+func (s *Product) PatchSetting(ctx context.Context, ownerID uint, patch xyRequest.PatchProductSetting) error {
+	if ownerID == 0 || patch.ProductID == 0 {
+		return errors.New("商品 ID 不能为空")
+	}
+	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var product model.Product
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("id = ? AND owner_id = ?", patch.ProductID, ownerID).First(&product).Error; err != nil {
+			return err
+		}
+		setting := model.ProductSetting{ProductID: patch.ProductID, RelistDelaySeconds: 60}
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("product_id = ?", patch.ProductID).First(&setting).Error; err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+			return err
+		}
+		input := xyRequest.UpdateProductSetting{
+			ProductID: patch.ProductID, VirtualProduct: setting.VirtualProduct,
+			AutoReplyEnabled: setting.AutoReplyEnabled, AutoDeliveryEnabled: setting.AutoDeliveryEnabled,
+			AutoRelistEnabled: setting.AutoRelistEnabled, ReplyDelaySeconds: setting.ReplyDelaySeconds,
+			RelistDelaySeconds: setting.RelistDelaySeconds, RelistDescription: setting.RelistDescription,
+			RelistImageURLs: setting.RelistImageURLs, RelistAddress: setting.RelistAddress,
+		}
+		if patch.VirtualProduct != nil {
+			input.VirtualProduct = *patch.VirtualProduct
+		}
+		if patch.AutoReplyEnabled != nil {
+			input.AutoReplyEnabled = *patch.AutoReplyEnabled
+		}
+		if patch.AutoDeliveryEnabled != nil {
+			input.AutoDeliveryEnabled = *patch.AutoDeliveryEnabled
+		}
+		if patch.AutoRelistEnabled != nil {
+			input.AutoRelistEnabled = *patch.AutoRelistEnabled
+		}
+		if patch.ReplyDelaySeconds != nil {
+			input.ReplyDelaySeconds = *patch.ReplyDelaySeconds
+		}
+		if patch.RelistDelaySeconds != nil {
+			input.RelistDelaySeconds = *patch.RelistDelaySeconds
+		}
+		if patch.RelistDescription != nil {
+			input.RelistDescription = *patch.RelistDescription
+		}
+		if patch.RelistImageURLs != nil {
+			input.RelistImageURLs = *patch.RelistImageURLs
+		}
+		if patch.RelistAddress != nil {
+			input.RelistAddress = *patch.RelistAddress
+		}
+		return s.updateSetting(ctx, tx, ownerID, input)
+	})
+}
+
+func (s *Product) updateSetting(ctx context.Context, db *gorm.DB, ownerID uint, input xyRequest.UpdateProductSetting) error {
 	if input.ReplyDelaySeconds < 0 || input.ReplyDelaySeconds > 3600 {
 		return errors.New("回复延迟必须在 0 到 3600 秒之间")
 	}
 	if input.RelistDelaySeconds < 0 || input.RelistDelaySeconds > 86400 {
 		return errors.New("自动续售延迟必须在 0 到 86400 秒之间")
 	}
-	db := s.db.WithContext(ctx)
 	var item model.Product
-	if err := db.Where("id = ? AND owner_id = ?", input.ProductID, ownerID).First(&item).Error; err != nil {
+	if err := db.Clauses(clause.Locking{Strength: "UPDATE"}).Where("id = ? AND owner_id = ?", input.ProductID, ownerID).First(&item).Error; err != nil {
 		return err
 	}
 	if strings.TrimSpace(input.RelistDescription) == item.Title {

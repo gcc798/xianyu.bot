@@ -2,10 +2,13 @@ package agent
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/eino-contrib/jsonschema"
 	agenttool "github.com/gcc798/xianyu.bot/internal/agent/tool"
 	"github.com/gcc798/xianyu.bot/internal/model"
 	"github.com/glebarez/sqlite"
@@ -58,6 +61,7 @@ func TestRunnerToolCatalogIncludesLocalAndAvailableMCPTools(t *testing.T) {
 	}).Error)
 	registry := agenttool.NewRegistry()
 	require.NoError(t, registry.Register(agenttool.NewCurrentTime()))
+	require.NoError(t, registry.Register(&catalogTestTool{code: "xianyu_order_list", name: "查询闲鱼订单"}))
 	mcpRegistry := &MCPRegistry{db: db, connect: func(_ context.Context, server model.MCPServer) (*mcpConnection, error) {
 		if server.Code == "offline" {
 			return nil, errors.New("connection refused")
@@ -73,11 +77,25 @@ func TestRunnerToolCatalogIncludesLocalAndAvailableMCPTools(t *testing.T) {
 	runner := &Runner{db: db, registry: mcpRegistry, tools: registry}
 
 	entries := runner.ToolCatalog(t.Context())
-	require.Len(t, entries, 2)
+	require.Len(t, entries, 3)
 	require.Equal(t, ToolCatalogEntry{Code: "current_time", Name: "获取当前时间", Description: "获取服务端当前日期、时间、星期和时区。回答今天、明天、当前时间、星期几等依赖当前时间的问题时必须调用，不得猜测。", Source: "本地", Type: "tool"}, entries[0])
-	require.Equal(t, "telegram__dialog_list", entries[1].Code)
-	require.Equal(t, "Telegram", entries[1].Source)
-	require.Equal(t, "telegram", entries[1].ProviderCode)
+	require.Equal(t, ToolCatalogEntry{Code: "xianyu_order_list", Name: "查询闲鱼订单", Description: "测试工具", Source: "闲鱼", Type: "tool"}, entries[1])
+	require.Equal(t, "telegram__dialog_list", entries[2].Code)
+	require.Equal(t, "Telegram", entries[2].Source)
+	require.Equal(t, "telegram", entries[2].ProviderCode)
+}
+
+type catalogTestTool struct{ code, name string }
+
+func (t *catalogTestTool) Definition() agenttool.Definition {
+	return agenttool.Definition{
+		Code: t.code, Name: t.name, Description: "测试工具", Source: "local",
+		Parameters: jsonschema.Reflect(struct{}{}), ReadOnly: true, Timeout: time.Second,
+	}
+}
+
+func (*catalogTestTool) Invoke(context.Context, agenttool.Scope, json.RawMessage) (string, error) {
+	return "{}", nil
 }
 
 // TestMCPRegistryFailsWhenNoEnabledServerIsAvailable 验证对应测试场景。

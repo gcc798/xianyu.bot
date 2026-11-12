@@ -18,6 +18,7 @@ import (
 // approvalToolStub 是测试辅助类型。
 type approvalToolStub struct {
 	ownerID uint // ownerID 记录工具调用用户。
+	calls   int  // calls 记录业务调用次数。
 }
 
 // Definition 提供测试辅助能力。
@@ -32,6 +33,7 @@ func (*approvalToolStub) Definition() agenttool.Definition {
 // Invoke 提供测试辅助能力。
 func (s *approvalToolStub) Invoke(_ context.Context, scope agenttool.Scope, _ json.RawMessage) (string, error) {
 	s.ownerID = scope.OwnerID
+	s.calls++
 	return `{"ok":true}`, nil
 }
 
@@ -119,4 +121,57 @@ func TestAgentRunnerApprovesLocalToolWithRunOwner(t *testing.T) {
 	var stored model.AgentRunTool
 	require.NoError(t, db.First(&stored, call.ID).Error)
 	require.JSONEq(t, `{"ok":true}`, stored.Result)
+}
+
+func TestAgentRunnerRejectsLocalToolWithoutExecution(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	require.NoError(t, err)
+	require.NoError(t, db.AutoMigrate(&model.AgentSession{}, &model.AgentRun{}, &model.AgentRunTool{}, &model.AgentEvent{}))
+	session := model.AgentSession{OwnerID: 11, Title: "拒绝审批"}
+	require.NoError(t, db.Create(&session).Error)
+	run := model.AgentRun{OwnerID: 11, SessionID: session.ID, ModelID: 1, ModelName: "test", Status: "completed", ConfigSnapshot: `{}`, StartedAt: time.Now()}
+	require.NoError(t, db.Create(&run).Error)
+	call := model.AgentRunTool{
+		RunID: run.ID, CallID: "local-reject", ToolCode: "xianyu_message_reply", ToolName: "回复闲鱼消息", ToolSource: "local",
+		Arguments: `{"messageId":12,"text":"已处理"}`, Status: "waiting_approval", StartedAt: time.Now(),
+	}
+	require.NoError(t, db.Create(&call).Error)
+	implementation := new(approvalToolStub)
+	registry := agenttool.NewRegistry()
+	require.NoError(t, registry.Register(implementation))
+	events := NewEventHub(db)
+	runner := &Runner{db: db, tools: registry, events: events}
+
+	_, err = runner.Reject(t.Context(), 22, run.ID)
+	require.Error(t, err)
+	rejected, err := runner.Reject(t.Context(), 11, run.ID)
+	require.NoError(t, err)
+	require.Equal(t, "rejected", rejected.Status)
+	require.Zero(t, implementation.calls)
+	var stored model.AgentRunTool
+	require.NoError(t, db.First(&stored, call.ID).Error)
+	require.Equal(t, "approval_rejected", stored.ErrorCode)
+	var audit model.AgentEvent
+	require.NoError(t, db.Where("session_id = ? AND event_type = ?", session.ID, "approval.rejected").First(&audit).Error)
+	require.Contains(t, audit.Payload, call.CallID)
+}
+
+func TestGovernedToolQueuesWriteBeforeCallingService(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	require.NoError(t, err)
+	require.NoError(t, db.AutoMigrate(&model.AgentRunTool{}))
+	implementation := new(approvalToolStub)
+	target := &governedTool{
+		db: db, implementation: implementation, harness: newAgentHarness(model.DefaultAgentConfig()),
+		scope: agenttool.Scope{OwnerID: 11}, runID: 9,
+	}
+	result, err := target.InvokableRun(t.Context(), `{"messageId":12,"text":"已处理"}`)
+	require.NoError(t, err)
+	require.Contains(t, result, "approval_required")
+	require.Zero(t, implementation.calls)
+	require.Equal(t, 1, target.harness.Usage().Writes)
+	var call model.AgentRunTool
+	require.NoError(t, db.Where("run_id = ?", 9).First(&call).Error)
+	require.Equal(t, "waiting_approval", call.Status)
+	require.Equal(t, `{"messageId":12,"text":"已处理"}`, call.Arguments)
 }

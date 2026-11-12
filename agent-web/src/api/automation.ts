@@ -26,6 +26,7 @@ export const automationApi = {
   deliveryRules: (input: {
     page: number;
     pageSize: number;
+    ruleId?: number;
     keyword?: string;
     productId?: number;
     mode?: string;

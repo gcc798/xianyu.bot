@@ -76,6 +76,47 @@ func (s *Relist) Plan(ctx context.Context, order model.Order) error {
 	return s.db.WithContext(ctx).Clauses(clause.OnConflict{DoNothing: true}).Create(&task).Error
 }
 
+// ListTasks 分页查询 ownerID 名下的自动续售任务。
+func (s *Relist) ListTasks(ctx context.Context, ownerID uint, input xyRequest.RelistTaskSearch) ([]model.RelistTask, int64, error) {
+	if ownerID == 0 {
+		return nil, 0, errors.New("用户未登录")
+	}
+	db := s.db.WithContext(ctx).Model(&model.RelistTask{}).Where("owner_id = ?", ownerID)
+	if input.AccountID != 0 {
+		db = db.Where("account_id = ?", input.AccountID)
+	}
+	if input.ProductID != 0 {
+		db = db.Where("product_id = ?", input.ProductID)
+	}
+	if status := strings.TrimSpace(input.Status); status != "" {
+		db = db.Where("status = ?", status)
+	}
+	var total int64
+	if err := db.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+	tasks := make([]model.RelistTask, 0)
+	err := db.Scopes(input.Paginate()).Order("id DESC").Find(&tasks).Error
+	return tasks, total, err
+}
+
+// Retry 仅重试 ownerID 名下明确失败的续售任务。
+func (s *Relist) Retry(ctx context.Context, ownerID, taskID uint) error {
+	if ownerID == 0 || taskID == 0 {
+		return errors.New("续售任务 ID 不能为空")
+	}
+	result := s.db.WithContext(ctx).Model(&model.RelistTask{}).
+		Where("id = ? AND owner_id = ? AND status = ?", taskID, ownerID, model.RelistTaskFailed).
+		Updates(map[string]any{"status": model.RelistTaskPending, "next_attempt_at": time.Now(), "last_error": ""})
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected != 1 {
+		return errors.New("只有明确失败的续售任务可以重试；结果未知时请先核实闲鱼状态")
+	}
+	return s.ProcessTask(ctx, ownerID, taskID)
+}
+
 // ProcessTask 原子认领续售任务，确认原商品状态后发布新商品并迁移设置。
 func (s *Relist) ProcessTask(ctx context.Context, ownerID, taskID uint) error {
 	db := s.db.WithContext(ctx)

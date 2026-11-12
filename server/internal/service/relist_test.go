@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/gcc798/xianyu.bot/internal/model"
+	xyRequest "github.com/gcc798/xianyu.bot/internal/model/request"
 	"github.com/glebarez/sqlite"
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
@@ -54,11 +55,19 @@ func TestRelistPublishesOnceAndMovesProductRules(t *testing.T) {
 	service.products = nil
 	var task model.RelistTask
 	require.NoError(t, db.First(&task).Error)
-	require.NoError(t, db.Model(&task).Update("next_attempt_at", time.Now().Add(-time.Second)).Error)
-	require.NoError(t, service.ProcessTask(t.Context(), 10, task.ID))
+	require.NoError(t, db.Model(&task).Updates(map[string]any{"status": model.RelistTaskFailed, "next_attempt_at": time.Now().Add(-time.Second)}).Error)
+	require.NoError(t, service.Retry(t.Context(), 10, task.ID))
 	require.NoError(t, db.First(&task, task.ID).Error)
 	require.Equal(t, model.RelistTaskSucceeded, task.Status)
 	require.Equal(t, "new-item", task.NewExternalProductID)
+	require.Equal(t, 1, task.Attempts)
+	var publishCalls int
+	for _, call := range publisher.calls {
+		if call.api == "mtop.idle.pc.idleitem.publish" {
+			publishCalls++
+		}
+	}
+	require.Equal(t, 1, publishCalls)
 	var newItem model.Product
 	require.NoError(t, db.Where("external_product_id = ?", "new-item").First(&newItem).Error)
 	var rule model.DeliveryRule
@@ -68,6 +77,38 @@ func TestRelistPublishesOnceAndMovesProductRules(t *testing.T) {
 	category := publisher.calls[1].data.(map[string]any)["itemCatDTO"].(map[string]any)
 	require.Equal(t, "channel-1", category["channelCatId"])
 	require.Equal(t, "tb-1", category["tbCatId"])
+}
+
+// TestRelistTaskListAndRetryAreOwnerScopedAndRejectUnknown 验证续售任务按所有者隔离且未知结果不可重试。
+func TestRelistTaskListAndRetryAreOwnerScopedAndRejectUnknown(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	require.NoError(t, err)
+	require.NoError(t, db.AutoMigrate(&model.Product{}, &model.RelistTask{}, &model.BusinessEvent{}))
+	tasks := []model.RelistTask{
+		{OwnerID: 7, AccountID: 70, ProductID: 700, OrderID: 7000, Status: model.RelistTaskUnknown, NextAttemptAt: time.Now()},
+		{OwnerID: 7, AccountID: 70, ProductID: 701, OrderID: 7001, Status: model.RelistTaskFailed, NextAttemptAt: time.Now()},
+		{OwnerID: 8, AccountID: 80, ProductID: 800, OrderID: 8000, Status: model.RelistTaskFailed, NextAttemptAt: time.Now()},
+	}
+	require.NoError(t, db.Create(&tasks).Error)
+	publisher := &recordingMTopCaller{}
+	service := &Relist{db: db, events: &BusinessEvent{db: db}, mtop: mtopResultCaller{recordingMTopCaller: publisher}}
+
+	list, total, err := service.ListTasks(t.Context(), 7, xyRequest.RelistTaskSearch{Pagination: xyRequest.Pagination{Page: 1, PageSize: 1}, AccountID: 70})
+	require.NoError(t, err)
+	require.EqualValues(t, 2, total)
+	require.Len(t, list, 1)
+	_, otherTotal, err := service.ListTasks(t.Context(), 9, xyRequest.RelistTaskSearch{})
+	require.NoError(t, err)
+	require.Zero(t, otherTotal)
+
+	require.ErrorContains(t, service.Retry(t.Context(), 7, tasks[0].ID), "结果未知")
+	require.Empty(t, publisher.calls)
+	require.ErrorContains(t, service.Retry(t.Context(), 8, tasks[1].ID), "结果未知")
+	require.ErrorIs(t, service.Retry(t.Context(), 7, tasks[1].ID), gorm.ErrRecordNotFound)
+	require.NoError(t, db.First(&tasks[1], tasks[1].ID).Error)
+	require.Equal(t, model.RelistTaskFailed, tasks[1].Status)
+	require.Equal(t, 1, tasks[1].Attempts)
+	require.NotEmpty(t, tasks[1].LastError)
 }
 
 // mtopResultCaller 是测试辅助类型。

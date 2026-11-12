@@ -11,6 +11,7 @@ import {
   getTrajectory,
   listAgentTools,
   listSessions,
+  rejectRun,
   sendMessage,
   streamEvents,
   updateSession,
@@ -28,10 +29,23 @@ import TrajectoryPanel from "./components/TrajectoryPanel";
 import SessionSidebar from "./components/SessionSidebar";
 
 const skills = [
-  { type: "skill" as const, code: "resource-discovery", name: "resource-discovery", description: "理解目标并编排资源检索", source: "Skill" },
-  { type: "skill" as const, code: "telegram-resource", name: "telegram-resource", description: "使用当前 MCP 的资源能力", source: "Skill" },
+  {
+    type: "skill" as const,
+    code: "resource-discovery",
+    name: "resource-discovery",
+    description: "理解目标并编排资源检索",
+    source: "Skill",
+  },
+  {
+    type: "skill" as const,
+    code: "telegram-resource",
+    name: "telegram-resource",
+    description: "使用当前 MCP 的资源能力",
+    source: "Skill",
+  },
 ];
 const terminalEvents = new Set(["run.completed", "run.failed", "run.cancelled"]);
+type ApprovalFeedback = { status: "completed" | "rejected" | "failed"; message: string };
 
 export default function BotWorkspace() {
   const [sessions, setSessions] = useState<Session[]>([]);
@@ -39,6 +53,8 @@ export default function BotWorkspace() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [operations, setOperations] = useState<Operation[]>([]);
   const [approvals, setApprovals] = useState<Approval[]>([]);
+  const [approvalBusyRunId, setApprovalBusyRunId] = useState<number | null>(null);
+  const [approvalFeedback, setApprovalFeedback] = useState<ApprovalFeedback | null>(null);
   const [draft, setDraft] = useState("");
   const [directives, setDirectives] = useState<Directive[]>([]);
   const [availableTools, setAvailableTools] = useState<AgentToolCatalogEntry[]>([]);
@@ -65,14 +81,12 @@ export default function BotWorkspace() {
   const [slashType, ...slashWords] = slashQuery.split(/\s+/);
   const slashTerm =
     slashType === "skill" || slashType === "tool" ? slashWords.join(" ") : slashQuery;
-  const capabilities = useMemo(
-    () => [...skills, ...availableTools],
-    [availableTools],
-  );
+  const capabilities = useMemo(() => [...skills, ...availableTools], [availableTools]);
   const filteredCapabilities = capabilities.filter(
     (item) =>
       (!["skill", "tool"].includes(slashType) || item.type === slashType) &&
-      (!slashTerm || `${item.name} ${item.description} ${item.source}`.toLowerCase().includes(slashTerm)),
+      (!slashTerm ||
+        `${item.name} ${item.description} ${item.source}`.toLowerCase().includes(slashTerm)),
   );
 
   useEffect(() => {
@@ -102,11 +116,12 @@ export default function BotWorkspace() {
     return data.list || [];
   }, []);
 
-  const openSession = useCallback(async (id: number) => {
+  const openSession = useCallback(async (id: number, preserveFeedback = false) => {
     // 切换会话前终止旧事件流，避免旧会话增量写入新会话界面。
     streamRef.current?.abort();
     setSessionId(id);
     setError("");
+    if (!preserveFeedback) setApprovalFeedback(null);
     setRunning(false);
     setCancelling(false);
     setRunId(0);
@@ -143,7 +158,7 @@ export default function BotWorkspace() {
   }, [messages, operations, approvals]);
 
   const reloadActive = useCallback(async () => {
-    if (sessionId) await Promise.all([openSession(sessionId), refreshSessions()]);
+    if (sessionId) await Promise.all([openSession(sessionId, true), refreshSessions()]);
   }, [openSession, refreshSessions, sessionId]);
 
   const applyEvent = useCallback(
@@ -327,11 +342,83 @@ export default function BotWorkspace() {
     setSlashOpen(false);
   };
   const approve = async (approval: Approval) => {
+    setApprovalBusyRunId(approval.runId);
+    setError("");
     try {
-      await approveRun(approval.runId);
-      await reloadActive();
+      const result = await approveRun(approval.runId);
+      setApprovalFeedback({
+        status: result.status === "completed" ? "completed" : "failed",
+        message:
+          result.status === "completed"
+            ? `${approval.toolName} 已执行成功。`
+            : `${approval.toolName} 未成功执行，当前状态：${result.status}。`,
+      });
+      if (result.status === "completed") {
+        setApprovals((items) => items.filter((item) => item !== approval));
+      }
+      try {
+        await reloadActive();
+      } catch (cause) {
+        setError(cause instanceof Error ? cause.message : "会话刷新失败");
+        setApprovalFeedback((current) =>
+          current
+            ? { ...current, message: `${current.message} 会话刷新失败，请稍后重新打开会话核对。` }
+            : current,
+        );
+      }
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "确认失败");
+      const failure = cause instanceof Error ? cause.message : "确认失败";
+      try {
+        await reloadActive();
+      } catch {
+        setError("审批状态刷新失败，请重新打开会话核对。");
+      }
+      setApprovalFeedback({
+        status: "failed",
+        message: `${approval.toolName} 执行未成功：${failure}`,
+      });
+    } finally {
+      setApprovalBusyRunId(null);
+    }
+  };
+  const reject = async (approval: Approval) => {
+    setApprovalBusyRunId(approval.runId);
+    setError("");
+    try {
+      const result = await rejectRun(approval.runId);
+      setApprovalFeedback({
+        status: result.status === "rejected" ? "rejected" : "failed",
+        message:
+          result.status === "rejected"
+            ? `${approval.toolName} 已拒绝，未执行。`
+            : `${approval.toolName} 未能完成拒绝处理，当前状态：${result.status}。`,
+      });
+      if (result.status === "rejected") {
+        setApprovals((items) => items.filter((item) => item !== approval));
+      }
+      try {
+        await reloadActive();
+      } catch (cause) {
+        setError(cause instanceof Error ? cause.message : "会话刷新失败");
+        setApprovalFeedback((current) =>
+          current
+            ? { ...current, message: `${current.message} 会话刷新失败，请稍后重新打开会话核对。` }
+            : current,
+        );
+      }
+    } catch (cause) {
+      const failure = cause instanceof Error ? cause.message : "拒绝失败";
+      try {
+        await reloadActive();
+      } catch {
+        setError("审批状态刷新失败，请重新打开会话核对。");
+      }
+      setApprovalFeedback({
+        status: "failed",
+        message: `${approval.toolName} 未能完成拒绝：${failure}`,
+      });
+    } finally {
+      setApprovalBusyRunId(null);
     }
   };
 
@@ -468,16 +555,49 @@ export default function BotWorkspace() {
                 )}
               </section>
             )}
-            {approvals.map((approval) => (
+            {approvalFeedback && (
+              <section
+                className={`approval-feedback ${approvalFeedback.status}`}
+                role={approvalFeedback.status === "failed" ? "alert" : "status"}
+                aria-live="polite"
+              >
+                <strong>
+                  {approvalFeedback.status === "completed"
+                    ? "操作已执行"
+                    : approvalFeedback.status === "rejected"
+                      ? "操作已拒绝"
+                      : "审批处理失败"}
+                </strong>
+                <p>{approvalFeedback.message}</p>
+              </section>
+            )}
+            {approvals.slice(0, 1).map((approval) => (
               <section
                 className="approval"
                 key={`${approval.runId}-${approval.toolName}-${approval.createdAt}`}
               >
                 <div>
                   <strong>{approval.toolName} 需要确认</strong>
-                  <p>该操作尚未执行，确认后会继续。</p>
+                  <p>
+                    该操作尚未执行，确认后会继续。
+                    {approvals.length > 1 && ` 另有 ${approvals.length - 1} 项待审批。`}
+                  </p>
                 </div>
-                <button onClick={() => void approve(approval)}>确认执行</button>
+                <div className="approval-actions">
+                  <button
+                    className="approval-reject"
+                    disabled={approvalBusyRunId === approval.runId}
+                    onClick={() => void reject(approval)}
+                  >
+                    拒绝
+                  </button>
+                  <button
+                    disabled={approvalBusyRunId === approval.runId}
+                    onClick={() => void approve(approval)}
+                  >
+                    {approvalBusyRunId === approval.runId ? "处理中…" : "确认执行"}
+                  </button>
+                </div>
               </section>
             ))}
           </div>
@@ -519,7 +639,10 @@ export default function BotWorkspace() {
                   data-slash-index={index}
                   onMouseDown={(event) => {
                     event.preventDefault();
-                    selectCapability(capability.type, capability.type === "tool" ? capability.code : capability.name);
+                    selectCapability(
+                      capability.type,
+                      capability.type === "tool" ? capability.code : capability.name,
+                    );
                   }}
                   onMouseEnter={() => setSlashIndex(index)}
                   role="option"
@@ -569,7 +692,10 @@ export default function BotWorkspace() {
                 } else if (slashOpen && event.key === "Enter" && filteredCapabilities.length) {
                   event.preventDefault();
                   const capability = filteredCapabilities[slashIndex % filteredCapabilities.length];
-                  selectCapability(capability.type, capability.type === "tool" ? capability.code : capability.name);
+                  selectCapability(
+                    capability.type,
+                    capability.type === "tool" ? capability.code : capability.name,
+                  );
                 } else if (event.key === "Escape") setSlashOpen(false);
                 if (event.key === "Enter" && !event.shiftKey && !slashOpen) {
                   event.preventDefault();

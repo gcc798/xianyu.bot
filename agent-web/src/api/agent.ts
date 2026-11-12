@@ -66,6 +66,11 @@ export const approveRun = (runId: number) =>
     method: "POST",
   });
 
+export const rejectRun = (runId: number) =>
+  request<{ tool: string; status: string }>(`/xy/ai/agent/runs/${runId}/reject`, {
+    method: "POST",
+  });
+
 export async function streamEvents(
   sessionId: number,
   afterId: number,

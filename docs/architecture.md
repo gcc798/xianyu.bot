@@ -30,6 +30,9 @@ Xianyu Tool -> Service
 - `cmd/server` 负责组装，不承载业务。
 - Service 不依赖 Gin，也不持有 Agent。
 - Agent 通过 Tool 使用闲鱼业务；进程内调用不走 MCP。
+- 闲鱼本地 Tool 通过 Service 提供商品、订单、消息、自动化规则、发货库存与任务、续售任务和业务事件能力；账号配置、扫码登录及 Cookie/Token 等凭据不开放给 Agent。
+- 闲鱼写 Tool 先持久化为待审批调用，只有用户批准后才以当前 run 的 owner 执行；用户可拒绝，拒绝会记录轨迹且不调用业务 Service。续售仅允许重试明确失败的任务。
+- 卡密值不进入 Agent Tool 参数或轨迹；导入由发货规则页面直接提交给受 owner 校验和加密保护的 Service。
 - 外部资源能力通过 MCP 接入。
 - Telegram 批量采集任务、来源目录、选源策略和任务 worker 由 Go 管理；Go 通过 Telegram MCP 搜索消息，并使用短期对象上传地址调用 Python 下载文件，随后按用户归属登记到 `xy_resources` 和 `xy_resource_sources`。
 - Python 仍管理 Telegram Session，并暂时保留会话扫描/退群、成人模式设置和历史文件运维所需的数据库访问；这些业务数据尚未全部迁移到 Go。Python 的旧批量采集 worker 已停止启动，避免与 Go 同时消费 `tel_resource_tasks`。

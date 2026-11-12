@@ -55,6 +55,13 @@ func TestDeliveryReservesEncryptedCardOnce(t *testing.T) {
 	count, err := service.ImportResources(t.Context(), 10, xyRequest.ImportDeliveryResources{RuleID: rule.ID, Values: []string{"SECRET-CARD"}})
 	require.NoError(t, err)
 	require.Equal(t, 1, count)
+	_, err = service.ImportResources(t.Context(), 11, xyRequest.ImportDeliveryResources{RuleID: rule.ID, Values: []string{"FOREIGN-SECRET"}})
+	require.ErrorIs(t, err, gorm.ErrRecordNotFound)
+	var resourceCount int64
+	require.NoError(t, db.Model(&model.DeliveryResource{}).Count(&resourceCount).Error)
+	require.EqualValues(t, 1, resourceCount)
+	_, err = service.Inventory(t.Context(), 11, rule.ID)
+	require.ErrorIs(t, err, gorm.ErrRecordNotFound)
 
 	first := model.Order{OwnerID: 10, AccountID: account.ID, ProductID: product.ID, ExternalOrderID: "order-1", BuyerUserID: "buyer", SessionID: "session", Status: model.OrderStatusPendingDelivery}
 	require.NoError(t, db.Create(&first).Error)
@@ -88,6 +95,10 @@ func TestDeliveryReservesEncryptedCardOnce(t *testing.T) {
 	require.NoError(t, err)
 	require.EqualValues(t, 2, total)
 	require.Len(t, list, 2)
+	otherOwnerTasks, otherOwnerTotal, err := service.ListTasks(t.Context(), 11, xyRequest.DeliveryTaskSearch{})
+	require.NoError(t, err)
+	require.Zero(t, otherOwnerTotal)
+	require.Empty(t, otherOwnerTasks)
 
 	close(sender.release)
 	require.Eventually(t, func() bool {

@@ -35,6 +35,10 @@ const xyAgentInstruction = `你是闲鱼自动化助手，帮助用户完成资�
 只有实际消息和文件结果才能作为“找到”或“未找到”的依据。接近运行时间或工具预算时，应报告已完成和剩余来源并询问用户是否继续，不得把部分检索描述成全部检索。
 不要猜测资源许可证。用户明确要求检索资源时，可以直接发送必要的搜索关键词；加入来源、获取文件等其他写操作需要用户确认。工具返回 approval_required 时应明确请求确认，不得声称操作已完成。`
 
+const xyOperationsInstruction = `闲鱼业务能力仅限当前工具提供的商品、订单、消息、自动回复/发货规则、发货库存与任务、续售任务和业务事件；账号配置、二维码登录、Cookie、Token 等凭据不由 Agent 管理。未提供工具的闲鱼操作应明确说明无法执行，不得声称已完成。
+所有闲鱼写操作、消息发送、同步、规则或自动化配置变更、任务重试和接管状态变更都需要用户审批。approval_required 只代表等待审批；拒绝时说明未执行，只有工具确认成功后才报告完成，失败则据实说明并可查询对应任务或业务事件核实结果。
+续售任务仅允许重试明确 failed 状态；unknown 表示平台结果未确认，禁止重试或报告成功，应先查询任务和业务事件核实。用户要求导入卡密时，不得在对话中索取、接收或复述卡密；调用闲鱼卡密导入 handoff 工具，可选传入已查询确认属于当前用户的卡密规则 ID，并仅把返回的控制台路径交给用户。`
+
 var (
 	// agentToolNamePattern 校验指令中的工具名称。
 	agentToolNamePattern = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9_.-]{0,119}$`)
@@ -85,9 +89,13 @@ func (s *Runner) ToolCatalog(ctx context.Context) []ToolCatalogEntry {
 	if s.tools != nil {
 		for _, registeredTool := range s.tools.List() {
 			definition := registeredTool.Definition()
+			source := "本地"
+			if strings.HasPrefix(definition.Code, "xianyu_") {
+				source = "闲鱼"
+			}
 			entries = append(entries, ToolCatalogEntry{
 				Code: definition.Code, Name: definition.Name, Description: definition.Description,
-				Source: "本地", Type: "tool",
+				Source: source, Type: "tool",
 			})
 		}
 	}
@@ -274,7 +282,7 @@ func (s *Runner) execute(ctx context.Context, prepared preparedAgentRun) (RunRes
 	if len(candidates) == 0 {
 		return s.failRun(ctx, run, harness, started, "model_setup_failed", errors.New("所有已启用模型均不可用"))
 	}
-	instruction := xyAgentInstruction
+	instruction := xyAgentInstruction + "\n" + xyOperationsInstruction
 	if discoveryErr != nil {
 		instruction += "\n外部 MCP 能力当前不可用；依赖外部能力的请求应明确告知用户。"
 	}
