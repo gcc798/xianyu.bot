@@ -15,12 +15,15 @@ type AgentSessionSearch struct {
 	Pagination // Pagination 提供页码与每页数量。
 }
 
-// AgentTrajectorySearch 描述 Agent 事件轨迹的增量查询条件。
+// AgentTrajectorySearch 描述 Agent 事件轨迹的分页和筛选条件。
 type AgentTrajectorySearch struct {
-	AfterID uint64 `json:"afterId" form:"afterId"`                               // AfterID 仅返回该事件 ID 之后的记录。
-	Limit   int    `json:"limit" form:"limit" binding:"omitempty,min=1,max=500"` // Limit 限制单次返回的事件数量。
-	RunID   uint   `json:"runId" form:"runId"`                                   // RunID 仅返回指定运行的事件。
-	Type    string `json:"type" form:"type" binding:"omitempty,max=80"`          // Type 仅返回指定类别的事件。
+	Order    string `json:"order" form:"order" binding:"omitempty,oneof=asc desc"` // Order 指定事件时间顺序。
+	CursorID uint64 `json:"cursorId" form:"cursorId"`                              // CursorID 是当前方向上次返回的最后事件 ID。
+	From     string `json:"from" form:"from" binding:"omitempty,max=40"`           // From 是包含的 RFC3339 起始时间。
+	To       string `json:"to" form:"to" binding:"omitempty,max=40"`               // To 是不包含的 RFC3339 结束时间。
+	Limit    int    `json:"limit" form:"limit" binding:"omitempty,min=1,max=500"`  // Limit 限制单次返回的事件数量。
+	RunID    uint   `json:"runId" form:"runId"`                                    // RunID 仅返回指定运行的事件。
+	Type     string `json:"type" form:"type" binding:"omitempty,max=80"`           // Type 仅返回指定类别的事件。
 }
 
 // SendAgentMessage 描述启动一轮 Agent 对话的输入。

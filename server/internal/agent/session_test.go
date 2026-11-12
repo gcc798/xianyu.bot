@@ -43,7 +43,7 @@ func TestAgentSessionScopesConversationByOwner(t *testing.T) {
 	require.NoError(t, db.Create(&model.AgentRunTool{RunID: run.ID, CallID: "trace-1", ToolName: "message_search", Arguments: `{"query":"Go"}`, Result: `{"status":"success"}`, Status: "completed", StartedAt: now}).Error)
 	require.NoError(t, db.Create(&[]model.AgentEvent{
 		{OwnerID: 11, SessionID: owned.ID, RunID: new(run.ID), TurnNo: new(1), EventType: "turn.started", Payload: `{"runId":1,"turnNo":1}`, CreatedAt: now},
-		{OwnerID: 11, SessionID: owned.ID, RunID: new(run.ID), TurnNo: new(1), StepNo: new(1), EventType: "tool.completed", CallID: "trace-1", Payload: `{"runId":1,"callId":"trace-1"}`, CreatedAt: now},
+		{OwnerID: 11, SessionID: owned.ID, RunID: new(run.ID), TurnNo: new(1), StepNo: new(1), EventType: "tool.completed", CallID: "trace-1", Payload: `{"runId":1,"callId":"trace-1"}`, CreatedAt: now.Add(time.Second)},
 		{OwnerID: 22, SessionID: other.ID, EventType: "system.prompt", Payload: `{"content":"private"}`, CreatedAt: now},
 	}).Error)
 	require.NoError(t, db.Create(&model.ResourceTask{OwnerID: 11, AgentRunID: new(run.ID), CandidateID: 1, MCPServerCode: "resources", IdempotencyKey: "task-1", State: "running"}).Error)
@@ -66,16 +66,48 @@ func TestAgentSessionScopesConversationByOwner(t *testing.T) {
 	require.JSONEq(t, `{"status":"success"}`, detail.ToolTraces[1].Result)
 	require.Equal(t, run.ID, detail.Tasks[0].RunID)
 	require.EqualValues(t, 1, detail.Messages[0].Sequence)
-	firstPage, err := sessions.Trajectory(t.Context(), 11, owned.ID, xyRequest.AgentTrajectorySearch{Limit: 1})
+	firstPage, err := sessions.Trajectory(t.Context(), 11, owned.ID, xyRequest.AgentTrajectorySearch{Order: "asc", Limit: 1})
 	require.NoError(t, err)
 	require.Len(t, firstPage.Events, 1)
 	require.True(t, firstPage.HasMore)
+	require.EqualValues(t, firstPage.Events[0].ID, firstPage.NextCursorID)
+	require.EqualValues(t, firstPage.Events[0].ID+1, firstPage.LatestEventID)
 	require.JSONEq(t, `{"runId":1,"turnNo":1}`, string(firstPage.Events[0].Data))
-	secondPage, err := sessions.Trajectory(t.Context(), 11, owned.ID, xyRequest.AgentTrajectorySearch{AfterID: firstPage.NextAfterID, Limit: 10})
+	secondPage, err := sessions.Trajectory(t.Context(), 11, owned.ID, xyRequest.AgentTrajectorySearch{Order: "asc", CursorID: firstPage.NextCursorID, Limit: 10})
 	require.NoError(t, err)
 	require.Len(t, secondPage.Events, 1)
 	require.False(t, secondPage.HasMore)
 	require.Equal(t, "trace-1", secondPage.Events[0].CallID)
+	require.EqualValues(t, firstPage.LatestEventID, secondPage.Events[0].ID)
+	descendingPage, err := sessions.Trajectory(t.Context(), 11, owned.ID, xyRequest.AgentTrajectorySearch{Limit: 1})
+	require.NoError(t, err)
+	require.True(t, descendingPage.HasMore)
+	require.Equal(t, "trace-1", descendingPage.Events[0].CallID)
+	olderPage, err := sessions.Trajectory(t.Context(), 11, owned.ID, xyRequest.AgentTrajectorySearch{CursorID: descendingPage.NextCursorID, Limit: 10})
+	require.NoError(t, err)
+	require.Len(t, olderPage.Events, 1)
+	require.Equal(t, "turn.started", olderPage.Events[0].Type)
+	rangedPage, err := sessions.Trajectory(t.Context(), 11, owned.ID, xyRequest.AgentTrajectorySearch{
+		From: now.Add(500 * time.Millisecond).Format(time.RFC3339Nano),
+		To:   now.Add(2 * time.Second).Format(time.RFC3339Nano),
+	})
+	require.NoError(t, err)
+	require.Len(t, rangedPage.Events, 1)
+	require.Equal(t, "trace-1", rangedPage.Events[0].CallID)
+	boundaryPage, err := sessions.Trajectory(t.Context(), 11, owned.ID, xyRequest.AgentTrajectorySearch{
+		From: now.Format(time.RFC3339Nano),
+		To:   now.Add(time.Second).Format(time.RFC3339Nano),
+	})
+	require.NoError(t, err)
+	require.Len(t, boundaryPage.Events, 1)
+	require.Equal(t, "turn.started", boundaryPage.Events[0].Type)
+	_, err = sessions.Trajectory(t.Context(), 11, owned.ID, xyRequest.AgentTrajectorySearch{From: now.Format(time.RFC3339Nano)})
+	require.ErrorContains(t, err, "必须同时提供")
+	_, err = sessions.Trajectory(t.Context(), 11, owned.ID, xyRequest.AgentTrajectorySearch{
+		From: now.Add(time.Second).Format(time.RFC3339Nano),
+		To:   now.Format(time.RFC3339Nano),
+	})
+	require.ErrorContains(t, err, "必须早于")
 	toolCall, err := sessions.ToolCall(t.Context(), 11, owned.ID, "trace-1")
 	require.NoError(t, err)
 	require.JSONEq(t, `{"query":"Go"}`, string(toolCall.Arguments))

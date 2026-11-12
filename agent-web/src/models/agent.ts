@@ -76,6 +76,15 @@ export type AgentEvent = {
   stepNo?: number;
 };
 
+export type AgentTrajectoryOrder = "asc" | "desc";
+
+export type AgentTrajectoryPage = {
+  events: AgentEvent[];
+  nextCursorId: number;
+  latestEventId: number;
+  hasMore: boolean;
+};
+
 export type Operation = {
   callId: string;
   runId: number;

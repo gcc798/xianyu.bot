@@ -1,7 +1,16 @@
-import { useEffect, useMemo, useState } from "react";
+import {
+  CloseCircleOutlined,
+  CloseOutlined,
+  ExclamationCircleOutlined,
+  FileTextOutlined,
+  RobotOutlined,
+  ToolOutlined,
+  UnorderedListOutlined,
+} from "@ant-design/icons";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { getToolCall, getTrajectory } from "../../../api/agent";
 import { dictionaryName, useDictionaryOptions } from "../../../hooks/useDictionaryOptions";
-import type { AgentEvent, ToolCallDetail } from "../../../models/agent";
+import type { AgentEvent, AgentTrajectoryOrder, ToolCallDetail } from "../../../models/agent";
 
 type Props = { sessionId: number; onClose: () => void };
 type InspectorTab =
@@ -17,6 +26,45 @@ const tabs: { id: InspectorTab; label: string }[] = [
   { id: "token", label: "Token" },
   { id: "raw", label: "Raw JSON" },
 ];
+const eventFilters = [
+  { id: "all", label: "全部" },
+  { id: "model", label: "模型" },
+  { id: "tool", label: "工具" },
+  { id: "approval", label: "审批" },
+  { id: "task", label: "任务" },
+  { id: "error", label: "异常" },
+];
+const eventNames: Record<string, string> = {
+  "run.started": "开始运行",
+  "run.completed": "运行完成",
+  "run.failed": "运行失败",
+  "run.cancelled": "运行取消",
+  "turn.started": "Turn 开始",
+  "turn.completed": "Turn 完成",
+  "turn.failed": "Turn 失败",
+  "step.started": "Step 开始",
+  "step.completed": "Step 完成",
+  "step.failed": "Step 失败",
+  "system.prompt": "系统提示词",
+  "request.snapshot": "模型请求快照",
+  "model.attempt.started": "模型请求",
+  "model.attempt.completed": "模型返回",
+  "model.attempt.failed": "模型失败",
+  "model.fallback": "切换备用模型",
+  "model.unavailable": "模型不可用",
+  "assistant.message": "助手回复",
+  "tool.started": "Tool 调用",
+  "tool.completed": "Tool 返回",
+  "tool.failed": "Tool 失败",
+  "approval.required": "等待审批",
+  "approval.rejected": "审批已拒绝",
+  "skill.loaded": "加载 Skill",
+  "task.created": "创建任务",
+  "task.updated": "任务进度",
+  "task.completed": "任务完成",
+};
+const timezone = "Asia/Shanghai";
+const shanghaiOffset = 8 * 60 * 60 * 1000;
 
 export default function TrajectoryPanel({ sessionId, onClose }: Props) {
   const { options: eventTypes } = useDictionaryOptions("agent_event_type");
@@ -26,20 +74,33 @@ export default function TrajectoryPanel({ sessionId, onClose }: Props) {
   const [tab, setTab] = useState<InspectorTab>("overview");
   const [filter, setFilter] = useState("all");
   const [search, setSearch] = useState("");
+  const [order, setOrder] = useState<AgentTrajectoryOrder>("desc");
+  const [fromDate, setFromDate] = useState("");
+  const [toDate, setToDate] = useState("");
+  const [appliedRange, setAppliedRange] = useState({ from: "", to: "" });
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState("");
-  const [nextAfterId, setNextAfterId] = useState(0);
+  const [nextCursorId, setNextCursorId] = useState(0);
   const [hasMore, setHasMore] = useState(false);
+  const [timelineViewport, setTimelineViewport] = useState<{ left: number; right: number } | null>(null);
+  const eventListRef = useRef<HTMLDivElement>(null);
+  const eventRowRefs = useRef(new Map<number, HTMLButtonElement>());
+  const pendingScrollEventId = useRef<number | null>(null);
 
   useEffect(() => {
     let alive = true;
     setLoading(true);
-    getTrajectory(sessionId)
+    setError("");
+    setEvents([]);
+    setSelected(null);
+    setTimelineViewport(null);
+    getTrajectory(sessionId, { order, ...appliedRange })
       .then((page) => {
         if (!alive) return;
         setEvents(page.events || []);
-        setSelected(page.events?.at(-1) || null);
-        setNextAfterId(page.nextAfterId || 0);
+        setSelected(page.events?.[0] || null);
+        setNextCursorId(page.nextCursorId || 0);
         setHasMore(page.hasMore);
       })
       .catch((cause: unknown) => setError(cause instanceof Error ? cause.message : "轨迹加载失败"))
@@ -47,7 +108,7 @@ export default function TrajectoryPanel({ sessionId, onClose }: Props) {
     return () => {
       alive = false;
     };
-  }, [sessionId]);
+  }, [sessionId, order, appliedRange]);
 
   useEffect(() => {
     setToolCall(null);
@@ -57,80 +118,208 @@ export default function TrajectoryPanel({ sessionId, onClose }: Props) {
       .catch(() => undefined);
   }, [selected, sessionId]);
 
-  const visible = useMemo(
+  const visibleEvents = useMemo(
     () =>
       events.filter((event) => {
         const category = eventCategory(event.type);
-        const text = `${event.type} ${JSON.stringify(event.data)}`.toLowerCase();
+        const text = `${eventName(event.type, eventTypes)} ${eventSummary(event)} ${event.type} ${JSON.stringify(event.data)}`.toLowerCase();
         return (
           (filter === "all" || filter === category) &&
           (!search || text.includes(search.toLowerCase()))
         );
       }),
-    [events, filter, search],
+    [events, eventTypes, filter, search],
   );
 
   const groups = useMemo(() => {
     const grouped = new Map<string, AgentEvent[]>();
-    for (const event of visible) {
-      const key = event.stepNo
-        ? `Run #${event.runId || "—"} · Step ${event.stepNo}`
-        : event.runId
-          ? `Run #${event.runId}`
-          : "Session";
+    for (const event of visibleEvents) {
+      const key = dateKey(event.createdAt);
       grouped.set(key, [...(grouped.get(key) || []), event]);
     }
     return [...grouped.entries()];
-  }, [visible]);
+  }, [visibleEvents]);
 
-  const timelineStart = events.length ? new Date(events[0].createdAt || 0).getTime() : 0;
-  const timelineEnd = events.length ? new Date(events.at(-1)?.createdAt || 0).getTime() : 0;
+  const timestamps = events.map((event) => Date.parse(event.createdAt || "")).filter(Number.isFinite);
+  const timelineStart = timestamps.length ? Math.min(...timestamps) : 0;
+  const timelineEnd = timestamps.length ? Math.max(...timestamps) : 0;
   const timelineSpan = Math.max(timelineEnd - timelineStart, 1);
+  const timelinePosition = useCallback(
+    (timestamp: number) =>
+      timelineEnd === timelineStart ? 50 : 2 + ((timestamp - timelineStart) / timelineSpan) * 96,
+    [timelineEnd, timelineSpan, timelineStart],
+  );
+  const timelineTicks = useMemo(
+    () => makeTimelineTicks(timelineStart, timelineEnd),
+    [timelineEnd, timelineStart],
+  );
+  const visibleEventById = useMemo(
+    () => new Map(visibleEvents.map((event) => [event.id, event])),
+    [visibleEvents],
+  );
+
+  const updateTimelineViewport = useCallback(() => {
+    const list = eventListRef.current;
+    if (!list || !visibleEventById.size) return;
+    const bounds = list.getBoundingClientRect();
+    let firstTimestamp = Number.POSITIVE_INFINITY;
+    let lastTimestamp = Number.NEGATIVE_INFINITY;
+    for (const row of list.querySelectorAll<HTMLElement>("[data-event-id]")) {
+      const rowBounds = row.getBoundingClientRect();
+      if (rowBounds.bottom <= bounds.top || rowBounds.top >= bounds.bottom) continue;
+      const event = visibleEventById.get(Number(row.dataset.eventId));
+      const timestamp = Date.parse(event?.createdAt || "");
+      if (!Number.isFinite(timestamp)) continue;
+      firstTimestamp = Math.min(firstTimestamp, timestamp);
+      lastTimestamp = Math.max(lastTimestamp, timestamp);
+    }
+    if (Number.isFinite(firstTimestamp) && Number.isFinite(lastTimestamp)) {
+      setTimelineViewport({
+        left: timelinePosition(firstTimestamp),
+        right: timelinePosition(lastTimestamp),
+      });
+    }
+  }, [timelinePosition, visibleEventById]);
+
+  useEffect(() => {
+    if (selected && !visibleEventById.has(selected.id)) setSelected(visibleEvents[0] || null);
+  }, [selected, visibleEventById, visibleEvents]);
+
+  useEffect(() => {
+    updateTimelineViewport();
+  }, [visibleEvents, events, updateTimelineViewport]);
+
+  useEffect(() => {
+    const pendingEventId = pendingScrollEventId.current;
+    if (pendingEventId === null) return;
+    const row = eventRowRefs.current.get(pendingEventId);
+    if (!row) return;
+    row.scrollIntoView({ behavior: "smooth", block: "center" });
+    pendingScrollEventId.current = null;
+  }, [visibleEvents]);
+
+  const selectEvent = (event: AgentEvent) => {
+    setSelected(event);
+    setTab("overview");
+    if (visibleEventById.has(event.id)) {
+      eventRowRefs.current.get(event.id)?.scrollIntoView({ behavior: "smooth", block: "center" });
+      return;
+    }
+    pendingScrollEventId.current = event.id;
+    setFilter("all");
+    setSearch("");
+  };
+
+  const applyDateRange = () => {
+    if (!fromDate || !toDate) {
+      setError("请选择完整的开始和结束日期");
+      return;
+    }
+    if (fromDate > toDate) {
+      setError("结束日期不能早于开始日期");
+      return;
+    }
+    setError("");
+    setAppliedRange({ from: shanghaiMidnight(fromDate), to: shanghaiMidnight(toDate, true) });
+  };
+
+  const clearDateRange = () => {
+    setFromDate("");
+    setToDate("");
+    setError("");
+    setAppliedRange({ from: "", to: "" });
+  };
+
+  const loadMore = async () => {
+    if (loadingMore || !hasMore) return;
+    setLoadingMore(true);
+    setError("");
+    try {
+      const page = await getTrajectory(sessionId, {
+        order,
+        cursorId: nextCursorId,
+        ...appliedRange,
+      });
+      setEvents((current) => [...current, ...(page.events || [])]);
+      setNextCursorId(page.nextCursorId || nextCursorId);
+      setHasMore(page.hasMore);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "加载更多事件失败");
+    } finally {
+      setLoadingMore(false);
+    }
+  };
 
   return (
     <div
       className="trajectory-backdrop"
       role="dialog"
       aria-modal="true"
-      aria-label="Agent 审计轨迹"
+      aria-label="运行轨迹"
     >
       <section className="trajectory-panel">
         <header className="trajectory-head">
           <div>
-            <span className="trace-mark">⌘</span>
+            <span className="trace-mark"><RobotOutlined /></span>
             <div>
-              <strong>Agent Trajectory</strong>
+              <strong>运行轨迹</strong>
               <small>
-                SESSION #{sessionId} · {events.length} EVENTS
+                会话 #{sessionId} · {events.length} 条事件 · 北京时间
               </small>
             </div>
           </div>
-          <button onClick={onClose} aria-label="关闭轨迹">
-            ×
+          <button onClick={onClose} aria-label="关闭轨迹" title="关闭轨迹">
+            <CloseOutlined />
           </button>
         </header>
 
         <div className="timeline-strip" aria-label="运行时间轴">
-          <span className="timeline-line" />
-          {events
-            .filter((event) =>
-              ["model", "tool", "approval", "task"].includes(eventCategory(event.type)),
-            )
-            .map((event) => (
-              <button
-                key={event.id}
-                className={`timeline-node ${eventCategory(event.type)} ${event.type.includes("failed") ? "failed" : ""}`}
+          <div className="timeline-meta">
+            <strong>会话时间轴</strong>
+            <div className="timeline-legend" aria-label="事件状态图例">
+              <span><i className="status-recorded" />已记录</span>
+              <span><i className="status-running" />进行中</span>
+              <span><i className="status-pending" />待审批</span>
+              <span><i className="status-success" />成功</span>
+              <span><i className="status-failed" />失败/取消</span>
+            </div>
+          </div>
+          <div className="timeline-track">
+            <span className="timeline-line" />
+            {timelineViewport && (
+              <span
+                className="timeline-viewport"
+                aria-hidden="true"
                 style={{
-                  left: `${((new Date(event.createdAt || 0).getTime() - timelineStart) / timelineSpan) * 96 + 2}%`,
+                  left: `${timelineViewport.left}%`,
+                  width: `${Math.max(timelineViewport.right - timelineViewport.left, 1)}%`,
                 }}
-                title={`${dictionaryName(eventTypes, event.type)} · ${formatClock(event.createdAt)}`}
-                onClick={() => setSelected(event)}
               />
+            )}
+            {timelineTicks.map((tick) => (
+              <span className="timeline-tick" key={tick.timestamp} style={{ left: `${timelinePosition(tick.timestamp)}%` }}>
+                <i />
+                <time>{tick.label}</time>
+              </span>
             ))}
+            {events
+              .filter((event) => eventCategory(event.type) !== "system")
+              .map((event) => (
+                <button
+                  key={event.id}
+                  type="button"
+                  className={`timeline-node status-${eventStatus(event)} ${selected?.id === event.id ? "selected" : ""}`}
+                  style={{ left: `${timelinePosition(Date.parse(event.createdAt || ""))}%` }}
+                  title={`${eventName(event.type, eventTypes)} · ${formatDate(event.createdAt)} · ${eventSummary(event)}`}
+                  aria-label={`${eventName(event.type, eventTypes)}，${formatDate(event.createdAt)}`}
+                  onClick={() => selectEvent(event)}
+                />
+              ))}
+          </div>
           <div className="timeline-times">
-            <span>{formatClock(events[0]?.createdAt)}</span>
-            <span>{duration(timelineSpan)}</span>
-            <span>{formatClock(events.at(-1)?.createdAt)}</span>
+            <time>{formatAxisTime(timelineStart)}</time>
+            <span>{events.length ? formatDuration(timelineSpan) : "无事件"}</span>
+            <time>{formatAxisTime(timelineEnd)}</time>
           </div>
         </div>
 
@@ -144,65 +333,112 @@ export default function TrajectoryPanel({ sessionId, onClose }: Props) {
                 aria-label="搜索轨迹"
               />
               <div className="event-filters">
-                {["all", "model", "tool", "approval", "error"].map((item) => (
+                {eventFilters.map((item) => (
                   <button
-                    key={item}
-                    className={filter === item ? "active" : ""}
-                    onClick={() => setFilter(item)}
+                    key={item.id}
+                    type="button"
+                    className={filter === item.id ? "active" : ""}
+                    aria-pressed={filter === item.id}
+                    onClick={() => setFilter(item.id)}
                   >
-                    {item === "all" ? "全部" : item}
+                    {item.label}
                   </button>
                 ))}
               </div>
+              <div className="trace-controls">
+                <div className="date-range">
+                  <label>
+                    <span>从</span>
+                    <input
+                      type="date"
+                      value={fromDate}
+                      aria-label="开始日期"
+                      onChange={(event) => setFromDate(event.target.value)}
+                    />
+                  </label>
+                  <label>
+                    <span>至</span>
+                    <input
+                      type="date"
+                      value={toDate}
+                      aria-label="结束日期"
+                      onChange={(event) => setToDate(event.target.value)}
+                    />
+                  </label>
+                  <button type="button" onClick={applyDateRange} disabled={!fromDate || !toDate}>
+                    查询
+                  </button>
+                  {(fromDate || toDate || appliedRange.from) && (
+                    <button type="button" className="clear-date-range" onClick={clearDateRange}>
+                      清除
+                    </button>
+                  )}
+                </div>
+                <div className="trace-order" role="group" aria-label="时间顺序">
+                  <span>顺序</span>
+                  <button
+                    type="button"
+                    className={order === "desc" ? "active" : ""}
+                    aria-pressed={order === "desc"}
+                    onClick={() => setOrder("desc")}
+                  >
+                    最新优先
+                  </button>
+                  <button
+                    type="button"
+                    className={order === "asc" ? "active" : ""}
+                    aria-pressed={order === "asc"}
+                    onClick={() => setOrder("asc")}
+                  >
+                    最早优先
+                  </button>
+                </div>
+              </div>
+              {error && <p className="trace-error trace-toolbar-error" role="alert">{error}</p>}
             </div>
-            <div className="event-list">
+            <div className="event-list" ref={eventListRef} onScroll={updateTimelineViewport}>
               {loading && <p className="trace-empty">正在读取持久化轨迹…</p>}
-              {error && <p className="trace-error">{error}</p>}
-              {groups.map(([name, items]) => (
-                <section className="event-group" key={name}>
+              {groups.map(([day, dayEvents]) => (
+                <section className="event-group" key={day}>
                   <h3>
-                    {name}
-                    <span>{items.length}</span>
+                    <time dateTime={day}>{formatDayLabel(day)}</time>
+                    <span>{dayEvents.length}</span>
                   </h3>
-                  {items.map((event) => (
+                  {dayEvents.map((event) => (
                     <button
                       key={event.id}
-                      className={`event-item ${selected?.id === event.id ? "active" : ""}`}
-                      onClick={() => {
-                        setSelected(event);
-                        setTab("overview");
+                      ref={(element) => {
+                        if (element) eventRowRefs.current.set(event.id, element);
+                        else eventRowRefs.current.delete(event.id);
                       }}
+                      data-event-id={event.id}
+                      type="button"
+                      className={`event-item status-${eventStatus(event)} ${selected?.id === event.id ? "active" : ""}`}
+                      aria-pressed={selected?.id === event.id}
+                      onClick={() => selectEvent(event)}
                     >
-                      <span className={`event-kind ${eventCategory(event.type)}`}>
+                      <span className={`event-kind status-${eventStatus(event)}`}>
                         {eventIcon(event.type)}
                       </span>
                       <div>
-                        <strong>{dictionaryName(eventTypes, event.type)}</strong>
+                        <strong>{eventName(event.type, eventTypes)}</strong>
                         <small>{eventSummary(event)}</small>
                       </div>
-                      <time>{formatClock(event.createdAt)}</time>
+                      <time dateTime={event.createdAt} title={formatDate(event.createdAt)}>
+                        {formatClock(event.createdAt)}
+                      </time>
                     </button>
                   ))}
                 </section>
               ))}
               {hasMore && (
                 <button
+                  type="button"
                   className="load-more"
-                  onClick={() => {
-                    setLoading(true);
-                    getTrajectory(sessionId, nextAfterId)
-                      .then((page) => {
-                        setEvents((items) => [...items, ...(page.events || [])]);
-                        setNextAfterId(page.nextAfterId || nextAfterId);
-                        setHasMore(page.hasMore);
-                      })
-                      .catch((cause: unknown) =>
-                        setError(cause instanceof Error ? cause.message : "加载更多失败"),
-                      )
-                      .finally(() => setLoading(false));
-                  }}
+                  disabled={loadingMore}
+                  onClick={() => void loadMore()}
                 >
-                  加载更多事件
+                  {loadingMore ? "正在加载…" : order === "desc" ? "加载更早事件" : "加载后续事件"}
                 </button>
               )}
               {!loading && !groups.length && <p className="trace-empty">没有符合条件的事件</p>}
@@ -214,18 +450,18 @@ export default function TrajectoryPanel({ sessionId, onClose }: Props) {
               <>
                 <header className="inspector-title">
                   <div>
-                    <span className={`event-kind ${eventCategory(selected.type)}`}>
+                    <span className={`event-kind status-${eventStatus(selected)}`}>
                       {eventIcon(selected.type)}
                     </span>
                     <div>
-                      <strong>{dictionaryName(eventTypes, selected.type)}</strong>
+                      <strong>{eventName(selected.type, eventTypes)}</strong>
                       <small>
-                        EVENT #{selected.id} · {selected.type}
+                        事件 #{selected.id} · {selected.type}
                       </small>
                     </div>
                   </div>
-                  <span className={selected.type.includes("failed") ? "state failed" : "state"}>
-                    {selected.type.includes("failed") ? "FAILED" : "RECORDED"}
+                  <span className={`state status-${eventStatus(selected)}`}>
+                    {eventStatusLabel(selected)}
                   </span>
                 </header>
                 <nav className="inspector-tabs">
@@ -357,42 +593,163 @@ function eventCategory(type: string) {
 }
 
 function eventIcon(type: string) {
-  return { model: "AI", tool: "⌘", approval: "!", task: "↓", error: "×", system: "·" }[
-    eventCategory(type)
-  ];
+  const icons = {
+    model: <RobotOutlined />,
+    tool: <ToolOutlined />,
+    approval: <ExclamationCircleOutlined />,
+    task: <UnorderedListOutlined />,
+    error: <CloseCircleOutlined />,
+    system: <FileTextOutlined />,
+  };
+  return icons[eventCategory(type) as keyof typeof icons];
+}
+
+function eventName(type: string, eventTypes: ReturnType<typeof useDictionaryOptions>["options"]) {
+  const localizedName = dictionaryName(eventTypes, type);
+  return localizedName && localizedName !== type ? localizedName : eventNames[type] || type;
 }
 
 function eventSummary(event: AgentEvent) {
   const data = event.data;
-  return String(
-    data.tool ||
-      data.model ||
-      data.skill ||
-      data.outcome ||
-      data.reason ||
-      data.message ||
-      data.content ||
-      event.type,
-  ).slice(0, 90);
+  if (event.type === "system.prompt") return "系统提示词已记录";
+  const error = data.error;
+  const errorMessage =
+    error && typeof error === "object" && "message" in error
+      ? (error as { message?: unknown }).message
+      : error;
+  const tool = firstText(data.toolName, data.tool, data.name);
+  if (event.type.includes("failed") || event.type.includes("cancelled")) {
+    return firstText(errorMessage, data.message, data.reason) || "操作未能完成";
+  }
+  if (event.type === "approval.required") return `等待确认：${tool || "待审批操作"}`;
+  if (event.type === "approval.rejected") return `已拒绝：${tool || "操作未执行"}`;
+  if (event.type.startsWith("tool.")) {
+    return firstText(tool, data.message, data.summary) || "工具调用状态已记录";
+  }
+  if (event.type.startsWith("model.")) {
+    return firstText(data.model, data.message, data.reason) || "模型请求状态已记录";
+  }
+  if (event.type.startsWith("task.")) {
+    return firstText(data.stage, data.message, data.outcome) || "资源任务状态已更新";
+  }
+  return firstText(data.message, data.outcome, data.reason, data.content) || "事件已记录";
+}
+
+function firstText(...values: unknown[]) {
+  return values.find((value): value is string => typeof value === "string" && value.trim() !== "")?.trim() || "";
+}
+
+function eventStatus(event: AgentEvent) {
+  if (event.type.includes("failed") || event.type.includes("cancelled")) return "failed";
+  if (event.type === "approval.required") return "pending";
+  if (event.type.endsWith(".completed")) return "success";
+  if (event.type.endsWith(".started")) return "running";
+  return "recorded";
+}
+
+function eventStatusLabel(event: AgentEvent) {
+  return {
+    recorded: "已记录",
+    running: "进行中",
+    pending: "待审批",
+    success: "成功",
+    failed: "失败/取消",
+  }[eventStatus(event)];
 }
 
 function formatClock(value?: string) {
   return value
     ? new Intl.DateTimeFormat("zh-CN", {
+        timeZone: timezone,
         hour: "2-digit",
         minute: "2-digit",
         second: "2-digit",
         fractionalSecondDigits: 3,
+        hourCycle: "h23",
       }).format(new Date(value))
     : "—";
 }
+
 function formatDate(value?: string) {
   return value
-    ? new Intl.DateTimeFormat("zh-CN", { dateStyle: "medium", timeStyle: "medium" }).format(
-        new Date(value),
-      )
+    ? new Intl.DateTimeFormat("zh-CN", {
+        timeZone: timezone,
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+        fractionalSecondDigits: 3,
+        hourCycle: "h23",
+      }).format(new Date(value))
     : "—";
 }
-function duration(ms: number) {
-  return ms < 1000 ? `${ms} ms` : `${(ms / 1000).toFixed(2)} s`;
+
+function formatAxisTime(timestamp: number) {
+  return timestamp
+    ? new Intl.DateTimeFormat("zh-CN", {
+        timeZone: timezone,
+        month: "2-digit",
+        day: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+        hourCycle: "h23",
+      }).format(new Date(timestamp))
+    : "—";
+}
+
+function dateKey(value?: string) {
+  const timestamp = Date.parse(value || "");
+  if (!Number.isFinite(timestamp)) return "unknown";
+  const date = new Date(timestamp + shanghaiOffset);
+  return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}-${String(date.getUTCDate()).padStart(2, "0")}`;
+}
+
+function formatDayLabel(value: string) {
+  if (value === "unknown") return "日期未知";
+  return new Intl.DateTimeFormat("zh-CN", {
+    timeZone: "UTC",
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  }).format(new Date(`${value}T00:00:00Z`));
+}
+
+function shanghaiMidnight(value: string, nextDay = false) {
+  const [year, month, day] = value.split("-").map(Number);
+  return new Date(Date.UTC(year, month - 1, day + Number(nextDay)) - shanghaiOffset).toISOString();
+}
+
+function makeTimelineTicks(start: number, end: number) {
+  if (!start || end <= start) return [];
+  const firstDay = Math.floor((start + shanghaiOffset) / 86_400_000);
+  const lastDay = Math.floor((end + shanghaiOffset) / 86_400_000);
+  const step = lastDay - firstDay > 14 ? 7 : 1;
+  const ticks: { timestamp: number; label: string }[] = [];
+  for (let day = firstDay + 1; day <= lastDay; day += step) {
+    const timestamp = day * 86_400_000 - shanghaiOffset;
+    ticks.push({
+      timestamp,
+      label: new Intl.DateTimeFormat("zh-CN", {
+        timeZone: timezone,
+        month: "numeric",
+        day: "numeric",
+      }).format(new Date(timestamp)),
+    });
+  }
+  return ticks;
+}
+
+function formatDuration(milliseconds: number) {
+  const totalSeconds = Math.floor(milliseconds / 1000);
+  if (totalSeconds < 60) return `${totalSeconds} 秒`;
+  const seconds = totalSeconds % 60;
+  const totalMinutes = Math.floor(totalSeconds / 60);
+  if (totalMinutes < 60) return `${totalMinutes} 分 ${seconds} 秒`;
+  const minutes = totalMinutes % 60;
+  const totalHours = Math.floor(totalMinutes / 60);
+  if (totalHours < 24) return `${totalHours} 小时 ${minutes} 分`;
+  return `${Math.floor(totalHours / 24)} 天 ${totalHours % 24} 小时`;
 }

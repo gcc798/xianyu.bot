@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"strings"
+	"time"
 	"unicode/utf8"
 
 	"github.com/gcc798/xianyu.bot/internal/model"
@@ -124,7 +125,7 @@ func (s *Session) Get(ctx context.Context, ownerID, sessionID uint) (xyResponse.
 	return xyResponse.AgentSessionDetail{AgentSession: session, Messages: messages, ToolTraces: toolTraces, PendingApprovals: approvals, Tasks: tasks}, nil
 }
 
-// Trajectory 按事件游标增量读取归属会话轨迹。
+// Trajectory 按时间方向、游标和时间范围读取归属会话轨迹。
 func (s *Session) Trajectory(ctx context.Context, ownerID, sessionID uint, input xyRequest.AgentTrajectorySearch) (xyResponse.AgentTrajectoryPage, error) {
 	if ownerID == 0 || sessionID == 0 {
 		return xyResponse.AgentTrajectoryPage{}, errors.New("会话 ID 不能为空")
@@ -140,31 +141,74 @@ func (s *Session) Trajectory(ctx context.Context, ownerID, sessionID uint, input
 	if limit == 0 {
 		limit = 200
 	}
+	order := input.Order
+	if order == "" {
+		order = "desc"
+	}
+	if order != "asc" && order != "desc" {
+		return xyResponse.AgentTrajectoryPage{}, errors.New("轨迹时间顺序无效")
+	}
+	if (input.From == "") != (input.To == "") {
+		return xyResponse.AgentTrajectoryPage{}, errors.New("开始和结束时间必须同时提供")
+	}
+	var from, to time.Time
+	if input.From != "" {
+		var err error
+		from, err = time.Parse(time.RFC3339Nano, input.From)
+		if err != nil {
+			return xyResponse.AgentTrajectoryPage{}, errors.New("开始时间格式无效")
+		}
+		to, err = time.Parse(time.RFC3339Nano, input.To)
+		if err != nil {
+			return xyResponse.AgentTrajectoryPage{}, errors.New("结束时间格式无效")
+		}
+		if !from.Before(to) {
+			return xyResponse.AgentTrajectoryPage{}, errors.New("开始时间必须早于结束时间")
+		}
+	}
 	events := make([]model.AgentEvent, 0, limit+1)
-	query := s.db.WithContext(ctx).Where("owner_id = ? AND session_id = ? AND id > ?", ownerID, sessionID, input.AfterID)
+	query := s.db.WithContext(ctx).Where("owner_id = ? AND session_id = ?", ownerID, sessionID)
+	if input.CursorID > 0 {
+		operator := ">"
+		if order == "desc" {
+			operator = "<"
+		}
+		query = query.Where("id "+operator+" ?", input.CursorID)
+	}
+	if input.From != "" {
+		query = query.Where("created_at >= ? AND created_at < ?", from, to)
+	}
 	if input.RunID > 0 {
 		query = query.Where("run_id = ?", input.RunID)
 	}
 	if eventType := strings.TrimSpace(input.Type); eventType != "" {
 		query = query.Where("event_type = ?", eventType)
 	}
-	if err := query.Order("id").Limit(limit + 1).Find(&events).Error; err != nil {
+	if err := query.Order("id " + order).Limit(limit + 1).Find(&events).Error; err != nil {
 		return xyResponse.AgentTrajectoryPage{}, err
 	}
 	hasMore := len(events) > limit
 	if hasMore {
 		events = events[:limit]
 	}
+	var latestEventID uint64
+	if err := s.db.WithContext(ctx).Model(&model.AgentEvent{}).
+		Where("owner_id = ? AND session_id = ?", ownerID, sessionID).
+		Select("COALESCE(MAX(id), 0)").Scan(&latestEventID).Error; err != nil {
+		return xyResponse.AgentTrajectoryPage{}, err
+	}
 	items := make([]xyResponse.AgentTrajectoryEvent, 0, len(events))
-	var nextAfterID uint64
+	var nextCursorID uint64
 	for _, event := range events {
 		items = append(items, xyResponse.AgentTrajectoryEvent{
 			ID: event.ID, RunID: event.RunID, TurnNo: event.TurnNo, StepNo: event.StepNo, Type: event.EventType,
 			CallID: event.CallID, ParentCallID: event.ParentCallID, Data: json.RawMessage(event.Payload), CreatedAt: event.CreatedAt,
 		})
-		nextAfterID = event.ID
+		nextCursorID = event.ID
 	}
-	return xyResponse.AgentTrajectoryPage{Events: items, NextAfterID: nextAfterID, HasMore: hasMore}, nil
+	return xyResponse.AgentTrajectoryPage{
+		Events: items, NextCursorID: nextCursorID, LatestEventID: latestEventID, HasMore: hasMore,
+	}, nil
 }
 
 // ToolCall 按 callID 查询归属会话的完整工具审计记录。

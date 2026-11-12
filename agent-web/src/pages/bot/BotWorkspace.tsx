@@ -137,7 +137,7 @@ export default function BotWorkspace() {
       })),
     );
     setApprovals(session.pendingApprovals || []);
-    setLastEventId(trajectory.nextAfterId || 0);
+    setLastEventId(trajectory.latestEventId || 0);
   }, []);
 
   useEffect(() => {

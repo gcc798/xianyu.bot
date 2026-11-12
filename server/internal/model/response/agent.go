@@ -74,11 +74,12 @@ type AgentTrajectoryEvent struct {
 	CreatedAt    time.Time       `json:"createdAt"`              // CreatedAt 是事件发生时间。
 }
 
-// AgentTrajectoryPage 描述一页 Agent 事件及下次读取游标。
+// AgentTrajectoryPage 描述一页 Agent 事件、分页游标和实时流位置。
 type AgentTrajectoryPage struct {
-	Events      []AgentTrajectoryEvent `json:"events"`      // Events 是按 ID 升序返回的事件。
-	NextAfterID uint64                 `json:"nextAfterId"` // NextAfterID 是下一次增量查询应使用的游标。
-	HasMore     bool                   `json:"hasMore"`     // HasMore 表示当前条件下仍有后续事件。
+	Events        []AgentTrajectoryEvent `json:"events"`        // Events 按请求的时间方向返回。
+	NextCursorID  uint64                 `json:"nextCursorId"`  // NextCursorID 是下一页使用的边界事件 ID。
+	LatestEventID uint64                 `json:"latestEventId"` // LatestEventID 是会话实时事件流的续接位置。
+	HasMore       bool                   `json:"hasMore"`       // HasMore 表示当前条件下仍有下一页。
 }
 
 // AgentToolCallDetail 展示单次工具调用的完整审计信息。

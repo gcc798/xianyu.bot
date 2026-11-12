@@ -1,6 +1,8 @@
 import type {
   AgentToolCatalogEntry,
   AgentEvent,
+  AgentTrajectoryOrder,
+  AgentTrajectoryPage,
   Directive,
   Session,
   SessionDetail,
@@ -33,10 +35,21 @@ export const updateSession = (id: number, title: string) =>
 export const getSession = (id: number) =>
   request<{ session: SessionDetail }>(`/xy/ai/agent/sessions/${id}`);
 
-export const getTrajectory = (id: number, afterId = 0) =>
-  request<{ events: AgentEvent[]; nextAfterId: number; hasMore: boolean }>(
-    `/xy/ai/agent/sessions/${id}/trajectory?afterId=${afterId}&limit=500`,
-  );
+export const getTrajectory = (
+  id: number,
+  query: {
+    order?: AgentTrajectoryOrder;
+    cursorId?: number;
+    from?: string;
+    to?: string;
+  } = {},
+) => {
+  const params = new URLSearchParams({ order: query.order || "desc", limit: "500" });
+  if (query.cursorId) params.set("cursorId", String(query.cursorId));
+  if (query.from) params.set("from", query.from);
+  if (query.to) params.set("to", query.to);
+  return request<AgentTrajectoryPage>(`/xy/ai/agent/sessions/${id}/trajectory?${params}`);
+};
 
 export const getToolCall = (id: number, callId: string) =>
   request<{ toolCall: ToolCallDetail }>(
