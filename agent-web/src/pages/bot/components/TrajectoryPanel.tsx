@@ -68,16 +68,14 @@ const shanghaiOffset = 8 * 60 * 60 * 1000;
 
 export default function TrajectoryPanel({ sessionId, onClose }: Props) {
   const { options: eventTypes } = useDictionaryOptions("agent_event_type");
-  const [events, setEvents] = useState<AgentEvent[]>([]);
+  const [raw, setEvents] = useState<AgentEvent[]>([]);
   const [selected, setSelected] = useState<AgentEvent | null>(null);
   const [toolCall, setToolCall] = useState<ToolCallDetail | null>(null);
   const [tab, setTab] = useState<InspectorTab>("overview");
   const [filter, setFilter] = useState("all");
   const [search, setSearch] = useState("");
   const [order, setOrder] = useState<AgentTrajectoryOrder>("desc");
-  const [fromDate, setFromDate] = useState("");
-  const [toDate, setToDate] = useState("");
-  const [appliedRange, setAppliedRange] = useState({ from: "", to: "" });
+  const events = useMemo(() => groupCalls(raw, order), [raw, order]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState("");
@@ -97,11 +95,10 @@ export default function TrajectoryPanel({ sessionId, onClose }: Props) {
     setEvents([]);
     setSelected(null);
     setTimelineViewport(null);
-    getTrajectory(sessionId, { order, ...appliedRange })
+    getTrajectory(sessionId, { order })
       .then((page) => {
         if (!alive) return;
         setEvents(page.events || []);
-        setSelected(page.events?.[0] || null);
         setNextCursorId(page.nextCursorId || 0);
         setHasMore(page.hasMore);
       })
@@ -110,14 +107,20 @@ export default function TrajectoryPanel({ sessionId, onClose }: Props) {
     return () => {
       alive = false;
     };
-  }, [sessionId, order, appliedRange]);
+  }, [sessionId, order]);
 
   useEffect(() => {
     setToolCall(null);
     if (!selected?.callId) return;
+    let active = true;
     getToolCall(sessionId, selected.callId)
-      .then((result) => setToolCall(result.toolCall))
+      .then((result) => {
+        if (active) setToolCall(result.toolCall);
+      })
       .catch(() => undefined);
+    return () => {
+      active = false;
+    };
   }, [selected, sessionId]);
 
   const visibleEvents = useMemo(
@@ -187,7 +190,8 @@ export default function TrajectoryPanel({ sessionId, onClose }: Props) {
   }, [timelinePosition, visibleEventById]);
 
   useEffect(() => {
-    if (selected && !visibleEventById.has(selected.id)) setSelected(visibleEvents[0] || null);
+    const next = (selected && visibleEventById.get(selected.id)) || visibleEvents[0] || null;
+    if (selected !== next) setSelected(next);
   }, [selected, visibleEventById, visibleEvents]);
 
   useEffect(() => {
@@ -215,26 +219,6 @@ export default function TrajectoryPanel({ sessionId, onClose }: Props) {
     setSearch("");
   };
 
-  const applyDateRange = () => {
-    if (!fromDate || !toDate) {
-      setError("请选择完整的开始和结束日期");
-      return;
-    }
-    if (fromDate > toDate) {
-      setError("结束日期不能早于开始日期");
-      return;
-    }
-    setError("");
-    setAppliedRange({ from: shanghaiMidnight(fromDate), to: shanghaiMidnight(toDate, true) });
-  };
-
-  const clearDateRange = () => {
-    setFromDate("");
-    setToDate("");
-    setError("");
-    setAppliedRange({ from: "", to: "" });
-  };
-
   const loadMore = async () => {
     if (loadingMore || !hasMore) return;
     setLoadingMore(true);
@@ -243,7 +227,6 @@ export default function TrajectoryPanel({ sessionId, onClose }: Props) {
       const page = await getTrajectory(sessionId, {
         order,
         cursorId: nextCursorId,
-        ...appliedRange,
       });
       setEvents((current) => [...current, ...(page.events || [])]);
       setNextCursorId(page.nextCursorId || nextCursorId);
@@ -367,34 +350,6 @@ export default function TrajectoryPanel({ sessionId, onClose }: Props) {
                 ))}
               </div>
               <div className="trace-controls">
-                <div className="date-range">
-                  <label>
-                    <span>从</span>
-                    <input
-                      type="date"
-                      value={fromDate}
-                      aria-label="开始日期"
-                      onChange={(event) => setFromDate(event.target.value)}
-                    />
-                  </label>
-                  <label>
-                    <span>至</span>
-                    <input
-                      type="date"
-                      value={toDate}
-                      aria-label="结束日期"
-                      onChange={(event) => setToDate(event.target.value)}
-                    />
-                  </label>
-                  <button type="button" onClick={applyDateRange} disabled={!fromDate || !toDate}>
-                    查询
-                  </button>
-                  {(fromDate || toDate || appliedRange.from) && (
-                    <button type="button" className="clear-date-range" onClick={clearDateRange}>
-                      清除
-                    </button>
-                  )}
-                </div>
                 <div className="trace-order" role="group" aria-label="时间顺序">
                   <span>顺序</span>
                   <button
@@ -512,6 +467,41 @@ export default function TrajectoryPanel({ sessionId, onClose }: Props) {
   );
 }
 
+// 把同一次调用的审计记录合成一行，后续分页加载时重新配对。
+function groupCalls(raw: AgentEvent[], order: AgentTrajectoryOrder) {
+  const calls = new Map<string, AgentEvent>();
+  const rows: AgentEvent[] = [];
+  for (const event of [...raw].sort((a, b) => a.id - b.id)) {
+    if (["turn.started", "turn.completed", "step.started", "step.completed"].includes(event.type))
+      continue;
+    const { type, data } = event;
+    const run = event.runId ?? data.runId;
+    const step = event.stepNo ?? data.stepNo;
+    const call = event.callId || data.callId;
+    let key = "";
+    if (run && call && ["tool.started", "tool.completed", "tool.failed"].includes(type))
+      key = JSON.stringify([run, "tool", call]);
+    if (run && step && (type === "request.snapshot" || type.startsWith("model.attempt.")))
+      key = JSON.stringify([run, data.turnNo ?? 1, step, data.attemptNo ?? 1]);
+    if (!key) {
+      rows.push(event);
+      continue;
+    }
+    const row = calls.get(key);
+    if (row) {
+      row.data = { ...row.data, ...data };
+      row.type = type;
+      row.id = event.id;
+      row.createdAt = event.createdAt;
+    } else {
+      const first = { ...event, data: { ...data } };
+      calls.set(key, first);
+      rows.push(first);
+    }
+  }
+  return rows.sort((a, b) => (order === "asc" ? a.id - b.id : b.id - a.id));
+}
+
 function renderTab(tab: InspectorTab, event: AgentEvent, toolCall: ToolCallDetail | null) {
   const data = event.data;
   if (tab === "overview")
@@ -540,7 +530,12 @@ function renderTab(tab: InspectorTab, event: AgentEvent, toolCall: ToolCallDetai
     return (
       <Code
         value={
-          toolCall?.result ?? data.response ?? data.content ?? data.trace ?? data.error ?? null
+          toolCall?.result ??
+          data.response ??
+          data.content ??
+          data.trace ??
+          data.error ??
+          (event.type.endsWith(".failed") ? data.message : null)
         }
         empty="该事件没有输出数据"
       />
@@ -630,6 +625,8 @@ function eventIcon(type: string) {
 }
 
 function eventName(type: string, eventTypes: ReturnType<typeof useDictionaryOptions>["options"]) {
+  if (["tool.started", "tool.completed", "tool.failed"].includes(type)) return "Tool 调用";
+  if (type === "request.snapshot" || type.startsWith("model.attempt.")) return "模型请求";
   const localizedName = dictionaryName(eventTypes, type);
   return localizedName && localizedName !== type ? localizedName : eventNames[type] || type;
 }
@@ -744,11 +741,6 @@ function formatDayLabel(value: string) {
     month: "long",
     day: "numeric",
   }).format(new Date(`${value}T00:00:00Z`));
-}
-
-function shanghaiMidnight(value: string, nextDay = false) {
-  const [year, month, day] = value.split("-").map(Number);
-  return new Date(Date.UTC(year, month - 1, day + Number(nextDay)) - shanghaiOffset).toISOString();
 }
 
 function makeTimelineTicks(start: number, end: number) {
