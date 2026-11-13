@@ -4,58 +4,37 @@ import {
   ExclamationCircleOutlined,
   FileTextOutlined,
   RobotOutlined,
+  SearchOutlined,
   ToolOutlined,
   UnorderedListOutlined,
+  UserOutlined,
 } from "@ant-design/icons";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { getToolCall, getTrajectory } from "../../../api/agent";
+import { getToolCall, getTrajectory, streamEvents } from "../../../api/agent";
 import { dictionaryName, useDictionaryOptions } from "../../../hooks/useDictionaryOptions";
-import type { AgentEvent, AgentTrajectoryOrder, ToolCallDetail } from "../../../models/agent";
+import type { AgentEvent, ToolCallDetail } from "../../../models/agent";
+import { buildTrajectoryRows, type TrajectoryLane, type TrajectoryRow } from "../trajectory";
 
-type Props = { sessionId: number; onClose: () => void };
+type Props = { sessionId: number };
 type InspectorTab =
   "overview" | "input" | "output" | "prompt" | "schema" | "timing" | "token" | "raw";
 
-const tabs: { id: InspectorTab; label: string }[] = [
-  { id: "overview", label: "概览" },
-  { id: "input", label: "输入" },
-  { id: "output", label: "输出" },
-  { id: "prompt", label: "提示词" },
-  { id: "schema", label: "Tool Schema" },
-  { id: "timing", label: "时间" },
-  { id: "token", label: "Token" },
-  { id: "raw", label: "Raw JSON" },
-];
-const eventFilters = [
-  { id: "all", label: "全部" },
-  { id: "model", label: "模型" },
-  { id: "tool", label: "工具" },
-  { id: "approval", label: "审批" },
-  { id: "task", label: "任务" },
-  { id: "error", label: "异常" },
-];
 const eventNames: Record<string, string> = {
   "run.started": "开始运行",
   "run.completed": "运行完成",
   "run.failed": "运行失败",
   "run.cancelled": "运行取消",
-  "turn.started": "Turn 开始",
-  "turn.completed": "Turn 完成",
-  "turn.failed": "Turn 失败",
-  "step.started": "Step 开始",
-  "step.completed": "Step 完成",
-  "step.failed": "Step 失败",
   "system.prompt": "系统提示词",
-  "request.snapshot": "模型请求快照",
+  "request.snapshot": "模型请求",
   "model.attempt.started": "模型请求",
   "model.attempt.completed": "模型返回",
   "model.attempt.failed": "模型失败",
   "model.fallback": "切换备用模型",
   "model.unavailable": "模型不可用",
-  "assistant.message": "助手回复",
-  "tool.started": "Tool 调用",
-  "tool.completed": "Tool 返回",
-  "tool.failed": "Tool 失败",
+  "assistant.message": "助手消息",
+  "tool.started": "工具调用",
+  "tool.completed": "工具返回",
+  "tool.failed": "工具失败",
   "approval.required": "等待审批",
   "approval.rejected": "审批已拒绝",
   "skill.loaded": "加载 Skill",
@@ -63,461 +42,345 @@ const eventNames: Record<string, string> = {
   "task.updated": "任务进度",
   "task.completed": "任务完成",
 };
+const laneLabels: Record<TrajectoryLane, string> = {
+  input: "输入",
+  model: "模型",
+  tool: "工具",
+};
+const lanes = Object.keys(laneLabels) as TrajectoryLane[];
 const timezone = "Asia/Shanghai";
-const shanghaiOffset = 8 * 60 * 60 * 1000;
 
-export default function TrajectoryPanel({ sessionId, onClose }: Props) {
+export default function TrajectoryPanel({ sessionId }: Props) {
   const { options: eventTypes } = useDictionaryOptions("agent_event_type");
-  const [raw, setEvents] = useState<AgentEvent[]>([]);
-  const [selected, setSelected] = useState<AgentEvent | null>(null);
+  const [events, setEvents] = useState<AgentEvent[]>([]);
+  const [selectedRowId, setSelectedRowId] = useState("");
   const [toolCall, setToolCall] = useState<ToolCallDetail | null>(null);
   const [tab, setTab] = useState<InspectorTab>("overview");
-  const [filter, setFilter] = useState("all");
   const [search, setSearch] = useState("");
-  const [order, setOrder] = useState<AgentTrajectoryOrder>("desc");
-  const events = useMemo(() => groupCalls(raw, order), [raw, order]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState("");
   const [nextCursorId, setNextCursorId] = useState(0);
   const [hasMore, setHasMore] = useState(false);
-  const [timelineViewport, setTimelineViewport] = useState<{ left: number; right: number } | null>(
-    null,
-  );
-  const eventListRef = useRef<HTMLDivElement>(null);
-  const eventRowRefs = useRef(new Map<number, HTMLButtonElement>());
-  const pendingScrollEventId = useRef<number | null>(null);
+  const [live, setLive] = useState(false);
+  const [viewport, setViewport] = useState({ left: 0, width: 100 });
+  const listRef = useRef<HTMLDivElement>(null);
+  const rowRefs = useRef(new Map<string, HTMLButtonElement>());
 
   useEffect(() => {
-    let alive = true;
+    const controller = new AbortController();
+    let active = true;
     setLoading(true);
     setError("");
     setEvents([]);
-    setSelected(null);
-    setTimelineViewport(null);
-    getTrajectory(sessionId, { order })
+    setSelectedRowId("");
+    setLive(false);
+    void getTrajectory(sessionId, { order: "desc" })
       .then((page) => {
-        if (!alive) return;
+        if (!active) return;
         setEvents(page.events || []);
         setNextCursorId(page.nextCursorId || 0);
         setHasMore(page.hasMore);
+        setLoading(false);
+        setLive(true);
+        return streamEvents(sessionId, page.latestEventId || 0, controller.signal, (event) => {
+          if (event.id) setEvents((current) => mergeEvents(current, [event]));
+        });
       })
-      .catch((cause: unknown) => setError(cause instanceof Error ? cause.message : "轨迹加载失败"))
-      .finally(() => setLoading(false));
+      .catch((cause: unknown) => {
+        if (!active || controller.signal.aborted) return;
+        setLoading(false);
+        setLive(false);
+        setError(cause instanceof Error ? cause.message : "轨迹加载失败");
+      });
     return () => {
-      alive = false;
+      active = false;
+      controller.abort();
     };
-  }, [sessionId, order]);
+  }, [sessionId]);
+
+  const rows = useMemo(() => buildTrajectoryRows(events), [events]);
+  const selected = rows.find((row) => row.rowId === selectedRowId) || null;
+  const selectedToolSchema = useMemo(() => findToolSchema(rows, selected), [rows, selected]);
+  const visibleRows = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    if (!query) return rows;
+    return rows.filter((row) =>
+      `${eventName(row, eventTypes)} ${rowInputPreview(row)} ${rowOutputPreview(row)} ${row.type} ${JSON.stringify(row.data)}`
+        .toLowerCase()
+        .includes(query),
+    );
+  }, [eventTypes, rows, search]);
+  const runOrdinals = useMemo(() => {
+    const ids = [...new Set(rows.map(runID).filter(Boolean))];
+    return new Map(ids.map((id, index) => [id, index + 1]));
+  }, [rows]);
+  const groups = useMemo(() => groupByRun(visibleRows), [visibleRows]);
+  const rowIndex = useMemo(() => new Map(rows.map((row, index) => [row.rowId, index])), [rows]);
 
   useEffect(() => {
     setToolCall(null);
     if (!selected?.callId) return;
     let active = true;
     getToolCall(sessionId, selected.callId)
-      .then((result) => {
-        if (active) setToolCall(result.toolCall);
+      .then(({ toolCall: detail }) => {
+        if (active) setToolCall(detail);
       })
       .catch(() => undefined);
     return () => {
       active = false;
     };
-  }, [selected, sessionId]);
+  }, [selected?.callId, sessionId]);
 
-  const visibleEvents = useMemo(
-    () =>
-      events.filter((event) => {
-        const category = eventCategory(event.type);
-        const text =
-          `${eventName(event.type, eventTypes)} ${eventSummary(event)} ${event.type} ${JSON.stringify(event.data)}`.toLowerCase();
-        return (
-          (filter === "all" || filter === category) &&
-          (!search || text.includes(search.toLowerCase()))
-        );
-      }),
-    [events, eventTypes, filter, search],
-  );
-
-  const groups = useMemo(() => {
-    const grouped = new Map<string, AgentEvent[]>();
-    for (const event of visibleEvents) {
-      const key = dateKey(event.createdAt);
-      grouped.set(key, [...(grouped.get(key) || []), event]);
-    }
-    return [...grouped.entries()];
-  }, [visibleEvents]);
-
-  const timestamps = events
-    .map((event) => Date.parse(event.createdAt || ""))
-    .filter(Number.isFinite);
-  const timelineStart = timestamps.length ? Math.min(...timestamps) : 0;
-  const timelineEnd = timestamps.length ? Math.max(...timestamps) : 0;
-  const timelineSpan = Math.max(timelineEnd - timelineStart, 1);
-  const timelinePosition = useCallback(
-    (timestamp: number) =>
-      timelineEnd === timelineStart ? 50 : 2 + ((timestamp - timelineStart) / timelineSpan) * 96,
-    [timelineEnd, timelineSpan, timelineStart],
-  );
-  const timelineTicks = useMemo(
-    () => makeTimelineTicks(timelineStart, timelineEnd),
-    [timelineEnd, timelineStart],
-  );
-  const visibleEventById = useMemo(
-    () => new Map(visibleEvents.map((event) => [event.id, event])),
-    [visibleEvents],
-  );
-
-  const updateTimelineViewport = useCallback(() => {
-    const list = eventListRef.current;
-    if (!list || !visibleEventById.size) return;
+  const updateViewport = useCallback(() => {
+    const list = listRef.current;
+    if (!list || !rows.length) return;
     const bounds = list.getBoundingClientRect();
-    let firstTimestamp = Number.POSITIVE_INFINITY;
-    let lastTimestamp = Number.NEGATIVE_INFINITY;
-    for (const row of list.querySelectorAll<HTMLElement>("[data-event-id]")) {
-      const rowBounds = row.getBoundingClientRect();
+    const visibleIndexes: number[] = [];
+    for (const element of list.querySelectorAll<HTMLElement>("[data-row-id]")) {
+      const rowBounds = element.getBoundingClientRect();
       if (rowBounds.bottom <= bounds.top || rowBounds.top >= bounds.bottom) continue;
-      const event = visibleEventById.get(Number(row.dataset.eventId));
-      const timestamp = Date.parse(event?.createdAt || "");
-      if (!Number.isFinite(timestamp)) continue;
-      firstTimestamp = Math.min(firstTimestamp, timestamp);
-      lastTimestamp = Math.max(lastTimestamp, timestamp);
+      const index = rowIndex.get(element.dataset.rowId || "");
+      if (index !== undefined) visibleIndexes.push(index);
     }
-    if (Number.isFinite(firstTimestamp) && Number.isFinite(lastTimestamp)) {
-      setTimelineViewport({
-        left: timelinePosition(firstTimestamp),
-        right: timelinePosition(lastTimestamp),
-      });
-    }
-  }, [timelinePosition, visibleEventById]);
+    if (!visibleIndexes.length) return;
+    const left = timelinePosition(Math.min(...visibleIndexes), rows.length);
+    const right = timelinePosition(Math.max(...visibleIndexes), rows.length);
+    setViewport({ left, width: Math.max(1.5, right - left) });
+  }, [rowIndex, rows.length]);
 
   useEffect(() => {
-    const next = (selected && visibleEventById.get(selected.id)) || visibleEvents[0] || null;
-    if (selected !== next) setSelected(next);
-  }, [selected, visibleEventById, visibleEvents]);
+    updateViewport();
+  }, [updateViewport, visibleRows]);
 
-  useEffect(() => {
-    updateTimelineViewport();
-  }, [visibleEvents, events, updateTimelineViewport]);
-
-  useEffect(() => {
-    const pendingEventId = pendingScrollEventId.current;
-    if (pendingEventId === null) return;
-    const row = eventRowRefs.current.get(pendingEventId);
-    if (!row) return;
-    row.scrollIntoView({ behavior: "smooth", block: "center" });
-    pendingScrollEventId.current = null;
-  }, [visibleEvents]);
-
-  const selectEvent = (event: AgentEvent) => {
-    setSelected(event);
+  const selectRow = (row: TrajectoryRow, clearSearch = false) => {
+    if (clearSearch) setSearch("");
+    setSelectedRowId(row.rowId);
     setTab("overview");
-    if (visibleEventById.has(event.id)) {
-      eventRowRefs.current.get(event.id)?.scrollIntoView({ behavior: "smooth", block: "center" });
-      return;
-    }
-    pendingScrollEventId.current = event.id;
-    setFilter("all");
-    setSearch("");
+    requestAnimationFrame(() =>
+      rowRefs.current.get(row.rowId)?.scrollIntoView({ block: "center", behavior: "smooth" }),
+    );
   };
 
-  const loadMore = async () => {
-    if (loadingMore || !hasMore) return;
+  const loadEarlier = async () => {
+    if (!hasMore || loadingMore) return;
     setLoadingMore(true);
     setError("");
     try {
-      const page = await getTrajectory(sessionId, {
-        order,
-        cursorId: nextCursorId,
-      });
-      setEvents((current) => [...current, ...(page.events || [])]);
+      const page = await getTrajectory(sessionId, { order: "desc", cursorId: nextCursorId });
+      setEvents((current) => mergeEvents(current, page.events || []));
       setNextCursorId(page.nextCursorId || nextCursorId);
       setHasMore(page.hasMore);
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "加载更多事件失败");
+      setError(cause instanceof Error ? cause.message : "更早的轨迹加载失败");
     } finally {
       setLoadingMore(false);
     }
   };
 
-  return (
-    <div className="trajectory-backdrop" role="dialog" aria-modal="true" aria-label="运行轨迹">
-      <section className="trajectory-panel">
-        <header className="trajectory-head">
-          <div>
-            <span className="trace-mark">
-              <RobotOutlined />
-            </span>
-            <div>
-              <strong>运行轨迹</strong>
-              <small>
-                会话 #{sessionId} · {events.length} 条事件 · 北京时间
-              </small>
-            </div>
-          </div>
-          <button onClick={onClose} aria-label="关闭轨迹" title="关闭轨迹">
-            <CloseOutlined />
-          </button>
-        </header>
+  const summary = trajectorySummary(rows);
 
-        <div className="timeline-strip" aria-label="运行时间轴">
-          <div className="timeline-meta">
-            <strong>会话时间轴</strong>
-            <div className="timeline-legend" aria-label="事件状态图例">
-              <span>
-                <i className="status-recorded" />
-                已记录
-              </span>
-              <span>
-                <i className="status-running" />
-                进行中
-              </span>
-              <span>
-                <i className="status-pending" />
-                待审批
-              </span>
-              <span>
-                <i className="status-success" />
-                成功
-              </span>
-              <span>
-                <i className="status-failed" />
-                失败/取消
-              </span>
-            </div>
+  return (
+    <section className="trajectory-workspace" aria-label="运行轨迹">
+      <header className="trajectory-overview">
+        <div className="trajectory-toolbar">
+          <div className="trajectory-metrics" aria-label="轨迹统计">
+            <span>时长 {formatDuration(summary.duration)}</span>
+            <span>轮次 {runOrdinals.size}</span>
+            <span>模型 {summary.modelCalls}</span>
+            <span>工具 {summary.toolCalls}</span>
           </div>
-          <div className="timeline-track">
-            <span className="timeline-line" />
-            {timelineViewport && (
+          <label className="trajectory-search">
+            <SearchOutlined />
+            <input
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="搜索轨迹"
+              aria-label="搜索轨迹"
+            />
+          </label>
+        </div>
+        <div className="trajectory-map" aria-label="输入、模型和工具调用时间轴">
+          <div className="trajectory-lane-labels" aria-hidden="true">
+            {lanes.map((lane) => (
+              <span key={lane}>{laneLabels[lane]}</span>
+            ))}
+          </div>
+          <div className="trajectory-map-track">
+            {lanes.map((lane) => (
+              <div className={`trajectory-lane lane-${lane}`} key={lane}>
+                {rows.map((row, index) =>
+                  row.lane === lane ? (
+                    <button
+                      key={row.rowId}
+                      type="button"
+                      className={`trajectory-node status-${row.status}${selectedRowId === row.rowId ? " selected" : ""}`}
+                      style={{ left: `${timelinePosition(index, rows.length)}%` }}
+                      aria-label={`${eventName(row, eventTypes)}，${formatDate(row.startedAt)}`}
+                      title={`${eventName(row, eventTypes)} · ${rowOutputPreview(row) || rowInputPreview(row)}`}
+                      onClick={() => selectRow(row, true)}
+                    />
+                  ) : null,
+                )}
+              </div>
+            ))}
+            {!!rows.length && (
               <span
-                className="timeline-viewport"
-                aria-hidden="true"
-                style={{
-                  left: `${timelineViewport.left}%`,
-                  width: `${Math.max(timelineViewport.right - timelineViewport.left, 1)}%`,
-                }}
+                className="trajectory-viewport"
+                style={{ left: `${viewport.left}%`, width: `${viewport.width}%` }}
               />
             )}
-            {timelineTicks.map((tick) => (
-              <span
-                className="timeline-tick"
-                key={tick.timestamp}
-                style={{ left: `${timelinePosition(tick.timestamp)}%` }}
-              >
-                <i />
-                <time>{tick.label}</time>
-              </span>
-            ))}
-            {events
-              .filter((event) => eventCategory(event.type) !== "system")
-              .map((event) => (
-                <button
-                  key={event.id}
-                  type="button"
-                  className={`timeline-node status-${eventStatus(event)} ${selected?.id === event.id ? "selected" : ""}`}
-                  style={{ left: `${timelinePosition(Date.parse(event.createdAt || ""))}%` }}
-                  title={`${eventName(event.type, eventTypes)} · ${formatDate(event.createdAt)} · ${eventSummary(event)}`}
-                  aria-label={`${eventName(event.type, eventTypes)}，${formatDate(event.createdAt)}`}
-                  onClick={() => selectEvent(event)}
-                />
-              ))}
-          </div>
-          <div className="timeline-times">
-            <time>{formatAxisTime(timelineStart)}</time>
-            <span>{events.length ? formatDuration(timelineSpan) : "无事件"}</span>
-            <time>{formatAxisTime(timelineEnd)}</time>
           </div>
         </div>
+      </header>
 
-        <div className="trajectory-body">
-          <aside className="event-browser">
-            <div className="event-tools">
-              <input
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-                placeholder="搜索事件或内容"
-                aria-label="搜索轨迹"
-              />
-              <div className="event-filters">
-                {eventFilters.map((item) => (
-                  <button
-                    key={item.id}
-                    type="button"
-                    className={filter === item.id ? "active" : ""}
-                    aria-pressed={filter === item.id}
-                    onClick={() => setFilter(item.id)}
-                  >
-                    {item.label}
-                  </button>
-                ))}
-              </div>
-              <div className="trace-controls">
-                <div className="trace-order" role="group" aria-label="时间顺序">
-                  <span>顺序</span>
-                  <button
-                    type="button"
-                    className={order === "desc" ? "active" : ""}
-                    aria-pressed={order === "desc"}
-                    onClick={() => setOrder("desc")}
-                  >
-                    最新优先
-                  </button>
-                  <button
-                    type="button"
-                    className={order === "asc" ? "active" : ""}
-                    aria-pressed={order === "asc"}
-                    onClick={() => setOrder("asc")}
-                  >
-                    最早优先
-                  </button>
+      <div className={`trajectory-main${selected ? " inspector-open" : ""}`}>
+        <div className="trajectory-event-list" ref={listRef} onScroll={updateViewport}>
+          {error && (
+            <p className="trajectory-notice error" role="alert">
+              {error}
+            </p>
+          )}
+          {loading && <TrajectorySkeleton />}
+          {!loading && !rows.length && (
+            <p className="trajectory-empty">当前会话还没有运行轨迹，发送消息后会在这里实时显示。</p>
+          )}
+          {!loading && !!rows.length && !visibleRows.length && (
+            <p className="trajectory-empty">没有匹配的轨迹事件</p>
+          )}
+          {hasMore && (
+            <button
+              className="trajectory-load-more"
+              type="button"
+              disabled={loadingMore}
+              onClick={() => void loadEarlier()}
+            >
+              {loadingMore ? "正在加载…" : "加载更早轨迹"}
+            </button>
+          )}
+          {groups.map(([id, runRows]) => (
+            <section className="trajectory-run" key={id}>
+              <header>
+                <span>{id === 0 ? "会话事件" : `第 ${runOrdinals.get(id) || 1} 轮`}</span>
+                <small>
+                  {id === 0 ? `${runRows.length} 条记录` : `Run #${id} · ${runRows.length} 步`}
+                </small>
+              </header>
+              {runRows.map((row) => (
+                <button
+                  key={row.rowId}
+                  ref={(element) => {
+                    if (element) rowRefs.current.set(row.rowId, element);
+                    else rowRefs.current.delete(row.rowId);
+                  }}
+                  data-row-id={row.rowId}
+                  type="button"
+                  className={`trajectory-event status-${row.status}${selectedRowId === row.rowId ? " active" : ""}`}
+                  aria-pressed={selectedRowId === row.rowId}
+                  onClick={() => selectRow(row)}
+                >
+                  <span className={`trajectory-kind kind-${row.lane}`}>{eventIcon(row)}</span>
+                  <span className="trajectory-event-copy">
+                    <strong>{eventName(row, eventTypes)}</strong>
+                    <span>{rowInputPreview(row) || "—"}</span>
+                    {(rowOutputPreview(row) || row.durationMillis !== undefined) && <i>→</i>}
+                    <span>{rowOutputPreview(row)}</span>
+                  </span>
+                  <small>
+                    {row.durationMillis !== undefined
+                      ? formatDuration(row.durationMillis)
+                      : formatClock(row.startedAt)}
+                  </small>
+                </button>
+              ))}
+            </section>
+          ))}
+          <span className={`trajectory-live${live ? " connected" : ""}`} role="status">
+            {live ? "实时轨迹已连接" : loading ? "正在连接实时轨迹" : "实时轨迹未连接"}
+          </span>
+        </div>
+
+        {selected && (
+          <aside className="trajectory-inspector" aria-label="事件详情">
+            <header className="inspector-title">
+              <div>
+                <span className={`trajectory-kind kind-${selected.lane}`}>
+                  {eventIcon(selected)}
+                </span>
+                <div>
+                  <strong>{eventName(selected, eventTypes)}</strong>
+                  <small>
+                    第 {runOrdinals.get(runID(selected)) || 1} 轮 ·{" "}
+                    {selected.stepNo ? `第 ${selected.stepNo} 步` : `事件 #${selected.id}`}
+                  </small>
                 </div>
               </div>
-              {error && (
-                <p className="trace-error trace-toolbar-error" role="alert">
-                  {error}
-                </p>
-              )}
-            </div>
-            <div className="event-list" ref={eventListRef} onScroll={updateTimelineViewport}>
-              {loading && <p className="trace-empty">正在读取持久化轨迹…</p>}
-              {groups.map(([day, dayEvents]) => (
-                <section className="event-group" key={day}>
-                  <h3>
-                    <time dateTime={day}>{formatDayLabel(day)}</time>
-                    <span>{dayEvents.length}</span>
-                  </h3>
-                  {dayEvents.map((event) => (
-                    <button
-                      key={event.id}
-                      ref={(element) => {
-                        if (element) eventRowRefs.current.set(event.id, element);
-                        else eventRowRefs.current.delete(event.id);
-                      }}
-                      data-event-id={event.id}
-                      type="button"
-                      className={`event-item status-${eventStatus(event)} ${selected?.id === event.id ? "active" : ""}`}
-                      aria-pressed={selected?.id === event.id}
-                      onClick={() => selectEvent(event)}
-                    >
-                      <span className={`event-kind status-${eventStatus(event)}`}>
-                        {eventIcon(event.type)}
-                      </span>
-                      <div>
-                        <strong>{eventName(event.type, eventTypes)}</strong>
-                        <small>{eventSummary(event)}</small>
-                      </div>
-                      <time dateTime={event.createdAt} title={formatDate(event.createdAt)}>
-                        {formatClock(event.createdAt)}
-                      </time>
-                    </button>
-                  ))}
-                </section>
-              ))}
-              {hasMore && (
+              <button type="button" aria-label="关闭事件详情" onClick={() => setSelectedRowId("")}>
+                <CloseOutlined />
+              </button>
+            </header>
+            <nav className="inspector-tabs" aria-label="事件详情分类">
+              {inspectorTabs(selected).map((item) => (
                 <button
+                  key={item.id}
                   type="button"
-                  className="load-more"
-                  disabled={loadingMore}
-                  onClick={() => void loadMore()}
+                  className={tab === item.id ? "active" : ""}
+                  onClick={() => setTab(item.id)}
                 >
-                  {loadingMore ? "正在加载…" : order === "desc" ? "加载更早事件" : "加载后续事件"}
+                  {item.label}
                 </button>
-              )}
-              {!loading && !groups.length && <p className="trace-empty">没有符合条件的事件</p>}
+              ))}
+            </nav>
+            <div className="inspector-content">
+              {renderTab(tab, selected, toolCall, selectedToolSchema)}
             </div>
           </aside>
-
-          <article className="inspector">
-            {selected ? (
-              <>
-                <header className="inspector-title">
-                  <div>
-                    <span className={`event-kind status-${eventStatus(selected)}`}>
-                      {eventIcon(selected.type)}
-                    </span>
-                    <div>
-                      <strong>{eventName(selected.type, eventTypes)}</strong>
-                      <small>
-                        事件 #{selected.id} · {selected.type}
-                      </small>
-                    </div>
-                  </div>
-                  <span className={`state status-${eventStatus(selected)}`}>
-                    {eventStatusLabel(selected)}
-                  </span>
-                </header>
-                <nav className="inspector-tabs">
-                  {tabs.map((item) => (
-                    <button
-                      key={item.id}
-                      className={tab === item.id ? "active" : ""}
-                      onClick={() => setTab(item.id)}
-                    >
-                      {item.label}
-                    </button>
-                  ))}
-                </nav>
-                <div className="inspector-content">{renderTab(tab, selected, toolCall)}</div>
-              </>
-            ) : (
-              <p className="trace-empty">选择一条事件查看完整审计数据</p>
-            )}
-          </article>
-        </div>
-      </section>
-    </div>
+        )}
+      </div>
+    </section>
   );
 }
 
-// 把同一次调用的审计记录合成一行，后续分页加载时重新配对。
-function groupCalls(raw: AgentEvent[], order: AgentTrajectoryOrder) {
-  const calls = new Map<string, AgentEvent>();
-  const rows: AgentEvent[] = [];
-  for (const event of [...raw].sort((a, b) => a.id - b.id)) {
-    if (["turn.started", "turn.completed", "step.started", "step.completed"].includes(event.type))
-      continue;
-    const { type, data } = event;
-    const run = event.runId ?? data.runId;
-    const step = event.stepNo ?? data.stepNo;
-    const call = event.callId || data.callId;
-    let key = "";
-    if (run && call && ["tool.started", "tool.completed", "tool.failed"].includes(type))
-      key = JSON.stringify([run, "tool", call]);
-    if (run && step && (type === "request.snapshot" || type.startsWith("model.attempt.")))
-      key = JSON.stringify([run, data.turnNo ?? 1, step, data.attemptNo ?? 1]);
-    if (!key) {
-      rows.push(event);
-      continue;
-    }
-    const row = calls.get(key);
-    if (row) {
-      row.data = { ...row.data, ...data };
-      row.type = type;
-      row.id = event.id;
-      row.createdAt = event.createdAt;
-    } else {
-      const first = { ...event, data: { ...data } };
-      calls.set(key, first);
-      rows.push(first);
-    }
-  }
-  return rows.sort((a, b) => (order === "asc" ? a.id - b.id : b.id - a.id));
+function inspectorTabs(row: TrajectoryRow): { id: InspectorTab; label: string }[] {
+  const tabs: { id: InspectorTab; label: string }[] = [{ id: "overview", label: "概览" }];
+  if (row.lane === "tool")
+    tabs.push(
+      { id: "input", label: "参数" },
+      { id: "output", label: "结果" },
+      { id: "schema", label: "Schema" },
+    );
+  else if (row.lane === "model")
+    tabs.push(
+      { id: "input", label: "输入" },
+      { id: "output", label: "输出" },
+      { id: "prompt", label: "提示词" },
+      { id: "token", label: "Token" },
+    );
+  else tabs.push({ id: "output", label: "内容" });
+  tabs.push({ id: "timing", label: "计时" }, { id: "raw", label: "原始数据" });
+  return tabs;
 }
 
-function renderTab(tab: InspectorTab, event: AgentEvent, toolCall: ToolCallDetail | null) {
-  const data = event.data;
+function renderTab(
+  tab: InspectorTab,
+  row: TrajectoryRow,
+  toolCall: ToolCallDetail | null,
+  toolSchema: unknown,
+) {
+  const data = row.data;
   if (tab === "overview")
     return (
-      <div className="overview-grid">
-        <Info label="事件类型" value={event.type} />
-        <Info label="Event ID" value={`#${event.id}`} />
-        <Info label="Run" value={event.runId ? `#${event.runId}` : "—"} />
-        <Info label="Step" value={event.stepNo ? `#${event.stepNo}` : "—"} />
-        <Info label="Call ID" value={event.callId || "—"} wide />
-        <Info label="记录时间" value={formatDate(event.createdAt)} wide />
-        <section className="summary-card">
-          <small>事件摘要</small>
-          <p>{eventSummary(event)}</p>
-        </section>
-      </div>
+      <dl className="trace-definition">
+        <Info
+          label="层级"
+          value={row.lane === "tool" ? "工具调用" : row.lane === "model" ? "模型消息" : "运行事件"}
+        />
+        <Info label="状态" value={statusLabel(row)} />
+        <Info label="Run" value={runID(row) ? `#${runID(row)}` : "—"} />
+        <Info label="Step" value={row.stepNo ? `#${row.stepNo}` : "—"} />
+        <Info label="Call ID" value={row.callId || "—"} />
+        <Info label="摘要" value={rowOutputPreview(row) || rowInputPreview(row) || "已记录"} />
+      </dl>
     );
   if (tab === "input")
     return (
@@ -535,7 +398,8 @@ function renderTab(tab: InspectorTab, event: AgentEvent, toolCall: ToolCallDetai
           data.content ??
           data.trace ??
           data.error ??
-          (event.type.endsWith(".failed") ? data.message : null)
+          data.message ??
+          null
         }
         empty="该事件没有输出数据"
       />
@@ -544,20 +408,8 @@ function renderTab(tab: InspectorTab, event: AgentEvent, toolCall: ToolCallDetai
     return (
       <Code value={data.content ?? extractSystemMessage(data.messages)} empty="该事件没有 Prompt" />
     );
-  if (tab === "schema") return <Code value={data.tools ?? null} empty="该事件没有 Tool Schema" />;
-  if (tab === "timing")
-    return (
-      <div className="overview-grid">
-        <Info label="服务端记录" value={formatDate(event.createdAt)} wide />
-        <Info
-          label="Tool 耗时"
-          value={
-            toolCall ? `${toolCall.durationMillis} ms` : `${Number(data.durationMillis || 0)} ms`
-          }
-        />
-        <Info label="状态" value={toolCall?.status || String(data.status || "recorded")} />
-      </div>
-    );
+  if (tab === "schema")
+    return <Code value={toolSchema ?? data.tools ?? null} empty="该事件没有 Tool Schema" />;
   if (tab === "token")
     return (
       <Code
@@ -565,26 +417,163 @@ function renderTab(tab: InspectorTab, event: AgentEvent, toolCall: ToolCallDetai
         empty="模型供应商未返回 Token 数据"
       />
     );
-  return <Code value={{ event, toolCall }} />;
+  if (tab === "timing")
+    return (
+      <dl className="trace-definition">
+        <Info label="开始时间" value={formatDate(row.startedAt)} />
+        <Info label="结束时间" value={formatDate(toolCall?.completedAt || row.completedAt)} />
+        <Info
+          label="总时长"
+          value={row.durationMillis !== undefined ? formatDuration(row.durationMillis) : "未提供"}
+        />
+      </dl>
+    );
+  return <Code value={{ event: row, toolCall }} />;
 }
 
-function Info({ label, value, wide = false }: { label: string; value: string; wide?: boolean }) {
+function Info({ label, value }: { label: string; value: string }) {
   return (
-    <div className={`info-card ${wide ? "wide" : ""}`}>
-      <small>{label}</small>
-      <strong>{value}</strong>
-    </div>
+    <>
+      <dt>{label}</dt>
+      <dd>{value}</dd>
+    </>
   );
 }
 
 function Code({ value, empty = "暂无数据" }: { value: unknown; empty?: string }) {
   if (value === null || value === undefined || value === "")
-    return <p className="trace-empty">{empty}</p>;
+    return <p className="trajectory-empty">{empty}</p>;
   return (
     <pre className="json-view">
       <code>{typeof value === "string" ? value : JSON.stringify(value, null, 2)}</code>
     </pre>
   );
+}
+
+function TrajectorySkeleton() {
+  return (
+    <div className="trajectory-skeleton" aria-label="正在读取轨迹">
+      {Array.from({ length: 8 }, (_, index) => (
+        <span key={index} />
+      ))}
+    </div>
+  );
+}
+
+function groupByRun(rows: TrajectoryRow[]) {
+  const groups = new Map<number, TrajectoryRow[]>();
+  for (const row of rows) {
+    const id = runID(row);
+    groups.set(id, [...(groups.get(id) || []), row]);
+  }
+  return [...groups.entries()];
+}
+
+function mergeEvents(current: AgentEvent[], incoming: AgentEvent[]) {
+  const events = new Map(current.map((event) => [event.id, event]));
+  for (const event of incoming) events.set(event.id, event);
+  return [...events.values()];
+}
+
+function trajectorySummary(rows: TrajectoryRow[]) {
+  const timestamps = rows
+    .flatMap((row) => [Date.parse(row.startedAt || ""), Date.parse(row.completedAt || "")])
+    .filter(Number.isFinite);
+  return {
+    duration: timestamps.length ? Math.max(...timestamps) - Math.min(...timestamps) : 0,
+    modelCalls: rows.filter((row) => row.rowId.startsWith("model:")).length,
+    toolCalls: rows.filter((row) => row.rowId.startsWith("tool:")).length,
+  };
+}
+
+function timelinePosition(index: number, total: number) {
+  return total <= 1 ? 1.5 : 1.5 + (index / (total - 1)) * 97;
+}
+
+function runID(row: TrajectoryRow) {
+  return row.runId || Number(row.data.runId || 0);
+}
+
+function findToolSchema(rows: TrajectoryRow[], selected: TrajectoryRow | null) {
+  if (!selected || selected.lane !== "tool") return null;
+  const code = firstText(selected.data.toolCode, selected.data.tool, selected.data.toolName);
+  if (!code) return null;
+  for (const row of rows) {
+    if (!Array.isArray(row.data.tools)) continue;
+    const schema = row.data.tools.find((tool) => {
+      if (!tool || typeof tool !== "object") return false;
+      const definition = tool as { name?: unknown; code?: unknown };
+      return definition.name === code || definition.code === code;
+    });
+    if (schema) return schema;
+  }
+  return null;
+}
+
+function eventName(
+  row: TrajectoryRow,
+  eventTypes: ReturnType<typeof useDictionaryOptions>["options"],
+) {
+  if (row.rowId.startsWith("tool:"))
+    return firstText(row.data.toolName, row.data.tool, row.data.toolCode) || "工具调用";
+  if (row.rowId.startsWith("model:")) return firstText(row.data.model) || "模型请求";
+  const localized = dictionaryName(eventTypes, row.type);
+  return localized && localized !== row.type ? localized : eventNames[row.type] || row.type;
+}
+
+function eventIcon(row: TrajectoryRow) {
+  if (row.status === "failed") return <CloseCircleOutlined />;
+  if (row.type.startsWith("approval.")) return <ExclamationCircleOutlined />;
+  if (row.type.startsWith("task.")) return <UnorderedListOutlined />;
+  if (row.lane === "tool") return <ToolOutlined />;
+  if (row.lane === "model") return <RobotOutlined />;
+  if (row.type.startsWith("run.")) return <UserOutlined />;
+  return <FileTextOutlined />;
+}
+
+function rowInputPreview(row: TrajectoryRow) {
+  const data = row.data;
+  if (row.rowId.startsWith("tool:")) return compactValue(data.arguments);
+  if (row.rowId.startsWith("model:")) return compactValue(lastMessage(data.messages));
+  if (row.type === "system.prompt") return compactValue(data.content);
+  if (row.type === "assistant.message" || row.type.startsWith("run.")) return "";
+  return firstText(data.skill, data.message, data.reason, data.content);
+}
+
+function rowOutputPreview(row: TrajectoryRow) {
+  const data = row.data;
+  const error =
+    data.error && typeof data.error === "object"
+      ? (data.error as { message?: unknown }).message
+      : data.error;
+  if (row.status === "failed") return firstText(error, data.message, data.reason) || "未完成";
+  if (row.rowId.startsWith("tool:")) return compactValue(data.trace ?? data.result);
+  if (row.rowId.startsWith("model:")) return compactValue(responseContent(data.response));
+  if (row.type === "assistant.message") return compactValue(data.content);
+  if (row.type === "run.completed")
+    return `${Number(data.modelCalls || 0)} 次模型，${Number(data.toolCalls || 0)} 次工具`;
+  if (row.type === "approval.required") return "等待确认";
+  return firstText(data.outcome, data.stage, data.status);
+}
+
+function responseContent(value: unknown) {
+  if (!value || typeof value !== "object") return value;
+  const response = value as { content?: unknown; toolCalls?: unknown };
+  return response.content || response.toolCalls || value;
+}
+
+function lastMessage(value: unknown) {
+  if (!Array.isArray(value) || !value.length) return value;
+  const message = value[value.length - 1];
+  return message && typeof message === "object" && "content" in message
+    ? (message as { content?: unknown }).content
+    : message;
+}
+
+function compactValue(value: unknown) {
+  if (value === null || value === undefined || value === "") return "";
+  const text = typeof value === "string" ? value : JSON.stringify(value);
+  return text.replace(/\s+/g, " ").trim().slice(0, 160);
 }
 
 function extractSystemMessage(messages: unknown) {
@@ -597,64 +586,14 @@ function extractSystemMessage(messages: unknown) {
   );
 }
 
-function eventCategory(type: string) {
-  if (type.includes("failed") || type.includes("cancelled")) return "error";
-  if (
-    type.startsWith("model.") ||
-    type === "request.snapshot" ||
-    type === "system.prompt" ||
-    type === "assistant.message"
-  )
-    return "model";
-  if (type.startsWith("tool.")) return "tool";
-  if (type.startsWith("approval.")) return "approval";
-  if (type.startsWith("task.")) return "task";
-  return "system";
-}
-
-function eventIcon(type: string) {
-  const icons = {
-    model: <RobotOutlined />,
-    tool: <ToolOutlined />,
-    approval: <ExclamationCircleOutlined />,
-    task: <UnorderedListOutlined />,
-    error: <CloseCircleOutlined />,
-    system: <FileTextOutlined />,
-  };
-  return icons[eventCategory(type) as keyof typeof icons];
-}
-
-function eventName(type: string, eventTypes: ReturnType<typeof useDictionaryOptions>["options"]) {
-  if (["tool.started", "tool.completed", "tool.failed"].includes(type)) return "Tool 调用";
-  if (type === "request.snapshot" || type.startsWith("model.attempt.")) return "模型请求";
-  const localizedName = dictionaryName(eventTypes, type);
-  return localizedName && localizedName !== type ? localizedName : eventNames[type] || type;
-}
-
-function eventSummary(event: AgentEvent) {
-  const data = event.data;
-  if (event.type === "system.prompt") return "系统提示词已记录";
-  const error = data.error;
-  const errorMessage =
-    error && typeof error === "object" && "message" in error
-      ? (error as { message?: unknown }).message
-      : error;
-  const tool = firstText(data.toolName, data.tool, data.name);
-  if (event.type.includes("failed") || event.type.includes("cancelled")) {
-    return firstText(errorMessage, data.message, data.reason) || "操作未能完成";
-  }
-  if (event.type === "approval.required") return `等待确认：${tool || "待审批操作"}`;
-  if (event.type === "approval.rejected") return `已拒绝：${tool || "操作未执行"}`;
-  if (event.type.startsWith("tool.")) {
-    return firstText(tool, data.message, data.summary) || "工具调用状态已记录";
-  }
-  if (event.type.startsWith("model.")) {
-    return firstText(data.model, data.message, data.reason) || "模型请求状态已记录";
-  }
-  if (event.type.startsWith("task.")) {
-    return firstText(data.stage, data.message, data.outcome) || "资源任务状态已更新";
-  }
-  return firstText(data.message, data.outcome, data.reason, data.content) || "事件已记录";
+function statusLabel(row: TrajectoryRow) {
+  return {
+    recorded: "已记录",
+    running: "进行中",
+    pending: "待审批",
+    success: "已完成",
+    failed: "失败/取消",
+  }[row.status];
 }
 
 function firstText(...values: unknown[]) {
@@ -665,24 +604,6 @@ function firstText(...values: unknown[]) {
   );
 }
 
-function eventStatus(event: AgentEvent) {
-  if (event.type.includes("failed") || event.type.includes("cancelled")) return "failed";
-  if (event.type === "approval.required") return "pending";
-  if (event.type.endsWith(".completed")) return "success";
-  if (event.type.endsWith(".started")) return "running";
-  return "recorded";
-}
-
-function eventStatusLabel(event: AgentEvent) {
-  return {
-    recorded: "已记录",
-    running: "进行中",
-    pending: "待审批",
-    success: "成功",
-    failed: "失败/取消",
-  }[eventStatus(event)];
-}
-
 function formatClock(value?: string) {
   return value
     ? new Intl.DateTimeFormat("zh-CN", {
@@ -690,7 +611,6 @@ function formatClock(value?: string) {
         hour: "2-digit",
         minute: "2-digit",
         second: "2-digit",
-        fractionalSecondDigits: 3,
         hourCycle: "h23",
       }).format(new Date(value))
     : "—";
@@ -712,65 +632,10 @@ function formatDate(value?: string) {
     : "—";
 }
 
-function formatAxisTime(timestamp: number) {
-  return timestamp
-    ? new Intl.DateTimeFormat("zh-CN", {
-        timeZone: timezone,
-        month: "2-digit",
-        day: "2-digit",
-        hour: "2-digit",
-        minute: "2-digit",
-        second: "2-digit",
-        hourCycle: "h23",
-      }).format(new Date(timestamp))
-    : "—";
-}
-
-function dateKey(value?: string) {
-  const timestamp = Date.parse(value || "");
-  if (!Number.isFinite(timestamp)) return "unknown";
-  const date = new Date(timestamp + shanghaiOffset);
-  return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}-${String(date.getUTCDate()).padStart(2, "0")}`;
-}
-
-function formatDayLabel(value: string) {
-  if (value === "unknown") return "日期未知";
-  return new Intl.DateTimeFormat("zh-CN", {
-    timeZone: "UTC",
-    year: "numeric",
-    month: "long",
-    day: "numeric",
-  }).format(new Date(`${value}T00:00:00Z`));
-}
-
-function makeTimelineTicks(start: number, end: number) {
-  if (!start || end <= start) return [];
-  const firstDay = Math.floor((start + shanghaiOffset) / 86_400_000);
-  const lastDay = Math.floor((end + shanghaiOffset) / 86_400_000);
-  const step = lastDay - firstDay > 14 ? 7 : 1;
-  const ticks: { timestamp: number; label: string }[] = [];
-  for (let day = firstDay + 1; day <= lastDay; day += step) {
-    const timestamp = day * 86_400_000 - shanghaiOffset;
-    ticks.push({
-      timestamp,
-      label: new Intl.DateTimeFormat("zh-CN", {
-        timeZone: timezone,
-        month: "numeric",
-        day: "numeric",
-      }).format(new Date(timestamp)),
-    });
-  }
-  return ticks;
-}
-
 function formatDuration(milliseconds: number) {
-  const totalSeconds = Math.floor(milliseconds / 1000);
-  if (totalSeconds < 60) return `${totalSeconds} 秒`;
-  const seconds = totalSeconds % 60;
-  const totalMinutes = Math.floor(totalSeconds / 60);
-  if (totalMinutes < 60) return `${totalMinutes} 分 ${seconds} 秒`;
-  const minutes = totalMinutes % 60;
-  const totalHours = Math.floor(totalMinutes / 60);
-  if (totalHours < 24) return `${totalHours} 小时 ${minutes} 分`;
-  return `${Math.floor(totalHours / 24)} 天 ${totalHours % 24} 小时`;
+  if (milliseconds < 1000) return `${Math.round(milliseconds)} ms`;
+  if (milliseconds < 60_000)
+    return `${(milliseconds / 1000).toFixed(milliseconds < 10_000 ? 2 : 1)} 秒`;
+  const minutes = Math.floor(milliseconds / 60_000);
+  return `${minutes} 分 ${Math.round((milliseconds % 60_000) / 1000)} 秒`;
 }

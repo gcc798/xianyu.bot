@@ -73,6 +73,7 @@ export type AgentEvent = {
   createdAt?: string;
   callId?: string;
   runId?: number;
+  turnNo?: number;
   stepNo?: number;
 };
 

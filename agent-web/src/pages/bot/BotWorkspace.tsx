@@ -46,6 +46,7 @@ const skills = [
 ];
 const terminalEvents = new Set(["run.completed", "run.failed", "run.cancelled"]);
 type ApprovalFeedback = { status: "completed" | "rejected" | "failed"; message: string };
+type BotView = "conversation" | "trajectory";
 
 export default function BotWorkspace() {
   const [sessions, setSessions] = useState<Session[]>([]);
@@ -66,7 +67,7 @@ export default function BotWorkspace() {
   const [slashOpen, setSlashOpen] = useState(false);
   const [slashIndex, setSlashIndex] = useState(0);
   const [operationsOpen, setOperationsOpen] = useState(false);
-  const [trajectoryOpen, setTrajectoryOpen] = useState(false);
+  const [activeView, setActiveView] = useState<BotView>("conversation");
   const [historyCollapsed, setHistoryCollapsed] = useState(false);
   const loadSeq = useRef(0);
   const streamRef = useRef<AbortController | null>(null);
@@ -270,6 +271,7 @@ export default function BotWorkspace() {
           setSessionId(0);
           setMessages([]);
           setOperations([]);
+          setActiveView("conversation");
         }
       }
     } catch (cause) {
@@ -446,170 +448,186 @@ export default function BotWorkspace() {
 
       <section className="chat-stage">
         <header className="chat-header">
-          <div className="chat-title">
-            {historyCollapsed && (
-              <button
-                className="history-toggle"
-                title="展开历史对话"
-                aria-label="展开历史对话"
-                onClick={() => setHistoryCollapsed(false)}
-              >
-                <MenuUnfoldOutlined />
-              </button>
-            )}
-            <div>
-              <strong title={activeSession?.title}>{activeSession?.title || "新对话"}</strong>
-              {running && <small>正在执行</small>}
+          <div className="chat-header-main">
+            <div className="chat-title">
+              {historyCollapsed && (
+                <button
+                  className="history-toggle"
+                  title="展开历史对话"
+                  aria-label="展开历史对话"
+                  onClick={() => setHistoryCollapsed(false)}
+                >
+                  <MenuUnfoldOutlined />
+                </button>
+              )}
+              <div>
+                <strong title={activeSession?.title}>{activeSession?.title || "新对话"}</strong>
+                {running && <small>正在执行</small>}
+              </div>
             </div>
           </div>
-          <div className="header-actions">
+          <nav className="chat-view-tabs" aria-label="会话视图">
             <button
-              className="trace-button"
-              disabled={!sessionId}
-              onClick={() => setTrajectoryOpen(true)}
+              type="button"
+              className={activeView === "conversation" ? "active" : ""}
+              aria-pressed={activeView === "conversation"}
+              onClick={() => setActiveView("conversation")}
             >
-              轨迹 <span>⌘</span>
+              对话
             </button>
-          </div>
+            <button
+              type="button"
+              className={activeView === "trajectory" ? "active" : ""}
+              aria-pressed={activeView === "trajectory"}
+              disabled={!sessionId}
+              onClick={() => setActiveView("trajectory")}
+            >
+              轨迹
+            </button>
+          </nav>
         </header>
-        <div className="message-scroll" ref={viewportRef} aria-live="polite">
-          {!messages.length && (
-            <section className="welcome">
-              <h1>今天想完成什么？</h1>
-              <div className="prompt-grid">
-                {[
-                  "帮我检索斗破苍穹相关资源，并展示完整检索过程",
-                  "列出当前可访问的来源，优先找名称包含“搜”的群组",
-                  "检查当前 MCP 能力，只说明不可用项",
-                ].map((text) => (
-                  <button key={text} onClick={() => setDraft(text)}>
-                    {text}
-                    <span>↗</span>
-                  </button>
-                ))}
-              </div>
-            </section>
-          )}
-          <div className="message-column">
-            {messages.map((message) => (
-              <article key={message.ID || message.localId} className={`message ${message.role}`}>
-                <div>
-                  {message.role === "assistant" && message.content ? (
-                    <div className="markdown-content">
-                      <Markdown
-                        remarkPlugins={[remarkGfm]}
-                        skipHtml
-                        components={{
-                          a: ({ href, children }) => (
-                            <a href={href} target="_blank" rel="noreferrer">
-                              {children}
-                            </a>
-                          ),
-                          table: ({ children }) => (
-                            <div className="markdown-table">
-                              <table>{children}</table>
-                            </div>
-                          ),
-                        }}
-                      >
-                        {message.content}
-                      </Markdown>
-                    </div>
-                  ) : (
-                    message.content || (message.streaming ? " " : "")
-                  )}
-                  {message.streaming && <span className="typing-cursor" />}
+        {activeView === "conversation" ? (
+          <div className="message-scroll" ref={viewportRef} aria-live="polite">
+            {!messages.length && (
+              <section className="welcome">
+                <h1>今天想完成什么？</h1>
+                <div className="prompt-grid">
+                  {[
+                    "帮我检索斗破苍穹相关资源，并展示完整检索过程",
+                    "列出当前可访问的来源，优先找名称包含“搜”的群组",
+                    "检查当前 MCP 能力，只说明不可用项",
+                  ].map((text) => (
+                    <button key={text} onClick={() => setDraft(text)}>
+                      {text}
+                      <span>↗</span>
+                    </button>
+                  ))}
                 </div>
-              </article>
-            ))}
-            {!!groupedOperations.length && (
-              <section className="operation-group">
-                <button
-                  className="operation-summary"
-                  onClick={() => setOperationsOpen((value) => !value)}
-                >
-                  <span className="operation-icon">⌘</span>
-                  <span>执行了 {groupedOperations.length} 个操作</span>
-                  <small>
-                    {groupedOperations.some((item) => item.status === "failed")
-                      ? "包含失败"
-                      : running
-                        ? "执行中"
-                        : "已完成"}
-                  </small>
-                  <b>{operationsOpen ? "⌃" : "⌄"}</b>
-                </button>
-                {operationsOpen && (
-                  <div className="operation-list">
-                    {groupedOperations.map((operation) => (
-                      <div className="operation-row" key={operation.callId}>
-                        <span className={`op-state ${operation.status}`} />
-                        <div>
-                          <strong>
-                            {operation.toolSource === "mcp" ? "MCP" : "Tool"} · {operation.tool}
-                          </strong>
-                          {operation.toolSource === "mcp" && operation.server && (
-                            <small>{operation.server}</small>
-                          )}
-                        </div>
-                        <em>
-                          {operation.durationMillis
-                            ? `${operation.durationMillis} ms`
-                            : operation.status}
-                        </em>
+              </section>
+            )}
+            <div className="message-column">
+              {messages.map((message) => (
+                <article key={message.ID || message.localId} className={`message ${message.role}`}>
+                  <div>
+                    {message.role === "assistant" && message.content ? (
+                      <div className="markdown-content">
+                        <Markdown
+                          remarkPlugins={[remarkGfm]}
+                          skipHtml
+                          components={{
+                            a: ({ href, children }) => (
+                              <a href={href} target="_blank" rel="noreferrer">
+                                {children}
+                              </a>
+                            ),
+                            table: ({ children }) => (
+                              <div className="markdown-table">
+                                <table>{children}</table>
+                              </div>
+                            ),
+                          }}
+                        >
+                          {message.content}
+                        </Markdown>
                       </div>
-                    ))}
+                    ) : (
+                      message.content || (message.streaming ? " " : "")
+                    )}
+                    {message.streaming && <span className="typing-cursor" />}
                   </div>
-                )}
-              </section>
-            )}
-            {approvalFeedback && (
-              <section
-                className={`approval-feedback ${approvalFeedback.status}`}
-                role={approvalFeedback.status === "failed" ? "alert" : "status"}
-                aria-live="polite"
-              >
-                <strong>
-                  {approvalFeedback.status === "completed"
-                    ? "操作已执行"
-                    : approvalFeedback.status === "rejected"
-                      ? "操作已拒绝"
-                      : "审批处理失败"}
-                </strong>
-                <p>{approvalFeedback.message}</p>
-              </section>
-            )}
-            {approvals.slice(0, 1).map((approval) => (
-              <section
-                className="approval"
-                key={`${approval.runId}-${approval.toolName}-${approval.createdAt}`}
-              >
-                <div>
-                  <strong>{approval.toolName} 需要确认</strong>
-                  <p>
-                    该操作尚未执行，确认后会继续。
-                    {approvals.length > 1 && ` 另有 ${approvals.length - 1} 项待审批。`}
-                  </p>
-                </div>
-                <div className="approval-actions">
+                </article>
+              ))}
+              {!!groupedOperations.length && (
+                <section className="operation-group">
                   <button
-                    className="approval-reject"
-                    disabled={approvalBusyRunId === approval.runId}
-                    onClick={() => void reject(approval)}
+                    className="operation-summary"
+                    onClick={() => setOperationsOpen((value) => !value)}
                   >
-                    拒绝
+                    <span className="operation-icon">⌘</span>
+                    <span>执行了 {groupedOperations.length} 个操作</span>
+                    <small>
+                      {groupedOperations.some((item) => item.status === "failed")
+                        ? "包含失败"
+                        : running
+                          ? "执行中"
+                          : "已完成"}
+                    </small>
+                    <b>{operationsOpen ? "⌃" : "⌄"}</b>
                   </button>
-                  <button
-                    disabled={approvalBusyRunId === approval.runId}
-                    onClick={() => void approve(approval)}
-                  >
-                    {approvalBusyRunId === approval.runId ? "处理中…" : "确认执行"}
-                  </button>
-                </div>
-              </section>
-            ))}
+                  {operationsOpen && (
+                    <div className="operation-list">
+                      {groupedOperations.map((operation) => (
+                        <div className="operation-row" key={operation.callId}>
+                          <span className={`op-state ${operation.status}`} />
+                          <div>
+                            <strong>
+                              {operation.toolSource === "mcp" ? "MCP" : "Tool"} · {operation.tool}
+                            </strong>
+                            {operation.toolSource === "mcp" && operation.server && (
+                              <small>{operation.server}</small>
+                            )}
+                          </div>
+                          <em>
+                            {operation.durationMillis
+                              ? `${operation.durationMillis} ms`
+                              : operation.status}
+                          </em>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </section>
+              )}
+              {approvalFeedback && (
+                <section
+                  className={`approval-feedback ${approvalFeedback.status}`}
+                  role={approvalFeedback.status === "failed" ? "alert" : "status"}
+                  aria-live="polite"
+                >
+                  <strong>
+                    {approvalFeedback.status === "completed"
+                      ? "操作已执行"
+                      : approvalFeedback.status === "rejected"
+                        ? "操作已拒绝"
+                        : "审批处理失败"}
+                  </strong>
+                  <p>{approvalFeedback.message}</p>
+                </section>
+              )}
+              {approvals.slice(0, 1).map((approval) => (
+                <section
+                  className="approval"
+                  key={`${approval.runId}-${approval.toolName}-${approval.createdAt}`}
+                >
+                  <div>
+                    <strong>{approval.toolName} 需要确认</strong>
+                    <p>
+                      该操作尚未执行，确认后会继续。
+                      {approvals.length > 1 && ` 另有 ${approvals.length - 1} 项待审批。`}
+                    </p>
+                  </div>
+                  <div className="approval-actions">
+                    <button
+                      className="approval-reject"
+                      disabled={approvalBusyRunId === approval.runId}
+                      onClick={() => void reject(approval)}
+                    >
+                      拒绝
+                    </button>
+                    <button
+                      disabled={approvalBusyRunId === approval.runId}
+                      onClick={() => void approve(approval)}
+                    >
+                      {approvalBusyRunId === approval.runId ? "处理中…" : "确认执行"}
+                    </button>
+                  </div>
+                </section>
+              ))}
+            </div>
           </div>
-        </div>
+        ) : (
+          <TrajectoryPanel sessionId={sessionId} />
+        )}
 
         <footer className="composer-wrap">
           {error && (
@@ -729,9 +747,6 @@ export default function BotWorkspace() {
           </p>
         </footer>
       </section>
-      {trajectoryOpen && sessionId > 0 && (
-        <TrajectoryPanel sessionId={sessionId} onClose={() => setTrajectoryOpen(false)} />
-      )}
     </main>
   );
 }
