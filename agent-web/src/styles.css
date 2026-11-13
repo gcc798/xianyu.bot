@@ -94,16 +94,13 @@ button {
   min-height: 0;
   display: grid;
   align-content: start;
-  gap: 3px;
+  gap: 2px;
   overflow-y: auto;
 }
 .session-row {
+  position: relative;
   width: 100%;
-  min-height: 55px;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
-  padding-right: 9px;
+  min-height: 48px;
   border: 0;
   border-radius: 10px;
   background: transparent;
@@ -113,12 +110,13 @@ button {
   background: #eceff5;
 }
 .session-open {
+  width: 100%;
   min-width: 0;
-  min-height: 55px;
+  min-height: 48px;
   display: grid;
   align-content: center;
-  gap: 5px;
-  padding: 9px 3px 9px 12px;
+  gap: 3px;
+  padding: 6px 10px;
   border: 0;
   text-align: left;
   background: transparent;
@@ -126,19 +124,26 @@ button {
 }
 .session-open strong {
   overflow: hidden;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 520;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 .session-open small {
   color: #a1a6af;
-  font-size: 10px;
+  font-size: 9px;
+  line-height: 1.2;
 }
 .session-actions {
+  position: absolute;
+  top: 50%;
+  right: 5px;
   display: flex;
   align-items: center;
+  border-radius: 6px;
+  background: #eceff5;
   opacity: 0;
+  transform: translateY(-50%);
 }
 .session-actions button {
   width: 24px;
@@ -165,22 +170,21 @@ button {
   color: #d24c4c !important;
 }
 .session-edit {
-  grid-column: 1 / -1;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 30px;
-  gap: 5px;
-  padding: 10px;
+  grid-template-columns: minmax(0, 1fr) 26px;
+  gap: 4px;
+  padding: 6px;
 }
 .session-edit input {
   min-width: 0;
-  height: 34px;
-  padding: 0 9px;
+  height: 32px;
+  padding: 0 7px;
   border: 1px solid #aebaf5;
   border-radius: 7px;
   outline: 0;
   color: #2b3039;
   background: #fff;
-  font-size: 13px;
+  font-size: 12px;
 }
 .session-edit input:focus {
   border-color: var(--blue);
