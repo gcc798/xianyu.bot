@@ -11,12 +11,12 @@ import (
 
 // DictionaryAPI 处理字典 HTTP 请求。
 type DictionaryAPI struct {
-	service *service.Service // service 提供业务能力。
+	svc *service.Service // svc 提供业务能力。
 }
 
 // NewDictionaryAPI 创建 DictionaryAPI。
-func NewDictionaryAPI(services *service.Service) *DictionaryAPI {
-	return &DictionaryAPI{service: services}
+func NewDictionaryAPI(svc *service.Service) *DictionaryAPI {
+	return &DictionaryAPI{svc: svc}
 }
 
 // Create 处理创建请求。
@@ -26,7 +26,7 @@ func (s *DictionaryAPI) Create(c *gin.Context) {
 		response.FailWithMessage(err.Error(), c)
 		return
 	}
-	if err := s.service.Dictionary.Create(dictionary); err != nil {
+	if err := s.svc.Dictionary.Create(dictionary); err != nil {
 		zap.L().Error("创建字典失败", zap.Error(err))
 		response.FailWithMessage("创建失败", c)
 		return
@@ -41,7 +41,7 @@ func (s *DictionaryAPI) Delete(c *gin.Context) {
 		response.FailWithMessage(err.Error(), c)
 		return
 	}
-	if err := s.service.Dictionary.Delete(dictionary); err != nil {
+	if err := s.svc.Dictionary.Delete(dictionary); err != nil {
 		zap.L().Error("删除字典失败", zap.Error(err))
 		response.FailWithMessage("删除失败", c)
 		return
@@ -56,7 +56,7 @@ func (s *DictionaryAPI) Update(c *gin.Context) {
 		response.FailWithMessage(err.Error(), c)
 		return
 	}
-	if err := s.service.Dictionary.Update(&dictionary); err != nil {
+	if err := s.svc.Dictionary.Update(&dictionary); err != nil {
 		zap.L().Error("更新字典失败", zap.Error(err))
 		response.FailWithMessage("更新失败", c)
 		return
@@ -71,7 +71,7 @@ func (s *DictionaryAPI) List(c *gin.Context) {
 		response.FailWithMessage(err.Error(), c)
 		return
 	}
-	list, err := s.service.Dictionary.List(c.Request.Context(), search)
+	list, err := s.svc.Dictionary.List(c.Request.Context(), search)
 	if err != nil {
 		zap.L().Error("获取字典失败", zap.Error(err))
 		response.FailWithMessage("获取失败", c)
@@ -82,7 +82,7 @@ func (s *DictionaryAPI) List(c *gin.Context) {
 
 // Options 返回供业务页面使用的字典编码和名称。
 func (s *DictionaryAPI) Options(c *gin.Context) {
-	options, err := s.service.Dictionary.Options(c.Request.Context())
+	options, err := s.svc.Dictionary.Options(c.Request.Context())
 	if err != nil {
 		zap.L().Error("获取字典选项失败", zap.Error(err))
 		response.FailWithMessage("获取失败", c)

@@ -7,19 +7,19 @@ import (
 
 // ReplyRuleRouter 注册回复规则 HTTP 路由。
 type ReplyRuleRouter struct {
-	handlers *api.API // handlers 提供 HTTP 处理器。
+	api *api.API // api 提供 HTTP 处理器。
 }
 
 // NewReplyRuleRouter 创建 ReplyRuleRouter。
-func NewReplyRuleRouter(handlers *api.API) *ReplyRuleRouter {
-	return &ReplyRuleRouter{handlers: handlers}
+func NewReplyRuleRouter(api *api.API) *ReplyRuleRouter {
+	return &ReplyRuleRouter{api: api}
 }
 
 // Init 注册当前模块路由。
 func (r *ReplyRuleRouter) Init(private *gin.RouterGroup) {
 	read := private.Group("xy/reply-rule")
 	write := private.Group("xy/reply-rule")
-	read.GET("list", r.handlers.ReplyRule.List)
-	write.POST("save", r.handlers.ReplyRule.Save)
-	write.DELETE("delete", r.handlers.ReplyRule.Delete)
+	read.GET("list", r.api.ReplyRule.List)
+	write.POST("save", r.api.ReplyRule.Save)
+	write.DELETE("delete", r.api.ReplyRule.Delete)
 }

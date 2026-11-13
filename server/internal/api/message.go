@@ -10,11 +10,11 @@ import (
 
 // MessageAPI 处理消息 HTTP 请求。
 type MessageAPI struct {
-	service *service.Service // service 提供业务能力。
+	svc *service.Service // svc 提供业务能力。
 }
 
 // NewMessageAPI 创建 MessageAPI。
-func NewMessageAPI(services *service.Service) *MessageAPI { return &MessageAPI{service: services} }
+func NewMessageAPI(svc *service.Service) *MessageAPI { return &MessageAPI{svc: svc} }
 
 // List 分页获取当前用户的闲鱼消息
 // @Tags XyMessage
@@ -30,7 +30,7 @@ func (a *MessageAPI) List(c *gin.Context) {
 		response.FailWithMessage(err.Error(), c)
 		return
 	}
-	list, total, err := a.service.Message.List(c.Request.Context(), security.GetUserID(c), input)
+	list, total, err := a.svc.Message.List(c.Request.Context(), security.GetUserID(c), input)
 	if err != nil {
 		failAccount("获取闲鱼消息失败", err, c)
 		return
@@ -53,7 +53,7 @@ func (a *MessageAPI) Reply(c *gin.Context) {
 		response.FailWithMessage(err.Error(), c)
 		return
 	}
-	if err := a.service.Message.Reply(c.Request.Context(), security.GetUserID(c), input); err != nil {
+	if err := a.svc.Message.Reply(c.Request.Context(), security.GetUserID(c), input); err != nil {
 		failAccount("发送闲鱼消息失败", err, c)
 		return
 	}
@@ -75,7 +75,7 @@ func (a *MessageAPI) UpdateTakeover(c *gin.Context) {
 		response.FailWithMessage(err.Error(), c)
 		return
 	}
-	if err := a.service.Message.UpdateTakeover(c.Request.Context(), security.GetUserID(c), input); err != nil {
+	if err := a.svc.Message.UpdateTakeover(c.Request.Context(), security.GetUserID(c), input); err != nil {
 		failAccount("更新人工接管状态失败", err, c)
 		return
 	}

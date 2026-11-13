@@ -10,12 +10,12 @@ import (
 
 // QRLoginAPI 处理扫码登录 HTTP 请求。
 type QRLoginAPI struct {
-	service *service.Service // service 提供业务能力。
+	svc *service.Service // svc 提供业务能力。
 }
 
 // NewQRLoginAPI 创建 QRLoginAPI。
-func NewQRLoginAPI(services *service.Service) *QRLoginAPI {
-	return &QRLoginAPI{service: services}
+func NewQRLoginAPI(svc *service.Service) *QRLoginAPI {
+	return &QRLoginAPI{svc: svc}
 }
 
 // Start 创建账号二维码登录会话
@@ -33,7 +33,7 @@ func (a *QRLoginAPI) Start(c *gin.Context) {
 		response.FailWithMessage(err.Error(), c)
 		return
 	}
-	login, err := a.service.QRLogin.Start(c.Request.Context(), security.GetUserID(c), input.ID)
+	login, err := a.svc.QRLogin.Start(c.Request.Context(), security.GetUserID(c), input.ID)
 	if err != nil {
 		failAccount("创建闲鱼二维码失败", err, c)
 		return
@@ -55,7 +55,7 @@ func (a *QRLoginAPI) Status(c *gin.Context) {
 		response.FailWithMessage(err.Error(), c)
 		return
 	}
-	login, err := a.service.QRLogin.Status(security.GetUserID(c), input.SessionID)
+	login, err := a.svc.QRLogin.Status(security.GetUserID(c), input.SessionID)
 	if err != nil {
 		failAccount("获取二维码登录状态失败", err, c)
 		return
@@ -77,7 +77,7 @@ func (a *QRLoginAPI) Cancel(c *gin.Context) {
 		response.FailWithMessage(err.Error(), c)
 		return
 	}
-	if err := a.service.QRLogin.Cancel(security.GetUserID(c), input.SessionID); err != nil {
+	if err := a.svc.QRLogin.Cancel(security.GetUserID(c), input.SessionID); err != nil {
 		failAccount("取消二维码登录失败", err, c)
 		return
 	}

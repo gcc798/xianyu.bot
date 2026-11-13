@@ -10,12 +10,12 @@ import (
 
 // ProductAPI 处理商品 HTTP 请求。
 type ProductAPI struct {
-	service *service.Service // service 提供业务能力。
+	svc *service.Service // svc 提供业务能力。
 }
 
 // NewProductAPI 创建 ProductAPI。
-func NewProductAPI(services *service.Service) *ProductAPI {
-	return &ProductAPI{service: services}
+func NewProductAPI(svc *service.Service) *ProductAPI {
+	return &ProductAPI{svc: svc}
 }
 
 // List 分页获取当前用户的商品
@@ -32,7 +32,7 @@ func (a *ProductAPI) List(c *gin.Context) {
 		response.FailWithMessage(err.Error(), c)
 		return
 	}
-	list, total, err := a.service.Product.List(c.Request.Context(), security.GetUserID(c), input)
+	list, total, err := a.svc.Product.List(c.Request.Context(), security.GetUserID(c), input)
 	if err != nil {
 		failAccount("获取闲鱼商品失败", err, c)
 		return
@@ -54,7 +54,7 @@ func (a *ProductAPI) Detail(c *gin.Context) {
 		response.FailWithMessage("商品 ID 无效", c)
 		return
 	}
-	item, err := a.service.Product.Get(c.Request.Context(), security.GetUserID(c), uint(input.ID))
+	item, err := a.svc.Product.Get(c.Request.Context(), security.GetUserID(c), uint(input.ID))
 	if err != nil {
 		failAccount("获取闲鱼商品详情失败", err, c)
 		return
@@ -77,7 +77,7 @@ func (a *ProductAPI) Sync(c *gin.Context) {
 		response.FailWithMessage(err.Error(), c)
 		return
 	}
-	count, err := a.service.Product.Sync(c.Request.Context(), security.GetUserID(c), input)
+	count, err := a.svc.Product.Sync(c.Request.Context(), security.GetUserID(c), input)
 	if err != nil {
 		failAccount("同步闲鱼商品失败", err, c)
 		return
@@ -100,7 +100,7 @@ func (a *ProductAPI) UpdateSetting(c *gin.Context) {
 		response.FailWithMessage(err.Error(), c)
 		return
 	}
-	if err := a.service.Product.UpdateSetting(c.Request.Context(), security.GetUserID(c), input); err != nil {
+	if err := a.svc.Product.UpdateSetting(c.Request.Context(), security.GetUserID(c), input); err != nil {
 		failAccount("更新闲鱼商品设置失败："+err.Error(), err, c)
 		return
 	}

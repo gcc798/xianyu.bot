@@ -10,12 +10,12 @@ import (
 
 // ReplyRuleAPI 处理回复规则 HTTP 请求。
 type ReplyRuleAPI struct {
-	service *service.Service // service 提供业务能力。
+	svc *service.Service // svc 提供业务能力。
 }
 
 // NewReplyRuleAPI 创建 ReplyRuleAPI。
-func NewReplyRuleAPI(services *service.Service) *ReplyRuleAPI {
-	return &ReplyRuleAPI{service: services}
+func NewReplyRuleAPI(svc *service.Service) *ReplyRuleAPI {
+	return &ReplyRuleAPI{svc: svc}
 }
 
 // ListReplyRules 分页获取回复规则
@@ -32,7 +32,7 @@ func (a *ReplyRuleAPI) List(c *gin.Context) {
 		response.FailWithMessage(err.Error(), c)
 		return
 	}
-	list, total, err := a.service.ReplyRule.List(c.Request.Context(), security.GetUserID(c), input)
+	list, total, err := a.svc.ReplyRule.List(c.Request.Context(), security.GetUserID(c), input)
 	if err != nil {
 		failAccount("获取回复规则失败", err, c)
 		return
@@ -55,7 +55,7 @@ func (a *ReplyRuleAPI) Save(c *gin.Context) {
 		response.FailWithMessage(err.Error(), c)
 		return
 	}
-	if err := a.service.ReplyRule.Save(c.Request.Context(), security.GetUserID(c), input); err != nil {
+	if err := a.svc.ReplyRule.Save(c.Request.Context(), security.GetUserID(c), input); err != nil {
 		failAccount("保存回复规则失败", err, c)
 		return
 	}
@@ -76,7 +76,7 @@ func (a *ReplyRuleAPI) Delete(c *gin.Context) {
 		response.FailWithMessage(err.Error(), c)
 		return
 	}
-	if err := a.service.ReplyRule.Delete(c.Request.Context(), security.GetUserID(c), input.ID); err != nil {
+	if err := a.svc.ReplyRule.Delete(c.Request.Context(), security.GetUserID(c), input.ID); err != nil {
 		failAccount("删除回复规则失败", err, c)
 		return
 	}

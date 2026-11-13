@@ -10,12 +10,12 @@ import (
 
 // BusinessEventAPI 处理业务事件 HTTP 请求。
 type BusinessEventAPI struct {
-	service *service.Service // service 提供业务能力。
+	svc *service.Service // svc 提供业务能力。
 }
 
 // NewBusinessEventAPI 创建 BusinessEventAPI。
-func NewBusinessEventAPI(services *service.Service) *BusinessEventAPI {
-	return &BusinessEventAPI{service: services}
+func NewBusinessEventAPI(svc *service.Service) *BusinessEventAPI {
+	return &BusinessEventAPI{svc: svc}
 }
 
 // List 处理列表查询请求。
@@ -25,7 +25,7 @@ func (a *BusinessEventAPI) List(c *gin.Context) {
 		response.FailWithMessage(err.Error(), c)
 		return
 	}
-	list, total, err := a.service.BusinessEvent.List(c.Request.Context(), security.GetUserID(c), input)
+	list, total, err := a.svc.BusinessEvent.List(c.Request.Context(), security.GetUserID(c), input)
 	if err != nil {
 		failAccount("获取业务日志失败", err, c)
 		return

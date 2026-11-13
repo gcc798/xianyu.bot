@@ -11,12 +11,12 @@ import (
 
 // DictionaryDetailAPI 处理字典项 HTTP 请求。
 type DictionaryDetailAPI struct {
-	service *service.Service // service 提供业务能力。
+	svc *service.Service // svc 提供业务能力。
 }
 
 // NewDictionaryDetailAPI 创建 DictionaryDetailAPI。
-func NewDictionaryDetailAPI(services *service.Service) *DictionaryDetailAPI {
-	return &DictionaryDetailAPI{service: services}
+func NewDictionaryDetailAPI(svc *service.Service) *DictionaryDetailAPI {
+	return &DictionaryDetailAPI{svc: svc}
 }
 
 // Create 处理创建请求。
@@ -26,7 +26,7 @@ func (s *DictionaryDetailAPI) Create(c *gin.Context) {
 		response.FailWithMessage(err.Error(), c)
 		return
 	}
-	if err := s.service.DictionaryDetail.Create(detail); err != nil {
+	if err := s.svc.DictionaryDetail.Create(detail); err != nil {
 		zap.L().Error("创建字典项失败", zap.Error(err))
 		response.FailWithMessage("创建失败", c)
 		return
@@ -41,7 +41,7 @@ func (s *DictionaryDetailAPI) Delete(c *gin.Context) {
 		response.FailWithMessage(err.Error(), c)
 		return
 	}
-	if err := s.service.DictionaryDetail.Delete(detail); err != nil {
+	if err := s.svc.DictionaryDetail.Delete(detail); err != nil {
 		zap.L().Error("删除字典项失败", zap.Error(err))
 		response.FailWithMessage("删除失败", c)
 		return
@@ -56,7 +56,7 @@ func (s *DictionaryDetailAPI) Update(c *gin.Context) {
 		response.FailWithMessage(err.Error(), c)
 		return
 	}
-	if err := s.service.DictionaryDetail.Update(&detail); err != nil {
+	if err := s.svc.DictionaryDetail.Update(&detail); err != nil {
 		zap.L().Error("更新字典项失败", zap.Error(err))
 		response.FailWithMessage("更新失败", c)
 		return
@@ -71,7 +71,7 @@ func (s *DictionaryDetailAPI) List(c *gin.Context) {
 		response.FailWithMessage(err.Error(), c)
 		return
 	}
-	list, total, err := s.service.DictionaryDetail.List(search)
+	list, total, err := s.svc.DictionaryDetail.List(search)
 	if err != nil {
 		zap.L().Error("获取字典项失败", zap.Error(err))
 		response.FailWithMessage("获取失败", c)

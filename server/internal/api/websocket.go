@@ -10,12 +10,12 @@ import (
 
 // WebSocketAPI 处理闲鱼连接 HTTP 请求。
 type WebSocketAPI struct {
-	service *service.Service // service 提供业务能力。
+	svc *service.Service // svc 提供业务能力。
 }
 
 // NewWebSocketAPI 创建 WebSocketAPI。
-func NewWebSocketAPI(services *service.Service) *WebSocketAPI {
-	return &WebSocketAPI{service: services}
+func NewWebSocketAPI(svc *service.Service) *WebSocketAPI {
+	return &WebSocketAPI{svc: svc}
 }
 
 // Start 启动闲鱼账号消息连接
@@ -33,7 +33,7 @@ func (a *WebSocketAPI) Start(c *gin.Context) {
 		response.FailWithMessage(err.Error(), c)
 		return
 	}
-	if err := a.service.WebSocket.Start(c.Request.Context(), security.GetUserID(c), input.ID); err != nil {
+	if err := a.svc.WebSocket.Start(c.Request.Context(), security.GetUserID(c), input.ID); err != nil {
 		failAccount("启动闲鱼消息连接失败", err, c)
 		return
 	}
@@ -55,7 +55,7 @@ func (a *WebSocketAPI) Stop(c *gin.Context) {
 		response.FailWithMessage(err.Error(), c)
 		return
 	}
-	if err := a.service.WebSocket.Stop(c.Request.Context(), security.GetUserID(c), input.ID); err != nil {
+	if err := a.svc.WebSocket.Stop(c.Request.Context(), security.GetUserID(c), input.ID); err != nil {
 		failAccount("停止闲鱼消息连接失败", err, c)
 		return
 	}
@@ -76,7 +76,7 @@ func (a *WebSocketAPI) Status(c *gin.Context) {
 		response.FailWithMessage(err.Error(), c)
 		return
 	}
-	status, err := a.service.WebSocket.Status(c.Request.Context(), security.GetUserID(c), input.ID)
+	status, err := a.svc.WebSocket.Status(c.Request.Context(), security.GetUserID(c), input.ID)
 	if err != nil {
 		failAccount("获取闲鱼消息连接状态失败", err, c)
 		return

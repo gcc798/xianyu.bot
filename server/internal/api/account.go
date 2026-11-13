@@ -11,12 +11,12 @@ import (
 
 // AccountAPI 处理闲鱼账号 HTTP 请求。
 type AccountAPI struct {
-	service *service.Service // service 提供业务能力。
+	svc *service.Service // svc 提供业务能力。
 }
 
 // NewAccountAPI 创建 AccountAPI。
-func NewAccountAPI(services *service.Service) *AccountAPI {
-	return &AccountAPI{service: services}
+func NewAccountAPI(svc *service.Service) *AccountAPI {
+	return &AccountAPI{svc: svc}
 }
 
 // Create 创建闲鱼账号档案
@@ -34,7 +34,7 @@ func (a *AccountAPI) Create(c *gin.Context) {
 		response.FailWithMessage(err.Error(), c)
 		return
 	}
-	item, err := a.service.Account.Create(c.Request.Context(), security.GetUserID(c), input)
+	item, err := a.svc.Account.Create(c.Request.Context(), security.GetUserID(c), input)
 	if err != nil {
 		failAccount("创建闲鱼账号失败", err, c)
 		return
@@ -57,7 +57,7 @@ func (a *AccountAPI) Update(c *gin.Context) {
 		response.FailWithMessage(err.Error(), c)
 		return
 	}
-	if err := a.service.Account.Update(c.Request.Context(), security.GetUserID(c), input); err != nil {
+	if err := a.svc.Account.Update(c.Request.Context(), security.GetUserID(c), input); err != nil {
 		failAccount("更新闲鱼账号失败", err, c)
 		return
 	}
@@ -78,7 +78,7 @@ func (a *AccountAPI) Delete(c *gin.Context) {
 		response.FailWithMessage(err.Error(), c)
 		return
 	}
-	if err := a.service.Account.Delete(c.Request.Context(), security.GetUserID(c), input.ID); err != nil {
+	if err := a.svc.Account.Delete(c.Request.Context(), security.GetUserID(c), input.ID); err != nil {
 		failAccount("删除闲鱼账号失败", err, c)
 		return
 	}
@@ -99,7 +99,7 @@ func (a *AccountAPI) List(c *gin.Context) {
 		response.FailWithMessage(err.Error(), c)
 		return
 	}
-	list, total, err := a.service.Account.List(c.Request.Context(), security.GetUserID(c), input)
+	list, total, err := a.svc.Account.List(c.Request.Context(), security.GetUserID(c), input)
 	if err != nil {
 		failAccount("获取闲鱼账号失败", err, c)
 		return
@@ -122,7 +122,7 @@ func (a *AccountAPI) SaveCredential(c *gin.Context) {
 		response.FailWithMessage(err.Error(), c)
 		return
 	}
-	if err := a.service.Account.SaveCredential(c.Request.Context(), security.GetUserID(c), input); err != nil {
+	if err := a.svc.Account.SaveCredential(c.Request.Context(), security.GetUserID(c), input); err != nil {
 		failAccount("保存闲鱼账号凭证失败", err, c)
 		return
 	}
@@ -144,7 +144,7 @@ func (a *AccountAPI) CheckLogin(c *gin.Context) {
 		response.FailWithMessage(err.Error(), c)
 		return
 	}
-	status, err := a.service.Account.CheckLogin(c.Request.Context(), security.GetUserID(c), input.ID)
+	status, err := a.svc.Account.CheckLogin(c.Request.Context(), security.GetUserID(c), input.ID)
 	if err != nil {
 		failAccount("检查闲鱼登录状态失败", err, c)
 		return

@@ -27,15 +27,27 @@ type Router struct {
 }
 
 // New 创建路由模块集合。
-func New(handlers *api.API) *Router {
+func New(api *api.API) *Router {
 	return &Router{
-		Auth: NewAuthRouter(handlers), User: NewUserRouter(handlers),
-		Dictionary: NewDictionaryRouter(handlers), DictionaryDetail: NewDictionaryDetailRouter(handlers), LoginLog: NewLoginLogRouter(handlers),
-		Status: NewStatusRouter(handlers), Account: NewAccountRouter(handlers), Product: NewProductRouter(handlers),
-		ReplyRule: NewReplyRuleRouter(handlers), DeliveryRule: NewDeliveryRuleRouter(handlers), Message: NewMessageRouter(handlers),
-		Order: NewOrderRouter(handlers), QRLogin: NewQRLoginRouter(handlers), WebSocket: NewWebSocketRouter(handlers),
-		BusinessEvent: NewBusinessEventRouter(handlers), TelegramProxy: NewTelegramProxyRouter(handlers), AIConfig: NewAIConfigRouter(handlers),
-		TelegramAPI: NewTelegramAPIConfigRouter(handlers),
-		Resource:    NewResourceRouter(handlers), AgentSession: NewAgentSessionRouter(handlers),
+		Auth:             NewAuthRouter(api),
+		User:             NewUserRouter(api),
+		Dictionary:       NewDictionaryRouter(api),
+		DictionaryDetail: NewDictionaryDetailRouter(api),
+		LoginLog:         NewLoginLogRouter(api),
+		Status:           NewStatusRouter(api),
+		Account:          NewAccountRouter(api),
+		Product:          NewProductRouter(api),
+		ReplyRule:        NewReplyRuleRouter(api),
+		DeliveryRule:     NewDeliveryRuleRouter(api),
+		Message:          NewMessageRouter(api),
+		Order:            NewOrderRouter(api),
+		QRLogin:          NewQRLoginRouter(api),
+		WebSocket:        NewWebSocketRouter(api),
+		BusinessEvent:    NewBusinessEventRouter(api),
+		TelegramProxy:    NewTelegramProxyRouter(api),
+		AIConfig:         NewAIConfigRouter(api),
+		TelegramAPI:      NewTelegramAPIConfigRouter(api),
+		Resource:         NewResourceRouter(api),
+		AgentSession:     NewAgentSessionRouter(api),
 	}
 }

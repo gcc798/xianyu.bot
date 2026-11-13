@@ -7,17 +7,17 @@ import (
 
 // MessageRouter 注册消息 HTTP 路由。
 type MessageRouter struct {
-	handlers *api.API // handlers 提供 HTTP 处理器。
+	api *api.API // api 提供 HTTP 处理器。
 }
 
 // NewMessageRouter 创建 MessageRouter。
-func NewMessageRouter(handlers *api.API) *MessageRouter { return &MessageRouter{handlers: handlers} }
+func NewMessageRouter(api *api.API) *MessageRouter { return &MessageRouter{api: api} }
 
 // Init 注册当前模块路由。
 func (r *MessageRouter) Init(group *gin.RouterGroup) {
 	read := group.Group("xy/message")
 	write := group.Group("xy/message")
-	read.GET("list", r.handlers.Message.List)
-	write.POST("reply", r.handlers.Message.Reply)
-	write.PUT("takeover", r.handlers.Message.UpdateTakeover)
+	read.GET("list", r.api.Message.List)
+	write.POST("reply", r.api.Message.Reply)
+	write.PUT("takeover", r.api.Message.UpdateTakeover)
 }

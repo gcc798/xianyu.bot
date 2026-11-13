@@ -7,26 +7,26 @@ import (
 
 // TelegramAPIConfigRouter 注册 Telegram API 配置路由。
 type TelegramAPIConfigRouter struct {
-	handlers *api.API
+	api *api.API // api 提供 HTTP 处理器。
 }
 
 // NewTelegramAPIConfigRouter 创建 TelegramAPIConfigRouter。
-func NewTelegramAPIConfigRouter(handlers *api.API) *TelegramAPIConfigRouter {
-	return &TelegramAPIConfigRouter{handlers: handlers}
+func NewTelegramAPIConfigRouter(api *api.API) *TelegramAPIConfigRouter {
+	return &TelegramAPIConfigRouter{api: api}
 }
 
 // Init 注册管理员配置接口。
 func (r *TelegramAPIConfigRouter) Init(private *gin.RouterGroup) {
 	group := private.Group("xy/telegram-api-configs").Use(adminOnly())
-	group.GET("", r.handlers.TelegramAPI.List)
-	group.POST("", r.handlers.TelegramAPI.Create)
-	group.PUT(":id", r.handlers.TelegramAPI.Update)
-	group.DELETE(":id", r.handlers.TelegramAPI.Delete)
+	group.GET("", r.api.TelegramAPI.List)
+	group.POST("", r.api.TelegramAPI.Create)
+	group.PUT(":id", r.api.TelegramAPI.Update)
+	group.DELETE(":id", r.api.TelegramAPI.Delete)
 }
 
 // InitInternal 注册 Telegram 服务内部接口。
 func (r *TelegramAPIConfigRouter) InitInternal(internal *gin.RouterGroup) {
 	group := internal.Group("telegram-api-configs")
-	group.GET("active", r.handlers.TelegramAPI.ActiveCredential)
-	group.POST("flood-wait", r.handlers.TelegramAPI.ReportFloodWait)
+	group.GET("active", r.api.TelegramAPI.ActiveCredential)
+	group.POST("flood-wait", r.api.TelegramAPI.ReportFloodWait)
 }

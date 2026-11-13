@@ -10,11 +10,11 @@ import (
 
 // OrderAPI 处理订单 HTTP 请求。
 type OrderAPI struct {
-	service *service.Service // service 提供业务能力。
+	svc *service.Service // svc 提供业务能力。
 }
 
 // NewOrderAPI 创建 OrderAPI。
-func NewOrderAPI(services *service.Service) *OrderAPI { return &OrderAPI{service: services} }
+func NewOrderAPI(svc *service.Service) *OrderAPI { return &OrderAPI{svc: svc} }
 
 // List 分页获取当前用户的闲鱼订单
 // @Tags XyOrder
@@ -30,7 +30,7 @@ func (a *OrderAPI) List(c *gin.Context) {
 		response.FailWithMessage(err.Error(), c)
 		return
 	}
-	list, total, err := a.service.Order.List(c.Request.Context(), security.GetUserID(c), input)
+	list, total, err := a.svc.Order.List(c.Request.Context(), security.GetUserID(c), input)
 	if err != nil {
 		failAccount("获取闲鱼订单失败", err, c)
 		return
@@ -52,7 +52,7 @@ func (a *OrderAPI) Detail(c *gin.Context) {
 		response.FailWithMessage("订单 ID 无效", c)
 		return
 	}
-	item, err := a.service.Order.Get(c.Request.Context(), security.GetUserID(c), uint(input.ID))
+	item, err := a.svc.Order.Get(c.Request.Context(), security.GetUserID(c), uint(input.ID))
 	if err != nil {
 		failAccount("获取闲鱼订单详情失败", err, c)
 		return
@@ -67,7 +67,7 @@ func (a *OrderAPI) SyncPending(c *gin.Context) {
 		response.FailWithMessage(err.Error(), c)
 		return
 	}
-	count, err := a.service.Order.SyncPending(c.Request.Context(), security.GetUserID(c), input.AccountID)
+	count, err := a.svc.Order.SyncPending(c.Request.Context(), security.GetUserID(c), input.AccountID)
 	if err != nil {
 		failAccount("同步待发货订单失败", err, c)
 		return

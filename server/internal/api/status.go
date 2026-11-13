@@ -12,11 +12,11 @@ import (
 
 // StatusAPI 处理状态 HTTP 请求。
 type StatusAPI struct {
-	service *service.Service // service 提供业务能力。
+	svc *service.Service // svc 提供业务能力。
 }
 
 // NewStatusAPI 创建 StatusAPI。
-func NewStatusAPI(services *service.Service) *StatusAPI { return &StatusAPI{service: services} }
+func NewStatusAPI(svc *service.Service) *StatusAPI { return &StatusAPI{svc: svc} }
 
 // GetStatus 获取闲鱼助手基础服务状态
 // @Tags Xy
@@ -27,7 +27,7 @@ func NewStatusAPI(services *service.Service) *StatusAPI { return &StatusAPI{serv
 // @Router /xy/status [get]
 func (a *StatusAPI) GetStatus(c *gin.Context) {
 	var status xyResponse.Status
-	status, err := a.service.Status.Get(c.Request.Context(), security.GetUserID(c))
+	status, err := a.svc.Status.Get(c.Request.Context(), security.GetUserID(c))
 	if err != nil {
 		zap.L().Error("获取闲鱼助手状态失败", zap.Error(err))
 		response.FailWithMessage("获取状态失败", c)
@@ -50,7 +50,7 @@ func (a *StatusAPI) GetOverview(c *gin.Context) {
 		response.FailWithMessage(err.Error(), c)
 		return
 	}
-	overview, err := a.service.Status.Overview(c.Request.Context(), security.GetUserID(c), input)
+	overview, err := a.svc.Status.Overview(c.Request.Context(), security.GetUserID(c), input)
 	if err != nil {
 		zap.L().Error("获取闲鱼助手工作台失败", zap.Error(err))
 		response.FailWithMessage(err.Error(), c)

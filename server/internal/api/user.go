@@ -24,7 +24,7 @@ func (b *UserAPI) Login(c *gin.Context) {
 		response.FailWithMessage("用户名和密码不能为空", c)
 		return
 	}
-	user, err := b.service.User.Login(&model.User{Username: input.Username, Password: input.Password})
+	user, err := b.svc.User.Login(&model.User{Username: input.Username, Password: input.Password})
 	if err != nil {
 		b.recordLogin(c, input.Username, 0, false, "用户名不存在或者密码错误")
 		response.FailWithMessage("用户名不存在或者密码错误", c)
@@ -55,7 +55,7 @@ func (b *UserAPI) TokenNext(c *gin.Context, user model.User) {
 
 // recordLogin 记录登录审计信息。
 func (b *UserAPI) recordLogin(c *gin.Context, username string, userID uint, status bool, message string) {
-	if err := b.service.LoginLog.Create(model.LoginLog{
+	if err := b.svc.LoginLog.Create(model.LoginLog{
 		Username: username, IP: c.ClientIP(), Agent: c.Request.UserAgent(), Status: status,
 		ErrorMessage: message, UserID: userID,
 	}); err != nil {
@@ -74,7 +74,7 @@ func (b *UserAPI) Register(c *gin.Context) {
 		response.FailWithMessage("用户名、密码、昵称和角色不能为空", c)
 		return
 	}
-	user, err := b.service.User.Register(model.User{
+	user, err := b.svc.User.Register(model.User{
 		Username: input.Username, Password: input.Password, NickName: input.NickName,
 		HeaderImage: input.HeaderImage, AuthorityID: input.AuthorityID, Enable: input.Enable,
 		Phone: input.Phone, Email: input.Email,
@@ -97,7 +97,7 @@ func (b *UserAPI) ChangePassword(c *gin.Context) {
 		response.FailWithMessage("原密码和新密码不能为空", c)
 		return
 	}
-	err := b.service.User.ChangePassword(&model.User{
+	err := b.svc.User.ChangePassword(&model.User{
 		Timestamps: model.Timestamps{ID: security.GetUserID(c)}, Password: input.Password,
 	}, input.NewPassword)
 	if err != nil {
@@ -118,7 +118,7 @@ func (b *UserAPI) GetUserList(c *gin.Context) {
 		response.FailWithMessage("页码和每页数量不能为空", c)
 		return
 	}
-	list, total, err := b.service.User.List(page)
+	list, total, err := b.svc.User.List(page)
 	if err != nil {
 		response.FailWithMessage("获取失败", c)
 		return
@@ -141,7 +141,7 @@ func (b *UserAPI) DeleteUser(c *gin.Context) {
 		response.FailWithMessage("删除失败，无法删除自己", c)
 		return
 	}
-	if err := b.service.User.DeleteUser(input.ID); err != nil {
+	if err := b.svc.User.DeleteUser(input.ID); err != nil {
 		response.FailWithMessage("删除失败", c)
 		return
 	}
@@ -159,7 +159,7 @@ func (b *UserAPI) SetUserInfo(c *gin.Context) {
 		response.FailWithMessage("用户 ID 不能为空", c)
 		return
 	}
-	if err := b.service.User.SetUserInfo(model.User{
+	if err := b.svc.User.SetUserInfo(model.User{
 		Timestamps: model.Timestamps{ID: input.ID}, NickName: input.NickName, HeaderImage: input.HeaderImage,
 		Phone: input.Phone, Email: input.Email, Enable: input.Enable, AuthorityID: input.AuthorityID,
 	}); err != nil {
@@ -176,7 +176,7 @@ func (b *UserAPI) SetSelfInfo(c *gin.Context) {
 		response.FailWithMessage(err.Error(), c)
 		return
 	}
-	if err := b.service.User.SetSelfInfo(model.User{
+	if err := b.svc.User.SetSelfInfo(model.User{
 		Timestamps: model.Timestamps{ID: security.GetUserID(c)}, NickName: input.NickName,
 		HeaderImage: input.HeaderImage, Phone: input.Phone, Email: input.Email,
 	}); err != nil {
@@ -188,7 +188,7 @@ func (b *UserAPI) SetSelfInfo(c *gin.Context) {
 
 // GetUserInfo 处理当前用户信息查询请求。
 func (b *UserAPI) GetUserInfo(c *gin.Context) {
-	user, err := b.service.User.GetUserInfo(security.GetUserUuid(c))
+	user, err := b.svc.User.GetUserInfo(security.GetUserUuid(c))
 	if err != nil {
 		response.FailWithMessage("获取失败", c)
 		return
@@ -211,7 +211,7 @@ func (b *UserAPI) ResetPassword(c *gin.Context) {
 		response.FailWithMessage("密码至少 6 位", c)
 		return
 	}
-	if err := b.service.User.ResetPassword(input.ID, input.Password); err != nil {
+	if err := b.svc.User.ResetPassword(input.ID, input.Password); err != nil {
 		response.FailWithMessage("重置失败", c)
 		return
 	}

@@ -8,17 +8,17 @@ import (
 
 // LoginLogRouter 注册登录审计 HTTP 路由。
 type LoginLogRouter struct {
-	handlers *api.API // handlers 提供 HTTP 处理器。
+	api *api.API // api 提供 HTTP 处理器。
 }
 
 // NewLoginLogRouter 创建 LoginLogRouter。
-func NewLoginLogRouter(handlers *api.API) *LoginLogRouter {
-	return &LoginLogRouter{handlers: handlers}
+func NewLoginLogRouter(api *api.API) *LoginLogRouter {
+	return &LoginLogRouter{api: api}
 }
 
 // Init 注册当前模块路由。
 func (s *LoginLogRouter) Init(router *gin.RouterGroup) {
 	loginLog := router.Group("sysLoginLog").Use(middleware.AdminOnly())
-	loginLog.DELETE("deleteLoginLog", s.handlers.LoginLog.Delete)
-	loginLog.GET("getLoginLogList", s.handlers.LoginLog.List)
+	loginLog.DELETE("deleteLoginLog", s.api.LoginLog.Delete)
+	loginLog.GET("getLoginLogList", s.api.LoginLog.List)
 }

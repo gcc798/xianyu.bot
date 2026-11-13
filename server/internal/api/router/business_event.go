@@ -7,15 +7,15 @@ import (
 
 // BusinessEventRouter 注册业务事件 HTTP 路由。
 type BusinessEventRouter struct {
-	handlers *api.API // handlers 提供 HTTP 处理器。
+	api *api.API // api 提供 HTTP 处理器。
 }
 
 // NewBusinessEventRouter 创建 BusinessEventRouter。
-func NewBusinessEventRouter(handlers *api.API) *BusinessEventRouter {
-	return &BusinessEventRouter{handlers: handlers}
+func NewBusinessEventRouter(api *api.API) *BusinessEventRouter {
+	return &BusinessEventRouter{api: api}
 }
 
 // Init 注册当前模块路由。
 func (r *BusinessEventRouter) Init(group *gin.RouterGroup) {
-	group.Group("xy/event").GET("list", r.handlers.BusinessEvent.List)
+	group.Group("xy/event").GET("list", r.api.BusinessEvent.List)
 }

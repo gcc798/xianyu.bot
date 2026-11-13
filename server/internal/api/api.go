@@ -8,13 +8,13 @@ import (
 
 // UserAPI 处理用户 HTTP 请求。
 type UserAPI struct {
-	service *service.Service // service 提供用户业务能力。
-	jwt     *security.JWT    // jwt 签发登录令牌。
+	svc *service.Service // svc 提供用户业务能力。
+	jwt *security.JWT    // jwt 签发登录令牌。
 }
 
 // NewUserAPI 创建 UserAPI。
-func NewUserAPI(services *service.Service, jwt *security.JWT) *UserAPI {
-	return &UserAPI{service: services, jwt: jwt}
+func NewUserAPI(svc *service.Service, jwt *security.JWT) *UserAPI {
+	return &UserAPI{svc: svc, jwt: jwt}
 }
 
 // API 汇总后端 HTTP 处理器。
@@ -42,7 +42,7 @@ type API struct {
 
 // New 创建 HTTP 处理器集合。
 func New(
-	services *service.Service,
+	svc *service.Service,
 	jwt *security.JWT,
 	aiConfig *agent.AIConfig,
 	resources *agent.ResourceCatalog,
@@ -51,13 +51,24 @@ func New(
 	events *agent.EventHub,
 ) *API {
 	return &API{
-		User:       NewUserAPI(services, jwt),
-		Dictionary: NewDictionaryAPI(services), DictionaryDetail: NewDictionaryDetailAPI(services), LoginLog: NewLoginLogAPI(services),
-		Status: NewStatusAPI(services), Account: NewAccountAPI(services), Product: NewProductAPI(services),
-		ReplyRule: NewReplyRuleAPI(services), DeliveryRule: NewDeliveryRuleAPI(services), Message: NewMessageAPI(services),
-		Order: NewOrderAPI(services), QRLogin: NewQRLoginAPI(services), WebSocket: NewWebSocketAPI(services),
-		BusinessEvent: NewBusinessEventAPI(services), TelegramProxy: NewTelegramProxyAPI(), AIConfig: NewAIConfigAPI(aiConfig),
-		TelegramAPI: NewTelegramAPIConfigAPI(services.TelegramAPI),
-		Resource:    NewResourceAPI(resources), AgentSession: NewAgentSessionAPI(sessions, runner, events),
+		User:             NewUserAPI(svc, jwt),
+		Dictionary:       NewDictionaryAPI(svc),
+		DictionaryDetail: NewDictionaryDetailAPI(svc),
+		LoginLog:         NewLoginLogAPI(svc),
+		Status:           NewStatusAPI(svc),
+		Account:          NewAccountAPI(svc),
+		Product:          NewProductAPI(svc),
+		ReplyRule:        NewReplyRuleAPI(svc),
+		DeliveryRule:     NewDeliveryRuleAPI(svc),
+		Message:          NewMessageAPI(svc),
+		Order:            NewOrderAPI(svc),
+		QRLogin:          NewQRLoginAPI(svc),
+		WebSocket:        NewWebSocketAPI(svc),
+		BusinessEvent:    NewBusinessEventAPI(svc),
+		TelegramProxy:    NewTelegramProxyAPI(),
+		AIConfig:         NewAIConfigAPI(aiConfig),
+		TelegramAPI:      NewTelegramAPIConfigAPI(svc.TelegramAPI),
+		Resource:         NewResourceAPI(resources),
+		AgentSession:     NewAgentSessionAPI(sessions, runner, events),
 	}
 }

@@ -10,12 +10,12 @@ import (
 
 // DeliveryRuleAPI 处理发货规则 HTTP 请求。
 type DeliveryRuleAPI struct {
-	service *service.Service // service 提供业务能力。
+	svc *service.Service // svc 提供业务能力。
 }
 
 // NewDeliveryRuleAPI 创建 DeliveryRuleAPI。
-func NewDeliveryRuleAPI(services *service.Service) *DeliveryRuleAPI {
-	return &DeliveryRuleAPI{service: services}
+func NewDeliveryRuleAPI(svc *service.Service) *DeliveryRuleAPI {
+	return &DeliveryRuleAPI{svc: svc}
 }
 
 // ListDeliveryRules 分页获取发货规则
@@ -32,7 +32,7 @@ func (a *DeliveryRuleAPI) List(c *gin.Context) {
 		response.FailWithMessage(err.Error(), c)
 		return
 	}
-	list, total, err := a.service.DeliveryRule.List(c.Request.Context(), security.GetUserID(c), input)
+	list, total, err := a.svc.DeliveryRule.List(c.Request.Context(), security.GetUserID(c), input)
 	if err != nil {
 		failAccount("获取发货规则失败", err, c)
 		return
@@ -55,7 +55,7 @@ func (a *DeliveryRuleAPI) Save(c *gin.Context) {
 		response.FailWithMessage(err.Error(), c)
 		return
 	}
-	if err := a.service.DeliveryRule.Save(c.Request.Context(), security.GetUserID(c), input); err != nil {
+	if err := a.svc.DeliveryRule.Save(c.Request.Context(), security.GetUserID(c), input); err != nil {
 		failAccount("保存发货规则失败", err, c)
 		return
 	}
@@ -76,7 +76,7 @@ func (a *DeliveryRuleAPI) Delete(c *gin.Context) {
 		response.FailWithMessage(err.Error(), c)
 		return
 	}
-	if err := a.service.DeliveryRule.Delete(c.Request.Context(), security.GetUserID(c), input.ID); err != nil {
+	if err := a.svc.DeliveryRule.Delete(c.Request.Context(), security.GetUserID(c), input.ID); err != nil {
 		failAccount("删除发货规则失败", err, c)
 		return
 	}
@@ -90,7 +90,7 @@ func (a *DeliveryRuleAPI) ImportResources(c *gin.Context) {
 		response.FailWithMessage(err.Error(), c)
 		return
 	}
-	count, err := a.service.Delivery.ImportResources(c.Request.Context(), security.GetUserID(c), input)
+	count, err := a.svc.Delivery.ImportResources(c.Request.Context(), security.GetUserID(c), input)
 	if err != nil {
 		failAccount("导入卡密失败", err, c)
 		return
@@ -105,7 +105,7 @@ func (a *DeliveryRuleAPI) Inventory(c *gin.Context) {
 		response.FailWithMessage(err.Error(), c)
 		return
 	}
-	data, err := a.service.Delivery.Inventory(c.Request.Context(), security.GetUserID(c), input.ID)
+	data, err := a.svc.Delivery.Inventory(c.Request.Context(), security.GetUserID(c), input.ID)
 	if err != nil {
 		failAccount("获取卡密库存失败", err, c)
 		return
@@ -120,7 +120,7 @@ func (a *DeliveryRuleAPI) ListTasks(c *gin.Context) {
 		response.FailWithMessage(err.Error(), c)
 		return
 	}
-	list, total, err := a.service.Delivery.ListTasks(c.Request.Context(), security.GetUserID(c), input)
+	list, total, err := a.svc.Delivery.ListTasks(c.Request.Context(), security.GetUserID(c), input)
 	if err != nil {
 		failAccount("获取发货任务失败", err, c)
 		return
@@ -135,7 +135,7 @@ func (a *DeliveryRuleAPI) RetryTask(c *gin.Context) {
 		response.FailWithMessage(err.Error(), c)
 		return
 	}
-	if err := a.service.Delivery.Retry(c.Request.Context(), security.GetUserID(c), input.ID); err != nil {
+	if err := a.svc.Delivery.Retry(c.Request.Context(), security.GetUserID(c), input.ID); err != nil {
 		failAccount("重试发货失败", err, c)
 		return
 	}

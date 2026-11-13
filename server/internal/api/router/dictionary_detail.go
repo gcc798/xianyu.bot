@@ -8,19 +8,19 @@ import (
 
 // DictionaryDetailRouter 注册字典项 HTTP 路由。
 type DictionaryDetailRouter struct {
-	handlers *api.API // handlers 提供 HTTP 处理器。
+	api *api.API // api 提供 HTTP 处理器。
 }
 
 // NewDictionaryDetailRouter 创建 DictionaryDetailRouter。
-func NewDictionaryDetailRouter(handlers *api.API) *DictionaryDetailRouter {
-	return &DictionaryDetailRouter{handlers: handlers}
+func NewDictionaryDetailRouter(api *api.API) *DictionaryDetailRouter {
+	return &DictionaryDetailRouter{api: api}
 }
 
 // Init 注册当前模块路由。
 func (s *DictionaryDetailRouter) Init(router *gin.RouterGroup) {
 	detail := router.Group("sysDictionaryDetail").Use(middleware.AdminOnly())
-	detail.POST("createSysDictionaryDetail", s.handlers.DictionaryDetail.Create)
-	detail.DELETE("deleteSysDictionaryDetail", s.handlers.DictionaryDetail.Delete)
-	detail.PUT("updateSysDictionaryDetail", s.handlers.DictionaryDetail.Update)
-	detail.GET("getSysDictionaryDetailList", s.handlers.DictionaryDetail.List)
+	detail.POST("createSysDictionaryDetail", s.api.DictionaryDetail.Create)
+	detail.DELETE("deleteSysDictionaryDetail", s.api.DictionaryDetail.Delete)
+	detail.PUT("updateSysDictionaryDetail", s.api.DictionaryDetail.Update)
+	detail.GET("getSysDictionaryDetailList", s.api.DictionaryDetail.List)
 }

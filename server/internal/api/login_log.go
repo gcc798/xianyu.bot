@@ -11,12 +11,12 @@ import (
 
 // LoginLogAPI 处理登录审计 HTTP 请求。
 type LoginLogAPI struct {
-	service *service.Service // service 提供业务能力。
+	svc *service.Service // svc 提供业务能力。
 }
 
 // NewLoginLogAPI 创建 LoginLogAPI。
-func NewLoginLogAPI(services *service.Service) *LoginLogAPI {
-	return &LoginLogAPI{service: services}
+func NewLoginLogAPI(svc *service.Service) *LoginLogAPI {
+	return &LoginLogAPI{svc: svc}
 }
 
 // Delete 处理删除请求。
@@ -27,7 +27,7 @@ func (s *LoginLogAPI) Delete(c *gin.Context) {
 		response.FailWithMessage(err.Error(), c)
 		return
 	}
-	err = s.service.LoginLog.Delete(loginLog)
+	err = s.svc.LoginLog.Delete(loginLog)
 	if err != nil {
 		zap.L().Error("删除失败!", zap.Error(err))
 		response.FailWithMessage("删除失败", c)
@@ -44,7 +44,7 @@ func (s *LoginLogAPI) List(c *gin.Context) {
 		response.FailWithMessage(err.Error(), c)
 		return
 	}
-	list, total, err := s.service.LoginLog.List(pageInfo)
+	list, total, err := s.svc.LoginLog.List(pageInfo)
 	if err != nil {
 		zap.L().Error("获取失败!", zap.Error(err))
 		response.FailWithMessage("获取失败", c)
