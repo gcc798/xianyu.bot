@@ -9,7 +9,7 @@ import {
   UnorderedListOutlined,
   UserOutlined,
 } from "@ant-design/icons";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { getToolCall, getTrajectory, streamEvents } from "../../../api/agent";
 import { dictionaryName, useDictionaryOptions } from "../../../hooks/useDictionaryOptions";
 import type { AgentEvent, ToolCallDetail } from "../../../models/agent";
@@ -63,8 +63,6 @@ export default function TrajectoryPanel({ sessionId }: Props) {
   const [nextCursorId, setNextCursorId] = useState(0);
   const [hasMore, setHasMore] = useState(false);
   const [live, setLive] = useState(false);
-  const [viewport, setViewport] = useState({ left: 0, width: 100 });
-  const listRef = useRef<HTMLDivElement>(null);
   const rowRefs = useRef(new Map<string, HTMLButtonElement>());
 
   useEffect(() => {
@@ -101,6 +99,7 @@ export default function TrajectoryPanel({ sessionId }: Props) {
 
   const rows = useMemo(() => buildTrajectoryRows(events), [events]);
   const selected = rows.find((row) => row.rowId === selectedRowId) || null;
+  const selectedIndex = selected ? rows.indexOf(selected) : -1;
   const selectedToolSchema = useMemo(() => findToolSchema(rows, selected), [rows, selected]);
   const visibleRows = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -116,8 +115,6 @@ export default function TrajectoryPanel({ sessionId }: Props) {
     return new Map(ids.map((id, index) => [id, index + 1]));
   }, [rows]);
   const groups = useMemo(() => groupByRun(visibleRows), [visibleRows]);
-  const rowIndex = useMemo(() => new Map(rows.map((row, index) => [row.rowId, index])), [rows]);
-
   useEffect(() => {
     setToolCall(null);
     if (!selected?.callId) return;
@@ -131,27 +128,6 @@ export default function TrajectoryPanel({ sessionId }: Props) {
       active = false;
     };
   }, [selected?.callId, sessionId]);
-
-  const updateViewport = useCallback(() => {
-    const list = listRef.current;
-    if (!list || !rows.length) return;
-    const bounds = list.getBoundingClientRect();
-    const visibleIndexes: number[] = [];
-    for (const element of list.querySelectorAll<HTMLElement>("[data-row-id]")) {
-      const rowBounds = element.getBoundingClientRect();
-      if (rowBounds.bottom <= bounds.top || rowBounds.top >= bounds.bottom) continue;
-      const index = rowIndex.get(element.dataset.rowId || "");
-      if (index !== undefined) visibleIndexes.push(index);
-    }
-    if (!visibleIndexes.length) return;
-    const left = timelinePosition(Math.min(...visibleIndexes), rows.length);
-    const right = timelinePosition(Math.max(...visibleIndexes), rows.length);
-    setViewport({ left, width: Math.max(1.5, right - left) });
-  }, [rowIndex, rows.length]);
-
-  useEffect(() => {
-    updateViewport();
-  }, [updateViewport, visibleRows]);
 
   const selectRow = (row: TrajectoryRow, clearSearch = false) => {
     if (clearSearch) setSearch("");
@@ -224,10 +200,10 @@ export default function TrajectoryPanel({ sessionId }: Props) {
                 )}
               </div>
             ))}
-            {!!rows.length && (
+            {selectedIndex >= 0 && (
               <span
-                className="trajectory-viewport"
-                style={{ left: `${viewport.left}%`, width: `${viewport.width}%` }}
+                className="trajectory-selection"
+                style={{ left: `${timelinePosition(selectedIndex, rows.length)}%` }}
               />
             )}
           </div>
@@ -235,7 +211,7 @@ export default function TrajectoryPanel({ sessionId }: Props) {
       </header>
 
       <div className={`trajectory-main${selected ? " inspector-open" : ""}`}>
-        <div className="trajectory-event-list" ref={listRef} onScroll={updateViewport}>
+        <div className="trajectory-event-list">
           {error && (
             <p className="trajectory-notice error" role="alert">
               {error}

@@ -74,7 +74,6 @@ export default function BotWorkspace() {
   const viewportRef = useRef<HTMLDivElement>(null);
   const composingRef = useRef(false);
 
-  const activeSession = sessions.find((item) => item.ID === sessionId);
   const slashQuery =
     draft
       .match(/(?:^|\s)\/([^\n/]*)$/)?.[1]
@@ -448,25 +447,17 @@ export default function BotWorkspace() {
 
       <section className="chat-stage">
         <header className="chat-header">
-          <div className="chat-header-main">
-            <div className="chat-title">
-              {historyCollapsed && (
-                <button
-                  className="history-toggle"
-                  title="展开历史对话"
-                  aria-label="展开历史对话"
-                  onClick={() => setHistoryCollapsed(false)}
-                >
-                  <MenuUnfoldOutlined />
-                </button>
-              )}
-              <div>
-                <strong title={activeSession?.title}>{activeSession?.title || "新对话"}</strong>
-                {running && <small>正在执行</small>}
-              </div>
-            </div>
-          </div>
           <nav className="chat-view-tabs" aria-label="会话视图">
+            {historyCollapsed && (
+              <button
+                className="history-toggle"
+                title="展开历史对话"
+                aria-label="展开历史对话"
+                onClick={() => setHistoryCollapsed(false)}
+              >
+                <MenuUnfoldOutlined />
+              </button>
+            )}
             <button
               type="button"
               className={activeView === "conversation" ? "active" : ""}
