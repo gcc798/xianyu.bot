@@ -464,7 +464,7 @@ func (s *Message) runReplyTask(ctx context.Context, task model.ReplyTask) {
 	}
 	if err := s.sender.SendText(ctx, task.OwnerID, task.AccountID, task.SessionID, task.RecipientID, task.ReplyText); err != nil {
 		status := model.ReplyTaskFailed
-		if strings.Contains(err.Error(), "结果未知") || errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+		if errors.Is(err, errSendUnknown) || errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 			status = model.ReplyTaskUnknown
 		}
 		_ = s.finishReplyTask(task.ID, status, err.Error())

@@ -253,8 +253,18 @@ func (a *AgentSessionAPI) Events(c *gin.Context) {
 		return
 	}
 	c.Writer.Flush()
-	for _, event := range replay {
-		if err := writeAgentSSE(c, event.ID, event.Type, event.Data); err != nil {
+	for {
+		for _, event := range replay {
+			if err := writeAgentSSE(c, event.ID, event.Type, event.Data); err != nil {
+				return
+			}
+			afterID = event.ID
+		}
+		if len(replay) != agent.EventPageSize {
+			break
+		}
+		replay, err = a.events.ReplayPage(c.Request.Context(), sessionID, afterID)
+		if err != nil {
 			return
 		}
 	}
@@ -267,6 +277,9 @@ func (a *AgentSessionAPI) Events(c *gin.Context) {
 		case event, open := <-events:
 			if !open {
 				return
+			}
+			if event.ID != 0 && event.ID <= afterID {
+				continue
 			}
 			if err := writeAgentSSE(c, event.ID, event.Type, event.Data); err != nil {
 				return

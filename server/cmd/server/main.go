@@ -53,17 +53,17 @@ func run() error {
 		return fmt.Errorf("migrate PostgreSQL: %w", err)
 	}
 	mailSender := mail.NewSender(settings.Email)
-	var sendNotificationEmail func(string, string) error
+	var sendMail func(string, string) error
 	if settings.Email.To != "" {
-		sendNotificationEmail = func(subject string, body string) error {
+		sendMail = func(subject string, body string) error {
 			return mailSender.Send(settings.Email.To, subject, body)
 		}
 	}
-	services := service.New(ctx, db, sendNotificationEmail)
+	svc := service.New(ctx, db, sendMail)
 	if err := agent.Initialize(ctx, db); err != nil {
 		return fmt.Errorf("initialize Agent: %w", err)
 	}
-	if err := xianyu.Initialize(ctx, db, services.WebSocket); err != nil {
+	if err := xianyu.Initialize(ctx, db, svc.WebSocket); err != nil {
 		return fmt.Errorf("initialize Xianyu: %w", err)
 	}
 
@@ -77,10 +77,10 @@ func run() error {
 	if err := localTools.Register(agenttool.NewCurrentTime()); err != nil {
 		return fmt.Errorf("register current time Agent tool: %w", err)
 	}
-	if err := xianyutool.Register(localTools, services.Account, services.Product, services.Order, services.Message, services.Delivery, services.ReplyRule, services.DeliveryRule, services.BusinessEvent, services.Relist); err != nil {
+	if err := xianyutool.Register(localTools, svc.Account, svc.Product, svc.Order, svc.Message, svc.Delivery, svc.ReplyRule, svc.DeliveryRule, svc.BusinessEvent, svc.Relist); err != nil {
 		return fmt.Errorf("register Xianyu Agent tools: %w", err)
 	}
 	runner := agent.NewRunner(ctx, db, mcpRegistry, resources, events, localTools)
-	routes := router.New(api.New(services, jwt, aiConfig, resources, sessions, runner, events))
+	routes := router.New(api.New(svc, jwt, aiConfig, resources, sessions, runner, events))
 	return infra.RunServer(ctx, routes.Engine(jwt), settings.HTTP.Port)
 }

@@ -92,29 +92,25 @@ func credentialKey(db *gorm.DB) ([]byte, error) {
 	return key, nil
 }
 
-// ValidateCredentialKey 校验或首次生成凭据密钥，并确保数据库保存有效副本。
+// ValidateCredentialKey 校验或首次生成凭据密钥，，环境密钥仅在进程内使用。
 func ValidateCredentialKey(db *gorm.DB) error {
 	encoded := strings.TrimSpace(os.Getenv(credentialKeyEnvironment))
-	if encoded == "" {
-		if _, err := credentialKey(db); err == nil {
-			return nil
-		} else if !errors.Is(err, gorm.ErrRecordNotFound) {
-			return err
-		}
-		key := make([]byte, 32)
-		if _, err := rand.Read(key); err != nil {
-			return fmt.Errorf("generate xy credential key: %w", err)
-		}
-		encoded = base64.StdEncoding.EncodeToString(key)
+	if encoded != "" {
+		_, err := credentialKey(nil)
+		return err
 	}
-	if db == nil {
-		return errors.New("database is not initialized")
+	if _, err := credentialKey(db); err == nil {
+		return nil
+	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+		return err
 	}
+	key := make([]byte, 32)
+	if _, err := rand.Read(key); err != nil {
+		return fmt.Errorf("generate xy credential key: %w", err)
+	}
+	encoded = base64.StdEncoding.EncodeToString(key)
 	db = db.Session(&gorm.Session{Logger: logger.Default.LogMode(logger.Silent)})
-	conflict := clause.OnConflict{UpdateAll: true}
-	if strings.TrimSpace(os.Getenv(credentialKeyEnvironment)) == "" {
-		conflict = clause.OnConflict{DoNothing: true}
-	}
+	conflict := clause.OnConflict{DoNothing: true}
 	if err := db.Clauses(conflict).Create(&model.Setting{Key: credentialKeySetting, Value: encoded}).Error; err != nil {
 		return fmt.Errorf("store xy credential key in database: %w", err)
 	}

@@ -144,7 +144,8 @@ func TestConsignSendsMessageThenConfirmsPlatformDelivery(t *testing.T) {
 	service := &Order{mtop: mtop, sender: sender}
 	item := model.Order{AccountID: 2, ExternalOrderID: "order-1", SessionID: "session-1", BuyerUserID: "buyer-1"}
 
-	require.NoError(t, service.Consign(t.Context(), 10, item, "网盘：https://example.test/share"))
+	require.NoError(t, service.SendDelivery(t.Context(), 10, item, "网盘：https://example.test/share"))
+	require.NoError(t, service.ConfirmDelivery(t.Context(), 10, item, "网盘：https://example.test/share"))
 	require.Equal(t, []string{"网盘：https://example.test/share"}, sender.texts)
 	require.Len(t, mtop.calls, 1)
 	require.Equal(t, "mtop.taobao.idle.logistic.consign.dummy", mtop.calls[0].api)

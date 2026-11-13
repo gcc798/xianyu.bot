@@ -32,4 +32,11 @@ func TestValidateCredentialKeyInitializesEmptyDatabase(t *testing.T) {
 	second, err := credentialKey(db)
 	require.NoError(t, err)
 	require.Equal(t, first, second)
+	t.Setenv(credentialKeyEnvironment, "broken")
+	require.Error(t, ValidateCredentialKey(db))
+	t.Setenv(credentialKeyEnvironment, "")
+	saved, err := credentialKey(db)
+	require.NoError(t, err)
+	require.Equal(t, first, saved)
+
 }

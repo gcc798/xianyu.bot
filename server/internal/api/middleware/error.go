@@ -3,7 +3,6 @@ package middleware
 import (
 	"net"
 	"net/http"
-	"net/http/httputil"
 	"os"
 	"runtime/debug"
 	"strings"
@@ -28,11 +27,11 @@ func GinRecovery(stack bool) gin.HandlerFunc {
 					}
 				}
 
-				httpRequest, _ := httputil.DumpRequest(c.Request, false)
+				route := c.Request.Method + " " + c.FullPath()
 				if brokenPipe {
-					zap.L().Error(c.Request.URL.Path,
+					zap.L().Error(route,
 						zap.Any("error", err),
-						zap.String("request", string(httpRequest)),
+						zap.String("request", route),
 					)
 					// If the connection is dead, we can't write a status to it.
 					_ = c.Error(err.(error)) // nolint: errcheck
@@ -43,13 +42,13 @@ func GinRecovery(stack bool) gin.HandlerFunc {
 				if stack {
 					zap.L().Error("[Recovery from panic]",
 						zap.Any("error", err),
-						zap.String("request", string(httpRequest)),
+						zap.String("request", route),
 						zap.ByteString("stack", debug.Stack()),
 					)
 				} else {
 					zap.L().Error("[Recovery from panic]",
 						zap.Any("error", err),
-						zap.String("request", string(httpRequest)),
+						zap.String("request", route),
 					)
 				}
 				c.AbortWithStatus(http.StatusInternalServerError)

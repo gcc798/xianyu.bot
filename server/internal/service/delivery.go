@@ -23,8 +23,10 @@ type Delivery struct {
 	db        *gorm.DB        // db 持久化规则、卡密和发货任务。
 	events    *BusinessEvent  // events 记录发货业务结果。
 	consigner interface {
-		// Consign 向买家发送内容并确认闲鱼订单发货。
-		Consign(context.Context, uint, model.Order, string) error
+		// SendDelivery 向买家发送发货消息。
+		SendDelivery(context.Context, uint, model.Order, string) error
+		// ConfirmDelivery 确认平台发货。
+		ConfirmDelivery(context.Context, uint, model.Order, string) error
 	} // consigner 执行不可重复的远端发货动作。
 	rules   *DeliveryRule               // rules 为订单选择发货模板。
 	relist  *Relist                     // relist 在发货成功后规划自动续售。
@@ -161,8 +163,12 @@ func (s *Delivery) Plan(ctx context.Context, order model.Order) error {
 	}
 	now := time.Now()
 	task := model.DeliveryTask{
-		OwnerID: order.OwnerID, AccountID: order.AccountID, OrderID: order.ID, RuleID: rule.ID,
-		Status: model.DeliveryTaskPending, NextAttemptAt: now,
+		OwnerID:       order.OwnerID,
+		AccountID:     order.AccountID,
+		OrderID:       order.ID,
+		RuleID:        rule.ID,
+		Status:        model.DeliveryTaskPending,
+		NextAttemptAt: now,
 	}
 	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&task).Error; err != nil {
@@ -171,44 +177,54 @@ func (s *Delivery) Plan(ctx context.Context, order model.Order) error {
 		if task.ID == 0 {
 			return nil
 		}
-		payload := rule.Template
-		if rule.Mode == model.DeliveryModeCard {
-			var resource model.DeliveryResource
-			if err := tx.Where("owner_id = ? AND rule_id = ? AND status = ?", order.OwnerID, rule.ID, model.DeliveryResourceAvailable).
-				Order("id").First(&resource).Error; err != nil {
-				if errors.Is(err, gorm.ErrRecordNotFound) {
-					task.Status = model.DeliveryTaskFailed
-					return tx.Model(&task).Updates(map[string]any{"status": model.DeliveryTaskFailed, "last_error": "卡密库存不足"}).Error
-				}
-				return err
-			}
-			reserve := tx.Model(&model.DeliveryResource{}).
-				Where("id = ? AND status = ?", resource.ID, model.DeliveryResourceAvailable).
-				Updates(map[string]any{"status": model.DeliveryResourceReserved, "reserved_task_id": task.ID})
-			if reserve.Error != nil {
-				return reserve.Error
-			}
-			if reserve.RowsAffected != 1 {
-				return errors.New("卡密被其他任务占用")
-			}
-			value, err := decryptCredential(s.db, resource.ValueCiphertext, deliveryResourceAAD(rule.ID, resource.ValueHash))
-			if err != nil {
-				return err
-			}
-			payload = strings.ReplaceAll(rule.Template, "{card}", value)
-			task.ResourceID = resource.ID
+		err := prepareDelivery(tx, &task, order, rule.Mode, rule.Template)
+		if errors.Is(err, errNoStock) {
+			task.Status = model.DeliveryTaskFailed
+			return tx.Model(&task).Updates(map[string]any{"status": task.Status, "last_error": err.Error()}).Error
 		}
-		ciphertext, err := encryptCredential(s.db, payload, deliveryTaskAAD(order.AccountID, order.ExternalOrderID))
-		if err != nil {
-			return err
-		}
-		task.PayloadCiphertext = ciphertext
-		return tx.Model(&task).Updates(map[string]any{"resource_id": task.ResourceID, "payload_ciphertext": ciphertext}).Error
+		return err
 	})
 	if err == nil && task.ID != 0 && task.Status == model.DeliveryTaskPending {
 		go func() { _ = s.ProcessTask(contextOrBackground(s.root), order.OwnerID, task.ID) }()
 	}
 	return err
+}
+
+var errNoStock = errors.New("卡密库存不足")
+
+func prepareDelivery(tx *gorm.DB, task *model.DeliveryTask, order model.Order, mode, template string) error {
+	payload := template
+	if mode == model.DeliveryModeCard {
+		var resource model.DeliveryResource
+		if err := tx.Where("owner_id = ? AND rule_id = ? AND status = ?", order.OwnerID, task.RuleID, model.DeliveryResourceAvailable).
+			Order("id").First(&resource).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return errNoStock
+			}
+			return err
+		}
+		reserve := tx.Model(&model.DeliveryResource{}).
+			Where("id = ? AND status = ?", resource.ID, model.DeliveryResourceAvailable).
+			Updates(map[string]any{"status": model.DeliveryResourceReserved, "reserved_task_id": task.ID})
+		if reserve.Error != nil {
+			return reserve.Error
+		}
+		if reserve.RowsAffected != 1 {
+			return errors.New("卡密被其他任务占用")
+		}
+		value, err := decryptCredential(tx, resource.ValueCiphertext, deliveryResourceAAD(task.RuleID, resource.ValueHash))
+		if err != nil {
+			return err
+		}
+		payload = strings.ReplaceAll(template, "{card}", value)
+		task.ResourceID = resource.ID
+	}
+	ciphertext, err := encryptCredential(tx, payload, deliveryTaskAAD(order.AccountID, order.ExternalOrderID))
+	if err != nil {
+		return err
+	}
+	task.PayloadCiphertext = ciphertext
+	return tx.Model(task).Updates(map[string]any{"resource_id": task.ResourceID, "payload_ciphertext": ciphertext}).Error
 }
 
 // ProcessTask 原子认领任务，解密负载并执行一次可审计的远端发货。
@@ -238,20 +254,41 @@ func (s *Delivery) ProcessTask(ctx context.Context, ownerID, taskID uint) error 
 	if err := db.Where("id = ? AND owner_id = ?", task.OrderID, ownerID).First(&order).Error; err != nil {
 		return s.failTask(db, task, err)
 	}
+	if task.PayloadCiphertext == "" {
+		err := db.Transaction(func(tx *gorm.DB) error {
+			var rule model.DeliveryRule
+			if err := tx.Where("id = ? AND owner_id = ? AND enabled = ?", task.RuleID, ownerID, true).First(&rule).Error; err != nil {
+				return err
+			}
+			return prepareDelivery(tx, &task, order, rule.Mode, rule.Template)
+		})
+		if err != nil {
+			return s.failTask(db, task, err)
+		}
+	}
 	payload, err := decryptCredential(s.db, task.PayloadCiphertext, deliveryTaskAAD(order.AccountID, order.ExternalOrderID))
 	if err != nil {
 		return s.failTask(db, task, err)
 	}
-	if err := s.consigner.Consign(ctx, ownerID, order, payload); err != nil {
-		if errors.Is(err, errMTopTransport) {
-			s.events.Record(ctx, model.BusinessEvent{OwnerID: ownerID, AccountID: task.AccountID, OrderID: task.OrderID, Type: "delivery", Status: "unknown", Summary: "自动发货结果未知", Error: err.Error()})
-			return db.Model(&task).Updates(map[string]any{"status": model.DeliveryTaskUnknown, "last_error": err.Error()}).Error
+	if task.SentAt == nil {
+		if err := s.consigner.SendDelivery(ctx, ownerID, order, payload); err != nil {
+			if errors.Is(err, errMTopTransport) {
+				s.events.Record(ctx, model.BusinessEvent{OwnerID: ownerID, AccountID: task.AccountID, OrderID: task.OrderID, Type: "delivery", Status: "unknown", Summary: "自动发货结果未知", Error: err.Error()})
+				return db.Model(&task).Updates(map[string]any{"status": model.DeliveryTaskUnknown, "last_error": err.Error()}).Error
+			}
+			return s.failTask(db, task, err)
 		}
+		sent := time.Now()
+		if err := db.Model(&task).Update("sent_at", sent).Error; err != nil {
+			return err
+		}
+	}
+	if err := s.consigner.ConfirmDelivery(ctx, ownerID, order, payload); err != nil {
 		return s.failTask(db, task, err)
 	}
 	now := time.Now()
 	txErr := db.Transaction(func(tx *gorm.DB) error {
-		if err := tx.Model(&task).Updates(map[string]any{"status": model.DeliveryTaskConfirmed, "sent_at": now, "confirmed_at": now, "last_error": ""}).Error; err != nil {
+		if err := tx.Model(&task).Updates(map[string]any{"status": model.DeliveryTaskConfirmed, "confirmed_at": now, "last_error": ""}).Error; err != nil {
 			return err
 		}
 		if task.ResourceID != 0 {

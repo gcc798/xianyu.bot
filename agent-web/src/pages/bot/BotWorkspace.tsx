@@ -68,6 +68,7 @@ export default function BotWorkspace() {
   const [operationsOpen, setOperationsOpen] = useState(false);
   const [trajectoryOpen, setTrajectoryOpen] = useState(false);
   const [historyCollapsed, setHistoryCollapsed] = useState(false);
+  const loadSeq = useRef(0);
   const streamRef = useRef<AbortController | null>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
   const composingRef = useRef(false);
@@ -119,6 +120,7 @@ export default function BotWorkspace() {
   const openSession = useCallback(async (id: number, preserveFeedback = false) => {
     // 切换会话前终止旧事件流，避免旧会话增量写入新会话界面。
     streamRef.current?.abort();
+    const seq = ++loadSeq.current;
     setSessionId(id);
     setError("");
     if (!preserveFeedback) setApprovalFeedback(null);
@@ -126,6 +128,7 @@ export default function BotWorkspace() {
     setCancelling(false);
     setRunId(0);
     const [{ session }, trajectory] = await Promise.all([getSession(id), getTrajectory(id)]);
+    if (seq !== loadSeq.current) return;
     setMessages(session.messages || []);
     setOperations(
       (session.toolTraces || []).map((item) => ({
@@ -261,6 +264,7 @@ export default function BotWorkspace() {
       if (id === sessionId) {
         if (items.length) await openSession(items[0].ID);
         else {
+          loadSeq.current++;
           setSessionId(0);
           setMessages([]);
           setOperations([]);

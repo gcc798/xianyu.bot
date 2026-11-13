@@ -304,13 +304,23 @@ func (s *ResourceCatalog) CancelTelegramTask(ctx context.Context, ownerID, taskI
 // StartTelegramTasks 恢复并执行持久化队列中的采集任务。
 func (s *ResourceCatalog) StartTelegramTasks(ctx context.Context) {
 	go func() {
-		db := s.db.WithContext(ctx).Model(&model.TelegramResourceTask{}).Where("status = ?", "running")
-		_ = db.Where("cancel_requested = ?", true).Updates(map[string]any{
-			"status": "cancelled", "completed_at": time.Now(),
-		}).Error
-		_ = db.Where("cancel_requested = ?", false).Updates(map[string]any{
-			"status": "queued", "started_at": nil, "files_found": 0, "files_completed": 0,
-		}).Error
+		for {
+			err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+				if err := tx.Model(&model.TelegramResourceTask{}).Where("status = ? AND cancel_requested", "running").Updates(map[string]any{"status": "cancelled", "completed_at": time.Now()}).Error; err != nil {
+					return err
+				}
+				return tx.Model(&model.TelegramResourceTask{}).Where("status = ? AND NOT cancel_requested", "running").Updates(map[string]any{"status": "queued", "started_at": nil, "files_found": 0, "files_completed": 0}).Error
+			})
+			if err == nil {
+				break
+			}
+			zap.L().Error("恢复 Telegram 采集队列失败", zap.Error(err))
+			select {
+			case <-ctx.Done():
+				return
+			case <-time.After(time.Second):
+			}
+		}
 		for {
 			var task model.TelegramResourceTask
 			err := s.db.WithContext(ctx).Where("status = ?", "queued").Order("id").Limit(1).Find(&task).Error

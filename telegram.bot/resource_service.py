@@ -173,6 +173,7 @@ class ResourceService:
         self.interactive_search_lock = asyncio.Lock()
         self.interactive_search_wait = min(max(float(os.getenv("TG_INTERACTIVE_SEARCH_WAIT_SECONDS", "8")), 1), 30)
         self.concurrency = min(max(int(os.getenv("TG_RESOURCE_CONCURRENCY", "1")), 1), 3)
+        self.slots = asyncio.Semaphore(self.concurrency)
         self.max_file_size = int(os.getenv("TG_RESOURCE_MAX_FILE_MB", "200")) * 1024 * 1024
         configured_tmp = os.getenv("TELEGRAM_TMP_ROOT")
         module_path = Path(__file__).resolve()
@@ -213,10 +214,14 @@ class ResourceService:
         await self.inspect_candidate(candidate_id)
         task, created = self.db.create_acquisition_task(resource_task_id, candidate_id, idempotency_key.strip())
         if created:
-            worker = asyncio.create_task(self._acquire(task["id"], candidate_id, resource_task_id, delivery_token))
+            worker = asyncio.create_task(self._acquire_when_ready(task["id"], candidate_id, resource_task_id, delivery_token))
             self.acquisitions[task["id"]] = worker
             worker.add_done_callback(lambda _worker, task_id=task["id"]: self.acquisitions.pop(task_id, None))
         return task
+
+    async def _acquire_when_ready(self, task_id, candidate_id, resource_task_id, delivery_token):
+        async with self.slots:
+            await self._acquire(task_id, candidate_id, resource_task_id, delivery_token)
 
     def cancel_acquisition(self, task_id: int) -> None:
         task = self.db.acquisition_task(task_id)
@@ -597,7 +602,12 @@ class ResourceService:
         while True:
             task_id = await self.queue.get()
             try:
-                await self._run(task_id)
+                async with self.slots:
+                    await self._run(task_id)
+            except Exception:
+                LOGGER.exception("Resource worker failed for task %s", task_id)
+                await asyncio.sleep(1)
+                self.enqueue(task_id)
             finally:
                 self.queue.task_done()
 

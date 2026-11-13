@@ -83,7 +83,9 @@ export default function TrajectoryPanel({ sessionId, onClose }: Props) {
   const [error, setError] = useState("");
   const [nextCursorId, setNextCursorId] = useState(0);
   const [hasMore, setHasMore] = useState(false);
-  const [timelineViewport, setTimelineViewport] = useState<{ left: number; right: number } | null>(null);
+  const [timelineViewport, setTimelineViewport] = useState<{ left: number; right: number } | null>(
+    null,
+  );
   const eventListRef = useRef<HTMLDivElement>(null);
   const eventRowRefs = useRef(new Map<number, HTMLButtonElement>());
   const pendingScrollEventId = useRef<number | null>(null);
@@ -122,7 +124,8 @@ export default function TrajectoryPanel({ sessionId, onClose }: Props) {
     () =>
       events.filter((event) => {
         const category = eventCategory(event.type);
-        const text = `${eventName(event.type, eventTypes)} ${eventSummary(event)} ${event.type} ${JSON.stringify(event.data)}`.toLowerCase();
+        const text =
+          `${eventName(event.type, eventTypes)} ${eventSummary(event)} ${event.type} ${JSON.stringify(event.data)}`.toLowerCase();
         return (
           (filter === "all" || filter === category) &&
           (!search || text.includes(search.toLowerCase()))
@@ -140,7 +143,9 @@ export default function TrajectoryPanel({ sessionId, onClose }: Props) {
     return [...grouped.entries()];
   }, [visibleEvents]);
 
-  const timestamps = events.map((event) => Date.parse(event.createdAt || "")).filter(Number.isFinite);
+  const timestamps = events
+    .map((event) => Date.parse(event.createdAt || ""))
+    .filter(Number.isFinite);
   const timelineStart = timestamps.length ? Math.min(...timestamps) : 0;
   const timelineEnd = timestamps.length ? Math.max(...timestamps) : 0;
   const timelineSpan = Math.max(timelineEnd - timelineStart, 1);
@@ -251,16 +256,13 @@ export default function TrajectoryPanel({ sessionId, onClose }: Props) {
   };
 
   return (
-    <div
-      className="trajectory-backdrop"
-      role="dialog"
-      aria-modal="true"
-      aria-label="运行轨迹"
-    >
+    <div className="trajectory-backdrop" role="dialog" aria-modal="true" aria-label="运行轨迹">
       <section className="trajectory-panel">
         <header className="trajectory-head">
           <div>
-            <span className="trace-mark"><RobotOutlined /></span>
+            <span className="trace-mark">
+              <RobotOutlined />
+            </span>
             <div>
               <strong>运行轨迹</strong>
               <small>
@@ -277,11 +279,26 @@ export default function TrajectoryPanel({ sessionId, onClose }: Props) {
           <div className="timeline-meta">
             <strong>会话时间轴</strong>
             <div className="timeline-legend" aria-label="事件状态图例">
-              <span><i className="status-recorded" />已记录</span>
-              <span><i className="status-running" />进行中</span>
-              <span><i className="status-pending" />待审批</span>
-              <span><i className="status-success" />成功</span>
-              <span><i className="status-failed" />失败/取消</span>
+              <span>
+                <i className="status-recorded" />
+                已记录
+              </span>
+              <span>
+                <i className="status-running" />
+                进行中
+              </span>
+              <span>
+                <i className="status-pending" />
+                待审批
+              </span>
+              <span>
+                <i className="status-success" />
+                成功
+              </span>
+              <span>
+                <i className="status-failed" />
+                失败/取消
+              </span>
             </div>
           </div>
           <div className="timeline-track">
@@ -297,7 +314,11 @@ export default function TrajectoryPanel({ sessionId, onClose }: Props) {
               />
             )}
             {timelineTicks.map((tick) => (
-              <span className="timeline-tick" key={tick.timestamp} style={{ left: `${timelinePosition(tick.timestamp)}%` }}>
+              <span
+                className="timeline-tick"
+                key={tick.timestamp}
+                style={{ left: `${timelinePosition(tick.timestamp)}%` }}
+              >
                 <i />
                 <time>{tick.label}</time>
               </span>
@@ -394,7 +415,11 @@ export default function TrajectoryPanel({ sessionId, onClose }: Props) {
                   </button>
                 </div>
               </div>
-              {error && <p className="trace-error trace-toolbar-error" role="alert">{error}</p>}
+              {error && (
+                <p className="trace-error trace-toolbar-error" role="alert">
+                  {error}
+                </p>
+              )}
             </div>
             <div className="event-list" ref={eventListRef} onScroll={updateTimelineViewport}>
               {loading && <p className="trace-empty">正在读取持久化轨迹…</p>}
@@ -636,7 +661,11 @@ function eventSummary(event: AgentEvent) {
 }
 
 function firstText(...values: unknown[]) {
-  return values.find((value): value is string => typeof value === "string" && value.trim() !== "")?.trim() || "";
+  return (
+    values
+      .find((value): value is string => typeof value === "string" && value.trim() !== "")
+      ?.trim() || ""
+  );
 }
 
 function eventStatus(event: AgentEvent) {

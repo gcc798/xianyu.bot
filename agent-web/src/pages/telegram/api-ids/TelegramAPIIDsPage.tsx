@@ -86,7 +86,12 @@ export function Component() {
       title: "API Hash",
       dataIndex: "hasApiHash",
       width: 150,
-      render: (configured: boolean) => configured ? <Typography.Text type="secondary">•••••••• 已设置</Typography.Text> : <Tag>未设置</Tag>,
+      render: (configured: boolean) =>
+        configured ? (
+          <Typography.Text type="secondary">•••••••• 已设置</Typography.Text>
+        ) : (
+          <Tag>未设置</Tag>
+        ),
     },
     {
       title: "限流状态",
@@ -96,15 +101,19 @@ export function Component() {
         until && new Date(until).getTime() > Date.now() ? (
           <Space direction="vertical" size={0}>
             <Tag color="warning">限流中</Tag>
-            <Typography.Text type="secondary">至 {new Date(until).toLocaleString()}</Typography.Text>
+            <Typography.Text type="secondary">
+              至 {new Date(until).toLocaleString()}
+            </Typography.Text>
           </Space>
-        ) : <Tag color="success">可用</Tag>,
+        ) : (
+          <Tag color="success">可用</Tag>
+        ),
     },
     {
       title: "最近限流时长",
       dataIndex: "lastFloodWaitSeconds",
       width: 150,
-      render: (seconds: number) => seconds ? `${seconds} 秒` : "-",
+      render: (seconds: number) => (seconds ? `${seconds} 秒` : "-"),
     },
     {
       title: "操作",
@@ -112,8 +121,12 @@ export function Component() {
       width: 180,
       render: (_, config) => (
         <Space>
-          <Button type="link" icon={<EditOutlined />} onClick={() => startEdit(config)}>编辑</Button>
-          <Button type="link" danger icon={<DeleteOutlined />} onClick={() => remove(config)}>删除</Button>
+          <Button type="link" icon={<EditOutlined />} onClick={() => startEdit(config)}>
+            编辑
+          </Button>
+          <Button type="link" danger icon={<DeleteOutlined />} onClick={() => remove(config)}>
+            删除
+          </Button>
         </Space>
       ),
     },
@@ -127,9 +140,14 @@ export function Component() {
             allowClear
             placeholder="搜索名称或 API ID"
             style={{ width: 280 }}
-            onSearch={(value) => { setPage(1); setKeyword(value.trim()); }}
+            onSearch={(value) => {
+              setPage(1);
+              setKeyword(value.trim());
+            }}
           />
-          <Button type="primary" icon={<PlusOutlined />} onClick={startCreate}>新增 API ID</Button>
+          <Button type="primary" icon={<PlusOutlined />} onClick={startCreate}>
+            新增 API ID
+          </Button>
         </Space>
         <Table<TelegramAPIConfig>
           rowKey="ID"
@@ -154,17 +172,29 @@ export function Component() {
         destroyOnHidden
       >
         <Form form={form} layout="vertical" onFinish={save} preserve={false}>
-          <Form.Item name="name" label="名称" rules={[{ required: true, whitespace: true, max: 100 }]}>
+          <Form.Item
+            name="name"
+            label="名称"
+            rules={[{ required: true, whitespace: true, max: 100 }]}
+          >
             <Input maxLength={100} />
           </Form.Item>
-          <Form.Item name="apiId" label="API ID" rules={[{ required: true, type: "number", min: 1, max: 2147483647 }]}>
+          <Form.Item
+            name="apiId"
+            label="API ID"
+            rules={[{ required: true, type: "number", min: 1, max: 2147483647 }]}
+          >
             <InputNumber precision={0} style={{ width: "100%" }} />
           </Form.Item>
           <Form.Item
             name="apiHash"
             label="API Hash"
             rules={editing ? [] : [{ required: true, len: 32, pattern: /^[a-fA-F0-9]{32}$/ }]}
-            extra={editing ? "留空保留当前 Hash；输入新 Hash 将替换现有凭据。" : "32 位十六进制字符串。保存后不会再次明文展示。"}
+            extra={
+              editing
+                ? "留空保留当前 Hash；输入新 Hash 将替换现有凭据。"
+                : "32 位十六进制字符串。保存后不会再次明文展示。"
+            }
           >
             <Input.Password autoComplete="new-password" maxLength={32} />
           </Form.Item>

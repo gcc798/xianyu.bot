@@ -35,23 +35,23 @@ func RunServer(ctx context.Context, router *gin.Engine, port int) error {
 
 // runServer 协调服务运行错误和调用方取消信号。
 func runServer(ctx context.Context, srv server) error {
-	serverErrors := make(chan error, 1)
+	errCh := make(chan error, 1)
 	go func() {
 		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			serverErrors <- fmt.Errorf("listen: %w", err)
+			errCh <- fmt.Errorf("listen: %w", err)
 		}
 	}()
 
 	select {
-	case err := <-serverErrors:
+	case err := <-errCh:
 		return err
 	case <-ctx.Done():
 	}
 	zap.L().Info("关闭WEB服务...")
 
-	shutdownContext, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+	shutdownCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
 	defer cancel()
-	if err := srv.Shutdown(shutdownContext); err != nil {
+	if err := srv.Shutdown(shutdownCtx); err != nil {
 		return fmt.Errorf("shutdown server: %w", err)
 	}
 

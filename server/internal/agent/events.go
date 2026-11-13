@@ -13,6 +13,9 @@ import (
 )
 
 // agentEventMaxBytes 限制单个 Agent 事件的最大字节数。
+// EventPageSize 限制单批历史事件数量。
+const EventPageSize = 64
+
 const agentEventMaxBytes = 1 << 20
 
 // Event 表示推送给会话订阅者的 Agent 事件。
@@ -25,6 +28,7 @@ type Event struct {
 
 // agentEventSession 保存单个会话的内存事件状态。
 type agentEventSession struct {
+	mu          sync.Mutex              // mu 协调本会话的发布和订阅。
 	nextID      uint64                  // nextID 是下一个内存事件序号。
 	history     []Event                 // history 保存可重放的内存事件。
 	subscribers map[chan Event]struct{} // subscribers 保存实时订阅者。
@@ -53,10 +57,11 @@ func (h *EventHub) Publish(sessionID uint, eventType string, data any) (Event, e
 	if err != nil {
 		return Event{}, err
 	}
-	h.mu.Lock()
-	defer h.mu.Unlock()
-	if h.database() == nil {
-		return h.publishInMemory(sessionID, eventType, payload), nil
+	session := h.session(sessionID)
+	session.mu.Lock()
+	defer session.mu.Unlock()
+	if h.db == nil {
+		return session.publishInMemory(eventType, payload), nil
 	}
 
 	stored, err := h.persist(sessionID, eventType, payload)
@@ -64,7 +69,7 @@ func (h *EventHub) Publish(sessionID uint, eventType string, data any) (Event, e
 		return Event{}, err
 	}
 	event := Event{ID: stored.ID, Type: stored.EventType, Data: json.RawMessage(stored.Payload), CreatedAt: stored.CreatedAt}
-	h.broadcast(sessionID, event)
+	session.broadcast(event)
 	return event, nil
 }
 
@@ -74,12 +79,13 @@ func (h *EventHub) PublishTransient(sessionID uint, eventType string, data any) 
 	if err != nil {
 		return Event{}, err
 	}
-	h.mu.Lock()
-	defer h.mu.Unlock()
+	session := h.session(sessionID)
+	session.mu.Lock()
+	defer session.mu.Unlock()
 	event := Event{Type: eventType, Data: payload, CreatedAt: time.Now()}
-	for subscriber := range h.session(sessionID).subscribers {
+	for subscriber := range session.subscribers {
 		if !sendAgentEvent(subscriber, event) {
-			delete(h.session(sessionID).subscribers, subscriber)
+			delete(session.subscribers, subscriber)
 		}
 	}
 	return event, nil
@@ -90,19 +96,19 @@ func (h *EventHub) Subscribe(ctx context.Context, sessionID uint, afterID uint64
 	if sessionID == 0 {
 		return nil, nil, nil, errors.New("Agent 事件缺少会话")
 	}
-	h.mu.Lock()
-	defer h.mu.Unlock()
+	session := h.session(sessionID)
+	session.mu.Lock()
+	defer session.mu.Unlock()
 
-	replay, err := h.replay(ctx, sessionID, afterID)
+	replay, err := h.replay(ctx, session, sessionID, afterID)
 	if err != nil {
 		return nil, nil, nil, err
 	}
-	session := h.session(sessionID)
 	stream := make(chan Event, 64)
 	session.subscribers[stream] = struct{}{}
 	cancel := sync.OnceFunc(func() {
-		h.mu.Lock()
-		defer h.mu.Unlock()
+		session.mu.Lock()
+		defer session.mu.Unlock()
 		if _, exists := session.subscribers[stream]; exists {
 			delete(session.subscribers, stream)
 			close(stream)
@@ -116,6 +122,8 @@ func (h *EventHub) Forget(sessionID uint) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	if session := h.sessions[sessionID]; session != nil {
+		session.mu.Lock()
+		defer session.mu.Unlock()
 		for subscriber := range session.subscribers {
 			close(subscriber)
 			delete(session.subscribers, subscriber)
@@ -126,7 +134,7 @@ func (h *EventHub) Forget(sessionID uint) {
 
 // persist 将事件及其运行引用写入数据库。
 func (h *EventHub) persist(sessionID uint, eventType string, payload []byte) (model.AgentEvent, error) {
-	db := h.database()
+	db := h.db
 	var session model.AgentSession
 	if err := db.Select("owner_id").First(&session, sessionID).Error; err != nil {
 		return model.AgentEvent{}, err
@@ -145,21 +153,12 @@ func (h *EventHub) persist(sessionID uint, eventType string, payload []byte) (mo
 }
 
 // replay 读取指定序号后的持久化或内存事件。
-func (h *EventHub) replay(ctx context.Context, sessionID uint, afterID uint64) ([]Event, error) {
-	if db := h.database(); db != nil {
-		stored := make([]model.AgentEvent, 0)
-		if err := db.WithContext(ctx).Where("session_id = ? AND id > ?", sessionID, afterID).Order("id").Find(&stored).Error; err != nil {
-			return nil, err
-		}
-		replay := make([]Event, 0, len(stored))
-		for _, event := range stored {
-			replay = append(replay, Event{ID: event.ID, Type: event.EventType, Data: json.RawMessage(event.Payload), CreatedAt: event.CreatedAt})
-		}
-		return replay, nil
+func (h *EventHub) replay(ctx context.Context, session *agentEventSession, sessionID uint, afterID uint64) ([]Event, error) {
+	if h.db != nil {
+		return h.ReplayPage(ctx, sessionID, afterID)
 	}
-
 	replay := make([]Event, 0)
-	for _, event := range h.session(sessionID).history {
+	for _, event := range session.history {
 		if event.ID > afterID {
 			replay = append(replay, event)
 		}
@@ -167,9 +166,24 @@ func (h *EventHub) replay(ctx context.Context, sessionID uint, afterID uint64) (
 	return replay, nil
 }
 
+// ReplayPage 按游标读取一批持久事件。
+func (h *EventHub) ReplayPage(ctx context.Context, sessionID uint, afterID uint64) ([]Event, error) {
+	if h.db == nil {
+		return nil, nil
+	}
+	stored := make([]model.AgentEvent, 0)
+	if err := h.db.WithContext(ctx).Where("session_id = ? AND id > ?", sessionID, afterID).Order("id").Limit(EventPageSize).Find(&stored).Error; err != nil {
+		return nil, err
+	}
+	replay := make([]Event, 0, len(stored))
+	for _, event := range stored {
+		replay = append(replay, Event{ID: event.ID, Type: event.EventType, Data: json.RawMessage(event.Payload), CreatedAt: event.CreatedAt})
+	}
+	return replay, nil
+}
+
 // publishInMemory 保存并广播内存事件。
-func (h *EventHub) publishInMemory(sessionID uint, eventType string, payload []byte) Event {
-	session := h.session(sessionID)
+func (session *agentEventSession) publishInMemory(eventType string, payload []byte) Event {
 	session.nextID++
 	event := Event{ID: session.nextID, Type: eventType, Data: payload, CreatedAt: time.Now()}
 	session.history = append(session.history, event)
@@ -182,8 +196,7 @@ func (h *EventHub) publishInMemory(sessionID uint, eventType string, payload []b
 }
 
 // broadcast 向会话的全部有效订阅者广播事件。
-func (h *EventHub) broadcast(sessionID uint, event Event) {
-	session := h.session(sessionID)
+func (session *agentEventSession) broadcast(event Event) {
 	for subscriber := range session.subscribers {
 		if !sendAgentEvent(subscriber, event) {
 			delete(session.subscribers, subscriber)
@@ -191,13 +204,10 @@ func (h *EventHub) broadcast(sessionID uint, event Event) {
 	}
 }
 
-// database 返回事件持久化数据库。
-func (h *EventHub) database() *gorm.DB {
-	return h.db
-}
-
 // session 获取或创建会话事件状态。
 func (h *EventHub) session(sessionID uint) *agentEventSession {
+	h.mu.Lock()
+	defer h.mu.Unlock()
 	session := h.sessions[sessionID]
 	if session == nil {
 		session = &agentEventSession{subscribers: make(map[chan Event]struct{})}

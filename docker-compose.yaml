@@ -7,6 +7,7 @@ networks:
 volumes:
   postgres:
   rustfs:
+  internal-auth:
 
 services:
   web:
@@ -24,6 +25,9 @@ services:
     build:
       context: ./server
       dockerfile: ./Dockerfile
+    entrypoint: ["/bin/sh", "-ec", "umask 077; test -s /run/xy/token || (head -c 32 /dev/urandom | base64 > /run/xy/token.tmp && mv /run/xy/token.tmp /run/xy/token); exec ./server -c config.docker.yaml"]
+    volumes:
+      - internal-auth:/run/xy
     container_name: xianyu.bot.server
     restart: always
     ports:
@@ -112,4 +116,5 @@ services:
     ports:
       - '127.0.0.1:18081:8080'
     volumes:
+      - internal-auth:/run/xy:ro
       - ./tmp:/workspace/tmp

@@ -7,6 +7,7 @@ import logging
 import json
 import os
 import re
+from pathlib import Path
 from datetime import datetime, timezone
 from urllib.request import Request, urlopen
 
@@ -158,7 +159,7 @@ class TelegramService:
         request = Request(
             f"{base_url}/xy/internal/{path}",
             data=json.dumps(payload).encode() if payload is not None else None,
-            headers={"Content-Type": "application/json"},
+            headers={"Content-Type": "application/json", "X-Service-Token": Path("/run/xy/token").read_text().strip()},
             method="POST" if payload is not None else "GET",
         )
         with urlopen(request, timeout=5) as response:

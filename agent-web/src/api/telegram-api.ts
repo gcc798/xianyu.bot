@@ -1,7 +1,4 @@
-import type {
-  TelegramAPIConfigInput,
-  TelegramAPIConfigPage,
-} from "../models/telegram-api";
+import type { TelegramAPIConfigInput, TelegramAPIConfigPage } from "../models/telegram-api";
 import type { EmptyResponse } from "../models/http";
 import { queryString, request } from "./client";
 

@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/base64"
+	"errors"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -18,12 +19,17 @@ import (
 
 // blockingDeliverySender 是测试辅助类型。
 type blockingDeliverySender struct {
-	payload chan string   // payload 记录发货内容。
-	release chan struct{} // release 控制模拟发货完成。
+	payload    chan string   // payload 记录发货内容。
+	confirmErr error         // confirmErr 模拟平台确认失败。
+	release    chan struct{} // release 控制模拟发货完成。
 }
 
 // Consign 提供测试辅助能力。
-func (s *blockingDeliverySender) Consign(ctx context.Context, _ uint, _ model.Order, text string) error {
+func (s *blockingDeliverySender) ConfirmDelivery(context.Context, uint, model.Order, string) error {
+	return s.confirmErr
+}
+
+func (s *blockingDeliverySender) SendDelivery(ctx context.Context, _ uint, _ model.Order, text string) error {
 	s.payload <- text
 	select {
 	case <-s.release:
@@ -106,4 +112,13 @@ func TestDeliveryReservesEncryptedCardOnce(t *testing.T) {
 	}, time.Second, 10*time.Millisecond)
 	require.NoError(t, db.First(&resource, resource.ID).Error)
 	require.Equal(t, model.DeliveryResourceConsumed, resource.Status)
+	_, err = service.ImportResources(t.Context(), 10, xyRequest.ImportDeliveryResources{RuleID: rule.ID, Values: []string{"RESTOCK"}})
+	require.NoError(t, err)
+	sender.confirmErr = errors.New("平台未确认")
+	require.Error(t, service.Retry(t.Context(), 10, secondTask.ID))
+	require.Equal(t, "卡密：RESTOCK", <-sender.payload)
+	sender.confirmErr = nil
+	require.NoError(t, service.Retry(t.Context(), 10, secondTask.ID))
+	require.Empty(t, sender.payload)
+
 }

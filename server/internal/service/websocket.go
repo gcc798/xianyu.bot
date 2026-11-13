@@ -60,7 +60,7 @@ type WebSocketService struct {
 func NewWebSocketService(root context.Context, db *gorm.DB, events *BusinessEvent, messages *Message, sendNotificationEmail func(string, string) error) *WebSocketService {
 	token := NewWebSocketToken(db, events)
 	dialer := &XYDialer{db: db, token: &token, endpoint: webSocketEndpoint}
-	service := &WebSocketService{
+	svc := &WebSocketService{
 		root:                  contextOrBackground(root),
 		db:                    db,
 		events:                events,
@@ -70,13 +70,13 @@ func NewWebSocketService(root context.Context, db *gorm.DB, events *BusinessEven
 		sendNotificationEmail: sendNotificationEmail,
 	}
 	config := connection.DefaultConfig()
-	config.StateChanged = service.connectionStateChanged
-	manager, err := connection.NewManager(dialer, service.handleRuntimeMessage, config)
+	config.StateChanged = svc.connectionStateChanged
+	manager, err := connection.NewManager(dialer, svc.handleRuntimeMessage, config)
 	if err != nil {
 		panic(err)
 	}
-	service.manager = manager
-	return service
+	svc.manager = manager
+	return svc
 }
 
 // XYDialer 使用账号 Cookie 和消息令牌建立闲鱼连接。
@@ -332,6 +332,8 @@ func (s *WebSocketService) Status(ctx context.Context, ownerID, accountID uint) 
 	}, nil
 }
 
+var errSendUnknown = errors.New("闲鱼消息发送结果未知")
+
 // SendText 校验账号归属和文本边界后向指定闲鱼会话发送消息。
 func (s *WebSocketService) SendText(ctx context.Context, ownerID, accountID uint, sessionID, toUserID, text string) error {
 	account, err := ownedAccount(ctx, s.db, ownerID, accountID)
@@ -349,9 +351,12 @@ func (s *WebSocketService) SendText(ctx context.Context, ownerID, accountID uint
 	if err != nil {
 		return err
 	}
-	sendCtx, cancel := context.WithTimeoutCause(ctx, 10*time.Second, errors.New("闲鱼消息发送结果未知"))
+	sendCtx, cancel := context.WithTimeoutCause(ctx, 10*time.Second, errSendUnknown)
 	defer cancel()
 	err = s.manager.Send(sendCtx, accountID, payload)
+	if err != nil && !errors.Is(err, connection.ErrNotConnected) {
+		err = errors.Join(errSendUnknown, err)
+	}
 	fields := []zap.Field{zap.Uint("ownerID", ownerID), zap.Uint("accountID", accountID), zap.String("sessionID", sessionID), zap.String("toUserID", toUserID), zap.Int("textLength", len([]rune(text)))}
 	if err != nil {
 		zap.L().Warn("发送闲鱼消息失败", append(fields, zap.Error(err))...)

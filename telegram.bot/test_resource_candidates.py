@@ -1,3 +1,4 @@
+import asyncio
 import os
 import tempfile
 import unittest
@@ -120,6 +121,7 @@ class ResourceCandidateTest(unittest.IsolatedAsyncioTestCase):
         service.db = FakeDatabase()
         service.max_file_size = 10 * 1024 * 1024
         service.acquisitions = {}
+        service.slots = asyncio.Semaphore(1)
         return service
 
     async def test_group_name_containing_search_character_uses_interactive_search(self):

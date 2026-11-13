@@ -116,17 +116,22 @@ func (s *Order) SyncPending(ctx context.Context, ownerID, accountID uint) (int, 
 	return count, nil
 }
 
-// Consign 先向买家发送 text，再调用闲鱼虚拟发货确认接口。
-func (s *Order) Consign(ctx context.Context, ownerID uint, item model.Order, text string) error {
+// SendDelivery 向买家发送发货内容。
+func (s *Order) SendDelivery(ctx context.Context, ownerID uint, item model.Order, text string) error {
 	if s.sender == nil {
 		return errors.New("闲鱼消息发送服务不可用")
 	}
 	if err := s.sender.SendText(ctx, ownerID, item.AccountID, item.SessionID, item.BuyerUserID, text); err != nil {
-		if strings.Contains(err.Error(), "结果未知") {
+		if errors.Is(err, errSendUnknown) {
 			return fmt.Errorf("%w: 发送发货消息: %v", errMTopTransport, err)
 		}
 		return fmt.Errorf("发送发货消息: %w", err)
 	}
+	return nil
+}
+
+// ConfirmDelivery 确认平台发货。
+func (s *Order) ConfirmDelivery(ctx context.Context, ownerID uint, item model.Order, text string) error {
 	_, err := s.caller().Call(ctx, ownerID, item.AccountID, "mtop.taobao.idle.logistic.consign.dummy", map[string]any{
 		"orderId": item.ExternalOrderID, "tradeText": text, "picList": []any{}, "newUnconsign": true,
 	}, false)
