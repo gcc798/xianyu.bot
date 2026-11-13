@@ -134,7 +134,8 @@ export default function BotWorkspace() {
       (session.toolTraces || []).map((item) => ({
         callId: item.callId || `stored-${item.id}`,
         runId: item.runId,
-        tool: item.toolName,
+        tool: item.toolName || item.toolCode,
+        toolSource: item.toolSource,
         status: item.status,
         durationMillis: item.durationMillis,
       })),
@@ -182,7 +183,8 @@ export default function BotWorkspace() {
           {
             callId: String(data.callId || `event-${event.id}`),
             runId: Number(data.runId),
-            tool: String(data.tool),
+            tool: String(data.toolName || data.tool || data.toolCode),
+            toolSource: String(data.toolSource || (data.server ? "mcp" : "local")),
             server: String(data.server || ""),
             status: "running",
           },
@@ -208,7 +210,7 @@ export default function BotWorkspace() {
             runId: Number(data.runId),
             toolCode: String(data.toolCode || data.tool),
             toolName: String(data.toolName || data.tool),
-            toolSource: String(data.server ? "mcp" : "local"),
+            toolSource: String(data.toolSource || (data.server ? "mcp" : "local")),
             createdAt: new Date().toISOString(),
           },
         ]);
@@ -543,10 +545,12 @@ export default function BotWorkspace() {
                       <div className="operation-row" key={operation.callId}>
                         <span className={`op-state ${operation.status}`} />
                         <div>
-                          <strong>{operation.tool}</strong>
-                          <small>
-                            {operation.server || "MCP"} · {operation.callId}
-                          </small>
+                          <strong>
+                            {operation.toolSource === "mcp" ? "MCP" : "Tool"} · {operation.tool}
+                          </strong>
+                          {operation.toolSource === "mcp" && operation.server && (
+                            <small>{operation.server}</small>
+                          )}
                         </div>
                         <em>
                           {operation.durationMillis

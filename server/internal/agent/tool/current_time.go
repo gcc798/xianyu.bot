@@ -22,7 +22,7 @@ func NewCurrentTime() Tool {
 func (*currentTimeTool) Definition() Definition {
 	return Definition{
 		Code: "current_time", Name: "获取当前时间",
-		Description: "获取服务端当前日期、时间、星期和时区。回答今天、明天、当前时间、星期几等依赖当前时间的问题时必须调用，不得猜测。",
+		Description: "仅在需要执行当刻的准确时间时调用。日期和星期使用本轮上下文。",
 		Source:      "local", Parameters: jsonschema.Reflect(struct{}{}), ReadOnly: true,
 		Timeout: time.Second, BudgetClass: BudgetGeneral,
 	}

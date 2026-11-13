@@ -78,7 +78,7 @@ func TestRunnerToolCatalogIncludesLocalAndAvailableMCPTools(t *testing.T) {
 
 	entries := runner.ToolCatalog(t.Context())
 	require.Len(t, entries, 3)
-	require.Equal(t, ToolCatalogEntry{Code: "current_time", Name: "获取当前时间", Description: "获取服务端当前日期、时间、星期和时区。回答今天、明天、当前时间、星期几等依赖当前时间的问题时必须调用，不得猜测。", Source: "本地", Type: "tool"}, entries[0])
+	require.Equal(t, ToolCatalogEntry{Code: "current_time", Name: "获取当前时间", Description: "仅在需要执行当刻的准确时间时调用。日期和星期使用本轮上下文。", Source: "本地", Type: "tool"}, entries[0])
 	require.Equal(t, ToolCatalogEntry{Code: "xianyu_order_list", Name: "查询闲鱼订单", Description: "测试工具", Source: "闲鱼", Type: "tool"}, entries[1])
 	require.Equal(t, "telegram__dialog_list", entries[2].Code)
 	require.Equal(t, "Telegram", entries[2].Source)

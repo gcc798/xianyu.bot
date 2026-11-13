@@ -89,6 +89,7 @@ export type Operation = {
   callId: string;
   runId: number;
   tool: string;
+  toolSource: string;
   server?: string;
   status: string;
   durationMillis?: number;

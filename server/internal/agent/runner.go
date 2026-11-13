@@ -282,7 +282,8 @@ func (s *Runner) execute(ctx context.Context, prepared preparedAgentRun) (RunRes
 	if len(candidates) == 0 {
 		return s.failRun(ctx, run, harness, started, "model_setup_failed", errors.New("所有已启用模型均不可用"))
 	}
-	instruction := xyAgentInstruction + "\n" + xyOperationsInstruction
+	instruction := fmt.Sprintf("%s\n%s\n本轮日期：%s，%s，时区 %s（UTC%s）。日期和星期问题直接据此回答。", xyAgentInstruction, xyOperationsInstruction,
+		started.Format(time.DateOnly), started.Weekday(), started.Location(), started.Format("-07:00"))
 	if discoveryErr != nil {
 		instruction += "\n外部 MCP 能力当前不可用；依赖外部能力的请求应明确告知用户。"
 	}

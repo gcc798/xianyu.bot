@@ -267,6 +267,7 @@ func (t *governedTool) toolEvent(call *model.AgentRunTool, data map[string]any) 
 	data["tool"] = definition.Name
 	data["toolCode"] = definition.Code
 	data["toolName"] = definition.Name
+	data["toolSource"] = definition.Source
 	if call != nil {
 		data["durationMillis"] = time.Since(call.StartedAt).Milliseconds()
 	}
