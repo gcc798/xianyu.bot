@@ -90,9 +90,52 @@ func (a *AIConfigAPI) DeleteModel(c *gin.Context) {
 
 // ListMCPServers 处理 MCP 服务列表查询请求。
 func (a *AIConfigAPI) ListMCPServers(c *gin.Context) {
+	c.Header("Cache-Control", "no-store")
 	items, err := a.config.ListMCPServers(c.Request.Context())
 	if err != nil {
 		failAIConfig("获取 MCP 服务配置失败", err, c)
+		return
+	}
+	response.OkWithData(gin.H{"list": items}, c)
+}
+
+// CheckMCPServerHealth 处理单服务 MCP 健康检查请求。
+func (a *AIConfigAPI) CheckMCPServerHealth(c *gin.Context) {
+	id, ok := pathID(c)
+	if !ok {
+		return
+	}
+	item, err := a.config.CheckMCPServerHealth(c.Request.Context(), id)
+	if err != nil {
+		failAIConfig("检查 MCP 服务失败", err, c)
+		return
+	}
+	response.OkWithData(gin.H{"server": item}, c)
+}
+
+// RefreshMCPServerCatalog 处理单服务 MCP 工具目录刷新请求。
+func (a *AIConfigAPI) RefreshMCPServerCatalog(c *gin.Context) {
+	id, ok := pathID(c)
+	if !ok {
+		return
+	}
+	item, err := a.config.RefreshMCPServerCatalog(c.Request.Context(), id)
+	if err != nil {
+		failAIConfig("刷新 MCP 工具目录失败", err, c)
+		return
+	}
+	response.OkWithData(gin.H{"server": item}, c)
+}
+
+// ListMCPServerTools 处理 MCP 缓存工具列表查询请求。
+func (a *AIConfigAPI) ListMCPServerTools(c *gin.Context) {
+	id, ok := pathID(c)
+	if !ok {
+		return
+	}
+	items, err := a.config.ListMCPServerTools(c.Request.Context(), id)
+	if err != nil {
+		failAIConfig("获取 MCP 缓存工具失败", err, c)
 		return
 	}
 	response.OkWithData(gin.H{"list": items}, c)

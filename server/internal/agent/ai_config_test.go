@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/gcc798/xianyu.bot/internal/model"
 	xyRequest "github.com/gcc798/xianyu.bot/internal/model/request"
@@ -29,6 +30,8 @@ func TestAIConfigUpdatePreservesSecrets(t *testing.T) {
 
 	serverInput := validMCPInput()
 	serverInput.AuthToken = "secret-mcp-token"
+	serverInput.Tags = []string{"资源", "telegram"}
+	serverInput.EnabledTools = []string{"search"}
 	createdServer, err := service.CreateMCPServer(t.Context(), serverInput)
 	require.NoError(t, err)
 	serverInput.AuthToken = ""
@@ -41,6 +44,8 @@ func TestAIConfigUpdatePreservesSecrets(t *testing.T) {
 	var storedServer model.MCPServer
 	require.NoError(t, db.First(&storedServer, createdServer.ID).Error)
 	require.Equal(t, "secret-mcp-token", storedServer.AuthToken)
+	require.Equal(t, []string{"资源", "telegram"}, storedServer.Tags)
+	require.Equal(t, []string{"search"}, storedServer.EnabledTools)
 
 	models, err := service.ListModels(t.Context())
 	require.NoError(t, err)
@@ -83,6 +88,59 @@ func TestMCPServerAcceptsDockerServiceURL(t *testing.T) {
 	require.NoError(t, err)
 }
 
+// TestMCPServerNormalizesRoutingPolicy 验证路由配置规范化和应用层范围校验。
+func TestMCPServerNormalizesRoutingPolicy(t *testing.T) {
+	input := validMCPInput()
+	input.Tags = []string{" telegram ", "telegram", "资源"}
+	input.EnabledTools = []string{" search ", "search"}
+	item, err := buildMCPServer(input)
+	require.NoError(t, err)
+	require.Equal(t, []string{"telegram", "资源"}, item.Tags)
+	require.Equal(t, []string{"search"}, item.EnabledTools)
+
+	input.DisabledTools = []string{"search"}
+	_, err = buildMCPServer(input)
+	require.ErrorContains(t, err, "同时出现在")
+
+	input.DisabledTools = nil
+	input.ConnectionScope = "tenant"
+	_, err = buildMCPServer(input)
+	require.ErrorContains(t, err, "作用域")
+
+	input.ConnectionScope = "shared"
+	input.MaxConcurrentCalls = -1
+	_, err = buildMCPServer(input)
+	require.ErrorContains(t, err, "并发")
+}
+
+// TestMCPConfigChangeImmediatelyInvalidatesCatalog 验证 allow/deny 更新立即作用于内存目录。
+func TestMCPConfigChangeImmediatelyInvalidatesCatalog(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	require.NoError(t, err)
+	require.NoError(t, db.AutoMigrate(&model.MCPServer{}, &model.MCPTool{}))
+	server := model.MCPServer{Name: "资源", Code: "resources", BaseURL: "http://resources/mcp", Enabled: true}
+	require.NoError(t, db.Create(&server).Error)
+	tool := catalogModelTool("resources", "search", `{"name":"search","inputSchema":{"type":"object"}}`, time.Now())
+	require.NoError(t, db.Create(&tool).Error)
+	registry := NewMCPRegistry(db)
+	require.NoError(t, registry.LoadCatalog(t.Context()))
+	_, exists := registry.CatalogTool("resources__search")
+	require.True(t, exists)
+
+	input := validMCPInput()
+	input.Name = server.Name
+	input.Code = server.Code
+	input.BaseURL = server.BaseURL
+	input.DisabledTools = []string{"search"}
+	service := NewAIConfig(db, registry)
+	require.NoError(t, service.UpdateMCPServer(t.Context(), server.ID, input))
+	_, exists = registry.CatalogTool("resources__search")
+	require.False(t, exists)
+	var stored model.MCPServer
+	require.NoError(t, db.First(&stored, server.ID).Error)
+	require.Equal(t, "stale", stored.CatalogStatus)
+}
+
 // validModelInput 提供测试辅助能力。
 func validModelInput() xyRequest.SaveAIModel {
 	return xyRequest.SaveAIModel{
@@ -96,6 +154,7 @@ func validModelInput() xyRequest.SaveAIModel {
 func validMCPInput() xyRequest.SaveMCPServer {
 	return xyRequest.SaveMCPServer{
 		Name: "Telegram", Code: "telegram", BaseURL: "http://telegram:8080/mcp", Enabled: true,
-		RequestTimeoutSeconds: 15, TaskTimeoutSeconds: 300,
+		RequestTimeoutSeconds: 15, TaskTimeoutSeconds: 300, CatalogTTLSeconds: 3600,
+		ConnectionTTLSeconds: 600, ConnectionScope: "shared",
 	}
 }

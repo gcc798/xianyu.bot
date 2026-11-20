@@ -2,6 +2,7 @@ package agent
 
 import (
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -17,17 +18,19 @@ import (
 
 // mcpAgentTool 将远端 MCP 工具适配为 Agent 工具。
 type mcpAgentTool struct {
-	db         *gorm.DB             // db 持久化工具产生的资源候选。
-	connection *mcpConnection       // connection 是工具所属 MCP 连接。
-	remote     mcp.Tool             // remote 是远端工具定义。
-	definition agenttool.Definition // definition 是 Agent 可见的工具定义。
+	db          *gorm.DB             // db 持久化工具产生的资源候选。
+	registry    *MCPRegistry         // registry 按 Owner 惰性调用远端工具。
+	server      model.MCPServer      // server 是工具所属 MCP 配置快照。
+	remote      mcp.Tool             // remote 是远端工具定义。
+	definition  agenttool.Definition // definition 是 Agent 可见的工具定义。
+	catalogHash string               // catalogHash 锁定提议时定义和策略。
 }
 
 // 确保 mcpAgentTool 实现 Agent 工具接口。
 var _ agenttool.Tool = (*mcpAgentTool)(nil)
 
 // newMCPAgentTool 创建 MCP 工具适配器。
-func newMCPAgentTool(db *gorm.DB, connection *mcpConnection, remote mcp.Tool) (*mcpAgentTool, error) {
+func newMCPAgentTool(db *gorm.DB, registry *MCPRegistry, server model.MCPServer, remote mcp.Tool) (*mcpAgentTool, error) {
 	parameters, err := agentVisibleToolSchema(remote)
 	if err != nil {
 		return nil, fmt.Errorf("解析 MCP 工具 %s 参数: %w", remote.Name, err)
@@ -38,14 +41,15 @@ func newMCPAgentTool(db *gorm.DB, connection *mcpConnection, remote mcp.Tool) (*
 		budgetClass = agenttool.BudgetSearch
 	}
 	timeout := mcpToolTimeout(remote)
-	if serverTimeout := time.Duration(connection.Server.RequestTimeoutSeconds) * time.Second; serverTimeout > 0 {
+	if serverTimeout := time.Duration(server.RequestTimeoutSeconds) * time.Second; serverTimeout > 0 {
 		timeout = min(timeout, serverTimeout)
 	}
 	return &mcpAgentTool{
-		db: db, connection: connection, remote: remote,
+		db: db, registry: registry, server: server, remote: remote,
+		catalogHash: mcpCatalogHash(server, remote),
 		definition: agenttool.Definition{
-			Code: connection.Server.Code + "__" + remote.Name, Name: remote.Name,
-			Description: remote.Description, Source: "mcp", ProviderCode: connection.Server.Code,
+			Code: server.Code + "__" + remote.Name, Name: remote.Name,
+			Description: remote.Description, Source: "mcp", ProviderCode: server.Code,
 			Parameters: parameters, ReadOnly: mcpToolReadOnly(remote), RequiresApproval: requiresApproval,
 			Timeout: timeout, BudgetClass: budgetClass,
 		},
@@ -55,13 +59,27 @@ func newMCPAgentTool(db *gorm.DB, connection *mcpConnection, remote mcp.Tool) (*
 // Definition 返回 Agent 工具定义。
 func (t *mcpAgentTool) Definition() agenttool.Definition { return t.definition }
 
+// CatalogHash 返回当前 MCP 定义和启停策略摘要。
+func (t *mcpAgentTool) CatalogHash() string { return t.catalogHash }
+
+// mcpCatalogHash 生成审批期间用于比较的稳定目录摘要。
+func mcpCatalogHash(server model.MCPServer, remote mcp.Tool) string {
+	payload, _ := json.Marshal(struct {
+		Tool          mcp.Tool `json:"tool"`
+		Enabled       bool     `json:"enabled"`
+		EnabledTools  []string `json:"enabledTools"`
+		DisabledTools []string `json:"disabledTools"`
+	}{remote, server.Enabled, server.EnabledTools, server.DisabledTools})
+	return fmt.Sprintf("%x", sha256.Sum256(payload))
+}
+
 // Invoke 调用远端 MCP 工具并保存资源候选。
 func (t *mcpAgentTool) Invoke(ctx context.Context, scope agenttool.Scope, arguments json.RawMessage) (string, error) {
 	var input map[string]any
 	if err := json.Unmarshal(arguments, &input); err != nil {
 		return "", &agenttool.ExecutionError{Code: "invalid_arguments", Message: "工具参数无效", Cause: err}
 	}
-	result, err := t.connection.Client.CallTool(ctx, mcp.CallToolRequest{Params: mcp.CallToolParams{
+	result, err := t.registry.CallMCPTool(ctx, scope.OwnerID, t.server.Code, mcp.CallToolRequest{Params: mcp.CallToolParams{
 		Name: t.remote.Name, Arguments: input,
 	}})
 	if err != nil {
@@ -154,7 +172,7 @@ func (t *mcpAgentTool) persistResourceCandidates(ctx context.Context, ownerID ui
 				source = json.RawMessage(`{}`)
 			}
 			candidate := model.ResourceCandidate{
-				SearchID: search.ID, MCPServerCode: t.connection.Server.Code, ExternalID: file.CandidateID,
+				SearchID: search.ID, MCPServerCode: t.server.Code, ExternalID: file.CandidateID,
 				Name: file.Name, Size: file.Size, MIMEType: file.MIMEType, Source: string(source),
 				Preview: message.Text, License: "unknown", Risk: "来源未提供可验证的许可证信息", ExpiresAt: &expiresAt,
 			}

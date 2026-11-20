@@ -244,20 +244,19 @@ func (s *ResourceCatalog) CancelTask(ctx context.Context, ownerID, taskID uint) 
 	}
 	registry := s.registry
 	if registry == nil {
-		registry = &MCPRegistry{db: s.db}
+		registry = NewMCPRegistry(s.db)
 	}
-	connections, err := registry.Discover(ctx)
-	if err != nil {
+	cached, exists := registry.CatalogTool(task.MCPServerCode + "__task_cancel")
+	if !exists {
 		return model.ResourceTask{}, errors.New("MCP 能力暂不可用")
 	}
-	defer func() { _ = closeMCPConnections(connections) }()
-	connection, definition := approvedTool(connections, task.MCPServerCode, "task_cancel")
-	if connection == nil {
-		return model.ResourceTask{}, errors.New("MCP 能力暂不可用")
+	timeout := mcpToolTimeout(cached.Remote)
+	if serverTimeout := time.Duration(cached.Server.RequestTimeoutSeconds) * time.Second; serverTimeout > 0 {
+		timeout = min(timeout, serverTimeout)
 	}
-	requestContext, cancel := context.WithTimeout(ctx, min(mcpToolTimeout(definition), time.Duration(connection.Server.RequestTimeoutSeconds)*time.Second))
+	requestContext, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
-	result, err := connection.Client.CallTool(requestContext, mcp.CallToolRequest{Params: mcp.CallToolParams{
+	result, err := registry.CallMCPTool(requestContext, ownerID, task.MCPServerCode, mcp.CallToolRequest{Params: mcp.CallToolParams{
 		Name: "task_cancel", Arguments: map[string]any{"task_id": task.ExternalTaskID},
 	}})
 	if err != nil || result.IsError || !approvedResultSucceeded(mcpToolResultValue(result)) {

@@ -10,7 +10,6 @@ import (
 	agenttool "github.com/gcc798/xianyu.bot/internal/agent/tool"
 	"github.com/gcc798/xianyu.bot/internal/model"
 	"github.com/glebarez/sqlite"
-	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
 )
@@ -42,7 +41,7 @@ func TestAgentRunnerApprovesResourceAcquisitionWithoutPersistingDeliveryToken(t 
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
 	require.NoError(t, db.AutoMigrate(
-		&model.MCPServer{}, &model.AgentSession{}, &model.AgentRun{}, &model.AgentRunTool{}, &model.AgentEvent{}, &model.ResourceSearch{},
+		&model.MCPServer{}, &model.MCPTool{}, &model.AgentSession{}, &model.AgentRun{}, &model.AgentRunTool{}, &model.AgentEvent{}, &model.ResourceSearch{},
 		&model.ResourceCandidate{}, &model.ResourceTask{},
 	))
 	server := model.MCPServer{Name: "资源服务", Code: "resources", BaseURL: "http://resources/mcp", Enabled: true, RequestTimeoutSeconds: 15, TaskTimeoutSeconds: 60}
@@ -63,9 +62,14 @@ func TestAgentRunnerApprovesResourceAcquisitionWithoutPersistingDeliveryToken(t 
 	client := &recordingMCPClient{textResult: true, result: map[string]any{
 		"status": "success", "data": map[string]any{"task_id": "resource_acquire:42"},
 	}}
-	registry := &MCPRegistry{db: db, connect: func(context.Context, model.MCPServer) (*mcpConnection, error) {
-		return &mcpConnection{Server: server, Client: client, Tools: []mcp.Tool{{Name: "resource_acquire"}}}, nil
-	}}
+	remote := catalogModelTool(server.Code, "resource_acquire", `{"name":"resource_acquire","inputSchema":{"type":"object","properties":{"candidate_id":{"type":"string"}}}}`, time.Now())
+	require.NoError(t, db.Create(&remote).Error)
+	registry := NewMCPRegistry(db)
+	require.NoError(t, registry.LoadCatalog(t.Context()))
+	cached, exists := registry.CatalogTool("resources__resource_acquire")
+	require.True(t, exists)
+	require.NoError(t, db.Model(&call).Update("catalog_hash", mcpCatalogHash(cached.Server, cached.Remote)).Error)
+	registry.runtimeConnect = func(context.Context, model.MCPServer) (connectedMCPClient, error) { return client, nil }
 	resources := &ResourceCatalog{db: db, events: NewEventHub(db), registry: registry}
 	runner := &Runner{db: db, registry: registry, resources: resources, events: resources.events}
 
@@ -93,6 +97,44 @@ func TestAgentRunnerApprovesResourceAcquisitionWithoutPersistingDeliveryToken(t 
 	require.Equal(t, candidate.ID, task.CandidateID)
 	require.Equal(t, "resource_acquire:42", task.ExternalTaskID)
 	require.Equal(t, "running", task.State)
+}
+
+// TestAgentRunnerRejectsApprovalAfterMCPCatalogChange 验证定义或策略变化会使旧审批失效。
+func TestAgentRunnerRejectsApprovalAfterMCPCatalogChange(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	require.NoError(t, err)
+	require.NoError(t, db.AutoMigrate(&model.MCPServer{}, &model.MCPTool{}, &model.AgentSession{}, &model.AgentRun{}, &model.AgentRunTool{}, &model.AgentEvent{}))
+	server := model.MCPServer{Name: "写服务", Code: "writer", Enabled: true, RequestTimeoutSeconds: 5}
+	require.NoError(t, db.Create(&server).Error)
+	stored := catalogModelTool(server.Code, "write", `{"name":"write","inputSchema":{"type":"object","properties":{"value":{"type":"string"}}}}`, time.Now())
+	require.NoError(t, db.Create(&stored).Error)
+	registry := NewMCPRegistry(db)
+	require.NoError(t, registry.LoadCatalog(t.Context()))
+	cached, exists := registry.CatalogTool("writer__write")
+	require.True(t, exists)
+	session := model.AgentSession{OwnerID: 11, Title: "目录变化审批"}
+	require.NoError(t, db.Create(&session).Error)
+	run := model.AgentRun{OwnerID: 11, SessionID: session.ID, ModelID: 1, ModelName: "test", Status: "completed", ConfigSnapshot: `{}`, StartedAt: time.Now()}
+	require.NoError(t, db.Create(&run).Error)
+	call := model.AgentRunTool{
+		RunID: run.ID, CallID: "stale-mcp", MCPServerCode: server.Code, ToolCode: cached.Code(), ToolName: cached.Remote.Name,
+		CatalogHash: mcpCatalogHash(cached.Server, cached.Remote), Arguments: `{}`, Status: "waiting_approval", StartedAt: time.Now(),
+	}
+	require.NoError(t, db.Create(&call).Error)
+	changed := `{"name":"write","inputSchema":{"type":"object","properties":{"value":{"type":"number"}}}}`
+	require.NoError(t, db.Model(&stored).Updates(map[string]any{"definition": changed, "definition_hash": "changed"}).Error)
+	require.NoError(t, registry.LoadCatalog(t.Context()))
+	client := new(recordingMCPClient)
+	registry.runtimeConnect = func(context.Context, model.MCPServer) (connectedMCPClient, error) { return client, nil }
+	runner := &Runner{db: db, registry: registry, events: NewEventHub(db)}
+
+	_, err = runner.Approve(t.Context(), 11, run.ID)
+	require.ErrorIs(t, err, errApprovalCatalogChanged)
+	require.Zero(t, client.calls)
+	var current model.AgentRunTool
+	require.NoError(t, db.First(&current, call.ID).Error)
+	require.Equal(t, "failed", current.Status)
+	require.Equal(t, "approval_stale", current.ErrorCode)
 }
 
 // TestAgentRunnerApprovesLocalToolWithRunOwner 验证对应测试场景。

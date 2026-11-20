@@ -16,6 +16,7 @@ type Server struct {
 	Log      Log      `mapstructure:"log" json:"log" yaml:"log"`                // Log 控制应用日志的级别与输出格式。
 	Email    Email    `mapstructure:"email" json:"email" yaml:"email"`          // Email 配置邮件发送服务器与身份信息。
 	HTTP     HTTP     `mapstructure:"http" json:"http" yaml:"http"`             // HTTP 配置 Web 服务监听参数。
+	MCP      MCP      `mapstructure:"mcp" json:"mcp" yaml:"mcp"`                // MCP 控制目录、健康和连接后台任务。
 	Postgres Postgres `mapstructure:"postgres" json:"postgres" yaml:"postgres"` // Postgres 配置业务数据库连接池。
 }
 
@@ -49,6 +50,15 @@ type Email struct {
 // HTTP 描述 Web 服务监听配置。
 type HTTP struct {
 	Port int `mapstructure:"port" json:"port" yaml:"port"` // Port 是 HTTP 监听端口。
+}
+
+// MCP 描述 MCP 后台刷新、健康检查和连接回收节奏。
+type MCP struct {
+	CatalogScanIntervalSeconds     int `mapstructure:"catalog-scan-interval-seconds" json:"catalog-scan-interval-seconds" yaml:"catalog-scan-interval-seconds"`             // CatalogScanIntervalSeconds 是目录过期扫描周期。
+	CatalogRefreshConcurrency      int `mapstructure:"catalog-refresh-concurrency" json:"catalog-refresh-concurrency" yaml:"catalog-refresh-concurrency"`                   // CatalogRefreshConcurrency 是并发刷新目录的服务数。
+	HealthCheckIntervalSeconds     int `mapstructure:"health-check-interval-seconds" json:"health-check-interval-seconds" yaml:"health-check-interval-seconds"`             // HealthCheckIntervalSeconds 是健康探测周期。
+	HealthCheckConcurrency         int `mapstructure:"health-check-concurrency" json:"health-check-concurrency" yaml:"health-check-concurrency"`                            // HealthCheckConcurrency 是并发健康探测服务数。
+	ConnectionSweepIntervalSeconds int `mapstructure:"connection-sweep-interval-seconds" json:"connection-sweep-interval-seconds" yaml:"connection-sweep-interval-seconds"` // ConnectionSweepIntervalSeconds 是执行连接回收扫描周期。
 }
 
 // Postgres 描述 PostgreSQL 连接与连接池配置。

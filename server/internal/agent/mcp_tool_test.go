@@ -55,6 +55,7 @@ func TestEinoMCPToolHidesDeliveryFieldsAndRequiresApproval(t *testing.T) {
 	require.Zero(t, client.calls.Load())
 	var call model.AgentRunTool
 	require.NoError(t, db.First(&call).Error)
+	require.NotEmpty(t, call.CatalogHash)
 	require.Equal(t, `{"candidate_id":"candidate-1"}`, call.Arguments)
 	require.NotContains(t, call.Arguments, "must-not-persist")
 }
@@ -145,7 +146,20 @@ func TestEinoMCPToolPersistsMessageCandidates(t *testing.T) {
 
 // newTestMCPTool 提供测试辅助能力。
 func newTestMCPTool(db *gorm.DB, connection *mcpConnection, definition mcp.Tool) (*governedTool, error) {
-	implementation, err := newMCPAgentTool(db, connection, definition)
+	if err := db.AutoMigrate(&model.MCPServer{}); err != nil {
+		return nil, err
+	}
+	server := connection.Server
+	server.Name, server.BaseURL, server.Enabled = server.Code, "http://"+server.Code+"/mcp", true
+	if server.RequestTimeoutSeconds == 0 {
+		server.RequestTimeoutSeconds = 15
+	}
+	if err := db.Where("code = ?", server.Code).FirstOrCreate(&server).Error; err != nil {
+		return nil, err
+	}
+	registry := NewMCPRegistry(db)
+	registry.runtimeConnect = func(context.Context, model.MCPServer) (connectedMCPClient, error) { return connection.Client, nil }
+	implementation, err := newMCPAgentTool(db, registry, server, definition)
 	if err != nil {
 		return nil, err
 	}

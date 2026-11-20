@@ -2,10 +2,10 @@ package agent
 
 import (
 	"context"
-	"errors"
-	"fmt"
 	"net/http"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/gcc798/xianyu.bot/internal/model"
@@ -29,11 +29,20 @@ type connectedMCPClient interface {
 	Close() error
 }
 
+// mcpHealthClient 描述独立健康探测所需的最小协议能力。
+type mcpHealthClient interface {
+	Start(context.Context) error
+	Initialize(context.Context, mcp.InitializeRequest) (*mcp.InitializeResult, error)
+	Ping(context.Context) error
+	Close() error
+}
+
 // mcpConnection 保存已初始化服务、客户端和工具目录。
 type mcpConnection struct {
-	Server model.MCPServer    // Server 是持久化服务配置。
-	Client connectedMCPClient // Client 是活动 MCP 客户端。
-	Tools  []mcp.Tool         // Tools 是发现时返回的工具目录。
+	Server       model.MCPServer    // Server 是持久化服务配置。
+	Client       connectedMCPClient // Client 是活动 MCP 客户端。
+	Tools        []mcp.Tool         // Tools 是发现时返回的完整分页工具目录。
+	Instructions string             // Instructions 是 MCP 握手披露的不可信说明。
 }
 
 // Close 关闭底层 MCP 客户端。
@@ -41,71 +50,36 @@ func (c *mcpConnection) Close() error { return c.Client.Close() }
 
 // MCPRegistry 发现所有启用的 MCP 服务并记录健康状态。
 type MCPRegistry struct {
-	db      *gorm.DB                                                       // db 读取服务配置并写入检查状态。
-	connect func(context.Context, model.MCPServer) (*mcpConnection, error) // connect 是可测试替换的连接函数。
+	db                *gorm.DB                                                           // db 读取服务配置并写入检查状态。
+	connect           func(context.Context, model.MCPServer) (*mcpConnection, error)     // connect 是可测试替换的连接函数。
+	healthClient      func(model.MCPServer) (mcpHealthClient, error)                     // healthClient 创建独立短期探测客户端。
+	catalog           atomic.Pointer[mcpCatalogSnapshot]                                 // catalog 保存原子发布的只读工具目录。
+	catalogRefreshMu  sync.Mutex                                                         // catalogRefreshMu 合并重叠的目录扫描。
+	healthMu          sync.Mutex                                                         // healthMu 保护同服务健康探测合并状态。
+	healthChecks      map[string]*mcpHealthCheck                                         // healthChecks 保存正在执行的健康探测。
+	runtimeConnect    func(context.Context, model.MCPServer) (connectedMCPClient, error) // runtimeConnect 创建惰性执行客户端。
+	runtimeMu         sync.Mutex                                                         // runtimeMu 保护执行连接表和建连状态。
+	runtimeClients    map[string]*mcpRuntimeConnection                                   // runtimeClients 保存各连接作用域的活动客户端。
+	runtimeConnecting map[string]*mcpRuntimeConnect                                      // runtimeConnecting 合并同作用域首次建连。
+	runtimeGeneration atomic.Uint64                                                      // runtimeGeneration 生成执行连接代次。
+	runtimeClosing    bool                                                               // runtimeClosing 阻止服务退出后建立新连接。
 }
 
 // NewMCPRegistry 创建 MCP 服务注册表。
 func NewMCPRegistry(db *gorm.DB) *MCPRegistry {
-	return &MCPRegistry{db: db}
-}
-
-// Discover 连接启用服务并返回成功连接；全部失败时合并错误。
-func (r *MCPRegistry) Discover(ctx context.Context) ([]*mcpConnection, error) {
-	servers := make([]model.MCPServer, 0)
-	if err := r.db.WithContext(ctx).Where("enabled = ?", true).Order("id").Find(&servers).Error; err != nil {
-		return nil, err
+	return &MCPRegistry{
+		db: db, healthChecks: make(map[string]*mcpHealthCheck),
+		runtimeClients: make(map[string]*mcpRuntimeConnection), runtimeConnecting: make(map[string]*mcpRuntimeConnect),
 	}
-	connect := r.connect
-	if connect == nil {
-		connect = connectMCPServer
-	}
-	connections := make([]*mcpConnection, 0, len(servers))
-	failures := make([]error, 0)
-	for _, server := range servers {
-		connection, err := connect(ctx, server)
-		if err != nil {
-			failures = append(failures, fmt.Errorf("MCP %s: %w", server.Code, err))
-			r.updateStatus(ctx, server.ID, "unavailable", err)
-			continue
-		}
-		connections = append(connections, connection)
-		r.updateStatus(ctx, server.ID, "available", nil)
-	}
-	if len(connections) == 0 && len(failures) > 0 {
-		return nil, errors.Join(failures...)
-	}
-	return connections, nil
-}
-
-// updateStatus 保存服务最近检查时间、状态和截断后的错误。
-func (r *MCPRegistry) updateStatus(ctx context.Context, serverID uint, status string, cause error) {
-	now := time.Now()
-	message := ""
-	if cause != nil {
-		message = cause.Error()
-		if len(message) > 1000 {
-			message = message[:1000]
-		}
-	}
-	_ = r.db.WithContext(ctx).Model(&model.MCPServer{}).Where("id = ?", serverID).Updates(map[string]any{
-		"last_status": status, "last_checked_at": now, "last_error": message,
-	}).Error
 }
 
 // connectMCPServer 建立 HTTP 传输、初始化协议并获取工具目录。
 func connectMCPServer(ctx context.Context, server model.MCPServer) (*mcpConnection, error) {
-	headers := make(map[string]string)
-	if header := strings.TrimSpace(server.AuthHeader); header != "" && server.AuthToken != "" {
-		headers[header] = server.AuthToken
-	}
-	timeout := time.Duration(server.RequestTimeoutSeconds) * time.Second
-	httpClient := &http.Client{Timeout: timeout}
-	mcpClient, err := client.NewStreamableHttpClient(server.BaseURL,
-		transport.WithHTTPBasicClient(httpClient), transport.WithHTTPHeaders(headers))
+	mcpClient, err := newMCPHTTPClient(server)
 	if err != nil {
 		return nil, err
 	}
+	timeout := time.Duration(server.RequestTimeoutSeconds) * time.Second
 	closeOnError := func(err error) (*mcpConnection, error) {
 		_ = mcpClient.Close()
 		return nil, err
@@ -115,7 +89,7 @@ func connectMCPServer(ctx context.Context, server model.MCPServer) (*mcpConnecti
 	if err := mcpClient.Start(discoveryContext); err != nil {
 		return closeOnError(err)
 	}
-	_, err = mcpClient.Initialize(discoveryContext, mcp.InitializeRequest{Params: mcp.InitializeParams{
+	initialized, err := mcpClient.Initialize(discoveryContext, mcp.InitializeRequest{Params: mcp.InitializeParams{
 		ProtocolVersion: mcp.LATEST_PROTOCOL_VERSION,
 		ClientInfo:      mcp.Implementation{Name: "xy-agent", Version: "1.0.0"},
 	}})
@@ -126,16 +100,17 @@ func connectMCPServer(ctx context.Context, server model.MCPServer) (*mcpConnecti
 	if err != nil {
 		return closeOnError(err)
 	}
-	return &mcpConnection{Server: server, Client: mcpClient, Tools: tools.Tools}, nil
+	return &mcpConnection{Server: server, Client: mcpClient, Tools: tools.Tools, Instructions: initialized.Instructions}, nil
 }
 
-// closeMCPConnections 关闭全部连接并合并关闭错误。
-func closeMCPConnections(connections []*mcpConnection) error {
-	errs := make([]error, 0)
-	for _, connection := range connections {
-		if err := connection.Close(); err != nil {
-			errs = append(errs, err)
-		}
+// newMCPHTTPClient 创建带服务超时和认证头的 Streamable HTTP 客户端。
+func newMCPHTTPClient(server model.MCPServer) (*client.Client, error) {
+	headers := make(map[string]string)
+	if header := strings.TrimSpace(server.AuthHeader); header != "" && server.AuthToken != "" {
+		headers[header] = server.AuthToken
 	}
-	return errors.Join(errs...)
+	timeout := time.Duration(server.RequestTimeoutSeconds) * time.Second
+	httpClient := &http.Client{Timeout: timeout}
+	return client.NewStreamableHttpClient(server.BaseURL,
+		transport.WithHTTPBasicClient(httpClient), transport.WithHTTPHeaders(headers))
 }

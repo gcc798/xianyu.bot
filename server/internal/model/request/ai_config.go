@@ -19,12 +19,20 @@ type SaveAIModel struct {
 
 // SaveMCPServer 描述创建或更新 MCP 服务配置的输入。
 type SaveMCPServer struct {
-	Name                  string `json:"name" binding:"required"`    // Name 是 MCP 服务显示名称。
-	Code                  string `json:"code" binding:"required"`    // Code 是 MCP 服务稳定唯一编码。
-	BaseURL               string `json:"baseUrl" binding:"required"` // BaseURL 是 MCP HTTP 入口地址。
-	AuthHeader            string `json:"authHeader"`                 // AuthHeader 是认证令牌使用的请求头名称。
-	AuthToken             string `json:"authToken"`                  // AuthToken 是新的认证凭据，空值表示不替换。
-	Enabled               bool   `json:"enabled"`                    // Enabled 决定服务及其工具是否可用。
-	RequestTimeoutSeconds int    `json:"requestTimeoutSeconds"`      // RequestTimeoutSeconds 是普通请求超时秒数。
-	TaskTimeoutSeconds    int    `json:"taskTimeoutSeconds"`         // TaskTimeoutSeconds 是长任务最大执行秒数。
+	Name                  string   `json:"name" binding:"required"`    // Name 是 MCP 服务显示名称。
+	Code                  string   `json:"code" binding:"required"`    // Code 是 MCP 服务稳定唯一编码。
+	Description           string   `json:"description"`                // Description 是管理员维护的能力描述。
+	Tags                  []string `json:"tags"`                       // Tags 是管理员维护的路由标签。
+	BaseURL               string   `json:"baseUrl" binding:"required"` // BaseURL 是 MCP HTTP 入口地址。
+	AuthHeader            string   `json:"authHeader"`                 // AuthHeader 是认证令牌使用的请求头名称。
+	AuthToken             string   `json:"authToken"`                  // AuthToken 是新的认证凭据，空值表示不替换。
+	Enabled               bool     `json:"enabled"`                    // Enabled 决定服务及其工具是否可用。
+	EnabledTools          []string `json:"enabledTools"`               // EnabledTools 是允许使用的工具名称，空值表示全部允许。
+	DisabledTools         []string `json:"disabledTools"`              // DisabledTools 是禁止使用的工具名称。
+	RequestTimeoutSeconds int      `json:"requestTimeoutSeconds"`      // RequestTimeoutSeconds 是普通请求超时秒数。
+	TaskTimeoutSeconds    int      `json:"taskTimeoutSeconds"`         // TaskTimeoutSeconds 是长任务最大执行秒数。
+	CatalogTTLSeconds     int      `json:"catalogTTLSeconds"`          // CatalogTTLSeconds 是工具目录刷新周期秒数。
+	ConnectionTTLSeconds  int      `json:"connectionTTLSeconds"`       // ConnectionTTLSeconds 是执行连接空闲回收秒数。
+	ConnectionScope       string   `json:"connectionScope"`            // ConnectionScope 是 shared 或 owner。
+	MaxConcurrentCalls    int      `json:"maxConcurrentCalls"`         // MaxConcurrentCalls 是服务级调用并发上限，零表示不限制。
 }

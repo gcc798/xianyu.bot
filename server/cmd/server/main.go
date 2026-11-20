@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/gcc798/xianyu.bot/internal/agent"
 	agenttool "github.com/gcc798/xianyu.bot/internal/agent/tool"
@@ -69,10 +70,20 @@ func run() error {
 
 	events := agent.NewEventHub(db)
 	mcpRegistry := agent.NewMCPRegistry(db)
+	if err := mcpRegistry.StartCatalogRefresh(ctx, time.Duration(settings.MCP.CatalogScanIntervalSeconds)*time.Second, settings.MCP.CatalogRefreshConcurrency); err != nil {
+		return fmt.Errorf("start MCP catalog refresh: %w", err)
+	}
+	mcpRegistry.StartHealthChecks(ctx, time.Duration(settings.MCP.HealthCheckIntervalSeconds)*time.Second, settings.MCP.HealthCheckConcurrency)
+	mcpRegistry.StartRuntimeCleanup(ctx, time.Duration(settings.MCP.ConnectionSweepIntervalSeconds)*time.Second)
+	defer func() {
+		closeContext, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+		defer cancel()
+		_ = mcpRegistry.CloseRuntimeConnections(closeContext)
+	}()
 	resources := agent.NewResourceCatalog(db, events, mcpRegistry)
 	resources.StartTelegramTasks(ctx)
 	sessions := agent.NewSession(db)
-	aiConfig := agent.NewAIConfig(db)
+	aiConfig := agent.NewAIConfig(db, mcpRegistry)
 	localTools := agenttool.NewRegistry()
 	if err := localTools.Register(agenttool.NewCurrentTime()); err != nil {
 		return fmt.Errorf("register current time Agent tool: %w", err)

@@ -23,6 +23,10 @@ type argumentFilter interface {
 	filterArguments(json.RawMessage) (json.RawMessage, error)
 }
 
+type catalogHashProvider interface {
+	CatalogHash() string
+}
+
 // governedTool 为 Eino 工具调用提供预算、审批、审计和并发治理。
 type governedTool struct {
 	db             *gorm.DB        // db 持久化工具调用记录。
@@ -158,10 +162,14 @@ func (t *governedTool) startToolCall(ctx context.Context) (*model.AgentRunTool, 
 		callID = fmt.Sprintf("run-%d-%s", t.runID, rand.Text())
 	}
 	definition := t.implementation.Definition()
+	catalogHash := ""
+	if provider, ok := t.implementation.(catalogHashProvider); ok {
+		catalogHash = provider.CatalogHash()
+	}
 	call := &model.AgentRunTool{
 		RunID: t.runID, CallID: callID, MCPServerCode: definition.ProviderCode,
 		ToolCode: definition.Code, ToolName: definition.Name, ToolSource: definition.Source,
-		Status: "running", StartedAt: time.Now(),
+		CatalogHash: catalogHash, Status: "running", StartedAt: time.Now(),
 	}
 	if err := t.db.WithContext(ctx).Create(call).Error; err != nil {
 		return nil, err

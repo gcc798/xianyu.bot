@@ -31,6 +31,9 @@ func (r *AIConfigRouter) Init(private *gin.RouterGroup) {
 	group.POST("mcp-servers", r.api.AIConfig.CreateMCPServer)
 	group.PUT("mcp-servers/:id", r.api.AIConfig.UpdateMCPServer)
 	group.DELETE("mcp-servers/:id", r.api.AIConfig.DeleteMCPServer)
+	group.POST("mcp-servers/:id/health-check", r.api.AIConfig.CheckMCPServerHealth)
+	group.POST("mcp-servers/:id/catalog-refresh", r.api.AIConfig.RefreshMCPServerCatalog)
+	group.GET("mcp-servers/:id/tools", r.api.AIConfig.ListMCPServerTools)
 	group.GET("agent-config", r.api.AIConfig.GetAgentConfig)
 	group.PUT("agent-config", r.api.AIConfig.UpdateAgentConfig)
 }

@@ -21,6 +21,13 @@ email:
 http:
   port: 8888
 
+mcp:
+  catalog-scan-interval-seconds: 30
+  catalog-refresh-concurrency: 4
+  health-check-interval-seconds: 60
+  health-check-concurrency: 8
+  connection-sweep-interval-seconds: 30
+
 postgres:
   host: 127.0.0.1
   port: "15432"

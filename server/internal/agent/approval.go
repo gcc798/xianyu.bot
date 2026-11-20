@@ -12,6 +12,8 @@ import (
 	"github.com/mark3labs/mcp-go/mcp"
 )
 
+var errApprovalCatalogChanged = errors.New("MCP 工具定义或策略已变化，请重新发起操作")
+
 // Approve 确认并执行指定运行中的首个待审批工具调用。
 func (s *Runner) Approve(ctx context.Context, ownerID, runID uint) (model.AgentRunTool, error) {
 	if ownerID == 0 || runID == 0 {
@@ -40,11 +42,15 @@ func (s *Runner) Approve(ctx context.Context, ownerID, runID uint) (model.AgentR
 	}
 
 	if err := s.executeApproval(ctx, run, &call); err != nil {
-		finishErr := s.finishApproval(ctx, &call, "failed", "approval_execution_failed", "确认后的操作执行失败")
+		code, message := "approval_execution_failed", "确认后的操作执行失败"
+		if errors.Is(err, errApprovalCatalogChanged) {
+			code, message = "approval_stale", errApprovalCatalogChanged.Error()
+		}
+		finishErr := s.finishApproval(ctx, &call, "failed", code, message)
 		s.publish(run.SessionID, "tool.failed", map[string]any{
 			"runId": run.ID, "callId": call.CallID, "server": call.MCPServerCode,
 			"tool": call.ToolName, "toolCode": call.ToolCode, "toolName": call.ToolName,
-			"error": map[string]any{"code": "approval_execution_failed", "message": "确认后的操作执行失败"},
+			"error": map[string]any{"code": code, "message": message},
 		})
 		return call, errors.Join(err, finishErr)
 	}
@@ -146,7 +152,7 @@ func (s *Runner) executeApproval(ctx context.Context, run model.AgentRun, call *
 }
 
 // approvalTool 根据调用来源解析本地或 MCP 工具，并返回释放函数。
-func (s *Runner) approvalTool(ctx context.Context, call *model.AgentRunTool) (agenttool.Tool, func(), error) {
+func (s *Runner) approvalTool(_ context.Context, call *model.AgentRunTool) (agenttool.Tool, func(), error) {
 	if call.ToolSource == "local" {
 		if s.tools == nil {
 			return nil, func() {}, errors.New("本地工具不可用")
@@ -157,22 +163,19 @@ func (s *Runner) approvalTool(ctx context.Context, call *model.AgentRunTool) (ag
 		}
 		return implementation, func() {}, nil
 	}
-	connections, err := s.mcpRegistryOrDefault().Discover(ctx)
+	registry := s.mcpRegistryOrDefault()
+	cached, exists := registry.CatalogTool(call.MCPServerCode + "__" + call.ToolName)
+	if !exists {
+		return nil, func() {}, errApprovalCatalogChanged
+	}
+	implementation, err := newMCPAgentTool(s.db, registry, cached.Server, cached.Remote)
 	if err != nil {
 		return nil, func() {}, err
 	}
-	closeTool := func() { _ = closeMCPConnections(connections) }
-	connection, remote := approvedTool(connections, call.MCPServerCode, call.ToolName)
-	if connection == nil {
-		closeTool()
-		return nil, func() {}, errors.New("MCP 能力暂不可用")
+	if call.CatalogHash == "" || call.CatalogHash != implementation.CatalogHash() {
+		return nil, func() {}, errApprovalCatalogChanged
 	}
-	implementation, err := newMCPAgentTool(s.db, connection, remote)
-	if err != nil {
-		closeTool()
-		return nil, func() {}, err
-	}
-	return implementation, closeTool, nil
+	return implementation, func() {}, nil
 }
 
 // approvedOutputValue 将工具输出解析为可判断的结果值。
@@ -208,21 +211,6 @@ func (s *Runner) failApprovedResourceTask(ctx context.Context, task *model.Resou
 		"state": "failed", "stage": "submit_failed", "error_code": "capability_unavailable",
 		"error_message": "MCP 能力暂不可用", "completed_at": now,
 	}).Error
-}
-
-// approvedTool 在已发现的 MCP 连接中查找目标工具。
-func approvedTool(connections []*mcpConnection, serverCode, toolName string) (*mcpConnection, mcp.Tool) {
-	for _, connection := range connections {
-		if connection.Server.Code != serverCode {
-			continue
-		}
-		for _, definition := range connection.Tools {
-			if definition.Name == toolName {
-				return connection, definition
-			}
-		}
-	}
-	return nil, mcp.Tool{}
 }
 
 // prepareResourceApproval 创建资源交付任务并补齐工具调用参数。

@@ -3,7 +3,6 @@ package agent
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -17,44 +16,10 @@ import (
 	"gorm.io/gorm"
 )
 
-// TestMCPRegistryDiscoversEnabledServersAndKeepsAvailableOnes 验证对应测试场景。
-func TestMCPRegistryDiscoversEnabledServersAndKeepsAvailableOnes(t *testing.T) {
-	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
-	require.NoError(t, err)
-	require.NoError(t, db.AutoMigrate(&model.MCPServer{}))
-	require.NoError(t, db.Create(&[]model.MCPServer{
-		{Name: "可用", Code: "available", BaseURL: "http://available/mcp", Enabled: true, RequestTimeoutSeconds: 15},
-		{Name: "故障", Code: "broken", BaseURL: "http://broken/mcp", Enabled: true, RequestTimeoutSeconds: 15},
-		{Name: "停用", Code: "disabled", BaseURL: "http://disabled/mcp", Enabled: true, RequestTimeoutSeconds: 15},
-	}).Error)
-	require.NoError(t, db.Model(&model.MCPServer{}).Where("code = ?", "disabled").Update("enabled", false).Error)
-
-	discovered := make([]string, 0)
-	registry := &MCPRegistry{db: db, connect: func(_ context.Context, server model.MCPServer) (*mcpConnection, error) {
-		discovered = append(discovered, server.Code)
-		if server.Code == "broken" {
-			return nil, errors.New("connection refused")
-		}
-		return &mcpConnection{Server: server, Client: new(fakeMCPClient), Tools: []mcp.Tool{{Name: "resource_search"}}}, nil
-	}}
-	connections, err := registry.Discover(t.Context())
-	require.NoError(t, err)
-	require.Equal(t, []string{"available", "broken"}, discovered)
-	require.Len(t, connections, 1)
-	require.Equal(t, "resource_search", connections[0].Tools[0].Name)
-
-	var available, broken model.MCPServer
-	require.NoError(t, db.Where("code = ?", "available").First(&available).Error)
-	require.NoError(t, db.Where("code = ?", "broken").First(&broken).Error)
-	require.Equal(t, "available", available.LastStatus)
-	require.Equal(t, "unavailable", broken.LastStatus)
-	require.NotEmpty(t, broken.LastError)
-}
-
 func TestRunnerToolCatalogIncludesLocalAndAvailableMCPTools(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
-	require.NoError(t, db.AutoMigrate(&model.MCPServer{}))
+	require.NoError(t, db.AutoMigrate(&model.MCPServer{}, &model.MCPTool{}))
 	require.NoError(t, db.Create(&[]model.MCPServer{
 		{Name: "Telegram", Code: "telegram", BaseURL: "http://telegram/mcp", Enabled: true, RequestTimeoutSeconds: 15},
 		{Name: "离线服务", Code: "offline", BaseURL: "http://offline/mcp", Enabled: true, RequestTimeoutSeconds: 15},
@@ -62,18 +27,15 @@ func TestRunnerToolCatalogIncludesLocalAndAvailableMCPTools(t *testing.T) {
 	registry := agenttool.NewRegistry()
 	require.NoError(t, registry.Register(agenttool.NewCurrentTime()))
 	require.NoError(t, registry.Register(&catalogTestTool{code: "xianyu_order_list", name: "查询闲鱼订单"}))
-	mcpRegistry := &MCPRegistry{db: db, connect: func(_ context.Context, server model.MCPServer) (*mcpConnection, error) {
-		if server.Code == "offline" {
-			return nil, errors.New("connection refused")
-		}
-		return &mcpConnection{
-			Server: server, Client: new(fakeMCPClient),
-			Tools: []mcp.Tool{
-				{Name: "dialog_list", Description: "列出会话", InputSchema: mcp.ToolInputSchema{Type: "object"}},
-				{Name: strings.Repeat("a", 120), Description: "超长编码", InputSchema: mcp.ToolInputSchema{Type: "object"}},
-			},
-		}, nil
-	}}
+	now := time.Now()
+	require.NoError(t, db.Create(&[]model.MCPTool{
+		catalogModelTool("telegram", "dialog_list", `{"name":"dialog_list","description":"列出会话","inputSchema":{"type":"object"}}`, now),
+		catalogModelTool("telegram", strings.Repeat("a", 120), `{"name":"`+strings.Repeat("a", 120)+`","inputSchema":{"type":"object"}}`, now),
+	}).Error)
+	mcpRegistry := NewMCPRegistry(db)
+	connected := false
+	mcpRegistry.connect = func(context.Context, model.MCPServer) (*mcpConnection, error) { connected = true; return nil, nil }
+	require.NoError(t, mcpRegistry.LoadCatalog(t.Context()))
 	runner := &Runner{db: db, registry: mcpRegistry, tools: registry}
 
 	entries := runner.ToolCatalog(t.Context())
@@ -83,6 +45,7 @@ func TestRunnerToolCatalogIncludesLocalAndAvailableMCPTools(t *testing.T) {
 	require.Equal(t, "telegram__dialog_list", entries[2].Code)
 	require.Equal(t, "Telegram", entries[2].Source)
 	require.Equal(t, "telegram", entries[2].ProviderCode)
+	require.False(t, connected)
 }
 
 type catalogTestTool struct{ code, name string }
@@ -96,21 +59,6 @@ func (t *catalogTestTool) Definition() agenttool.Definition {
 
 func (*catalogTestTool) Invoke(context.Context, agenttool.Scope, json.RawMessage) (string, error) {
 	return "{}", nil
-}
-
-// TestMCPRegistryFailsWhenNoEnabledServerIsAvailable 验证对应测试场景。
-func TestMCPRegistryFailsWhenNoEnabledServerIsAvailable(t *testing.T) {
-	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
-	require.NoError(t, err)
-	require.NoError(t, db.AutoMigrate(&model.MCPServer{}))
-	require.NoError(t, db.Create(&model.MCPServer{Name: "故障", Code: "broken", BaseURL: "http://broken/mcp", Enabled: true, RequestTimeoutSeconds: 15}).Error)
-
-	registry := &MCPRegistry{db: db, connect: func(context.Context, model.MCPServer) (*mcpConnection, error) {
-		return nil, errors.New("connection refused")
-	}}
-	connections, err := registry.Discover(t.Context())
-	require.Nil(t, connections)
-	require.ErrorContains(t, err, "MCP broken")
 }
 
 // fakeMCPClient 是测试辅助类型。

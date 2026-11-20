@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net/url"
 	"regexp"
+	"slices"
 	"strings"
 
 	"github.com/gcc798/xianyu.bot/internal/model"
@@ -18,12 +19,17 @@ var mcpCodePattern = regexp.MustCompile(`^[a-z][a-z0-9_-]{1,63}$`)
 
 // AIConfig 管理模型、MCP 服务和 Agent 全局运行限制。
 type AIConfig struct {
-	db *gorm.DB // db 持久化 Agent 配置。
+	db          *gorm.DB     // db 持久化 Agent 配置。
+	mcpRegistry *MCPRegistry // mcpRegistry 在配置变化后失效内存目录。
 }
 
 // NewAIConfig 创建 Agent 配置服务。
-func NewAIConfig(db *gorm.DB) *AIConfig {
-	return &AIConfig{db: db}
+func NewAIConfig(db *gorm.DB, registries ...*MCPRegistry) *AIConfig {
+	config := &AIConfig{db: db}
+	if len(registries) > 0 {
+		config.mcpRegistry = registries[0]
+	}
+	return config
 }
 
 // affected 将零行更新转换为记录不存在错误。
@@ -113,6 +119,9 @@ func (s *AIConfig) CreateMCPServer(ctx context.Context, input xyRequest.SaveMCPS
 	}
 	err = s.db.WithContext(ctx).Create(&item).Error
 	item.HasAuthToken = item.AuthToken != ""
+	if err == nil {
+		err = s.reloadMCPCatalog(ctx)
+	}
 	return item, err
 }
 
@@ -126,14 +135,21 @@ func (s *AIConfig) UpdateMCPServer(ctx context.Context, id uint, input xyRequest
 		return err
 	}
 	updates := map[string]any{
-		"name": item.Name, "code": item.Code, "base_url": item.BaseURL, "auth_header": item.AuthHeader,
+		"name": item.Name, "code": item.Code, "description": item.Description, "tags": encodeMCPList(item.Tags),
+		"base_url": item.BaseURL, "auth_header": item.AuthHeader,
 		"enabled": item.Enabled, "request_timeout_seconds": item.RequestTimeoutSeconds,
-		"task_timeout_seconds": item.TaskTimeoutSeconds,
+		"task_timeout_seconds": item.TaskTimeoutSeconds, "enabled_tools": encodeMCPList(item.EnabledTools),
+		"disabled_tools": encodeMCPList(item.DisabledTools), "catalog_ttl_seconds": item.CatalogTTLSeconds,
+		"connection_ttl_seconds": item.ConnectionTTLSeconds, "connection_scope": item.ConnectionScope,
+		"max_concurrent_calls": item.MaxConcurrentCalls, "catalog_status": "stale",
 	}
 	if strings.TrimSpace(input.AuthToken) != "" {
 		updates["auth_token"] = strings.TrimSpace(input.AuthToken)
 	}
-	return affected(s.db.WithContext(ctx).Model(&model.MCPServer{}).Where("id = ?", id).Updates(updates))
+	if err := affected(s.db.WithContext(ctx).Model(&model.MCPServer{}).Where("id = ?", id).Updates(updates)); err != nil {
+		return err
+	}
+	return s.reloadMCPCatalog(ctx)
 }
 
 // DeleteMCPServer 删除指定 MCP 服务配置。
@@ -141,7 +157,75 @@ func (s *AIConfig) DeleteMCPServer(ctx context.Context, id uint) error {
 	if id == 0 {
 		return errors.New("MCP 服务 ID 不能为空")
 	}
-	return affected(s.db.WithContext(ctx).Where("id = ?", id).Delete(&model.MCPServer{}))
+	if err := affected(s.db.WithContext(ctx).Where("id = ?", id).Delete(&model.MCPServer{})); err != nil {
+		return err
+	}
+	return s.reloadMCPCatalog(ctx)
+}
+
+// CheckMCPServerHealth 执行指定服务的独立健康探测并返回最新投影。
+func (s *AIConfig) CheckMCPServerHealth(ctx context.Context, id uint) (model.MCPServer, error) {
+	server, err := s.mcpServer(ctx, id)
+	if err != nil {
+		return model.MCPServer{}, err
+	}
+	if s.mcpRegistry == nil {
+		return model.MCPServer{}, errors.New("MCP 注册表未初始化")
+	}
+	checked, probeErr := s.mcpRegistry.CheckHealth(ctx, server.Code)
+	if checked.ID == 0 {
+		return model.MCPServer{}, probeErr
+	}
+	checked.HasAuthToken = checked.AuthToken != ""
+	return checked, nil
+}
+
+// RefreshMCPServerCatalog 刷新指定服务目录并返回成功或失败后的最新投影。
+func (s *AIConfig) RefreshMCPServerCatalog(ctx context.Context, id uint) (model.MCPServer, error) {
+	server, err := s.mcpServer(ctx, id)
+	if err != nil {
+		return model.MCPServer{}, err
+	}
+	if s.mcpRegistry == nil {
+		return model.MCPServer{}, errors.New("MCP 注册表未初始化")
+	}
+	refreshErr := s.mcpRegistry.RefreshCatalog(ctx, server.Code)
+	latest, err := s.mcpServer(ctx, id)
+	if err != nil {
+		return model.MCPServer{}, errors.Join(refreshErr, err)
+	}
+	latest.HasAuthToken = latest.AuthToken != ""
+	return latest, nil
+}
+
+// ListMCPServerTools 返回指定服务当前获准的缓存工具投影。
+func (s *AIConfig) ListMCPServerTools(ctx context.Context, id uint) ([]model.MCPTool, error) {
+	server, err := s.mcpServer(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	if s.mcpRegistry == nil {
+		return nil, errors.New("MCP 注册表未初始化")
+	}
+	return s.mcpRegistry.CachedTools(server.Code), nil
+}
+
+// mcpServer 按主键读取 MCP 服务配置。
+func (s *AIConfig) mcpServer(ctx context.Context, id uint) (model.MCPServer, error) {
+	if id == 0 {
+		return model.MCPServer{}, errors.New("MCP 服务 ID 不能为空")
+	}
+	var server model.MCPServer
+	err := s.db.WithContext(ctx).First(&server, id).Error
+	return server, err
+}
+
+// reloadMCPCatalog 让配置变更立即作用于路由过滤。
+func (s *AIConfig) reloadMCPCatalog(ctx context.Context) error {
+	if s.mcpRegistry == nil {
+		return nil
+	}
+	return s.mcpRegistry.LoadCatalog(ctx)
 }
 
 // GetAgentConfig 返回唯一运行限制，不存在时创建默认值。
@@ -190,9 +274,14 @@ func buildAIModel(input xyRequest.SaveAIModel) (model.AIModel, error) {
 // buildMCPServer 规范化并校验 MCP 编码、地址和超时。
 func buildMCPServer(input xyRequest.SaveMCPServer) (model.MCPServer, error) {
 	item := model.MCPServer{
-		Name: strings.TrimSpace(input.Name), Code: strings.TrimSpace(input.Code), BaseURL: strings.TrimSpace(input.BaseURL),
+		Name: strings.TrimSpace(input.Name), Code: strings.TrimSpace(input.Code), Description: strings.TrimSpace(input.Description),
+		Tags: normalizeMCPList(input.Tags), BaseURL: strings.TrimSpace(input.BaseURL),
 		AuthHeader: strings.TrimSpace(input.AuthHeader), AuthToken: strings.TrimSpace(input.AuthToken), Enabled: input.Enabled,
-		RequestTimeoutSeconds: input.RequestTimeoutSeconds, TaskTimeoutSeconds: input.TaskTimeoutSeconds, LastStatus: "unknown",
+		EnabledTools: normalizeMCPList(input.EnabledTools), DisabledTools: normalizeMCPList(input.DisabledTools),
+		RequestTimeoutSeconds: input.RequestTimeoutSeconds, TaskTimeoutSeconds: input.TaskTimeoutSeconds,
+		CatalogTTLSeconds: input.CatalogTTLSeconds, ConnectionTTLSeconds: input.ConnectionTTLSeconds,
+		ConnectionScope: strings.TrimSpace(input.ConnectionScope), MaxConcurrentCalls: input.MaxConcurrentCalls,
+		CatalogStatus: "unknown", LastStatus: "unknown",
 	}
 	if item.Name == "" || !mcpCodePattern.MatchString(item.Code) {
 		return model.MCPServer{}, errors.New("服务名称不能为空，编码必须以小写字母开头且只包含小写字母、数字、下划线或连字符")
@@ -203,7 +292,42 @@ func buildMCPServer(input xyRequest.SaveMCPServer) (model.MCPServer, error) {
 	if item.RequestTimeoutSeconds < 1 || item.RequestTimeoutSeconds > 600 || item.TaskTimeoutSeconds < 1 || item.TaskTimeoutSeconds > 86400 {
 		return model.MCPServer{}, errors.New("MCP 请求或任务超时时间无效")
 	}
+	if len(item.Description) > 1000 || len(item.Tags) > 32 || len(item.EnabledTools) > 500 || len(item.DisabledTools) > 500 {
+		return model.MCPServer{}, errors.New("MCP 描述、标签或工具筛选配置超出允许范围")
+	}
+	if item.CatalogTTLSeconds < 10 || item.CatalogTTLSeconds > 86400 || item.ConnectionTTLSeconds < 10 || item.ConnectionTTLSeconds > 86400 {
+		return model.MCPServer{}, errors.New("MCP 目录或连接 TTL 必须在 10 到 86400 秒之间")
+	}
+	if item.ConnectionScope != "shared" && item.ConnectionScope != "owner" {
+		return model.MCPServer{}, errors.New("MCP 连接作用域必须是 shared 或 owner")
+	}
+	if item.MaxConcurrentCalls < 0 || item.MaxConcurrentCalls > 1000 {
+		return model.MCPServer{}, errors.New("MCP 调用并发上限必须在 0 到 1000 之间")
+	}
+	for _, tool := range item.EnabledTools {
+		if slices.Contains(item.DisabledTools, tool) {
+			return model.MCPServer{}, errors.New("同一 MCP 工具不能同时出现在允许和禁止列表")
+		}
+	}
 	return item, nil
+}
+
+// normalizeMCPList 清理、去重并稳定保存 MCP 标签或工具名称。
+func normalizeMCPList(values []string) []string {
+	result := make([]string, 0, len(values))
+	for _, value := range values {
+		value = strings.TrimSpace(value)
+		if value != "" && len(value) <= 120 && !slices.Contains(result, value) {
+			result = append(result, value)
+		}
+	}
+	return result
+}
+
+// encodeMCPList 为 map 更新路径生成稳定的 JSON 列表。
+func encodeMCPList(values []string) string {
+	data, _ := json.Marshal(values)
+	return string(data)
 }
 
 // validateHTTPURL 仅接受带主机的 HTTP 或 HTTPS URL。

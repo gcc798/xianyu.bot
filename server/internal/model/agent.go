@@ -66,6 +66,7 @@ type AgentRunTool struct {
 	ToolCode       string     `json:"toolCode" gorm:"size:120;not null"`              // ToolCode 是工具的稳定业务编码。
 	ToolName       string     `json:"toolName" gorm:"size:120;not null"`              // ToolName 是提供给模型的工具名称。
 	ToolSource     string     `json:"toolSource" gorm:"size:16;not null;default:mcp"` // ToolSource 标识 local 或 mcp 工具来源。
+	CatalogHash    string     `json:"-" gorm:"size:64"`                               // CatalogHash 是提议时 MCP 定义和策略摘要。
 	Arguments      string     `json:"-" gorm:"type:text"`                             // Arguments 是工具入参快照，不向普通响应返回。
 	Result         string     `json:"-" gorm:"type:text"`                             // Result 是工具结果快照，不向普通响应返回。
 	Status         string     `json:"status" gorm:"size:32;not null"`                 // Status 是调用执行状态。

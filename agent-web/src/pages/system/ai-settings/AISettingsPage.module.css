@@ -35,6 +35,20 @@
   flex-wrap: wrap;
   gap: 16px;
 }
+.mcpDetails {
+  display: grid;
+  gap: 12px;
+  padding: 8px 16px 12px;
+}
+.mcpToolList {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px 24px;
+  padding: 8px 0;
+}
+.mcpToolList > div {
+  min-width: 0;
+}
 @media (max-width: 1180px) {
   .page {
     padding-inline: 24px;

@@ -4,6 +4,7 @@ import type {
   AIModelInput,
   MCPServer,
   MCPServerInput,
+  MCPTool,
 } from "../models/ai-config";
 import type { EmptyResponse } from "../models/http";
 import { request } from "./client";
@@ -34,6 +35,13 @@ export const aiConfigApi = {
     }),
   deleteMCPServer: (ID: number) =>
     request<EmptyResponse>(`/xy/ai/mcp-servers/${ID}`, { method: "DELETE" }),
+  checkMCPServerHealth: (ID: number) =>
+    request<{ server: MCPServer }>(`/xy/ai/mcp-servers/${ID}/health-check`, { method: "POST" }),
+  refreshMCPServerCatalog: (ID: number) =>
+    request<{ server: MCPServer }>(`/xy/ai/mcp-servers/${ID}/catalog-refresh`, {
+      method: "POST",
+    }),
+  mcpServerTools: (ID: number) => request<{ list: MCPTool[] }>(`/xy/ai/mcp-servers/${ID}/tools`),
   agentConfig: () => request<{ config: AgentConfig }>("/xy/ai/agent-config"),
   updateAgentConfig: (input: AgentConfig) =>
     request<EmptyResponse>("/xy/ai/agent-config", {

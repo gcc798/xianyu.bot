@@ -23,6 +23,8 @@ func TestServerConfigFiles(t *testing.T) {
 			require.NotEmpty(t, settings.Postgres.DSN())
 			require.NotEmpty(t, settings.Log.Level)
 			require.NotZero(t, settings.HTTP.Port)
+			require.Equal(t, 60, settings.MCP.HealthCheckIntervalSeconds)
+			require.Positive(t, settings.MCP.CatalogRefreshConcurrency)
 		})
 	}
 }

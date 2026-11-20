@@ -14,6 +14,7 @@ import (
 
 	"github.com/cloudwego/eino-ext/components/model/openai"
 	"github.com/cloudwego/eino/adk"
+	"github.com/cloudwego/eino/adk/middlewares/dynamictool/toolsearch"
 	einomodel "github.com/cloudwego/eino/components/model"
 	"github.com/cloudwego/eino/components/tool"
 	"github.com/cloudwego/eino/compose"
@@ -83,8 +84,8 @@ func NewRunner(ctx context.Context, db *gorm.DB, registry *MCPRegistry, resource
 	}
 }
 
-// ToolCatalog 返回本地工具和当前可发现的 MCP 工具；不可用的 MCP 工具不会进入目录。
-func (s *Runner) ToolCatalog(ctx context.Context) []ToolCatalogEntry {
+// ToolCatalog 返回本地工具和当前缓存的获准 MCP 工具。
+func (s *Runner) ToolCatalog(_ context.Context) []ToolCatalogEntry {
 	entries := make([]ToolCatalogEntry, 0)
 	if s.tools != nil {
 		for _, registeredTool := range s.tools.List() {
@@ -99,26 +100,23 @@ func (s *Runner) ToolCatalog(ctx context.Context) []ToolCatalogEntry {
 			})
 		}
 	}
-	connections, _ := s.mcpRegistryOrDefault().Discover(ctx)
-	defer func() { _ = closeMCPConnections(connections) }()
-	for _, connection := range connections {
-		for _, remote := range connection.Tools {
-			if remote.Name == "telegram_upload" {
-				continue
-			}
-			remoteTool, err := newMCPAgentTool(s.db, connection, remote)
-			if err != nil {
-				continue
-			}
-			definition := remoteTool.Definition()
-			if !agentToolNamePattern.MatchString(definition.Code) {
-				continue
-			}
-			entries = append(entries, ToolCatalogEntry{
-				Code: definition.Code, Name: definition.Name, Description: definition.Description,
-				Source: connection.Server.Name, ProviderCode: connection.Server.Code, Type: "tool",
-			})
+	mcpRegistry := s.mcpRegistryOrDefault()
+	for _, cached := range mcpRegistry.CatalogTools() {
+		if cached.Remote.Name == "telegram_upload" {
+			continue
 		}
+		remoteTool, err := newMCPAgentTool(s.db, mcpRegistry, cached.Server, cached.Remote)
+		if err != nil {
+			continue
+		}
+		definition := remoteTool.Definition()
+		if !agentToolNamePattern.MatchString(definition.Code) {
+			continue
+		}
+		entries = append(entries, ToolCatalogEntry{
+			Code: definition.Code, Name: definition.Name, Description: definition.Description,
+			Source: cached.Server.Name, ProviderCode: cached.Server.Code, Type: "tool",
+		})
 	}
 	return entries
 }
@@ -211,6 +209,7 @@ type preparedAgentRun struct {
 	aiModels   []model.AIModel            // aiModels 是本次按优先级尝试的模型。
 	config     model.AgentConfig          // config 是本次运行配置。
 	directives []xyRequest.AgentDirective // directives 是本轮附加指令。
+	content    string                     // content 是本轮用户任务正文。
 }
 
 // prepare 校验请求并幂等创建 Agent 运行。
@@ -242,7 +241,7 @@ func (s *Runner) prepare(ctx context.Context, ownerID, sessionID uint, content, 
 		result, err := existingAgentRunResult(ctx, s.db, run)
 		return preparedAgentRun{}, &result, err
 	}
-	return preparedAgentRun{run: run, aiModels: aiModels, config: config, directives: directives}, nil, nil
+	return preparedAgentRun{run: run, aiModels: aiModels, config: config, directives: directives, content: content}, nil, nil
 }
 
 // execute 执行已准备的 Agent 运行并保存最终结果。
@@ -253,13 +252,7 @@ func (s *Runner) execute(ctx context.Context, prepared preparedAgentRun) (RunRes
 	s.publish(run.SessionID, "turn.started", map[string]any{"runId": run.ID, "turnNo": 1})
 	runContext, cancel := harness.Context(ctx)
 	defer cancel()
-	connections, discoveryErr := s.mcpRegistryOrDefault().Discover(runContext)
-	defer func() { _ = closeMCPConnections(connections) }()
-
-	tools, err := buildEinoTools(s.db, s.tools, connections, harness, s.events, run)
-	if err != nil {
-		return s.failRun(ctx, run, harness, started, "tool_setup_failed", err)
-	}
+	mcpRegistry := s.mcpRegistryOrDefault()
 	modelFactory := s.newModel
 	if modelFactory == nil {
 		modelFactory = newConfiguredAgentModel
@@ -282,11 +275,26 @@ func (s *Runner) execute(ctx context.Context, prepared preparedAgentRun) (RunRes
 	if len(candidates) == 0 {
 		return s.failRun(ctx, run, harness, started, "model_setup_failed", errors.New("所有已启用模型均不可用"))
 	}
+	route, err := routeMCPTools(runContext, candidates[0].chat, harness, mcpRegistry, run.OwnerID, prepared.content, prepared.directives)
+	if err != nil {
+		return s.failRun(ctx, run, harness, started, agentEndReason(runContext, err), err)
+	}
+	tools, err := buildEinoTools(s.db, s.tools, mcpRegistry, route.Tools, harness, s.events, run)
+	if err != nil {
+		return s.failRun(ctx, run, harness, started, "tool_setup_failed", err)
+	}
+	dynamicTools, err := buildEinoMCPTools(s.db, mcpRegistry, route.SearchTools, harness, s.events, run)
+	if err != nil {
+		return s.failRun(ctx, run, harness, started, "tool_setup_failed", err)
+	}
+	if len(mcpRegistry.CatalogTools()) > 0 {
+		s.publish(run.SessionID, "tool.routed", map[string]any{
+			"runId": run.ID, "mcpCodes": route.MCPs, "toolCodes": route.Codes,
+			"strategy": route.Strategy, "expanded": route.Expanded, "reason": route.Reason,
+		})
+	}
 	instruction := fmt.Sprintf("%s\n%s\n本轮日期：%s，%s，时区 %s（UTC%s）。日期和星期问题直接据此回答。", xyAgentInstruction, xyOperationsInstruction,
 		started.Format(time.DateOnly), started.Weekday(), started.Location(), started.Format("-07:00"))
-	if discoveryErr != nil {
-		instruction += "\n外部 MCP 能力当前不可用；依赖外部能力的请求应明确告知用户。"
-	}
 	for _, directive := range prepared.directives {
 		switch directive.Type {
 		case "skill":
@@ -305,10 +313,18 @@ func (s *Runner) execute(ctx context.Context, prepared preparedAgentRun) (RunRes
 		BaseChatModelAgentMiddleware: new(adk.BaseChatModelAgentMiddleware), harness: harness,
 		events: s.events, sessionID: run.SessionID, runID: run.ID, selected: &selected,
 	}
+	handlers := []adk.ChatModelAgentMiddleware{middleware}
+	if len(dynamicTools) > 0 {
+		searchMiddleware, searchErr := toolsearch.New(runContext, &toolsearch.Config{DynamicTools: dynamicTools})
+		if searchErr != nil {
+			return s.failRun(ctx, run, harness, started, "tool_setup_failed", searchErr)
+		}
+		handlers = append(handlers, searchMiddleware)
+	}
 	agent, err := adk.NewChatModelAgent(runContext, &adk.ChatModelAgentConfig{
 		Name: "XyAgent", Instruction: instruction, Model: candidates[0].chat,
 		ToolsConfig:   adk.ToolsConfig{ToolsNodeConfig: compose.ToolsNodeConfig{Tools: tools}},
-		MaxIterations: config.MaxIterations, Handlers: []adk.ChatModelAgentMiddleware{middleware},
+		MaxIterations: config.MaxIterations, Handlers: handlers,
 		ModelFailoverConfig: &adk.ModelFailoverConfig[*schema.Message]{
 			MaxRetries: uint(len(candidates) + 1),
 			ShouldFailover: func(context.Context, *schema.Message, error) bool {
@@ -526,24 +542,32 @@ func agentFailureMessage(cause error) string {
 }
 
 // buildEinoTools 将本地和 MCP 工具组装为受治理的 Eino 工具。
-func buildEinoTools(db *gorm.DB, registry *agenttool.Registry, connections []*mcpConnection, harness *agentHarness, events *EventHub, run model.AgentRun) ([]tool.BaseTool, error) {
+func buildEinoTools(db *gorm.DB, registry *agenttool.Registry, mcpRegistry *MCPRegistry, mcpTools []mcpCatalogTool, harness *agentHarness, events *EventHub, run model.AgentRun) ([]tool.BaseTool, error) {
 	tools := make([]tool.BaseTool, 0)
 	if registry != nil {
 		for _, implementation := range registry.List() {
 			tools = append(tools, newGovernedTool(db, implementation, harness, events, run))
 		}
 	}
-	for _, connection := range connections {
-		for _, definition := range connection.Tools {
-			if definition.Name == "telegram_upload" {
-				continue
-			}
-			implementation, err := newMCPAgentTool(db, connection, definition)
-			if err != nil {
-				return nil, err
-			}
-			tools = append(tools, newGovernedTool(db, implementation, harness, events, run))
+	mcpEinoTools, err := buildEinoMCPTools(db, mcpRegistry, mcpTools, harness, events, run)
+	if err != nil {
+		return nil, err
+	}
+	return append(tools, mcpEinoTools...), nil
+}
+
+// buildEinoMCPTools 将目录工具逐个包装成受治理的 Eino 工具。
+func buildEinoMCPTools(db *gorm.DB, mcpRegistry *MCPRegistry, mcpTools []mcpCatalogTool, harness *agentHarness, events *EventHub, run model.AgentRun) ([]tool.BaseTool, error) {
+	tools := make([]tool.BaseTool, 0, len(mcpTools))
+	for _, cached := range mcpTools {
+		if cached.Remote.Name == "telegram_upload" {
+			continue
 		}
+		implementation, err := newMCPAgentTool(db, mcpRegistry, cached.Server, cached.Remote)
+		if err != nil {
+			return nil, err
+		}
+		tools = append(tools, newGovernedTool(db, implementation, harness, events, run))
 	}
 	return tools, nil
 }
@@ -610,7 +634,7 @@ func (s *Runner) mcpRegistryOrDefault() *MCPRegistry {
 	if s.registry != nil {
 		return s.registry
 	}
-	return &MCPRegistry{db: s.db}
+	return NewMCPRegistry(s.db)
 }
 
 // publish 发布需持久化的 Agent 事件。

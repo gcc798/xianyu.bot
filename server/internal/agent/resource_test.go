@@ -12,7 +12,6 @@ import (
 	"github.com/gcc798/xianyu.bot/internal/model"
 	xyRequest "github.com/gcc798/xianyu.bot/internal/model/request"
 	"github.com/glebarez/sqlite"
-	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/minio/minio-go/v7"
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
@@ -235,7 +234,7 @@ func TestResourceDeliveryGrantAndCompletion(t *testing.T) {
 func TestResourceCatalogCancelsTaskThroughOwningMCPServer(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
-	require.NoError(t, db.AutoMigrate(&model.ResourceTask{}, &model.MCPServer{}))
+	require.NoError(t, db.AutoMigrate(&model.ResourceTask{}, &model.MCPServer{}, &model.MCPTool{}))
 	server := model.MCPServer{Name: "资源服务", Code: "resources", BaseURL: "http://resources/mcp", Enabled: true, RequestTimeoutSeconds: 15}
 	require.NoError(t, db.Create(&server).Error)
 	task := model.ResourceTask{
@@ -244,9 +243,11 @@ func TestResourceCatalogCancelsTaskThroughOwningMCPServer(t *testing.T) {
 	}
 	require.NoError(t, db.Create(&task).Error)
 	client := &recordingMCPClient{result: map[string]any{"status": "success", "data": map[string]any{}}}
-	registry := &MCPRegistry{db: db, connect: func(context.Context, model.MCPServer) (*mcpConnection, error) {
-		return &mcpConnection{Server: server, Client: client, Tools: []mcp.Tool{{Name: "task_cancel"}}}, nil
-	}}
+	tool := catalogModelTool(server.Code, "task_cancel", `{"name":"task_cancel","inputSchema":{"type":"object"}}`, time.Now())
+	require.NoError(t, db.Create(&tool).Error)
+	registry := NewMCPRegistry(db)
+	require.NoError(t, registry.LoadCatalog(t.Context()))
+	registry.runtimeConnect = func(context.Context, model.MCPServer) (connectedMCPClient, error) { return client, nil }
 	catalog := &ResourceCatalog{db: db, registry: registry}
 
 	_, err = catalog.CancelTask(t.Context(), 22, task.ID)

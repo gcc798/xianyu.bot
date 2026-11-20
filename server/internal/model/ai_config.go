@@ -28,23 +28,55 @@ func (AIModel) TableName() string { return "xy_ai_models" }
 
 // MCPServer 保存一个 Agent 可访问的 MCP 服务配置。
 type MCPServer struct {
-	Timestamps                       // Timestamps 保存服务配置的生命周期字段。
-	Name                  string     `json:"name" gorm:"size:80;not null"`                       // Name 是 MCP 服务显示名称。
-	Code                  string     `json:"code" gorm:"size:64;not null;uniqueIndex"`           // Code 是 MCP 服务的稳定唯一编码。
-	BaseURL               string     `json:"baseUrl" gorm:"size:500;not null"`                   // BaseURL 是 MCP HTTP 入口地址。
-	AuthHeader            string     `json:"authHeader" gorm:"size:100"`                         // AuthHeader 是认证令牌使用的请求头名称。
-	AuthToken             string     `json:"-" gorm:"type:text"`                                 // AuthToken 是 MCP 认证凭据，不向客户端返回。
-	Enabled               bool       `json:"enabled" gorm:"not null;default:true"`               // Enabled 决定服务及其工具是否可用。
-	RequestTimeoutSeconds int        `json:"requestTimeoutSeconds" gorm:"not null;default:15"`   // RequestTimeoutSeconds 是普通 MCP 请求超时秒数。
-	TaskTimeoutSeconds    int        `json:"taskTimeoutSeconds" gorm:"not null;default:300"`     // TaskTimeoutSeconds 是长任务最大执行秒数。
-	LastStatus            string     `json:"lastStatus" gorm:"size:32;not null;default:unknown"` // LastStatus 是最近一次健康检查状态。
-	LastCheckedAt         *time.Time `json:"lastCheckedAt"`                                      // LastCheckedAt 是最近一次健康检查时间。
-	LastError             string     `json:"lastError" gorm:"size:1000"`                         // LastError 是最近一次健康检查错误。
-	HasAuthToken          bool       `json:"hasAuthToken" gorm:"-"`                              // HasAuthToken 表示配置是否已有认证令牌，仅用于响应投影。
+	Timestamps                         // Timestamps 保存服务配置的生命周期字段。
+	Name                    string     `json:"name" gorm:"size:80;not null"`                           // Name 是 MCP 服务显示名称。
+	Code                    string     `json:"code" gorm:"size:64;not null;uniqueIndex"`               // Code 是 MCP 服务的稳定唯一编码。
+	Description             string     `json:"description" gorm:"size:1000"`                           // Description 是管理员维护的能力描述。
+	Tags                    []string   `json:"tags" gorm:"serializer:json;type:text"`                  // Tags 是管理员维护的路由标签。
+	BaseURL                 string     `json:"baseUrl" gorm:"size:500;not null"`                       // BaseURL 是 MCP HTTP 入口地址。
+	AuthHeader              string     `json:"authHeader" gorm:"size:100"`                             // AuthHeader 是认证令牌使用的请求头名称。
+	AuthToken               string     `json:"-" gorm:"type:text"`                                     // AuthToken 是 MCP 认证凭据，不向客户端返回。
+	Enabled                 bool       `json:"enabled" gorm:"not null;default:true"`                   // Enabled 决定服务及其工具是否可用。
+	EnabledTools            []string   `json:"enabledTools" gorm:"serializer:json;type:text"`          // EnabledTools 是允许使用的工具名称。
+	DisabledTools           []string   `json:"disabledTools" gorm:"serializer:json;type:text"`         // DisabledTools 是禁止使用的工具名称。
+	RequestTimeoutSeconds   int        `json:"requestTimeoutSeconds" gorm:"not null;default:15"`       // RequestTimeoutSeconds 是普通 MCP 请求超时秒数。
+	TaskTimeoutSeconds      int        `json:"taskTimeoutSeconds" gorm:"not null;default:300"`         // TaskTimeoutSeconds 是长任务最大执行秒数。
+	CatalogTTLSeconds       int        `json:"catalogTTLSeconds" gorm:"not null;default:3600"`         // CatalogTTLSeconds 是工具目录刷新周期秒数。
+	ConnectionTTLSeconds    int        `json:"connectionTTLSeconds" gorm:"not null;default:600"`       // ConnectionTTLSeconds 是执行连接空闲回收秒数。
+	ConnectionScope         string     `json:"connectionScope" gorm:"size:16;not null;default:shared"` // ConnectionScope 是 shared 或 owner。
+	MaxConcurrentCalls      int        `json:"maxConcurrentCalls" gorm:"not null;default:0"`           // MaxConcurrentCalls 是服务级调用并发上限，零表示不限制。
+	ServerInstructions      string     `json:"-" gorm:"type:text"`                                     // ServerInstructions 是 MCP 披露的不可信服务说明。
+	CatalogStatus           string     `json:"catalogStatus" gorm:"size:32;not null;default:unknown"`  // CatalogStatus 是最近一次目录刷新状态。
+	CatalogToolCount        int        `json:"catalogToolCount" gorm:"not null;default:0"`             // CatalogToolCount 是最近成功缓存的工具数。
+	CatalogRefreshedAt      *time.Time `json:"catalogRefreshedAt"`                                     // CatalogRefreshedAt 是最近成功刷新目录的时间。
+	CatalogError            string     `json:"catalogError" gorm:"size:1000"`                          // CatalogError 是最近一次目录刷新错误摘要。
+	LastStatus              string     `json:"lastStatus" gorm:"size:32;not null;default:unknown"`     // LastStatus 是最近一次健康检查状态。
+	LastCheckedAt           *time.Time `json:"lastCheckedAt"`                                          // LastCheckedAt 是最近一次健康检查时间。
+	LastCheckDurationMillis int64      `json:"lastCheckDurationMillis" gorm:"not null;default:0"`      // LastCheckDurationMillis 是最近健康检查耗时毫秒数。
+	LastError               string     `json:"lastError" gorm:"size:1000"`                             // LastError 是最近一次健康检查错误。
+	HasAuthToken            bool       `json:"hasAuthToken" gorm:"-"`                                  // HasAuthToken 表示配置是否已有认证令牌，仅用于响应投影。
 }
 
 // TableName 返回 MCP 服务配置表名。
 func (MCPServer) TableName() string { return "xy_mcp_servers" }
+
+// MCPTool 保存 MCP 最近一次成功发现的工具定义快照。
+type MCPTool struct {
+	Timestamps               // Timestamps 保存工具快照的生命周期字段。
+	MCPServerCode  string    `json:"mcpServerCode" gorm:"size:64;not null;uniqueIndex:idx_xy_mcp_tools_code"` // MCPServerCode 是所属 MCP 服务编码。
+	Name           string    `json:"name" gorm:"size:160;not null;uniqueIndex:idx_xy_mcp_tools_code"`         // Name 是 MCP 披露的工具名称。
+	Description    string    `json:"description" gorm:"type:text"`                                            // Description 是 MCP 披露的不可信工具描述。
+	InputSchema    string    `json:"-" gorm:"type:text;not null"`                                             // InputSchema 是完整输入 Schema JSON。
+	OutputSchema   string    `json:"-" gorm:"type:text"`                                                      // OutputSchema 是完整输出 Schema JSON。
+	Annotations    string    `json:"annotations" gorm:"type:text"`                                            // Annotations 是工具注解 JSON。
+	Definition     string    `json:"-" gorm:"type:text;not null"`                                             // Definition 是完整工具定义 JSON。
+	SearchText     string    `json:"searchText" gorm:"type:text;not null"`                                    // SearchText 是安全压缩后的路由检索文本。
+	DefinitionHash string    `json:"definitionHash" gorm:"size:64;not null"`                                  // DefinitionHash 是规范工具定义哈希。
+	DiscoveredAt   time.Time `json:"discoveredAt" gorm:"not null"`                                            // DiscoveredAt 是工具被成功发现的时间。
+}
+
+// TableName 返回 MCP 工具目录表名。
+func (MCPTool) TableName() string { return "xy_mcp_tools" }
 
 // AgentConfig 定义 Agent 单次运行的资源与安全上限。
 type AgentConfig struct {

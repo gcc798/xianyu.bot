@@ -136,13 +136,9 @@ var telegramSecretPattern = regexp.MustCompile(`(?i)\b(api[_-]?hash|api[_-]?key|
 
 // SyncTelegramSources 从 Telegram MCP 同步来源目录。
 func (s *ResourceCatalog) SyncTelegramSources(ctx context.Context) ([]model.TelegramDialog, error) {
-	connections, err := s.telegramRegistry().Discover(ctx)
-	if err != nil {
-		return nil, errors.New("Telegram MCP 当前不可用")
-	}
-	defer func() { _ = closeMCPConnections(connections) }()
-	connection, definition := findTelegramTool(connections, "dialog_list")
-	if connection == nil {
+	registry := s.telegramRegistry()
+	cached, exists := registry.CatalogTool("telegram__dialog_list")
+	if !exists {
 		return nil, errors.New("Telegram MCP 未提供 dialog_list")
 	}
 	var response struct {
@@ -153,9 +149,9 @@ func (s *ResourceCatalog) SyncTelegramSources(ctx context.Context) ([]model.Tele
 		} `json:"data"`
 	}
 	for page := 1; ; page++ {
-		requestContext, cancel := context.WithTimeout(ctx, time.Duration(connection.Server.RequestTimeoutSeconds)*time.Second)
-		result, callErr := connection.Client.CallTool(requestContext, mcp.CallToolRequest{Params: mcp.CallToolParams{
-			Name: definition.Name, Arguments: map[string]any{"page": page, "page_size": 100, "kind": ""},
+		requestContext, cancel := context.WithTimeout(ctx, time.Duration(cached.Server.RequestTimeoutSeconds)*time.Second)
+		result, callErr := registry.CallMCPTool(requestContext, 0, cached.Server.Code, mcp.CallToolRequest{Params: mcp.CallToolParams{
+			Name: cached.Remote.Name, Arguments: map[string]any{"page": page, "page_size": 100, "kind": ""},
 		}})
 		cancel()
 		if callErr != nil || result.IsError {
@@ -413,23 +409,10 @@ func (s *ResourceCatalog) runTelegramTask(ctx context.Context, task model.Telegr
 		fail("来源准备", "database_query_failed", err)
 		return
 	}
-	connections, err := s.telegramRegistry().Discover(ctx)
-	if err != nil {
-		fail("MCP 连接", "mcp_unavailable", err)
-		return
-	}
-	defer func() { _ = closeMCPConnections(connections) }()
-	connection, searchTool := findTelegramTool(connections, "message_search")
-	var uploadTool mcp.Tool
-	if connection != nil {
-		for _, definition := range connection.Tools {
-			if definition.Name == "telegram_upload" {
-				uploadTool = definition
-				break
-			}
-		}
-	}
-	if connection == nil || searchTool.Name == "" || uploadTool.Name == "" {
+	registry := s.telegramRegistry()
+	searchCached, searchExists := registry.CatalogTool("telegram__message_search")
+	uploadCached, uploadExists := registry.CatalogTool("telegram__telegram_upload")
+	if !searchExists || !uploadExists {
 		fail("MCP 工具发现", "mcp_tool_unavailable", errors.New("Telegram MCP 缺少消息检索或文件交付工具"))
 		return
 	}
@@ -438,13 +421,13 @@ func (s *ResourceCatalog) runTelegramTask(ctx context.Context, task model.Telegr
 		if found >= task.MaxDownloads || telegramTaskCancelled(ctx, s.db, task.ID) {
 			break
 		}
-		searchContext, cancelSearch := context.WithTimeout(ctx, time.Duration(connection.Server.TaskTimeoutSeconds)*time.Second)
+		searchContext, cancelSearch := context.WithTimeout(ctx, time.Duration(searchCached.Server.TaskTimeoutSeconds)*time.Second)
 		searchStarted := time.Now()
 		searchArguments := telegramPeerArguments(source)
 		searchArguments["dialog_id"] = float64(source.TelegramID)
 		searchArguments["query"], searchArguments["limit"], searchArguments["task_id"] = task.Keyword, 100, task.ID
-		result, err := connection.Client.CallTool(searchContext, mcp.CallToolRequest{Params: mcp.CallToolParams{
-			Name: searchTool.Name, Arguments: searchArguments,
+		result, err := registry.CallMCPTool(searchContext, task.OwnerID, searchCached.Server.Code, mcp.CallToolRequest{Params: mcp.CallToolParams{
+			Name: searchCached.Remote.Name, Arguments: searchArguments,
 		}})
 		searchDuration := time.Since(searchStarted).Milliseconds()
 		cancelSearch()
@@ -521,13 +504,13 @@ func (s *ResourceCatalog) runTelegramTask(ctx context.Context, task model.Telegr
 				recordFailure(telegramTaskFailureFromError("上传地址生成", source.ID, "object_store_presign_failed", err))
 				continue
 			}
-			uploadContext, cancel := context.WithTimeout(ctx, time.Duration(connection.Server.TaskTimeoutSeconds)*time.Second)
+			uploadContext, cancel := context.WithTimeout(ctx, time.Duration(uploadCached.Server.TaskTimeoutSeconds)*time.Second)
 			uploadStarted := time.Now()
 			uploadArguments := telegramPeerArguments(source)
 			uploadArguments["telegram_id"], uploadArguments["message_id"] = float64(source.TelegramID), float64(message.ID)
 			uploadArguments["upload_url"], uploadArguments["task_id"] = uploadURL.String(), task.ID
-			uploadResult, uploadErr := connection.Client.CallTool(uploadContext, mcp.CallToolRequest{Params: mcp.CallToolParams{
-				Name: uploadTool.Name, Arguments: uploadArguments,
+			uploadResult, uploadErr := registry.CallMCPTool(uploadContext, task.OwnerID, uploadCached.Server.Code, mcp.CallToolRequest{Params: mcp.CallToolParams{
+				Name: uploadCached.Remote.Name, Arguments: uploadArguments,
 			}})
 			uploadDuration := time.Since(uploadStarted).Milliseconds()
 			cancel()
@@ -738,17 +721,6 @@ func telegramSourceScore(keyword string, source model.TelegramDialog) int {
 		return 100
 	}
 	return 0
-}
-
-func findTelegramTool(connections []*mcpConnection, name string) (*mcpConnection, mcp.Tool) {
-	for _, connection := range connections {
-		for _, definition := range connection.Tools {
-			if definition.Name == name {
-				return connection, definition
-			}
-		}
-	}
-	return nil, mcp.Tool{}
 }
 
 func (s *ResourceCatalog) telegramRegistry() *MCPRegistry {
