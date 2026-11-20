@@ -15,7 +15,7 @@ type AgentSession struct {
 }
 
 // TableName 返回 Agent 会话表名。
-func (AgentSession) TableName() string { return "xy_agent_sessions" }
+func (AgentSession) TableName() string { return "agent_sessions" }
 
 // AgentMessage 保存一条已落定的会话消息。
 type AgentMessage struct {
@@ -30,7 +30,7 @@ type AgentMessage struct {
 }
 
 // TableName 返回 Agent 消息表名。
-func (AgentMessage) TableName() string { return "xy_agent_messages" }
+func (AgentMessage) TableName() string { return "agent_messages" }
 
 // AgentRun 记录一次 Agent 推理执行及资源消耗。
 type AgentRun struct {
@@ -55,7 +55,7 @@ type AgentRun struct {
 }
 
 // TableName 返回 Agent 运行表名。
-func (AgentRun) TableName() string { return "xy_agent_runs" }
+func (AgentRun) TableName() string { return "agent_runs" }
 
 // AgentRunTool 记录一次工具调用的身份、耗时和结果状态。
 type AgentRunTool struct {
@@ -78,7 +78,7 @@ type AgentRunTool struct {
 }
 
 // TableName 返回 Agent 工具调用表名。
-func (AgentRunTool) TableName() string { return "xy_agent_run_tools" }
+func (AgentRunTool) TableName() string { return "agent_run_tools" }
 
 // AgentEvent 保存用于回放与审计会话的不可变事实，流式增量不落库。
 type AgentEvent struct {
@@ -96,4 +96,4 @@ type AgentEvent struct {
 }
 
 // TableName 返回 Agent 事件表名。
-func (AgentEvent) TableName() string { return "xy_agent_events" }
+func (AgentEvent) TableName() string { return "agent_events" }

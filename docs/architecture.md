@@ -37,8 +37,8 @@ Xianyu Tool -> Service
 - Agent 路由先在权限、启停和 allow/deny 过滤后选择 MCP，再选择 Tool；默认只向模型提供小型工作集，低置信度或复杂任务扩大候选，运行中的受控 Tool Search 可加载同一已选 MCP 的其他获准工具。路由 Card 和轨迹不包含凭据、完整外部指令或未压缩 Schema。
 - MCP 执行面按配置使用共享连接或 Owner 隔离连接，首次建连合并、调用并发执行，可选服务级并发槽；空闲连接按 TTL 回收，不设置全局活跃连接数量上限。健康检查和目录刷新不进入执行连接缓存。
 - MCP 写 Tool 提议保存当时的目录和策略摘要，用户批准前重新校验；定义、启停或 allow/deny 已变化时旧审批失效，不能以新能力执行旧参数。
-- Telegram 批量采集任务、来源目录、选源策略和任务 worker 由 Go 管理；Go 通过 Telegram MCP 搜索消息，并使用短期对象上传地址调用 Python 下载文件，随后按用户归属登记到 `xy_resources` 和 `xy_resource_sources`。
-- Python 仍管理 Telegram Session，并暂时保留会话扫描/退群、成人模式设置和历史文件运维所需的数据库访问；这些业务数据尚未全部迁移到 Go。Python 的旧批量采集 worker 已停止启动，避免与 Go 同时消费 `tel_resource_tasks`。
+- Telegram 批量采集任务、来源目录、选源策略和任务 worker 由 Go 管理；Go 通过 Telegram MCP 搜索消息，并使用短期对象上传地址调用 Python 下载文件，随后按用户归属登记到 `resources` 和 `resource_sources`。
+- Python 仍管理 Telegram Session，并暂时保留会话扫描/退群、成人模式设置和历史文件运维所需的数据库访问；这些业务数据尚未全部迁移到 Go。Python 的旧批量采集 worker 已停止启动，避免与 Go 同时消费 `tg_resource_tasks`。
 - Telegram API 应用凭据和 FloodWait 截止时间由 Go 管理，Hash 使用现有凭据加密；Telegram Python 服务按配置模式通过 Compose 自动生成、随专用卷持久保存的服务令牌从 Go 内部接口取得最高且未限流的 API ID，任务遇到 FloodWait 后切换配置并继续，连续 5 个不同 API ID 限流时失败。
 - Agent 从配置快照读取按优先级排序的模型，使用 Eino 模型 Failover 在同次运行内降级；轨迹只记录模型名称和失败摘要，不记录凭据。
 - PostgreSQL 由依赖注入传递，不使用包级数据库。

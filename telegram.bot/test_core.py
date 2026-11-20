@@ -433,13 +433,13 @@ def test_metadata_scan_storage():
             retried, created = db.create_acquisition_task(task["id"], "candidate-test", acquisition["idempotency_key"])
             assert created is True and retried["id"] == acquisition["id"] and retried["state"] == "queued"
         finally:
-            conn.execute("DELETE FROM tel_acquisition_tasks WHERE id=%s", (locals().get("acquisition", {}).get("id", -1),))
-            conn.execute("DELETE FROM tel_resource_files WHERE telegram_chat_id=%s", (telegram_id,))
-            conn.execute("DELETE FROM tel_resource_tasks WHERE id=%s", (locals().get("task", {}).get("id", -1),))
-            conn.execute("DELETE FROM tel_leave_history WHERE telegram_id=%s", (telegram_id,))
-            conn.execute("DELETE FROM tel_dialogs WHERE telegram_id=%s", (telegram_id,))
-            conn.execute("DELETE FROM tel_scan_history WHERE id=%s", (locals().get("scan_id", -1),))
-            conn.execute("DELETE FROM tel_settings WHERE key=%s", (settings_key,))
+            conn.execute("DELETE FROM tg_acquisition_tasks WHERE id=%s", (locals().get("acquisition", {}).get("id", -1),))
+            conn.execute("DELETE FROM tg_resource_files WHERE telegram_chat_id=%s", (telegram_id,))
+            conn.execute("DELETE FROM tg_resource_tasks WHERE id=%s", (locals().get("task", {}).get("id", -1),))
+            conn.execute("DELETE FROM tg_leave_history WHERE telegram_id=%s", (telegram_id,))
+            conn.execute("DELETE FROM tg_dialogs WHERE telegram_id=%s", (telegram_id,))
+            conn.execute("DELETE FROM tg_scan_history WHERE id=%s", (locals().get("scan_id", -1),))
+            conn.execute("DELETE FROM tg_settings WHERE key=%s", (settings_key,))
 
 
 def test_qr_login_migrates_before_rendering():

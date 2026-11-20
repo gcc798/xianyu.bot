@@ -35,8 +35,8 @@
 
 ## 数据库
 
-- PostgreSQL 结构和基础数据只维护 `server/internal/infra/migrations/init.sql`。
-- `init.sql` 只用于空库，不在服务启动时建表或执行生产 `AutoMigrate`。
+- PostgreSQL 空库结构和基础数据基线维护在 `server/internal/infra/migrations/init.sql`；后续结构或基础数据变更只新增 `server/internal/infra/migrations/goose/` 增量迁移，不回写初始化基线。
+- `init.sql` 只用于空库；已有数据库由 Go 服务启动时按 Goose 版本自动升级。不得在服务启动时执行生产 `AutoMigrate`，也不得对已有库重放 `init.sql`。
 - 测试拥有的临时数据库可以使用 `AutoMigrate`。
 - 基础表使用 `s_`，闲鱼表使用 `xy_`，Telegram 表使用 `tel_`。
 - 不提交真实账号、凭据、会话或业务数据。

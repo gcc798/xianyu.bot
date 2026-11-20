@@ -9,7 +9,7 @@
 - “智能”模式会调用配置的模型，仅按来源名称和用户名对来源排序；模型不可用时退回本地元数据排序。排序后仍会遍历剩余来源，直到达到文件数量上限。它不对消息正文或文件内容做 AI 判断。
 - “全部”检索所有符合条件的来源；“手动”仅检索用户选定的来源。
 - Go 已维护 Telegram API ID/Hash 配置及 FloodWait 状态，并拥有统一资源目录、资源交付授权和 Agent 资源获取流程。
-- Python 仍直接读写 Telegram 设置、来源、扫描、退群、资源任务、资源文件、资源来源和获取任务数据。Go 也会操作部分 `tel_resource_files` 数据，存在跨进程共享业务状态。
+- Python 仍直接读写 Telegram 设置、来源、扫描、退群、资源任务、资源文件、资源来源和获取任务数据。Go 也会操作部分 `tg_resource_files` 数据，存在跨进程共享业务状态。
 - Python 批量资源检索目前直接调用 AI 接口，并包含与 Go 资源交付流程并行的实现。
 
 ## 主要问题
@@ -52,22 +52,22 @@ MCP 在这里表示可发现、可调用的 Telegram 能力，不替代 Go 的�
 
 | 当前数据 | 目标写入者 | 目标处理方式 |
 | --- | --- | --- |
-| `tel_settings.telegram_session` | Python（仅协议 Session） | 暂时保留 Session 读写；`account_name` 改为运行时信息或 Go 状态，不作为 Python 持久业务数据 |
-| `tel_settings` 中 AI、成人模式等设置 | Go | 迁到 Go 的 AI/业务配置；Python 不再读取 |
-| `tel_dialogs` | Go | 作为 Telegram 来源目录；Python 扫描后返回规范化会话元数据，由 Go 校验并保存 |
-| `tel_scan_history`、`tel_leave_history` | Go | 迁入 Go 的扫描任务与操作审计能力；保留现有表或改名由 schema 评审决定 |
-| `tel_resource_tasks` | Go | 资源采集任务的用户输入、选择来源、数量限制、状态和进度归 Go；评估扩展现有 Go 资源搜索/任务模型，必要字段不足时新增 Go 业务表，不盲目复用不同语义的表 |
-| `tel_acquisition_tasks` | Go | 与候选资源获取任务合并到 Go 资源任务生命周期，保留幂等、阶段、进度和错误信息 |
-| `tel_resource_files`、`tel_resource_sources` | Go | 作为迁移期文件执行记录读取；新流程由 Go 管理任务文件状态并最终写入 `xy_resources`、`xy_resource_sources`。确认用途后再决定保留为 Go-owned 运维记录或停止写入 |
-| `s_telegram_api_configs` | Go | 保持现有 Go 归属；Python 经受限内部配置接口取用 API 配置并回报 FloodWait，不直连数据库 |
-| `xy_resources`、`xy_resource_sources` | Go | 统一资源目录和来源追溯，继续由 Go 登记、授权和删除 |
+| `tg_settings.telegram_session` | Python（仅协议 Session） | 暂时保留 Session 读写；`account_name` 改为运行时信息或 Go 状态，不作为 Python 持久业务数据 |
+| `tg_settings` 中 AI、成人模式等设置 | Go | 迁到 Go 的 AI/业务配置；Python 不再读取 |
+| `tg_dialogs` | Go | 作为 Telegram 来源目录；Python 扫描后返回规范化会话元数据，由 Go 校验并保存 |
+| `tg_scan_history`、`tg_leave_history` | Go | 迁入 Go 的扫描任务与操作审计能力；保留现有表或改名由 schema 评审决定 |
+| `tg_resource_tasks` | Go | 资源采集任务的用户输入、选择来源、数量限制、状态和进度归 Go；评估扩展现有 Go 资源搜索/任务模型，必要字段不足时新增 Go 业务表，不盲目复用不同语义的表 |
+| `tg_acquisition_tasks` | Go | 与候选资源获取任务合并到 Go 资源任务生命周期，保留幂等、阶段、进度和错误信息 |
+| `tg_resource_files`、`tg_resource_sources` | Go | 作为迁移期文件执行记录读取；新流程由 Go 管理任务文件状态并最终写入 `resources`、`resource_sources`。确认用途后再决定保留为 Go-owned 运维记录或停止写入 |
+| `tg_api_configs` | Go | 保持现有 Go 归属；Python 经受限内部配置接口取用 API 配置并回报 FloodWait，不直连数据库 |
+| `resources`、`resource_sources` | Go | 统一资源目录和来源追溯，继续由 Go 登记、授权和删除 |
 
 旧表数据迁移前必须备份并核对 `owner_id`、资源对象键、来源引用和任务状态。历史数据不能默认开放给普通用户；不得在未验证映射与引用完整性前删除旧表或对象。
 
 ## 实施步骤
 
 1. **冻结接口和状态模型**：定义 Go 侧采集任务、来源、候选、文件状态、错误码、幂等、取消和重试合同；定义 Python MCP 工具仅接受执行所需的 Telegram 引用及任务授权参数。
-2. **补齐 Go 业务持久化**：由 Go 接管来源目录扫描结果、扫描/退群记录和批量采集任务。根据现有 `xy_resource_searches`、`xy_resource_candidates`、`xy_resource_tasks` 的真实语义决定复用或新增表；更新唯一初始化文件 `server/internal/infra/migrations/init.sql`，不让服务启动时自动建表。
+2. **补齐 Go 业务持久化**：由 Go 接管来源目录扫描结果、扫描/退群记录和批量采集任务。根据现有 `resource_searches`、`resource_candidates`、`resource_tasks` 的真实语义决定复用或新增表；新增结构通过 Goose 迁移维护，不修改固定空库初始化基线。
 3. **迁移智能选源**：将模型配置和 AI 调用放到 Go；实现来源元数据排序、模型排序、输入 ID 校验、无模型回退和实际策略记录。测试模型超时、无效 ID、空来源和本地回退。
 4. **收窄 Python MCP 能力**：把 Telegram 会话列表/扫描、消息搜索/读取、指定消息下载等能力做成协议执行接口；移除其中的 AI 选源、成人策略、用户业务授权、任务创建和资源目录登记。MCP 输入不能成为绕过 Go 用户权限与合规校验的入口。
 5. **接通文件交付**：Go 创建/更新任务并生成短期、限对象范围的预签名 URL；Python 下载到受控临时目录并 PUT 上传，返回大小、SHA-256、Telegram 消息引用和文件元数据；Go 验证对象后完成资源登记。失败、取消和临时文件清理需覆盖完整。

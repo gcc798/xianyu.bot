@@ -9,7 +9,7 @@ from datetime import datetime, timezone
 import psycopg
 from psycopg.rows import dict_row
 
-TABLES = {"dialogs": "tel_dialogs", "scan_history": "tel_scan_history", "leave_history": "tel_leave_history", "settings": "tel_settings"}
+TABLES = {"dialogs": "tg_dialogs", "scan_history": "tg_scan_history", "leave_history": "tg_leave_history", "settings": "tg_settings"}
 SORTS = {"name": "d.name", "type": "d.dialog_type", "members": "d.member_count", "last_message": "d.last_message_at", "unread": "d.unread_count", "status": "d.status"}
 ADULT_NAME_PATTERN = (
     r"成人|色情|情色|成人视频|裸聊|裸舞|裸播|裸照|约炮|炮友|一夜情|援交|福利姬|福利视频|福利资源|"
@@ -163,31 +163,31 @@ class Database:
         visibility, params = self._adult_visibility()
         adult_filter = f" AND {visibility}" if visibility else ""
         with self.connect() as db:
-            return db.execute(f"SELECT d.id,d.telegram_id,d.name,d.username,d.dialog_type,d.is_group,d.is_broadcast,d.member_count,d.last_message_at FROM tel_dialogs d WHERE d.status='normal' AND d.resource_compliance_status='allowed' AND d.username IS NOT NULL AND (d.is_group OR d.is_broadcast){adult_filter} ORDER BY d.last_message_at DESC NULLS LAST,d.name", params).fetchall()
+            return db.execute(f"SELECT d.id,d.telegram_id,d.name,d.username,d.dialog_type,d.is_group,d.is_broadcast,d.member_count,d.last_message_at FROM tg_dialogs d WHERE d.status='normal' AND d.resource_compliance_status='allowed' AND d.username IS NOT NULL AND (d.is_group OR d.is_broadcast){adult_filter} ORDER BY d.last_message_at DESC NULLS LAST,d.name", params).fetchall()
 
     def adult_classification_dialogs(self) -> list[dict]:
         with self.connect() as db:
-            return db.execute("SELECT id,name,username,dialog_type FROM tel_dialogs WHERE status!='left' ORDER BY id").fetchall()
+            return db.execute("SELECT id,name,username,dialog_type FROM tg_dialogs WHERE status!='left' ORDER BY id").fetchall()
 
     def create_resource_task(self, owner_id: int, keyword: str, file_types: list[str], source_ids: list[int], max_downloads: int, source_mode: str = "manual", source_strategy: str = "manual") -> dict:
         visibility, visibility_params = self._adult_visibility()
         adult_filter = f" AND {visibility}" if visibility else ""
         with self.connect() as db:
-            allowed = db.execute(f"SELECT d.id FROM tel_dialogs d WHERE d.id=ANY(%s) AND d.status='normal' AND d.resource_compliance_status='allowed' AND d.username IS NOT NULL AND (d.is_group OR d.is_broadcast){adult_filter}", (source_ids, *visibility_params)).fetchall()
+            allowed = db.execute(f"SELECT d.id FROM tg_dialogs d WHERE d.id=ANY(%s) AND d.status='normal' AND d.resource_compliance_status='allowed' AND d.username IS NOT NULL AND (d.is_group OR d.is_broadcast){adult_filter}", (source_ids, *visibility_params)).fetchall()
             if len(allowed) != len(set(source_ids)):
                 raise ValueError("搜索范围包含未扫描、非公开或状态异常的群组/频道")
-            return db.execute("INSERT INTO tel_resource_tasks(owner_id,keyword,file_types,source_dialog_ids,max_downloads,source_mode,source_strategy) VALUES(%s,%s,%s,%s,%s,%s,%s) RETURNING *", (owner_id, keyword, file_types, source_ids, max_downloads, source_mode, source_strategy)).fetchone()
+            return db.execute("INSERT INTO tg_resource_tasks(owner_id,keyword,file_types,source_dialog_ids,max_downloads,source_mode,source_strategy) VALUES(%s,%s,%s,%s,%s,%s,%s) RETURNING *", (owner_id, keyword, file_types, source_ids, max_downloads, source_mode, source_strategy)).fetchone()
 
     def resource_task(self, task_id: int, owner_id: int | None = None) -> dict | None:
         visibility, visibility_params = self._adult_visibility()
         adult_filter = f" AND {visibility}" if visibility else ""
         with self.connect() as db:
             if owner_id is None:
-                row = db.execute("SELECT * FROM tel_resource_tasks WHERE id=%s", (task_id,)).fetchone()
+                row = db.execute("SELECT * FROM tg_resource_tasks WHERE id=%s", (task_id,)).fetchone()
             else:
-                row = db.execute("SELECT * FROM tel_resource_tasks WHERE id=%s AND owner_id=%s", (task_id, owner_id)).fetchone()
+                row = db.execute("SELECT * FROM tg_resource_tasks WHERE id=%s AND owner_id=%s", (task_id, owner_id)).fetchone()
             if row:
-                row["sources"] = db.execute(f"SELECT d.id,d.telegram_id,d.name,d.username,d.dialog_type,d.status,d.resource_compliance_status FROM tel_dialogs d WHERE d.id=ANY(%s){adult_filter} ORDER BY array_position(%s::bigint[],d.id)", (row["source_dialog_ids"], *visibility_params, row["source_dialog_ids"])).fetchall()
+                row["sources"] = db.execute(f"SELECT d.id,d.telegram_id,d.name,d.username,d.dialog_type,d.status,d.resource_compliance_status FROM tg_dialogs d WHERE d.id=ANY(%s){adult_filter} ORDER BY array_position(%s::bigint[],d.id)", (row["source_dialog_ids"], *visibility_params, row["source_dialog_ids"])).fetchall()
             return row
 
     def list_resource_tasks(self, filters: dict, page: int = 1, page_size: int = 20) -> tuple[list[dict], int]:
@@ -197,10 +197,10 @@ class Database:
         if filters.get("status"):
             where.append("t.status=%s"); params.append(filters["status"])
         where.append("t.owner_id=%s"); params.append(filters["owner_id"])
-        base = """ FROM tel_resource_tasks t
+        base = """ FROM tg_resource_tasks t
             LEFT JOIN LATERAL (
                 SELECT id,original_filename,file_size,bytes_downloaded,download_status,upload_status
-                FROM tel_resource_files WHERE task_id=t.id ORDER BY id DESC LIMIT 1
+                FROM tg_resource_files WHERE task_id=t.id ORDER BY id DESC LIMIT 1
             ) f ON TRUE WHERE """ + " AND ".join(where)
         with self.connect() as db:
             total = db.execute("SELECT COUNT(*)" + base, params).fetchone()["count"]
@@ -219,22 +219,22 @@ class Database:
 
     def queued_resource_tasks(self) -> list[int]:
         with self.connect() as db:
-            return [row["id"] for row in db.execute("SELECT id FROM tel_resource_tasks WHERE status='queued' AND NOT cancel_requested ORDER BY id").fetchall()]
+            return [row["id"] for row in db.execute("SELECT id FROM tg_resource_tasks WHERE status='queued' AND NOT cancel_requested ORDER BY id").fetchall()]
 
     def create_acquisition_task(self, resource_task_id: int, candidate_id: str, idempotency_key: str) -> tuple[dict, bool]:
         with self.connect() as db:
             row = db.execute(
-                "INSERT INTO tel_acquisition_tasks(resource_task_id,candidate_id,idempotency_key) VALUES(%s,%s,%s) ON CONFLICT(idempotency_key) DO NOTHING RETURNING *",
+                "INSERT INTO tg_acquisition_tasks(resource_task_id,candidate_id,idempotency_key) VALUES(%s,%s,%s) ON CONFLICT(idempotency_key) DO NOTHING RETURNING *",
                 (resource_task_id, candidate_id, idempotency_key),
             ).fetchone()
             if row:
                 return row, True
-            existing = db.execute("SELECT * FROM tel_acquisition_tasks WHERE idempotency_key=%s", (idempotency_key,)).fetchone()
+            existing = db.execute("SELECT * FROM tg_acquisition_tasks WHERE idempotency_key=%s", (idempotency_key,)).fetchone()
             if not existing or existing["resource_task_id"] != resource_task_id or existing["candidate_id"] != candidate_id:
                 raise ValueError("幂等键已用于其他资源任务")
             if existing["state"] in {"failed", "cancelled"}:
                 existing = db.execute(
-                    "UPDATE tel_acquisition_tasks SET state='queued',stage=NULL,bytes_completed=0,bytes_total=0,result_json=NULL,error_code=NULL,error_message=NULL,started_at=NULL,completed_at=NULL WHERE id=%s RETURNING *",
+                    "UPDATE tg_acquisition_tasks SET state='queued',stage=NULL,bytes_completed=0,bytes_total=0,result_json=NULL,error_code=NULL,error_message=NULL,started_at=NULL,completed_at=NULL WHERE id=%s RETURNING *",
                     (existing["id"],),
                 ).fetchone()
                 return existing, True
@@ -242,13 +242,13 @@ class Database:
 
     def acquisition_task(self, task_id: int) -> dict | None:
         with self.connect() as db:
-            return db.execute("SELECT * FROM tel_acquisition_tasks WHERE id=%s", (task_id,)).fetchone()
+            return db.execute("SELECT * FROM tg_acquisition_tasks WHERE id=%s", (task_id,)).fetchone()
 
     def update_acquisition_task(self, task_id: int, **values) -> None:
         if values:
             with self.connect() as db:
                 assignments = ", ".join(f"{key}=%s" for key in values)
-                db.execute(f"UPDATE tel_acquisition_tasks SET {assignments} WHERE id=%s", (*values.values(), task_id))
+                db.execute(f"UPDATE tg_acquisition_tasks SET {assignments} WHERE id=%s", (*values.values(), task_id))
 
     def update_resource_task(self, task_id: int, **values) -> None:
         allowed = {"status", "files_found", "files_completed", "error_message", "started_at", "completed_at", "cancel_requested", "source_dialog_ids", "source_strategy"}
@@ -256,25 +256,25 @@ class Database:
             raise ValueError("invalid task update")
         with self.connect() as db:
             assignments = ",".join(f"{key}=%s" for key in values)
-            db.execute(f"UPDATE tel_resource_tasks SET {assignments} WHERE id=%s", (*values.values(), task_id))
+            db.execute(f"UPDATE tg_resource_tasks SET {assignments} WHERE id=%s", (*values.values(), task_id))
 
     def prepare_resource_retry(self, task_id: int) -> tuple[int, int]:
         with self.connect() as db:
-            db.execute("DELETE FROM tel_resource_files WHERE task_id=%s AND (download_status IN ('failed','cancelled') OR upload_status IN ('failed','cancelled'))", (task_id,))
-            row = db.execute("SELECT COUNT(*) AS found,COUNT(*) FILTER (WHERE upload_status='success') AS completed FROM tel_resource_files WHERE task_id=%s", (task_id,)).fetchone()
+            db.execute("DELETE FROM tg_resource_files WHERE task_id=%s AND (download_status IN ('failed','cancelled') OR upload_status IN ('failed','cancelled'))", (task_id,))
+            row = db.execute("SELECT COUNT(*) AS found,COUNT(*) FILTER (WHERE upload_status='success') AS completed FROM tg_resource_files WHERE task_id=%s", (task_id,)).fetchone()
             return row["found"], row["completed"]
 
     def claim_resource_file(self, task_id: int, dialog: dict, message_id: int, file_id: str | None, filename: str, file_size: int, mime_type: str | None, message_text: str) -> dict | None:
         extension = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
         with self.connect() as db:
             row = db.execute("""
-                INSERT INTO tel_resource_files(owner_id,task_id,telegram_chat_id,telegram_message_id,telegram_file_id,original_filename,file_type,file_size,mime_type)
-                VALUES((SELECT owner_id FROM tel_resource_tasks WHERE id=%s),%s,%s,%s,%s,%s,%s,%s,%s) ON CONFLICT(telegram_chat_id,telegram_message_id) DO NOTHING RETURNING *
+                INSERT INTO tg_resource_files(owner_id,task_id,telegram_chat_id,telegram_message_id,telegram_file_id,original_filename,file_type,file_size,mime_type)
+                VALUES((SELECT owner_id FROM tg_resource_tasks WHERE id=%s),%s,%s,%s,%s,%s,%s,%s,%s) ON CONFLICT(telegram_chat_id,telegram_message_id) DO NOTHING RETURNING *
             """, (task_id, task_id, dialog["telegram_id"], message_id, file_id, filename, extension, file_size, mime_type)).fetchone()
             if not row:
                 return None
             db.execute("""
-                INSERT INTO tel_resource_sources(file_id,dialog_id,telegram_chat_id,telegram_message_id,source_name,source_username,message_text)
+                INSERT INTO tg_resource_sources(file_id,dialog_id,telegram_chat_id,telegram_message_id,source_name,source_username,message_text)
                 VALUES(%s,%s,%s,%s,%s,%s,%s)
             """, (row["id"], dialog["id"], dialog["telegram_id"], message_id, dialog["name"], dialog["username"], message_text[:4000]))
             row.update(source_name=dialog["name"], source_username=dialog["username"])
@@ -286,23 +286,23 @@ class Database:
             raise ValueError("invalid file update")
         with self.connect() as db:
             assignments = ",".join(f"{key}=%s" for key in values)
-            db.execute(f"UPDATE tel_resource_files SET {assignments} WHERE id=%s", (*values.values(), file_id))
+            db.execute(f"UPDATE tg_resource_files SET {assignments} WHERE id=%s", (*values.values(), file_id))
 
     def resource_file(self, file_id: int, owner_id: int) -> dict | None:
         with self.connect() as db:
-            return db.execute("SELECT f.*,s.source_name,s.source_username FROM tel_resource_files f JOIN tel_resource_sources s ON s.file_id=f.id WHERE f.id=%s AND f.owner_id=%s", (file_id, owner_id)).fetchone()
+            return db.execute("SELECT f.*,s.source_name,s.source_username FROM tg_resource_files f JOIN tg_resource_sources s ON s.file_id=f.id WHERE f.id=%s AND f.owner_id=%s", (file_id, owner_id)).fetchone()
 
     def resource_task_files(self, task_id: int, owner_id: int) -> list[dict]:
         with self.connect() as db:
-            return db.execute("SELECT id,object_key FROM tel_resource_files WHERE task_id=%s AND owner_id=%s ORDER BY id", (task_id, owner_id)).fetchall()
+            return db.execute("SELECT id,object_key FROM tg_resource_files WHERE task_id=%s AND owner_id=%s ORDER BY id", (task_id, owner_id)).fetchall()
 
     def delete_resource_task(self, task_id: int, delete_files: bool, owner_id: int) -> None:
         with self.connect() as db:
             if delete_files:
-                db.execute("DELETE FROM tel_resource_files WHERE task_id=%s AND owner_id=%s", (task_id, owner_id))
+                db.execute("DELETE FROM tg_resource_files WHERE task_id=%s AND owner_id=%s", (task_id, owner_id))
             else:
-                db.execute("UPDATE tel_resource_files SET task_id=NULL WHERE task_id=%s AND owner_id=%s", (task_id, owner_id))
-            if db.execute("DELETE FROM tel_resource_tasks WHERE id=%s AND owner_id=%s RETURNING id", (task_id, owner_id)).fetchone() is None:
+                db.execute("UPDATE tg_resource_files SET task_id=NULL WHERE task_id=%s AND owner_id=%s", (task_id, owner_id))
+            if db.execute("DELETE FROM tg_resource_tasks WHERE id=%s AND owner_id=%s RETURNING id", (task_id, owner_id)).fetchone() is None:
                 raise ValueError("资源任务不存在")
 
     def list_resource_files(self, filters: dict, page: int = 1, page_size: int = 20) -> tuple[list[dict], int]:
@@ -312,7 +312,7 @@ class Database:
                 where.append(f"{column}=%s"); params.append(filters[key])
         if filters.get("filename"):
             where.append("f.original_filename ILIKE %s"); params.append(f"%{filters['filename']}%")
-        base = " FROM tel_resource_files f JOIN tel_resource_sources s ON s.file_id=f.id WHERE " + " AND ".join(where)
+        base = " FROM tg_resource_files f JOIN tg_resource_sources s ON s.file_id=f.id WHERE " + " AND ".join(where)
         with self.connect() as db:
             total = db.execute("SELECT COUNT(*)" + base, params).fetchone()["count"]
             rows = db.execute("SELECT f.*,s.source_name,s.source_username" + base + " ORDER BY f.id DESC LIMIT %s OFFSET %s", (*params, page_size, (page - 1) * page_size)).fetchall()

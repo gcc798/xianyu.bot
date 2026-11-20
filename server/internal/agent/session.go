@@ -99,25 +99,25 @@ func (s *Session) Get(ctx context.Context, ownerID, sessionID uint) (xyResponse.
 		return xyResponse.AgentSessionDetail{}, err
 	}
 	toolTraces := make([]xyResponse.AgentToolTrace, 0)
-	if err := s.db.WithContext(ctx).Table("xy_agent_run_tools AS t").
+	if err := s.db.WithContext(ctx).Table("agent_run_tools AS t").
 		Select("t.id, t.run_id, t.call_id, t.tool_code, t.tool_name, t.tool_source, t.arguments, t.result, t.status, t.duration_millis, t.created_at").
-		Joins("JOIN xy_agent_runs AS r ON r.id = t.run_id AND r.deleted_at IS NULL").
+		Joins("JOIN agent_runs AS r ON r.id = t.run_id AND r.deleted_at IS NULL").
 		Where("r.session_id = ? AND r.owner_id = ? AND t.deleted_at IS NULL", sessionID, ownerID).
 		Order("t.id").Limit(200).Scan(&toolTraces).Error; err != nil {
 		return xyResponse.AgentSessionDetail{}, err
 	}
 	approvals := make([]xyResponse.AgentApproval, 0)
-	if err := s.db.WithContext(ctx).Table("xy_agent_run_tools AS t").
+	if err := s.db.WithContext(ctx).Table("agent_run_tools AS t").
 		Select("t.run_id, t.tool_code, t.tool_name, t.tool_source, t.created_at").
-		Joins("JOIN xy_agent_runs AS r ON r.id = t.run_id AND r.deleted_at IS NULL").
+		Joins("JOIN agent_runs AS r ON r.id = t.run_id AND r.deleted_at IS NULL").
 		Where("r.session_id = ? AND r.owner_id = ? AND t.status = ? AND t.deleted_at IS NULL", sessionID, ownerID, "waiting_approval").
 		Order("t.id").Scan(&approvals).Error; err != nil {
 		return xyResponse.AgentSessionDetail{}, err
 	}
 	tasks := make([]xyResponse.AgentTask, 0)
-	if err := s.db.WithContext(ctx).Table("xy_resource_tasks AS t").
+	if err := s.db.WithContext(ctx).Table("resource_tasks AS t").
 		Select("t.id, t.agent_run_id AS run_id, t.state, t.stage, t.progress_percent, t.progress_done, t.progress_total, t.progress_unit").
-		Joins("JOIN xy_agent_runs AS r ON r.id = t.agent_run_id AND r.deleted_at IS NULL").
+		Joins("JOIN agent_runs AS r ON r.id = t.agent_run_id AND r.deleted_at IS NULL").
 		Where("r.session_id = ? AND r.owner_id = ? AND t.deleted_at IS NULL", sessionID, ownerID).
 		Order("t.id").Limit(50).Scan(&tasks).Error; err != nil {
 		return xyResponse.AgentSessionDetail{}, err
@@ -218,8 +218,8 @@ func (s *Session) ToolCall(ctx context.Context, ownerID, sessionID uint, callID 
 		return xyResponse.AgentToolCallDetail{}, errors.New("工具调用标识无效")
 	}
 	var call model.AgentRunTool
-	if err := s.db.WithContext(ctx).Table("xy_agent_run_tools AS t").Select("t.*").
-		Joins("JOIN xy_agent_runs AS r ON r.id = t.run_id AND r.deleted_at IS NULL").
+	if err := s.db.WithContext(ctx).Table("agent_run_tools AS t").Select("t.*").
+		Joins("JOIN agent_runs AS r ON r.id = t.run_id AND r.deleted_at IS NULL").
 		Where("r.owner_id = ? AND r.session_id = ? AND t.call_id = ? AND t.deleted_at IS NULL", ownerID, sessionID, callID).
 		First(&call).Error; err != nil {
 		return xyResponse.AgentToolCallDetail{}, err
@@ -258,8 +258,8 @@ func (s *Session) Delete(ctx context.Context, ownerID, sessionID uint) error {
 			return errors.New("会话正在运行，暂不能删除")
 		}
 		var activeTasks int64
-		if err := tx.Table("xy_resource_tasks AS t").
-			Joins("JOIN xy_agent_runs AS r ON r.id = t.agent_run_id AND r.deleted_at IS NULL").
+		if err := tx.Table("resource_tasks AS t").
+			Joins("JOIN agent_runs AS r ON r.id = t.agent_run_id AND r.deleted_at IS NULL").
 			Where("r.session_id = ? AND r.owner_id = ? AND t.state IN ? AND t.deleted_at IS NULL", sessionID, ownerID, []string{"queued", "running"}).
 			Count(&activeTasks).Error; err != nil {
 			return err

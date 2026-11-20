@@ -220,8 +220,8 @@ func (s *Runner) prepareResourceApproval(ctx context.Context, ownerID uint, call
 		return nil, errors.New("资源候选无效")
 	}
 	var candidate model.ResourceCandidate
-	if err := s.db.WithContext(ctx).Table("xy_resource_candidates AS c").
-		Joins("JOIN xy_resource_searches AS s ON s.id = c.search_id AND s.deleted_at IS NULL").
+	if err := s.db.WithContext(ctx).Table("resource_candidates AS c").
+		Joins("JOIN resource_searches AS s ON s.id = c.search_id AND s.deleted_at IS NULL").
 		Where("c.external_id = ? AND c.mcp_server_code = ? AND c.deleted_at IS NULL AND s.owner_id = ?", externalID, call.MCPServerCode, ownerID).
 		Select("c.*").Order("c.id DESC").First(&candidate).Error; err != nil {
 		return nil, err

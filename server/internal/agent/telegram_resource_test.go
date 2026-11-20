@@ -16,7 +16,7 @@ func TestTelegramResourceTaskOwnershipAndCancellation(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
 	require.NoError(t, db.AutoMigrate(&model.TelegramDialog{}, &model.TelegramResourceTask{}))
-	require.NoError(t, db.Exec("CREATE TABLE tel_settings (key text PRIMARY KEY, value text)").Error)
+	require.NoError(t, db.Exec("CREATE TABLE tg_settings (key text PRIMARY KEY, value text)").Error)
 	require.NoError(t, db.Create(&model.TelegramDialog{
 		TelegramID: 100, Name: "公开群", DialogType: "group", IsGroup: true, Status: "normal",
 		ResourceComplianceStatus: "allowed",

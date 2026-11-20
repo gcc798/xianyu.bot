@@ -79,7 +79,7 @@ func (s *ResourceCatalog) telegramAdultSettings(ctx context.Context, db *gorm.DB
 		Key   string
 		Value string
 	}
-	if err := db.WithContext(ctx).Table("tel_settings").Where("key IN ?", []string{"adult_mode", "adult_dialog_ids"}).Find(&settings).Error; err != nil {
+	if err := db.WithContext(ctx).Table("tg_settings").Where("key IN ?", []string{"adult_mode", "adult_dialog_ids"}).Find(&settings).Error; err != nil {
 		return false, nil, err
 	}
 	values := make(map[string]string, len(settings))
@@ -474,8 +474,8 @@ func (s *ResourceCatalog) runTelegramTask(ctx context.Context, task model.Telegr
 			}
 			externalID := fmt.Sprintf("%d:%d", source.TelegramID, message.ID)
 			var existing int64
-			if err := s.db.WithContext(ctx).Table("xy_resource_sources AS rs").
-				Joins("JOIN xy_resources AS r ON r.id = rs.resource_id").
+			if err := s.db.WithContext(ctx).Table("resource_sources AS rs").
+				Joins("JOIN resources AS r ON r.id = rs.resource_id").
 				Where("r.owner_id = ? AND rs.mcp_server_code = ? AND rs.external_id = ?", task.OwnerID, "telegram", externalID).
 				Count(&existing).Error; err != nil {
 				fail("资源去重检查", "database_query_failed", err)

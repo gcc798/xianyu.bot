@@ -24,7 +24,7 @@ type AIModel struct {
 }
 
 // TableName 返回模型配置表名。
-func (AIModel) TableName() string { return "xy_ai_models" }
+func (AIModel) TableName() string { return "agent_models" }
 
 // MCPServer 保存一个 Agent 可访问的 MCP 服务配置。
 type MCPServer struct {
@@ -58,7 +58,7 @@ type MCPServer struct {
 }
 
 // TableName 返回 MCP 服务配置表名。
-func (MCPServer) TableName() string { return "xy_mcp_servers" }
+func (MCPServer) TableName() string { return "mcp_servers" }
 
 // MCPTool 保存 MCP 最近一次成功发现的工具定义快照。
 type MCPTool struct {
@@ -76,7 +76,7 @@ type MCPTool struct {
 }
 
 // TableName 返回 MCP 工具目录表名。
-func (MCPTool) TableName() string { return "xy_mcp_tools" }
+func (MCPTool) TableName() string { return "mcp_tools" }
 
 // AgentConfig 定义 Agent 单次运行的资源与安全上限。
 type AgentConfig struct {
@@ -94,7 +94,7 @@ type AgentConfig struct {
 }
 
 // TableName 返回 Agent 全局配置表名。
-func (AgentConfig) TableName() string { return "xy_agent_config" }
+func (AgentConfig) TableName() string { return "agent_config" }
 
 // DefaultAgentConfig 返回服务首次启动使用的保守运行上限。
 func DefaultAgentConfig() AgentConfig {

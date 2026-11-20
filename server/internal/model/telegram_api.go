@@ -14,4 +14,4 @@ type TelegramAPIConfig struct {
 }
 
 // TableName 返回 Telegram API 配置表名。
-func (TelegramAPIConfig) TableName() string { return "s_telegram_api_configs" }
+func (TelegramAPIConfig) TableName() string { return "tg_api_configs" }

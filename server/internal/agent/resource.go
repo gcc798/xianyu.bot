@@ -169,7 +169,7 @@ func (s *ResourceCatalog) DeleteTelegramResource(ctx context.Context, input xyRe
 		DownloadStatus string `gorm:"column:download_status"`
 		UploadStatus   string `gorm:"column:upload_status"`
 	}
-	if err := s.db.WithContext(ctx).Table("tel_resource_files").Select("object_key, download_status, upload_status").Where("id = ? AND owner_id = ?", fileID, input.OwnerID).Take(&file).Error; err != nil {
+	if err := s.db.WithContext(ctx).Table("tg_resource_files").Select("object_key, download_status, upload_status").Where("id = ? AND owner_id = ?", fileID, input.OwnerID).Take(&file).Error; err != nil {
 		return err
 	}
 	if file.DownloadStatus == "queued" || file.DownloadStatus == "downloading" || file.UploadStatus == "pending" || file.UploadStatus == "uploading" {
@@ -193,7 +193,7 @@ func (s *ResourceCatalog) DeleteTelegramResource(ctx context.Context, input xyRe
 				return err
 			}
 		}
-		result := tx.Exec("DELETE FROM tel_resource_files WHERE id = ? AND owner_id = ?", fileID, input.OwnerID)
+		result := tx.Exec("DELETE FROM tg_resource_files WHERE id = ? AND owner_id = ?", fileID, input.OwnerID)
 		if result.Error != nil {
 			return result.Error
 		}
@@ -321,8 +321,8 @@ func (s *ResourceCatalog) CreateDeliveryTask(ctx context.Context, ownerID, candi
 	var task model.ResourceTask
 	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var candidate model.ResourceCandidate
-		if err := tx.Table("xy_resource_candidates AS c").
-			Joins("JOIN xy_resource_searches AS s ON s.id = c.search_id AND s.deleted_at IS NULL").
+		if err := tx.Table("resource_candidates AS c").
+			Joins("JOIN resource_searches AS s ON s.id = c.search_id AND s.deleted_at IS NULL").
 			Where("c.id = ? AND c.deleted_at IS NULL AND s.owner_id = ?", candidateID, ownerID).
 			Select("c.*").First(&candidate).Error; err != nil {
 			return err

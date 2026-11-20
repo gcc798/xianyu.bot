@@ -174,8 +174,8 @@ func loadAgentHistory(ctx context.Context, db *gorm.DB, ownerID, sessionID uint,
 // recentToolTrace 生成最多十条且不超过 12KB 的工具执行摘要。
 func recentToolTrace(ctx context.Context, db *gorm.DB, ownerID, sessionID uint) (string, error) {
 	var calls []model.AgentRunTool
-	if err := db.WithContext(ctx).Table("xy_agent_run_tools AS t").
-		Select("t.*").Joins("JOIN xy_agent_runs AS r ON r.id = t.run_id AND r.deleted_at IS NULL").
+	if err := db.WithContext(ctx).Table("agent_run_tools AS t").
+		Select("t.*").Joins("JOIN agent_runs AS r ON r.id = t.run_id AND r.deleted_at IS NULL").
 		Where("r.owner_id = ? AND r.session_id = ? AND t.result <> '' AND t.deleted_at IS NULL", ownerID, sessionID).
 		Order("t.id DESC").Limit(10).Find(&calls).Error; err != nil {
 		return "", err

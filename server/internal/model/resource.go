@@ -14,7 +14,7 @@ type ResourceSearch struct {
 }
 
 // TableName 返回资源检索表名。
-func (ResourceSearch) TableName() string { return "xy_resource_searches" }
+func (ResourceSearch) TableName() string { return "resource_searches" }
 
 // ResourceCandidate 表示 MCP 检索返回的一个待选择资源。
 type ResourceCandidate struct {
@@ -33,7 +33,7 @@ type ResourceCandidate struct {
 }
 
 // TableName 返回资源候选表名。
-func (ResourceCandidate) TableName() string { return "xy_resource_candidates" }
+func (ResourceCandidate) TableName() string { return "resource_candidates" }
 
 // ResourceTask 记录资源获取、处理与上传的长任务状态。
 type ResourceTask struct {
@@ -61,7 +61,7 @@ type ResourceTask struct {
 }
 
 // TableName 返回资源任务表名。
-func (ResourceTask) TableName() string { return "xy_resource_tasks" }
+func (ResourceTask) TableName() string { return "resource_tasks" }
 
 // Resource 表示已进入本地对象存储的可用资源。
 type Resource struct {
@@ -78,7 +78,7 @@ type Resource struct {
 }
 
 // TableName 返回本地资源表名。
-func (Resource) TableName() string { return "xy_resources" }
+func (Resource) TableName() string { return "resources" }
 
 // ResourceSource 保存本地资源与外部来源的追溯关系。
 type ResourceSource struct {
@@ -92,4 +92,4 @@ type ResourceSource struct {
 }
 
 // TableName 返回资源来源表名。
-func (ResourceSource) TableName() string { return "xy_resource_sources" }
+func (ResourceSource) TableName() string { return "resource_sources" }

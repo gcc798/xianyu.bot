@@ -89,8 +89,8 @@ func TestDeleteTelegramResourceRequiresOwnerAndRemovesUnifiedRecord(t *testing.T
 	catalog := &ResourceCatalog{db: db, objectStore: store, bucket: "resources"}
 	ownerResource := model.Resource{OwnerID: 11, Name: "Go.pdf", Size: 123, Bucket: "resources", ObjectKey: "telegram/1/2-Go.pdf"}
 	require.NoError(t, db.Create(&ownerResource).Error)
-	require.NoError(t, db.Exec("CREATE TABLE tel_resource_files (id integer, owner_id integer, object_key text, download_status text, upload_status text)").Error)
-	require.NoError(t, db.Exec("INSERT INTO tel_resource_files VALUES (5, 11, ?, 'success', 'success')", ownerResource.ObjectKey).Error)
+	require.NoError(t, db.Exec("CREATE TABLE tg_resource_files (id integer, owner_id integer, object_key text, download_status text, upload_status text)").Error)
+	require.NoError(t, db.Exec("INSERT INTO tg_resource_files VALUES (5, 11, ?, 'success', 'success')", ownerResource.ObjectKey).Error)
 	input := xyRequest.DeleteTelegramResource{OwnerID: 22}
 	err = catalog.DeleteTelegramResource(t.Context(), input, 5)
 	require.ErrorIs(t, err, gorm.ErrRecordNotFound)

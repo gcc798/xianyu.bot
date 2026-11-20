@@ -29,7 +29,7 @@ type TelegramDialog struct {
 }
 
 // TableName 返回 Telegram 来源表名。
-func (TelegramDialog) TableName() string { return "tel_dialogs" }
+func (TelegramDialog) TableName() string { return "tg_dialogs" }
 
 // TelegramResourceTask 保存 Go 管理的 Telegram 批量采集任务。
 type TelegramResourceTask struct {
@@ -74,4 +74,4 @@ type TelegramResourceOptions struct {
 }
 
 // TableName 返回 Telegram 采集任务表名。
-func (TelegramResourceTask) TableName() string { return "tel_resource_tasks" }
+func (TelegramResourceTask) TableName() string { return "tg_resource_tasks" }
