@@ -32,7 +32,16 @@ func TestMigratePostgresInitializesEmptyDatabase(t *testing.T) {
 
 	var version int64
 	require.NoError(t, db.Raw(`SELECT max(version_id) FROM goose_db_version WHERE is_applied`).Scan(&version).Error)
-	require.Equal(t, int64(202611100008), version)
+	require.Equal(t, int64(202611200009), version)
+	var hasMCPTools bool
+	require.NoError(t, db.Raw("SELECT to_regclass('public.xy_mcp_tools') IS NOT NULL").Scan(&hasMCPTools).Error)
+	require.True(t, hasMCPTools)
+	var hasCatalogHash bool
+	require.NoError(t, db.Raw(`SELECT EXISTS (
+		SELECT 1 FROM information_schema.columns
+		WHERE table_schema = 'public' AND table_name = 'xy_agent_run_tools' AND column_name = 'catalog_hash'
+	)`).Scan(&hasCatalogHash).Error)
+	require.True(t, hasCatalogHash)
 	var hasJWTBlacklist bool
 	require.NoError(t, db.Raw("SELECT to_regclass('public.jwt_blacklists') IS NOT NULL").Scan(&hasJWTBlacklist).Error)
 	require.False(t, hasJWTBlacklist)

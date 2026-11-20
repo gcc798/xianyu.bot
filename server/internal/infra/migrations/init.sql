@@ -705,8 +705,7 @@ CREATE TABLE public.xy_agent_run_tools (
     completed_at timestamp with time zone,
     result text,
     tool_code character varying(120) NOT NULL,
-    tool_source character varying(16) DEFAULT 'mcp'::character varying NOT NULL,
-    catalog_hash character varying(64)
+    tool_source character varying(16) DEFAULT 'mcp'::character varying NOT NULL
 );
 
 
@@ -1097,28 +1096,14 @@ CREATE TABLE public.xy_mcp_servers (
     deleted_at timestamp with time zone,
     name character varying(80) NOT NULL,
     code character varying(64) NOT NULL,
-    description character varying(1000),
-    tags text,
     base_url character varying(500) NOT NULL,
     auth_header character varying(100),
     auth_token text,
     enabled boolean DEFAULT true NOT NULL,
-    enabled_tools text,
-    disabled_tools text,
     request_timeout_seconds bigint DEFAULT 15 NOT NULL,
     task_timeout_seconds bigint DEFAULT 300 NOT NULL,
-    catalog_ttl_seconds bigint DEFAULT 3600 NOT NULL,
-    connection_ttl_seconds bigint DEFAULT 600 NOT NULL,
-    connection_scope character varying(16) DEFAULT 'shared'::character varying NOT NULL,
-    max_concurrent_calls bigint DEFAULT 0 NOT NULL,
-    server_instructions text,
-    catalog_status character varying(32) DEFAULT 'unknown'::character varying NOT NULL,
-    catalog_tool_count bigint DEFAULT 0 NOT NULL,
-    catalog_refreshed_at timestamp with time zone,
-    catalog_error character varying(1000),
     last_status character varying(32) DEFAULT 'unknown'::character varying NOT NULL,
     last_checked_at timestamp with time zone,
-    last_check_duration_millis bigint DEFAULT 0 NOT NULL,
     last_error character varying(1000)
 );
 
@@ -1140,47 +1125,6 @@ CREATE SEQUENCE public.xy_mcp_servers_id_seq
 --
 
 ALTER SEQUENCE public.xy_mcp_servers_id_seq OWNED BY public.xy_mcp_servers.id;
-
-
---
--- Name: xy_mcp_tools; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.xy_mcp_tools (
-    id bigint NOT NULL,
-    created_at timestamp with time zone,
-    updated_at timestamp with time zone,
-    deleted_at timestamp with time zone,
-    mcp_server_code character varying(64) NOT NULL,
-    name character varying(160) NOT NULL,
-    description text,
-    input_schema text NOT NULL,
-    output_schema text,
-    annotations text,
-    definition text NOT NULL,
-    search_text text NOT NULL,
-    definition_hash character varying(64) NOT NULL,
-    discovered_at timestamp with time zone NOT NULL
-);
-
-
---
--- Name: xy_mcp_tools_id_seq; Type: SEQUENCE; Schema: public; Owner: -
---
-
-CREATE SEQUENCE public.xy_mcp_tools_id_seq
-    START WITH 1
-    INCREMENT BY 1
-    NO MINVALUE
-    NO MAXVALUE
-    CACHE 1;
-
-
---
--- Name: xy_mcp_tools_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
---
-
-ALTER SEQUENCE public.xy_mcp_tools_id_seq OWNED BY public.xy_mcp_tools.id;
 
 
 --
@@ -1952,13 +1896,6 @@ ALTER TABLE ONLY public.xy_mcp_servers ALTER COLUMN id SET DEFAULT nextval('publ
 
 
 --
--- Name: xy_mcp_tools id; Type: DEFAULT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.xy_mcp_tools ALTER COLUMN id SET DEFAULT nextval('public.xy_mcp_tools_id_seq'::regclass);
-
-
---
 -- Name: xy_messages id; Type: DEFAULT; Schema: public; Owner: -
 --
 
@@ -2318,14 +2255,6 @@ ALTER TABLE ONLY public.xy_delivery_tasks
 
 ALTER TABLE ONLY public.xy_mcp_servers
     ADD CONSTRAINT xy_mcp_servers_pkey PRIMARY KEY (id);
-
-
---
--- Name: xy_mcp_tools xy_mcp_tools_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.xy_mcp_tools
-    ADD CONSTRAINT xy_mcp_tools_pkey PRIMARY KEY (id);
 
 
 --
@@ -2906,27 +2835,6 @@ CREATE UNIQUE INDEX idx_xy_mcp_servers_code ON public.xy_mcp_servers USING btree
 --
 
 CREATE INDEX idx_xy_mcp_servers_deleted_at ON public.xy_mcp_servers USING btree (deleted_at);
-
-
---
--- Name: idx_xy_mcp_tools_code; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE UNIQUE INDEX idx_xy_mcp_tools_code ON public.xy_mcp_tools USING btree (mcp_server_code, name);
-
-
---
--- Name: idx_xy_mcp_tools_deleted_at; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_xy_mcp_tools_deleted_at ON public.xy_mcp_tools USING btree (deleted_at);
-
-
---
--- Name: idx_xy_mcp_tools_server; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_xy_mcp_tools_server ON public.xy_mcp_tools USING btree (mcp_server_code);
 
 
 --
