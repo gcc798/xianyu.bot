@@ -1,0 +1,60 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "闲鱼自动化系统架构",
+    "output": "architecture-overview.html",
+    "locale": "zh-CN",
+    "quality_profile": "showcase",
+    "views": [
+      {
+        "id": "request-path",
+        "label": "请求主链路",
+        "focus": ["operator", "web", "server", "database"],
+        "note": "从运营人员发起操作，到 Go API、Agent 与 PostgreSQL。"
+      },
+      {
+        "id": "agent-capabilities",
+        "label": "Agent 能力",
+        "focus": ["server", "model", "mcp", "telegram-service"],
+        "note": "Go Agent 组合模型、本地 Tool 与 MCP 能力；运行连接按需建立。"
+      },
+      {
+        "id": "resource-delivery",
+        "label": "资源交付",
+        "focus": ["server", "telegram-service", "telegram", "storage"],
+        "note": "Telegram 服务检索与下载资源，Go 侧管理任务与资源元数据，RustFS 保存对象。"
+      }
+    ]
+  },
+  "components": [
+    { "id": "operator", "type": "external", "label": "运营人员", "sublabel": "管理员 / 普通用户", "pos": [40, 300], "size": [145, 70] },
+    { "id": "web", "type": "frontend", "label": "agent-web", "sublabel": "React · TypeScript · Ant Design", "pos": [260, 300], "size": [190, 76] },
+    { "id": "server", "type": "backend", "label": "Go Server", "sublabel": "API · Service · Agent / Eino", "pos": [540, 300], "size": [210, 80], "tag": "本地 Tool + MCP 两级路由" },
+    { "id": "database", "type": "database", "label": "PostgreSQL", "sublabel": "业务数据 · Agent 轨迹 · MCP Catalog", "pos": [860, 300], "size": [205, 76] },
+    { "id": "mcp", "type": "external", "label": "MCP Servers", "sublabel": "外部工具能力 · 按需连接", "pos": [860, 125], "size": [205, 72] },
+    { "id": "model", "type": "external", "label": "模型服务", "sublabel": "Tool calling · Failover", "pos": [540, 125], "size": [210, 72] },
+    { "id": "telegram-service", "type": "backend", "label": "telegram.bot", "sublabel": "Python · Telegram MCP · 下载执行", "pos": [260, 505], "size": [220, 78] },
+    { "id": "telegram", "type": "external", "label": "Telegram", "sublabel": "会话 · 群组 · 文件", "pos": [40, 505], "size": [145, 70] },
+    { "id": "storage", "type": "cloud", "label": "RustFS", "sublabel": "S3 兼容对象存储", "pos": [540, 505], "size": [210, 72] }
+  ],
+  "boundaries": [
+    { "kind": "region", "label": "Docker Compose · 可信内网部署", "wraps": ["web", "server", "database", "telegram-service", "storage"], "pad": 30 }
+  ],
+  "connections": [
+    { "id": "operator-web", "from": "operator", "to": "web", "label": "浏览器 · HTTPS / 内网 HTTP", "variant": "emphasis", "labelDy": 59 },
+    { "id": "web-server", "from": "web", "to": "server", "label": "REST API · SSE" },
+    { "id": "server-database", "from": "server", "to": "database", "label": "GORM · SQL" },
+    { "id": "server-model", "from": "server", "to": "model", "label": "Generate / Stream · Tool calling", "fromSide": "top", "toSide": "bottom", "labelDx": -110 },
+    { "id": "server-mcp", "from": "server", "to": "mcp", "label": "Catalog 路由 · 惰性并发调用", "variant": "emphasis", "fromSide": "top", "toSide": "bottom" },
+    { "id": "server-telegram", "from": "server", "to": "telegram-service", "label": "Telegram MCP · 内部任务 API", "variant": "dashed", "fromSide": "bottom", "toSide": "right" },
+    { "id": "telegram-platform", "from": "telegram-service", "to": "telegram", "label": "Telegram Client API", "fromSide": "left", "toSide": "right", "labelDy": 55 },
+    { "id": "server-storage", "from": "server", "to": "storage", "label": "资源登记 · 对象存储", "variant": "dashed", "fromSide": "bottom", "toSide": "right" },
+    { "id": "telegram-storage", "from": "telegram-service", "to": "storage", "label": "短期上传地址 · 文件对象", "fromSide": "right", "toSide": "left", "labelDy": 56 }
+  ],
+  "cards": [
+    { "dot": "cyan", "title": "应用边界", "items": ["Go 模块化单体负责 API、业务 Service、Agent 与 Tool。", "React 前端只调用当前 Go API 合同。"] },
+    { "dot": "emerald", "title": "Agent 与 MCP", "items": ["先按权限过滤并路由 MCP，再选择具体 Tool。", "MCP 健康探测、目录 Catalog 与执行连接相互独立。"] },
+    { "dot": "amber", "title": "资源与安全", "items": ["资源任务和 owner 校验由 Go 管理，文件对象存于 RustFS。", "MCP 凭据不进入普通响应、Prompt、SSE 或轨迹。"] }
+  ]
+}
