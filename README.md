@@ -10,7 +10,7 @@
   <p>
     <img src="https://img.shields.io/badge/Eino-0.9.22-7C3AED" alt="Eino 0.9.22" />
     <img src="https://img.shields.io/badge/Python-3.12-3776AB?logo=python&logoColor=white" alt="Python 3.12" />
-    <img src="https://img.shields.io/badge/PostgreSQL-19_RC1-4169E1?logo=postgresql&logoColor=white" alt="PostgreSQL 19 RC1" />
+    <img src="https://img.shields.io/badge/PostgreSQL-19.0-4169E1?logo=postgresql&logoColor=white" alt="PostgreSQL 19.0" />
     <img src="https://img.shields.io/badge/RustFS-latest-CE422B?logo=rust&logoColor=white" alt="RustFS latest" />
     <img src="https://img.shields.io/badge/License-Apache_2.0-4C1?logo=apache&logoColor=white" alt="Apache License 2.0" />
   </p>

@@ -5,7 +5,7 @@ networks:
     name: xianyu.bot
 
 volumes:
-  postgres:
+  postgres19:
   rustfs:
   internal-auth:
 
@@ -46,9 +46,29 @@ services:
       RUSTFS_BUCKET: ${RUSTFS_BUCKET:-telegram-resources}
 
   postgres:
-    image: postgres:19rc1-alpine
+    image: postgres:19-alpine
     container_name: xianyu.bot.postgres
     restart: always
+    command:
+      - postgres
+      - -c
+      - logging_collector=on
+      - -c
+      - log_destination=stderr
+      - -c
+      - log_directory=log
+      - -c
+      - log_filename=postgresql-%Y-%m-%d.log
+      - -c
+      - log_rotation_age=1d
+      - -c
+      - log_rotation_size=0
+      - -c
+      - log_truncate_on_rotation=on
+      - -c
+      - log_min_duration_statement=1000
+      - -c
+      - log_line_prefix=%m [%p] user=%u,db=%d,app=%a,client=%h
     ports:
       - '${PGSQL_HOST_PORT:-15432}:5432'
     environment:
@@ -62,7 +82,7 @@ services:
       timeout: 5s
       retries: 20
     volumes:
-      - postgres:/var/lib/postgresql
+      - postgres19:/var/lib/postgresql
       - ./server/internal/infra/migrations/init.sql:/docker-entrypoint-initdb.d/001-init.sql:ro
 
   rustfs:

@@ -33,7 +33,8 @@ goose -dir server/internal/infra/migrations/goose postgres 'postgres://xianyu_bo
 
 初始化数据只包含管理员、基础字典、Agent 默认配置和 Telegram 默认设置。服务启动不会在已有数据上重放 `init.sql`。
 
-当前 Compose 使用官方 `postgres:19rc1-alpine`。PostgreSQL 19 正式版发布后改为 `postgres:19-alpine` 并重新执行空库验证。
+当前 Compose 使用官方稳定版 `postgres:19-alpine`。
+Compose 默认将执行时间达到 `1000ms` 的 SQL 记录到 PostgreSQL 数据卷内的 `log/postgresql-YYYY-MM-DD.log`。
 
 重建空环境会删除数据库和对象存储数据：
 
