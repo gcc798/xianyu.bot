@@ -25,6 +25,7 @@ services:
     build:
       context: ./server
       dockerfile: ./Dockerfile
+    # 首次启动生成仅供内部服务调用的共享令牌，再启动 Go 服务。
     entrypoint: ["/bin/sh", "-ec", "umask 077; test -s /run/xy/token || (head -c 32 /dev/urandom | base64 > /run/xy/token.tmp && mv /run/xy/token.tmp /run/xy/token); exec ./server -c config.docker.yaml"]
     volumes:
       - internal-auth:/run/xy
@@ -36,21 +37,22 @@ services:
       postgres:
         condition: service_healthy
     environment:
-      XY_CREDENTIAL_KEY: ${XY_CREDENTIAL_KEY:-}
-      XIANYU_JWT_SIGNING_KEY: ${XIANYU_JWT_SIGNING_KEY:-change-this-before-production}
-      XIANYU_POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-xianyu_bot}
-      TELEGRAM_SERVICE_URL: http://telegram:8080
-      RUSTFS_ENDPOINT: http://rustfs:9000
-      RUSTFS_ACCESS_KEY: ${RUSTFS_ACCESS_KEY:-rustfs-local}
-      RUSTFS_SECRET_KEY: ${RUSTFS_SECRET_KEY:-rustfs-local-secret}
-      RUSTFS_BUCKET: ${RUSTFS_BUCKET:-telegram-resources}
+      XY_CREDENTIAL_KEY: ${XY_CREDENTIAL_KEY:-} # 闲鱼凭据加密密钥；为空时不启用凭据加密。
+      XIANYU_JWT_SIGNING_KEY: ${XIANYU_JWT_SIGNING_KEY:-change-this-before-production} # JWT 签名密钥，生产环境必须覆盖默认值。
+      XIANYU_POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-xianyu_bot} # Go 服务连接 PostgreSQL 使用的密码。
+      TELEGRAM_SERVICE_URL: http://telegram:8080 # Telegram 内部服务地址。
+      RUSTFS_ENDPOINT: http://rustfs:9000 # 容器网络内的 RustFS S3 API 地址。
+      RUSTFS_ACCESS_KEY: ${RUSTFS_ACCESS_KEY:-rustfs-local} # RustFS 访问密钥。
+      RUSTFS_SECRET_KEY: ${RUSTFS_SECRET_KEY:-rustfs-local-secret} # RustFS 访问密钥对应的密钥。
+      RUSTFS_BUCKET: ${RUSTFS_BUCKET:-telegram-resources} # Telegram 资源文件使用的存储桶。
 
   postgres:
     image: postgres:19-alpine
     container_name: xianyu.bot.postgres
     restart: always
     command:
-      - postgres
+      - postgres # 启动 PostgreSQL 主进程，后续 -c 参数覆盖默认配置。
+      # 收集 PostgreSQL 标准错误日志并写入数据卷内的日志文件。
       - -c
       - logging_collector=on
       - -c
@@ -59,23 +61,26 @@ services:
       - log_directory=log
       - -c
       - log_filename=postgresql-%Y-%m-%d.log
+      # 每日轮转日志，不按文件大小轮转；同名文件轮转时截断。
       - -c
       - log_rotation_age=1d
       - -c
       - log_rotation_size=0
       - -c
       - log_truncate_on_rotation=on
+      # 将执行时间达到 1000ms 的 SQL 记录为慢 SQL。
       - -c
       - log_min_duration_statement=1000
+      # 日志前缀记录时间、进程、用户、数据库、应用和客户端。
       - -c
       - log_line_prefix=%m [%p] user=%u,db=%d,app=%a,client=%h
     ports:
       - '${PGSQL_HOST_PORT:-15432}:5432'
     environment:
-      POSTGRES_DB: xianyu_bot
-      POSTGRES_USER: xianyu_bot
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-xianyu_bot}
-      TZ: Asia/Shanghai
+      POSTGRES_DB: xianyu_bot # 首次初始化创建的业务数据库。
+      POSTGRES_USER: xianyu_bot # 首次初始化创建的数据库管理员用户。
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-xianyu_bot} # 数据库密码，生产环境必须覆盖默认值。
+      TZ: Asia/Shanghai # 容器与数据库日志使用的时区。
     healthcheck:
       test: ['CMD-SHELL', 'pg_isready -U xianyu_bot -d xianyu_bot']
       interval: 5s
@@ -89,16 +94,22 @@ services:
     image: rustfs/rustfs:latest
     container_name: xianyu.bot.rustfs
     restart: always
-    command: ['--address', ':9000', '--console-enable', '--console-address', ':9001', '/data']
+    command:
+      - --address # S3 API 监听地址。
+      - :9000
+      - --console-enable # 启用 RustFS 管理控制台。
+      - --console-address # 管理控制台监听地址。
+      - :9001
+      - /data # 对象数据持久化目录。
     ports:
       - '${RUSTFS_API_HOST_PORT:-19000}:9000'
       - '${RUSTFS_CONSOLE_HOST_PORT:-19001}:9001'
     environment:
-      RUSTFS_ACCESS_KEY: ${RUSTFS_ACCESS_KEY:-rustfs-local}
-      RUSTFS_SECRET_KEY: ${RUSTFS_SECRET_KEY:-rustfs-local-secret}
-      RUSTFS_ADDRESS: ':9000'
-      RUSTFS_CONSOLE_ADDRESS: ':9001'
-      RUSTFS_CONSOLE_ENABLE: 'true'
+      RUSTFS_ACCESS_KEY: ${RUSTFS_ACCESS_KEY:-rustfs-local} # S3 API 访问密钥。
+      RUSTFS_SECRET_KEY: ${RUSTFS_SECRET_KEY:-rustfs-local-secret} # S3 API 访问密钥对应的密钥。
+      RUSTFS_ADDRESS: ':9000' # S3 API 默认监听地址。
+      RUSTFS_CONSOLE_ADDRESS: ':9001' # 管理控制台默认监听地址。
+      RUSTFS_CONSOLE_ENABLE: 'true' # 启用管理控制台。
     volumes:
       - rustfs:/data
 
@@ -109,23 +120,23 @@ services:
     container_name: xianyu.bot.telegram
     restart: unless-stopped
     env_file:
-      - path: ./telegram.bot/.env
-        required: false
+      - path: ./telegram.bot/.env # 可选的 Telegram 账号和代理等本地配置。
+        required: false # 未提供本地配置时仍允许容器启动。
     environment:
-      DATABASE_URL: postgresql://xianyu_bot:${POSTGRES_PASSWORD:-xianyu_bot}@postgres:5432/xianyu_bot
-      XIANYU_INTERNAL_URL: http://server:8888
-      TG_RESOURCE_CONCURRENCY: ${TG_RESOURCE_CONCURRENCY:-1}
-      TG_RESOURCE_MAX_FILE_MB: ${TG_RESOURCE_MAX_FILE_MB:-200}
-      TG_RESOURCE_AI_BASE_URL: ${TG_RESOURCE_AI_BASE_URL:-}
-      TG_RESOURCE_AI_API_KEY: ${TG_RESOURCE_AI_API_KEY:-}
-      TG_RESOURCE_AI_MODEL: ${TG_RESOURCE_AI_MODEL:-}
-      TELEGRAM_TMP_ROOT: /workspace/tmp/telegram
-      TG_API_CREDENTIAL_SOURCE: ${TG_API_CREDENTIAL_SOURCE:-database}
-      RUSTFS_ENDPOINT: http://rustfs:9000
-      RUSTFS_ACCESS_KEY: ${RUSTFS_ACCESS_KEY:-rustfs-local}
-      RUSTFS_SECRET_KEY: ${RUSTFS_SECRET_KEY:-rustfs-local-secret}
-      RUSTFS_BUCKET: ${RUSTFS_BUCKET:-telegram-resources}
-      RUSTFS_REGION: ${RUSTFS_REGION:-us-east-1}
+      DATABASE_URL: postgresql://xianyu_bot:${POSTGRES_PASSWORD:-xianyu_bot}@postgres:5432/xianyu_bot # Telegram 服务使用的 PostgreSQL 连接串。
+      XIANYU_INTERNAL_URL: http://server:8888 # Go 服务内部 API 地址。
+      TG_RESOURCE_CONCURRENCY: ${TG_RESOURCE_CONCURRENCY:-1} # 同时执行的 Telegram 资源任务数。
+      TG_RESOURCE_MAX_FILE_MB: ${TG_RESOURCE_MAX_FILE_MB:-200} # 单个资源文件大小上限，单位 MB。
+      TG_RESOURCE_AI_BASE_URL: ${TG_RESOURCE_AI_BASE_URL:-} # 可选的资源识别模型 API 地址。
+      TG_RESOURCE_AI_API_KEY: ${TG_RESOURCE_AI_API_KEY:-} # 可选的资源识别模型 API Key。
+      TG_RESOURCE_AI_MODEL: ${TG_RESOURCE_AI_MODEL:-} # 可选的资源识别模型名称。
+      TELEGRAM_TMP_ROOT: /workspace/tmp/telegram # Telegram 下载和处理中间文件目录。
+      TG_API_CREDENTIAL_SOURCE: ${TG_API_CREDENTIAL_SOURCE:-database} # Telegram API 凭据来源，默认从数据库读取。
+      RUSTFS_ENDPOINT: http://rustfs:9000 # 容器网络内的 RustFS S3 API 地址。
+      RUSTFS_ACCESS_KEY: ${RUSTFS_ACCESS_KEY:-rustfs-local} # RustFS 访问密钥。
+      RUSTFS_SECRET_KEY: ${RUSTFS_SECRET_KEY:-rustfs-local-secret} # RustFS 访问密钥对应的密钥。
+      RUSTFS_BUCKET: ${RUSTFS_BUCKET:-telegram-resources} # Telegram 资源文件使用的存储桶。
+      RUSTFS_REGION: ${RUSTFS_REGION:-us-east-1} # S3 客户端使用的区域标识。
     depends_on:
       postgres:
         condition: service_healthy
