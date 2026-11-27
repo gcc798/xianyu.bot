@@ -1,62 +1,19 @@
-# 仓库规则
+# 仓库规则入口
 
-## 工程边界
+本文件只负责规则导航，不承载具体的业务、技术或交付规范。
 
-- `server/`：Go 后端。
-- `agent-web/`：唯一维护的 React 前端。
-- `telegram.bot/`：Telegram 资源服务。
-- `docs/`：只记录当前事实。
+## 规则加载
 
-## 后端
+开始工作前，根据任务范围完整阅读对应规范；同时涉及多个范围时，必须读取全部相关文件：
 
-- `api/` 处理 HTTP 输入输出，`service/` 处理业务，`model/` 定义数据，`api/router/` 注册路由。
-- `service/` 平铺基础能力和闲鱼业务，不恢复 `system`、`xianyu` 子包。
-- `agent/` 独立承载 Agent、MCP、Tool 和资源能力。
-- `xianyu/` 只承载闲鱼协议、连接和 Agent Tool 适配。
-- Service 不依赖 `gin.Context`，Agent 与 Service 不互相持有；Agent 通过 Tool 调用业务能力。
-- 直接依赖所需对象，不增加无业务价值的包装、接口或中间层。
-- 用户业务数据必须在 Service 校验 `owner_id`。
+- 任何软件开发、工程配置、文档或交付任务：`.specs/project-development.md`
+- 涉及 Go 代码的新增、修改或评审：`.specs/go-code-style.md`
+- 涉及后端分层、API、鉴权、安全、数据模型或数据库：`.specs/backend-development.md`
+- 涉及 React、TypeScript、前端交互或页面样式：`.specs/frontend-development.md`
 
-## Go 开发规范
+规则文件中的要求仅适用于其声明的范围，不得机械套用到无关任务。当前用户要求优先于仓库规范；规则冲突时，更具体的规则优先。
 
-- 新增、修改或评审 Go 代码前，必须完整阅读并遵守 `.specs/standards/go-code-style.md`。
-- 该文件统一维护 Go 的注释、命名、函数设计、错误处理、并发与事务、代码组织、测试及验证规范，不在本文件重复维护。
-- 本文件中的仓库边界、API、安全、数据库和交付规则属于更具体的项目约束；与通用 Go 规范冲突时，以本文件为准。
+## Skills 加载
 
-## API 与安全
-
-- 响应保持 `{ code, data, msg }`，分页保持 `{ page, pageSize, total, list }`。
-- Go 与 TypeScript 的字段名和类型保持一致。
-- API 路径、方法、鉴权或响应变化必须同步调用方。
-- Cookie、Token、API Key、卡密和 MCP 凭据不得进入普通响应、日志、SSE、Prompt 或轨迹。
-- 当前部署边界是可信内网；公网部署需要另行设计网关、限流和认证。
-
-## 数据库
-
-- PostgreSQL 空库结构和基础数据基线维护在 `server/internal/infra/migrations/init.sql`；后续结构或基础数据变更只新增 `server/internal/infra/migrations/goose/` 增量迁移，不回写初始化基线。
-- `init.sql` 只用于空库；已有数据库由 Go 服务启动时按 Goose 版本自动升级。不得在服务启动时执行生产 `AutoMigrate`，也不得对已有库重放 `init.sql`。
-- 测试拥有的临时数据库可以使用 `AutoMigrate`。
-- 基础表使用 `s_`，闲鱼表使用 `xy_`，Telegram 表使用 `tel_`。
-- 不提交真实账号、凭据、会话或业务数据。
-
-## 前端
-
-- 前端功能写入 `agent-web/`，使用 TypeScript 和 `.tsx`。
-- 保留鉴权、权限、加载、空、错误、响应式和危险操作确认。
-- UI 修改必须执行 `npm run build`；重要交互还需真实浏览器检查。
-
-## 文档与验证
-
-- 架构变化更新 `docs/architecture.md`，范围变化更新 `docs/project-scope.md`。
-- 产品定义更新 `docs/product.md`，设计规范更新 `docs/design.md`。
-- 不复制源码结构、表字段或历史过程到文档。
-- 先运行最小相关测试，再运行受影响应用的完整检查。
-- 开发任务完成并通过要求的验证后，自动将本任务相关改动提交并推送到当前分支。提交前检查差异，只包含本任务改动，不纳入无关或用户未授权的改动；不得强推或改写历史。验证失败、远端不明确或权限受阻时停止提交/推送并说明原因。
-- 开发任务结束前，若环境提供 Docker 且仓库为受影响服务配置了容器，应构建或更新并启动相关容器，检查容器运行状态与服务可用性；不要重启无关服务。若启动需要缺失凭据、外部授权或额外权限，说明阻碍和未完成的验证。
-- 不得把模拟测试写成真实账号或真实交易验收。
-- 遵守 `LICENSE` 和 `docs/third-party-licensing.md`。
-
-## Skills
-
-- 修改 Go、React 或 TypeScript 业务代码时使用 `.agents/skills/idiomatic-business-code/`。
-- UI 设计、审计和视觉调整时使用 `.agents/skills/impeccable/`。
+- 修改 Go、React 或 TypeScript 业务代码时，使用 `.agents/skills/idiomatic-business-code/`。
+- 进行 UI 设计、审计或视觉调整时，使用 `.agents/skills/impeccable/`。
