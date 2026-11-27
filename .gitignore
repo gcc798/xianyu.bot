@@ -43,6 +43,7 @@ web/pnpm-lock.yaml
 *.sqlite
 *.sqlite3
 /.playwright-cli/
+/.codex-work/
 /output/playwright/
 worktrees/
 /tmp/

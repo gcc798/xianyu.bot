@@ -4,11 +4,11 @@
 
 | 项目 | 当前状态 |
 | --- | --- |
-| 当前开发阶段 | Phase 01：基础架构与领域模型设计（未开始） |
+| 当前开发阶段 | Phase 01：基础架构与领域模型设计（进行中） |
 | 已完成阶段 | 无 |
 | 总体开发进度 | 0 / 11（0%） |
-| 当前阻塞问题 | 无实施阻塞；Phase 01 需完成 pgvector 与 PostgreSQL 19 兼容性、文档解析器、Embedding 和 Reranker 模型的技术验证 |
-| 下一步开发任务 | 完成 Phase 01 的领域边界、接口契约、数据生命周期与待决策技术验证 |
+| 当前阻塞问题 | 缺少代表性脱敏语料与可用 Embedding/Reranker 凭据；PDF/Office 解析质量尚无代表性样本可验收 |
+| 下一步开发任务 | 准备脱敏评估语料和模型凭据，完成 Embedding、Reranker 与 PDF/Office 解析技术验证 |
 | 最后更新时间 | 2026-11-27 |
 
 > 本文档是 RAG 知识库与智能客服 Agent 后续开发的唯一实施和进度基准。只有任务完成且通过对应验收后，才能勾选任务和阶段。实施中如调整设计，必须同步更新“决策与调整记录”、当前进度、遗留问题和下一步任务。
@@ -161,13 +161,28 @@ Keyword Retrieval 统一由 PostgreSQL 承担：英文、编号和结构化关�
 
 | 决策项 | 当前状态 | 决策门与输出 |
 | --- | --- | --- |
-| PostgreSQL 19 + pgvector 镜像 | 待验证 | Phase 01 验证扩展安装、空库初始化、已有库升级、备份恢复和 HNSW；不静默降低 PostgreSQL 大版本 |
+| PostgreSQL 19 + pgvector 镜像 | 基础兼容性已验证 | 已验证 PostgreSQL 19.0、pgvector 0.8.7、pg_trgm 1.6、HNSW 和过滤查询；迁移、备份恢复在 Phase 03/11 随正式 Schema 继续验证 |
 | 默认 Embedding 模型与维度 | 待评估 | 使用代表性商品、FAQ 和客服问题比较召回、中文效果、吞吐、成本与稳定性，记录模型版本和维度 |
-| PDF/Office 解析实现 | 待评估 | 比较 Go 原生库与可选 Tika Sidecar 的格式覆盖、表格保真、资源占用、许可和部署成本 |
+| PDF/Office 解析实现 | Tika 基础兼容性已验证，最终方案待评估 | Apache Tika 3.3.0 已通过中文 DOCX/PDF 文本与简单表格提取；仍需用代表性复杂文档比较 Go 原生库与 Tika Sidecar 的结构保真、扫描件、资源上限、许可和部署成本 |
 | Reranker Provider | 待评估 | Phase 06 在固定召回集上比较收益、P95 延迟与成本；无显著收益则保持关闭 |
 | 中文关键词方案 | 初始使用 `pg_trgm` | Phase 06 用 Benchmark 决定是否需要中文分词扩展，不提前增加搜索集群 |
-| Milvus 部署版本与拓扑 | 待验证 | Phase 03 锁定兼容版本、持久化方式、健康检查、备份和 Compose Profile |
+| Milvus 部署版本与拓扑 | Standalone 基础兼容性已验证 | Milvus 3.0.5 官方 Compose 与 Go SDK v3 已通过建库、索引、写入、持久化、加载及 owner/版本过滤检索；Phase 03/11 继续锁定正式 Profile、备份恢复和运维参数 |
 | 客服自动发送阈值 | 待业务标注 | Phase 08 基于真实评估集确定；未达到阈值时只生成建议或转人工，不自动回复 |
+
+### 6.1 Phase 01 执行记录
+
+| 日期 | 验证项 | 结果 | 证据与后续 |
+| --- | --- | --- | --- |
+| 2026-11-27 | RAG 契约与业务解耦 | 通过 | 新增独立 `internal/rag` 契约，复用 Eino Parser、Transformer、Embedder，只为双向量库和高级检索定义必要接口；包测试与 `go vet` 通过 |
+| 2026-11-27 | 权限与版本不变量 | 通过 | 强制 owner、授权索引版本、账号/商品关系和向量维度一致；已发布状态由业务 Service 解析后传入；普通 Metadata Filter 不能覆盖授权字段 |
+| 2026-11-27 | 索引与任务生命周期 | 通过 | 以状态机覆盖 staging 发布/失败、published 退役、retired 回滚、任务领取、租约恢复、重试和终态 |
+| 2026-11-27 | PostgreSQL 19 + pgvector | 通过基础兼容性验证 | 使用 `pgvector/pgvector:0.8.7-pg19-trixie` 临时容器实测 vector/pg_trgm 扩展、HNSW、owner/版本过滤、向量排序和中文 trigram 查询；未接触项目数据库 |
+| 2026-11-27 | Milvus Standalone | 通过基础兼容性验证 | 使用官方 v3.0.5 Compose 启动 Milvus、etcd 和对象存储，健康检查通过；使用官方 Go SDK v3 实测建 Collection、向量索引、写入、Flush、Load 与 `owner_id + index_version` 标量过滤，结果未混入其他 owner；验证后已删除临时容器、网络、卷和探针文件 |
+| 2026-11-27 | Embedding/Reranker | 受阻 | 当前执行环境无可用模型凭据，且仓库没有代表性标注语料；不得用 Mock 代替质量、吞吐和成本结论 |
+| 2026-11-27 | PDF/Office Parser | 通过基础兼容性验证 | Apache Tika 3.3.0 临时容器成功提取合成中文 DOCX/PDF 的标题、订单号、规则文本、简单表格及英文标记；镜像约 171 MB，空闲容器约 244 MiB。缺少真实复杂版面、扫描件和异常文档，暂不锁定最终实现；临时容器已删除，脱敏探针保留在被 Git 忽略的 `.codex-work/` |
+| 2026-11-27 | Go 后端验证 | 通过 | 修正既有测试对 `atomic.Int64` 的直接复制，改为读取原子值；`go test ./...`、`go vet ./...` 与差异检查均通过 |
+
+参考的一手资料：[pgvector 官方仓库](https://github.com/pgvector/pgvector)、[Milvus Standalone Docker Compose](https://milvus.io/docs/install_standalone-docker-compose.md)、[Apache Tika 官方文档](https://tika.apache.org/)。具体依赖仍以实际实现时锁定并验证的版本为准。
 
 ## 7. 模块职责与进程划分
 
@@ -231,6 +246,7 @@ Keyword Retrieval 统一由 PostgreSQL 承担：英文、编号和结构化关�
 - 平台级：仅管理员维护；普通用户只能检索已发布且允许全平台使用的知识。
 - 账号级：必须同时匹配当前 owner 和闲鱼账号。
 - 商品级：通过商品绑定解析，必须同时匹配 owner、账号和商品。
+- 向量权限元数据使用 `owner_id = 0` 明确表示平台知识；非平台知识禁止使用零 owner，避免把共享内容伪装成某个用户的数据。
 - 检索范围由 Service 根据认证用户或入站闲鱼消息构造为不可变 `RetrievalScope`，不得接收模型生成的 owner、账号或商品过滤条件。
 - pgvector 查询使用关系条件约束候选；Milvus 查询使用同等 scalar filter，并在返回 PostgreSQL 元数据时再次校验。
 - 平台、账号、商品知识可同时召回，优先级和去重规则由检索 Profile 明确配置。
@@ -377,12 +393,12 @@ Embedding 模型、维度、归一化方式或 Chunking 变化必须产生新索
 
 **核心开发任务**：
 
-- [ ] 梳理知识库、文档版本、索引版本、构建任务、Outbox、作用域、检索 Profile 和评估对象的领域关系。
-- [ ] 定义 RAG Engine、VectorStore、Embedding、Parser、Chunker、Reranker 的行为契约与错误语义。
-- [ ] 设计 `rag_` 表族、状态迁移、幂等键、租约、版本发布和清理策略。
+- [x] 梳理知识库、文档版本、索引版本、构建任务、Outbox、作用域、检索 Profile 和评估对象的领域关系。
+- [x] 定义 RAG Engine、VectorStore、Embedding、Parser、Chunker、Reranker 的行为契约与错误语义。
+- [x] 设计 `rag_` 表族、状态迁移、幂等键、租约、版本发布和清理策略。
 - [ ] 完成 PostgreSQL 19 + pgvector、文档解析器、Embedding 模型与 Milvus 部署技术验证。
-- [ ] 明确客服 Agent 与运营 Agent 的会话、权限、Prompt、工具和运行限制边界。
-- [ ] 更新受影响的架构、数据库、项目范围和第三方许可文档设计要求。
+- [x] 明确客服 Agent 与运营 Agent 的会话、权限、Prompt、工具和运行限制边界。
+- [x] 更新受影响的架构、数据库、项目范围和第三方许可文档设计要求。
 
 **验收标准**：
 
@@ -650,7 +666,7 @@ Embedding 模型、维度、归一化方式或 Chunking 变化必须产生新索
 
 | 阶段 | 状态 | 完成时间 | 验收记录 | 遗留问题 |
 | --- | --- | --- | --- | --- |
-| Phase 01 基础架构与领域模型设计 | 未开始 | - | - | 完成关键技术决策门 |
+| Phase 01 基础架构与领域模型设计 | 进行中 | - | pgvector、Milvus 基础兼容性及 RAG 契约已通过验证 | Embedding、Reranker 与 PDF/Office 解析仍待真实语料验证 |
 | Phase 02 多进程、消息队列与异步任务 | 未开始 | - | - | - |
 | Phase 03 VectorStore 与双实现 | 未开始 | - | - | - |
 | Phase 04 知识管理与构建 Pipeline | 未开始 | - | - | - |
@@ -664,21 +680,25 @@ Embedding 模型、维度、归一化方式或 Chunking 变化必须产生新索
 
 ### 当前遗留问题
 
-- Phase 01 的技术验证尚未开始。
+- Phase 01 的 pgvector、Milvus 和 Tika 基础兼容性已验证；Embedding、Reranker 仍缺少凭据与代表性语料，PDF/Office Parser 最终选型仍缺少复杂文档样本。
 - 尚无经过标注的真实客服查询与知识相关性数据集。
 - 真实闲鱼自动回复验收需要授权账号与明确的业务安全策略。
 
 ### 下一步任务
 
-1. 执行 PostgreSQL 19 + pgvector 和 Milvus 最小技术验证，记录部署与迁移约束。
-2. 用脱敏、可公开的代表性语料评估 Embedding 和 PDF/Office 解析方案。
-3. 完成 Phase 01 领域关系、状态迁移、Provider 契约和权限模型评审。
-4. Phase 01 验收通过后再开始 RabbitMQ、Worker 和 Outbox 实现。
+1. 准备脱敏、可公开的代表性语料和模型凭据，评估 Embedding、Reranker，并用复杂版面、扫描件和异常文档完成 PDF/Office Parser 最终选型。
+2. 对已落地的 Provider 契约、权限模型和状态迁移完成 Phase 01 设计评审。
+3. Phase 01 验收通过后再开始 RabbitMQ、Worker 和 Outbox 实现。
 
 ## 15. 决策与调整记录
 
 | 日期 | 阶段 | 调整内容 | 原因 | 影响 |
 | --- | --- | --- | --- | --- |
 | 2026-11-27 | 规划 | 建立初始 11 阶段规划 | 形成后续开发唯一进度基准 | 尚未进入功能实现 |
+| 2026-11-27 | Phase 01 | 复用 Eino Parser、Transformer、Embedder，只新增 VectorStore 与高级检索契约 | 现有 Eino 接口已满足单一组件边界，避免重复抽象 | pgvector、Milvus 使用统一项目契约，解析和 Embedding 仍兼容 Eino |
+| 2026-11-27 | Phase 01 | PostgreSQL 19 默认向量镜像候选锁定为 pgvector 官方 PG19 镜像 | 临时容器已通过基础兼容性实测 | 正式 Compose 和迁移仍在 Phase 03/11 验证后落地 |
+| 2026-11-27 | Phase 01 | Milvus 基础验证采用 3.0.5 Standalone 与官方 Go SDK v3 | 隔离 Compose 实测健康、持久化和权限过滤均通过 | 正式 Compose Profile、备份恢复和容量参数仍在 Phase 03/11 验证后落地 |
+| 2026-11-27 | Phase 01 | Apache Tika 3.3.0 作为 PDF/Office Sidecar 候选继续评估 | 合成中文 DOCX/PDF 基础提取通过，但尚无代表性复杂文档支持最终质量结论 | 不提前加入正式 Compose 或生产依赖，待真实样本与 Go 原生方案对比后决定 |
+| 2026-11-27 | Phase 01 | 平台知识使用零 owner，账号/商品知识强制使用真实 owner；Provider 错误统一支持 `errors.Is` 分类 | 避免共享知识伪装成用户数据，并让任务层无需匹配错误文本即可决定重建或重试 | VectorStore 实现和契约测试必须覆盖平台共享、租户隔离、索引冲突与暂时不可用 |
 
 后续调整必须追加记录，不覆盖历史原因。阶段顺序可以因验证结果调整，但不得跳过实际前置依赖或提前标记完成。

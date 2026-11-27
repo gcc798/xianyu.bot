@@ -20,5 +20,6 @@
 
 ## 尚未完成
 
+- RAG Phase 01 已建立独立检索契约、权限与版本不变量以及索引/任务状态机，并完成 PostgreSQL 19 + pgvector、Milvus 3.0.5 Standalone、Tika 中文 DOCX/PDF 基础兼容性验证；Embedding/Reranker、PDF/Office Parser 最终选型和后续运行链路仍未完成。
 - 受控模型、Service stub 和浏览器 mock 只验证应用内流程，不构成真实账号或真实交易验收；真实付款、自动发货、平台确认、自动续售和凭据恢复仍需授权账号验收。
 - Telegram 会话扫描/退群、成人模式配置和历史文件运维仍由 Python 访问业务表，需按迁移计划继续收归 Go；历史 Telegram 表和对象暂不清理。

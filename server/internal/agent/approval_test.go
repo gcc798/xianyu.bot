@@ -130,7 +130,7 @@ func TestAgentRunnerRejectsApprovalAfterMCPCatalogChange(t *testing.T) {
 
 	_, err = runner.Approve(t.Context(), 11, run.ID)
 	require.ErrorIs(t, err, errApprovalCatalogChanged)
-	require.Zero(t, client.calls)
+	require.Zero(t, client.calls.Load())
 	var current model.AgentRunTool
 	require.NoError(t, db.First(&current, call.ID).Error)
 	require.Equal(t, "failed", current.Status)

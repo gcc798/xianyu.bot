@@ -9,6 +9,7 @@
 | `server/internal/service` | 基础能力和闲鱼业务 |
 | `server/internal/model` | 持久化模型与 API 契约 |
 | `server/internal/agent` | Agent、MCP、Tool、统一资源目录和轨迹 |
+| `server/internal/rag` | 与闲鱼业务解耦的知识构建、向量库和检索契约 |
 | `server/internal/xianyu` | 闲鱼协议、连接和 Tool 适配 |
 | `server/internal/infra` | PostgreSQL、日志、邮件和 HTTP 运行设施 |
 | `agent-web` | 唯一维护的 Web 前端 |
@@ -42,6 +43,7 @@ Xianyu Tool -> Service
 - Telegram API 应用凭据和 FloodWait 截止时间由 Go 管理，Hash 使用现有凭据加密；Telegram Python 服务按配置模式通过 Compose 自动生成、随专用卷持久保存的服务令牌从 Go 内部接口取得最高且未限流的 API ID，任务遇到 FloodWait 后切换配置并继续，连续 5 个不同 API ID 限流时失败。
 - Agent 从配置快照读取按优先级排序的模型，使用 Eino 模型 Failover 在同次运行内降级；轨迹只记录模型名称和失败摘要，不记录凭据。
 - PostgreSQL 由依赖注入传递，不使用包级数据库。
+- RAG 基础契约复用 Eino 的文档解析、转换和 Embedding 接口，并以独立 `VectorStore` 统一 pgvector 与 Milvus；当前尚未接入运行链路。
 
 ## Web 前端
 
