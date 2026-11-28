@@ -12,16 +12,17 @@ import (
 
 // EvaluationDataset 是通用检索集或闲鱼业务集使用的统一、可版本化评估结构。
 type EvaluationDataset struct {
-	SchemaVersion string               `json:"schemaVersion"` // SchemaVersion 标识文件结构版本。
-	Name          string               `json:"name"`          // Name 是数据集稳定名称。
-	Version       string               `json:"version"`       // Version 固定上游提交或人工标注版本。
-	Kind          string               `json:"kind"`          // Kind 区分通用检索集和闲鱼业务集。
-	Source        string               `json:"source"`        // Source 记录数据来源，不承载凭据。
-	License       string               `json:"license"`       // License 记录使用限制，未知时必须明确标注。
-	ReviewStatus  string               `json:"reviewStatus"`  // ReviewStatus 标识人工核验是否完成。
-	Corpus        []EvaluationDocument `json:"corpus"`        // Corpus 是参与检索的文档集合。
-	Queries       []EvaluationQuery    `json:"queries"`       // Queries 是评估查询集合。
-	Qrels         []RelevanceJudgment  `json:"qrels"`         // Qrels 是查询与相关文档的人工或公开标注。
+	SchemaVersion string               `json:"schemaVersion"`       // SchemaVersion 标识文件结构版本。
+	Name          string               `json:"name"`                // Name 是数据集稳定名称。
+	Version       string               `json:"version"`             // Version 固定上游提交或人工标注版本。
+	Kind          string               `json:"kind"`                // Kind 区分通用检索集和闲鱼业务集。
+	Source        string               `json:"source"`              // Source 记录数据来源，不承载凭据。
+	License       string               `json:"license"`             // License 记录使用限制，未知时必须明确标注。
+	ReviewStatus  string               `json:"reviewStatus"`        // ReviewStatus 标识人工核验是否完成。
+	Reviewers     []string             `json:"reviewers,omitempty"` // Reviewers 记录完成人工核验的人员，不由自动化脚本冒充。
+	Corpus        []EvaluationDocument `json:"corpus"`              // Corpus 是参与检索的文档集合。
+	Queries       []EvaluationQuery    `json:"queries"`             // Queries 是评估查询集合。
+	Qrels         []RelevanceJudgment  `json:"qrels"`               // Qrels 是查询与相关文档的人工或公开标注。
 }
 
 // EvaluationDocument 是统一评估集中的可检索文档。
@@ -92,6 +93,14 @@ func (d EvaluationDataset) Validate() error {
 	if len(d.Corpus) == 0 || len(d.Queries) == 0 || len(d.Qrels) == 0 {
 		return errors.New("评估数据必须同时包含 Corpus、Queries 和 Qrels")
 	}
+	if d.ReviewStatus == "human_reviewed" && len(d.Reviewers) == 0 {
+		return errors.New("人工核验完成的数据必须记录核验人")
+	}
+	for _, reviewer := range d.Reviewers {
+		if strings.TrimSpace(reviewer) == "" {
+			return errors.New("评估数据包含空核验人")
+		}
+	}
 
 	documentIDs := make(map[string]struct{}, len(d.Corpus))
 	for _, document := range d.Corpus {
@@ -115,6 +124,8 @@ func (d EvaluationDataset) Validate() error {
 		queryIDs[query.ID] = struct{}{}
 	}
 
+	qrelPairs := make(map[string]struct{}, len(d.Qrels))
+	judgedQueries := make(map[string]struct{}, len(d.Queries))
 	for _, qrel := range d.Qrels {
 		if qrel.Relevance <= 0 {
 			return errors.New("Qrel 相关性必须大于零")
@@ -124,6 +135,17 @@ func (d EvaluationDataset) Validate() error {
 		}
 		if _, exists := documentIDs[qrel.DocumentID]; !exists {
 			return fmt.Errorf("Qrel 引用了不存在的文档: %s", qrel.DocumentID)
+		}
+		pair := qrel.QueryID + "\x00" + qrel.DocumentID
+		if _, exists := qrelPairs[pair]; exists {
+			return fmt.Errorf("Qrel 包含重复查询文档对: %s/%s", qrel.QueryID, qrel.DocumentID)
+		}
+		qrelPairs[pair] = struct{}{}
+		judgedQueries[qrel.QueryID] = struct{}{}
+	}
+	for _, query := range d.Queries {
+		if _, exists := judgedQueries[query.ID]; !exists {
+			return fmt.Errorf("评估查询缺少 Qrel: %s", query.ID)
 		}
 	}
 	return nil

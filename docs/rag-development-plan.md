@@ -7,8 +7,8 @@
 | 当前开发阶段 | Phase 01：基础架构与领域模型设计（进行中） |
 | 已完成阶段 | 无 |
 | 总体开发进度 | 0 / 11（0%） |
-| 当前阻塞问题 | EcomRetrieval 未声明明确许可且当前环境无法稳定访问 Hugging Face；闲鱼模拟集尚待人工核验；复杂文档缺少结构/阅读顺序金标准和扫描件验收集 |
-| 下一步开发任务 | 人工核验闲鱼 Qrels；确认 EcomRetrieval 用途许可并完成公开集基线；补齐复杂 PDF/Office 金标准后完成 Parser 选型 |
+| 当前阻塞问题 | EcomRetrieval 未声明明确许可；闲鱼业务模拟集及自建文档金标准尚待领域人员人工核验 |
+| 下一步开发任务 | 领域人员核验闲鱼 Qrels 和文档预期值；向 EcomRetrieval 维护者确认许可，无法确认则替换为许可清晰的数据集；完成后关闭 Phase 01 |
 | 最后更新时间 | 2026-11-28 |
 
 > 本文档是 RAG 知识库与智能客服 Agent 后续开发的唯一实施和进度基准。只有任务完成且通过对应验收后，才能勾选任务和阶段。实施中如调整设计，必须同步更新“决策与调整记录”、当前进度、遗留问题和下一步任务。
@@ -163,7 +163,7 @@ Keyword Retrieval 统一由 PostgreSQL 承担：英文、编号和结构化关�
 | --- | --- | --- |
 | PostgreSQL 19 + pgvector 镜像 | 基础兼容性已验证 | 已验证 PostgreSQL 19.0、pgvector 0.8.7、pg_trgm 1.6、HNSW 和过滤查询；迁移、备份恢复在 Phase 03/11 随正式 Schema 继续验证 |
 | 默认 Embedding 模型与维度 | Ollama 接入和 1024 维已验证，默认模型待正式 Benchmark | `qwen3-embedding:0.6b` 与 `bge-m3` 已完成连通性、维度、中文语义探针、批量、并发和异常验证；模拟业务集尚待人工核验，公开集尚受许可和下载条件阻塞 |
-| PDF/Office 解析实现 | Tika 扩展兼容性已验证，最终方案待评估 | Apache Tika 3.3.0 已实测 12 个固定版本 POI 样本及 5 个异常样本；仍需带结构/阅读顺序金标准的复杂 PDF、扫描件和中文 Office 样本比较 Go 原生库与 Tika Sidecar |
+| PDF/Office 解析实现 | 首个实现锁定 Tika Full Sidecar | Apache Tika 3.3.0 Full 加固定中文 OCR 模型通过 DOCX、XLSX、PPTX、多栏中文 PDF 和扫描中文 PDF 共 5 类金标准；Phase 04 实现 Provider，并用脱敏真实文档持续验证泛化，不把 5 个样本外推为生产准确率 |
 | Reranker Provider | 待评估 | Phase 06 在固定召回集上比较收益、P95 延迟与成本；无显著收益则保持关闭 |
 | 中文关键词方案 | 初始使用 `pg_trgm` | Phase 06 用 Benchmark 决定是否需要中文分词扩展，不提前增加搜索集群 |
 | Milvus 部署版本与拓扑 | Standalone 基础兼容性已验证 | Milvus 3.0.5 官方 Compose 与 Go SDK v3 已通过建库、索引、写入、持久化、加载及 owner/版本过滤检索；Phase 03/11 继续锁定正式 Profile、备份恢复和运维参数 |
@@ -182,8 +182,9 @@ Keyword Retrieval 统一由 PostgreSQL 承担：英文、编号和结构化关�
 | 2026-11-27 | PDF/Office Parser | 通过基础兼容性验证 | Apache Tika 3.3.0 临时容器成功提取合成中文 DOCX/PDF 的标题、订单号、规则文本、简单表格及英文标记；镜像约 171 MB，空闲容器约 244 MiB。缺少真实复杂版面、扫描件和异常文档，暂不锁定最终实现；临时容器已删除，脱敏探针保留在被 Git 忽略的 `.codex-work/` |
 | 2026-11-27 | Go 后端验证 | 通过 | 修正既有测试对 `atomic.Int64` 的直接复制，改为读取原子值；`go test ./...`、`go vet ./...` 与差异检查均通过 |
 | 2026-11-28 | Ollama Embedding | 通过运行能力验证 | OpenAI Compatible 端点实测两个模型均为 1024 维；批量 32、并发 2、4 次请求共 128 条均成功，无效模型和取消请求均被正确处理。小型语义探针与吞吐数据见 `docs/rag-evaluation-report.md`，不据此判定模型优劣 |
-| 2026-11-28 | 检索指标与评估数据 | 工具链通过，质量结论受阻 | 建立版本化 Corpus/Queries/Qrels 结构及 Recall@K、Precision@K、MRR、NDCG 实现；6 条闲鱼模拟查询完成端到端实测但仍为 `pending_human_review`。EcomRetrieval 导入脚本固定上游提交，但许可未明确且当前环境访问 Hugging Face 失败 |
+| 2026-11-28 | 检索指标与评估数据 | 工具链通过，质量结论待人工核验 | 建立版本化 Corpus/Queries/Qrels 结构及 Recall@K、Precision@K、MRR、NDCG 实现；闲鱼模拟集扩充为 24 篇知识、32 个查询和 45 条分级 Qrel，输出逐查询 Top 5 证据。两个本地模型完成实测，但数据仍为 `pending_human_review`，不用于最终选型。EcomRetrieval 导入脚本固定上游提交，许可未明确 |
 | 2026-11-28 | 复杂 Office 与异常文档 | 通过扩展兼容性验证 | 固定 Apache POI 提交并按需下载 12 个 DOC/DOCX/XLS/XLSX/PPT/PPTX 样本；Tika 处理 11 个，`chartex.docx` 返回 422。空、损坏和加密文件均返回 422，错误后缀按内容提取；无金标准，结构保真和阅读顺序仍未验收 |
+| 2026-11-28 | 复杂文档金标准与中文 OCR | 技术选型通过 | 按需生成 DOCX、XLSX、PPTX、多栏中文 PDF 和扫描中文 PDF 及机器可读金标准；Tika Full 加固定 `chi_sim` 模型按文本、顺序、表格和 OCR 规则 5/5 通过，容器约 325.8 MiB。锁定为 Phase 04 首个 Parser Provider；真实文档泛化和人工确认仍是后续验收项 |
 
 参考的一手资料：[pgvector 官方仓库](https://github.com/pgvector/pgvector)、[Milvus Standalone Docker Compose](https://milvus.io/docs/install_standalone-docker-compose.md)、[Apache Tika 官方文档](https://tika.apache.org/)。具体依赖仍以实际实现时锁定并验证的版本为准。
 
@@ -401,7 +402,9 @@ Embedding 模型、维度、归一化方式或 Chunking 变化必须产生新索
 - [x] 设计 `rag_` 表族、状态迁移、幂等键、租约、版本发布和清理策略。
 - [x] 完成 PostgreSQL 19 + pgvector 与 Milvus 部署基础技术验证。
 - [x] 完成 Ollama OpenAI Compatible Embedding 的连通性、维度、批量、并发和异常技术验证。
-- [ ] 完成公开检索集基线、闲鱼业务标注核验及 PDF/Office Parser 最终技术选型。
+- [ ] 完成许可清晰的公开检索集基线。
+- [ ] 完成闲鱼业务标注的领域人员核验。
+- [x] 完成 PDF/Office Parser 首个实现技术选型。
 - [x] 明确客服 Agent 与运营 Agent 的会话、权限、Prompt、工具和运行限制边界。
 - [x] 更新受影响的架构、数据库、项目范围和第三方许可文档设计要求。
 
@@ -671,7 +674,7 @@ Embedding 模型、维度、归一化方式或 Chunking 变化必须产生新索
 
 | 阶段 | 状态 | 完成时间 | 验收记录 | 遗留问题 |
 | --- | --- | --- | --- | --- |
-| Phase 01 基础架构与领域模型设计 | 进行中 | - | pgvector、Milvus、Embedding 运行能力、评估指标及 Tika 扩展兼容性已验证 | 公开集许可/下载、业务 Qrels 人工核验与文档结构金标准仍未完成 |
+| Phase 01 基础架构与领域模型设计 | 进行中 | - | pgvector、Milvus、Embedding、评估指标及 Tika 中文 OCR 金标准已验证，Parser 首个实现已锁定 | 公开集许可/基线、业务 Qrels 和自建金标准人工核验仍未完成 |
 | Phase 02 多进程、消息队列与异步任务 | 未开始 | - | - | - |
 | Phase 03 VectorStore 与双实现 | 未开始 | - | - | - |
 | Phase 04 知识管理与构建 Pipeline | 未开始 | - | - | - |
@@ -685,16 +688,16 @@ Embedding 模型、维度、归一化方式或 Chunking 变化必须产生新索
 
 ### 当前遗留问题
 
-- EcomRetrieval 数据卡未声明明确许可证，且当前环境访问 Hugging Face 时连接被重置；未完成许可确认和实际导入前，不产生公开集指标。
-- 闲鱼模拟集已有 8 篇知识、6 个查询及 Qrels，但仍待人工核验，不得把当前满分结果作为业务效果结论。
-- Apache POI 样本已覆盖六类 Office 格式和异常输入，但缺少逐文档结构、阅读顺序金标准以及扫描件/中文复杂版面，Tika 最终选型仍未完成。
+- EcomRetrieval 数据卡未声明明确许可证；未完成许可确认前不下载、不分发、不产生公开集指标。若维护者无法确认，需替换为许可清晰的公开中文电商检索集。
+- 闲鱼模拟集已有 24 篇知识、32 个查询及 45 条 Qrel，但仍待领域人员逐条核验，不得把当前模型对比结果作为生产选型结论。
+- 自建复杂文档金标准已完成自动验证，但预期文本、阅读顺序和表格规则仍需领域人员确认；Phase 04 还需补充脱敏真实文档验证泛化。
 - 真实闲鱼自动回复验收需要授权账号与明确的业务安全策略。
 
 ### 下一步任务
 
-1. 人工核验闲鱼模拟集的知识、问题和 Qrels，扩充难负例；确认 EcomRetrieval 使用许可并在网络可用时运行公开集基线。
-2. 为复杂 PDF、扫描件和中文 Office 样本建立文本、表格与阅读顺序金标准，对 Tika 和候选 Go 原生解析器做同口径比较。
-3. 对已落地的 Provider 契约、权限模型和状态迁移完成 Phase 01 设计评审；Phase 01 验收通过后再开始 RabbitMQ、Worker 和 Outbox 实现。Reranker 保持 Phase 06 决策门，不再作为 Phase 01 凭据阻塞项。
+1. 领域人员使用导出的 CSV 核验闲鱼知识、问题和 Qrels，并确认自建复杂文档的文本、表格与阅读顺序预期。
+2. 向 EcomRetrieval 维护者确认来源和许可范围；确认后运行公开集基线，无法确认则记录替代数据集决策并运行同口径基线。
+3. 汇总人工核验和公开集证据，完成 Phase 01 设计评审；通过后开始 RabbitMQ、Worker 和 Outbox 实现。Reranker 保持 Phase 06 决策门。
 
 ## 15. 决策与调整记录
 
@@ -709,5 +712,6 @@ Embedding 模型、维度、归一化方式或 Chunking 变化必须产生新索
 | 2026-11-28 | Phase 01 | 本地验证默认使用 Ollama OpenAI Compatible 端点、`qwen3-embedding:0.6b`，以 `bge-m3` 对照；不同模型必须使用独立索引 | 无需外部凭据即可重复验证，两个模型实际输出均为 1024 维 | 只锁定验证基线，不提前锁定生产默认模型；正式选择依赖公开集和人工核验业务集 |
 | 2026-11-28 | Phase 01/09 | 统一评估结构并分离通用检索集与闲鱼业务集结论 | 防止公开 Benchmark 与模拟业务数据混淆，所有指标保留数据版本和人工核验状态 | 大型公开集通过脚本下载到 `.codex-work/`；超过 5,000 篇的语料必须走 VectorStore，不使用本地穷举 |
 | 2026-11-28 | Phase 01 | Reranker 评估保留在 Phase 06，不作为 Phase 01 阻塞 | Phase 01 只需锁定可插拔边界；Reranker 收益必须建立在稳定召回基线上 | Phase 01 可在 Embedding 与 Parser 验收后结束，不等待 Reranker 凭据 |
+| 2026-11-28 | Phase 01 | PDF/Office 首个实现锁定为 Tika 3.3.0 Full Sidecar，并加入固定版本简体中文 OCR 模型 | 单一实现覆盖 Office、文本 PDF 和扫描 PDF；5 类自建金标准按文本、顺序、表格和 OCR 规则全部通过 | Phase 04 实现 Parser Provider；真实文档泛化、资源限制和降级策略继续验收，不把小样本结果表述为生产准确率 |
 
 后续调整必须追加记录，不覆盖历史原因。阶段顺序可以因验证结果调整，但不得跳过实际前置依赖或提前标记完成。

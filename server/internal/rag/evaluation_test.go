@@ -17,7 +17,9 @@ func TestXianyuBusinessEvaluationFixture(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "business_simulation", dataset.Kind)
 	require.Equal(t, "pending_human_review", dataset.ReviewStatus)
-	require.Len(t, dataset.Queries, 6)
+	require.Len(t, dataset.Corpus, 24)
+	require.Len(t, dataset.Queries, 32)
+	require.Len(t, dataset.Qrels, 45)
 }
 
 func TestEvaluationDatasetValidate(t *testing.T) {
@@ -32,6 +34,39 @@ func TestEvaluationDatasetValidate(t *testing.T) {
 
 	dataset.Qrels[0].DocumentID = "missing"
 	require.ErrorContains(t, dataset.Validate(), "不存在的文档")
+}
+
+func TestEvaluationDatasetValidateRequiresCompleteUniqueQrels(t *testing.T) {
+	dataset := EvaluationDataset{
+		SchemaVersion: "1", Name: "xianyu", Version: "v1", Kind: "business_simulation",
+		Source: "synthetic", License: "project fixture", ReviewStatus: "pending_human_review",
+		Corpus: []EvaluationDocument{{ID: "d1", Text: "七天退货"}},
+		Queries: []EvaluationQuery{
+			{ID: "q1", Text: "可以退货吗"},
+			{ID: "q2", Text: "还没发货能退款吗"},
+		},
+		Qrels: []RelevanceJudgment{{QueryID: "q1", DocumentID: "d1", Relevance: 1}},
+	}
+	require.ErrorContains(t, dataset.Validate(), "评估查询缺少 Qrel: q2")
+
+	dataset.Queries = dataset.Queries[:1]
+	dataset.Qrels = append(dataset.Qrels, dataset.Qrels[0])
+	require.ErrorContains(t, dataset.Validate(), "重复查询文档对")
+}
+
+func TestEvaluationDatasetValidateRequiresReviewerAfterHumanReview(t *testing.T) {
+	dataset := EvaluationDataset{
+		SchemaVersion: "1", Name: "xianyu", Version: "v1", Kind: "business_simulation",
+		Source: "synthetic", License: "project fixture", ReviewStatus: "human_reviewed",
+		Corpus:  []EvaluationDocument{{ID: "d1", Text: "七天退货"}},
+		Queries: []EvaluationQuery{{ID: "q1", Text: "可以退货吗"}},
+		Qrels:   []RelevanceJudgment{{QueryID: "q1", DocumentID: "d1", Relevance: 1}},
+	}
+
+	require.EqualError(t, dataset.Validate(), "人工核验完成的数据必须记录核验人")
+
+	dataset.Reviewers = []string{"domain-owner"}
+	require.NoError(t, dataset.Validate())
 }
 
 func TestDecodeEvaluationDatasetRejectsInvalidJSON(t *testing.T) {

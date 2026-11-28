@@ -65,6 +65,14 @@ type datasetReport struct {
 	ReviewStatus   string                 `json:"reviewStatus"`
 	Model          string                 `json:"model"`
 	Metrics        []rag.RetrievalMetrics `json:"metrics"`
+	Queries        []queryReport          `json:"queries"`
+}
+
+type queryReport struct {
+	QueryID  string                  `json:"queryId"`
+	Text     string                  `json:"text"`
+	Relevant []rag.RelevanceJudgment `json:"relevant"`
+	TopFive  []rag.RankedDocument    `json:"topFive"`
 }
 
 type requestResult struct {
@@ -195,6 +203,7 @@ func evaluateDataset(
 	}
 
 	rankings := make(map[string][]rag.RankedDocument, len(dataset.Queries))
+	queryResults := make([]queryReport, 0, len(dataset.Queries))
 	for queryIndex, query := range dataset.Queries {
 		candidates := make([]rag.RankedDocument, 0, len(dataset.Corpus))
 		for documentIndex, document := range dataset.Corpus {
@@ -208,6 +217,22 @@ func evaluateDataset(
 			return cmp.Compare(right.Score, left.Score)
 		})
 		rankings[query.ID] = candidates
+		relevant := make([]rag.RelevanceJudgment, 0)
+		for _, judgment := range dataset.Qrels {
+			if judgment.QueryID == query.ID {
+				relevant = append(relevant, judgment)
+			}
+		}
+		slices.SortFunc(relevant, func(left, right rag.RelevanceJudgment) int {
+			if order := cmp.Compare(right.Relevance, left.Relevance); order != 0 {
+				return order
+			}
+			return cmp.Compare(left.DocumentID, right.DocumentID)
+		})
+		queryResults = append(queryResults, queryReport{
+			QueryID: query.ID, Text: query.Text, Relevant: relevant,
+			TopFive: slices.Clone(candidates[:min(5, len(candidates))]),
+		})
 	}
 
 	metrics := make([]rag.RetrievalMetrics, 0, 3)
@@ -220,7 +245,7 @@ func evaluateDataset(
 	}
 	return datasetReport{
 		Dataset: dataset.Name, DatasetVersion: dataset.Version,
-		ReviewStatus: dataset.ReviewStatus, Model: model, Metrics: metrics,
+		ReviewStatus: dataset.ReviewStatus, Model: model, Metrics: metrics, Queries: queryResults,
 	}, nil
 }
 
