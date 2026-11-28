@@ -15,6 +15,7 @@ require (
 	github.com/mark3labs/mcp-go v0.41.1
 	github.com/minio/minio-go/v7 v7.0.84
 	github.com/pressly/goose/v3 v3.26.0
+	github.com/rabbitmq/amqp091-go v1.15.0
 	github.com/skip2/go-qrcode v0.0.0-20200617195104-da1b6568686e
 	github.com/spf13/viper v1.19.0
 	github.com/stretchr/testify v1.11.1

@@ -5,13 +5,14 @@
 | 模块 | 职责 |
 | --- | --- |
 | `server/cmd/server` | 进程入口和依赖组装 |
+| `server/cmd/worker` | RAG 异步任务进程入口、依赖就绪探针和后台任务装配 |
 | `server/internal/api` | HTTP Handler 与 Router |
 | `server/internal/service` | 基础能力和闲鱼业务 |
 | `server/internal/model` | 持久化模型与 API 契约 |
 | `server/internal/agent` | Agent、MCP、Tool、统一资源目录和轨迹 |
 | `server/internal/rag` | 与闲鱼业务解耦的知识构建、向量库和检索契约 |
 | `server/internal/xianyu` | 闲鱼协议、连接和 Tool 适配 |
-| `server/internal/infra` | PostgreSQL、日志、邮件和 HTTP 运行设施 |
+| `server/internal/infra` | PostgreSQL、RabbitMQ、日志、邮件和 HTTP 运行设施 |
 | `agent-web` | 唯一维护的 Web 前端 |
 | `telegram.bot` | Telegram 连接、来源检索和文件下载执行器 |
 
@@ -43,7 +44,8 @@ Xianyu Tool -> Service
 - Telegram API 应用凭据和 FloodWait 截止时间由 Go 管理，Hash 使用现有凭据加密；Telegram Python 服务按配置模式通过 Compose 自动生成、随专用卷持久保存的服务令牌从 Go 内部接口取得最高且未限流的 API ID，任务遇到 FloodWait 后切换配置并继续，连续 5 个不同 API ID 限流时失败。
 - Agent 从配置快照读取按优先级排序的模型，使用 Eino 模型 Failover 在同次运行内降级；轨迹只记录模型名称和失败摘要，不记录凭据。
 - PostgreSQL 由依赖注入传递，不使用包级数据库。
-- RAG 基础契约复用 Eino 的文档解析、转换和 Embedding 接口，并以独立 `VectorStore` 统一 pgvector 与 Milvus；当前尚未接入运行链路。
+- RAG 基础契约复用 Eino 的文档解析、转换和 Embedding 接口，并以独立 `VectorStore` 统一 pgvector 与 Milvus；当前尚未接入知识构建 Pipeline。
+- API 与 Worker 使用同一镜像的不同入口。Worker 独立连接 PostgreSQL 和 RabbitMQ，暴露 `/health` 与 `/ready`；RabbitMQ 使用持久 Topic Exchange、构建主队列、短中长三级 TTL 重试队列和死信队列，发布必须取得 Publisher Confirm，消费使用独立连接和手动 Ack。连接中断时客户端自动恢复连接与拓扑，恢复期间 `/ready` 返回未就绪；重试耗尽后 Worker 退出并交由进程管理器重启，避免永久处于失效状态。
 
 ## Web 前端
 
@@ -55,6 +57,6 @@ Xianyu Tool -> Service
 
 ## 运行
 
-Docker Compose 启动 Web、Server、PostgreSQL、RustFS 和 Telegram。服务只面向可信内网，日志写入标准输出。
+Docker Compose 启动 Web、Server、Worker、PostgreSQL、RabbitMQ、RustFS 和 Telegram。服务只面向可信内网，日志写入标准输出。RabbitMQ 管理端口只用于本地运维，生产部署应在基础设施层限制访问并覆盖默认凭据。
 
 发货在发送买家消息后记录发送时间，再确认平台发货。重试已记录发送时间的任务只执行确认。单实例重启时，发送结果无法确定的任务进入待核对状态。

@@ -18,6 +18,8 @@ type Server struct {
 	HTTP     HTTP     `mapstructure:"http" json:"http" yaml:"http"`             // HTTP 配置 Web 服务监听参数。
 	MCP      MCP      `mapstructure:"mcp" json:"mcp" yaml:"mcp"`                // MCP 控制目录、健康和连接后台任务。
 	Postgres Postgres `mapstructure:"postgres" json:"postgres" yaml:"postgres"` // Postgres 配置业务数据库连接池。
+	RabbitMQ RabbitMQ `mapstructure:"rabbitmq" json:"rabbitmq" yaml:"rabbitmq"` // RabbitMQ 配置异步任务消息通道。
+	Worker   Worker   `mapstructure:"worker" json:"worker" yaml:"worker"`       // Worker 配置后台进程健康端口。
 }
 
 // JWT 描述登录令牌的签发策略。
@@ -50,6 +52,21 @@ type Email struct {
 // HTTP 描述 Web 服务监听配置。
 type HTTP struct {
 	Port int `mapstructure:"port" json:"port" yaml:"port"` // Port 是 HTTP 监听端口。
+}
+
+// RabbitMQ 描述异步任务 Broker、消费预取和重试队列策略。
+type RabbitMQ struct {
+	URL                   string `mapstructure:"url" json:"url" yaml:"url"`                                                                // URL 是 AMQP 连接地址，生产密码必须通过环境变量注入。
+	Prefetch              int    `mapstructure:"prefetch" json:"prefetch" yaml:"prefetch"`                                                 // Prefetch 是单个 Consumer 最多持有的未确认消息数。
+	PublishTimeoutSeconds int    `mapstructure:"publish-timeout-seconds" json:"publish-timeout-seconds" yaml:"publish-timeout-seconds"`    // PublishTimeoutSeconds 是等待 Publisher Confirm 的最长秒数。
+	RetryShortTTLSeconds  int    `mapstructure:"retry-short-ttl-seconds" json:"retry-short-ttl-seconds" yaml:"retry-short-ttl-seconds"`    // RetryShortTTLSeconds 是短暂故障的首次退避秒数。
+	RetryMediumTTLSeconds int    `mapstructure:"retry-medium-ttl-seconds" json:"retry-medium-ttl-seconds" yaml:"retry-medium-ttl-seconds"` // RetryMediumTTLSeconds 是持续故障的中档退避秒数。
+	RetryLongTTLSeconds   int    `mapstructure:"retry-long-ttl-seconds" json:"retry-long-ttl-seconds" yaml:"retry-long-ttl-seconds"`       // RetryLongTTLSeconds 是接近重试上限时的长档退避秒数。
+}
+
+// Worker 描述独立后台进程的运行参数。
+type Worker struct {
+	HealthPort int `mapstructure:"health-port" json:"health-port" yaml:"health-port"` // HealthPort 是 Worker 存活和就绪探针端口。
 }
 
 // MCP 描述 MCP 后台刷新、健康检查和连接回收节奏。
@@ -89,6 +106,9 @@ func Load() (Server, error) {
 		return Server{}, err
 	}
 	if err := v.BindEnv("postgres.password", "XIANYU_POSTGRES_PASSWORD"); err != nil {
+		return Server{}, err
+	}
+	if err := v.BindEnv("rabbitmq.url", "XIANYU_RABBITMQ_URL"); err != nil {
 		return Server{}, err
 	}
 	if err := v.ReadInConfig(); err != nil {

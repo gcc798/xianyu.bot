@@ -25,6 +25,10 @@ func TestServerConfigFiles(t *testing.T) {
 			require.NotZero(t, settings.HTTP.Port)
 			require.Equal(t, 60, settings.MCP.HealthCheckIntervalSeconds)
 			require.Positive(t, settings.MCP.CatalogRefreshConcurrency)
+			require.NotEmpty(t, settings.RabbitMQ.URL)
+			require.Positive(t, settings.RabbitMQ.Prefetch)
+			require.Positive(t, settings.RabbitMQ.PublishTimeoutSeconds)
+			require.Positive(t, settings.Worker.HealthPort)
 		})
 	}
 }
@@ -34,9 +38,11 @@ func TestLoadSensitiveValuesFromEnvironment(t *testing.T) {
 	t.Setenv("XIANYU_CONFIG", filepath.Join("..", "..", "config.yaml"))
 	t.Setenv("XIANYU_JWT_SIGNING_KEY", "test-signing-key")
 	t.Setenv("XIANYU_POSTGRES_PASSWORD", "test-database-password")
+	t.Setenv("XIANYU_RABBITMQ_URL", "amqp://test:test@127.0.0.1:5672/")
 
 	settings, err := Load()
 	require.NoError(t, err)
 	require.Equal(t, "test-signing-key", settings.JWT.SigningKey)
 	require.Equal(t, "test-database-password", settings.Postgres.Password)
+	require.Equal(t, "amqp://test:test@127.0.0.1:5672/", settings.RabbitMQ.URL)
 }

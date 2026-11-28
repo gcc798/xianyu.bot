@@ -8,6 +8,7 @@ volumes:
   postgres19:
   rustfs:
   internal-auth:
+  rabbitmq:
 
 services:
   web:
@@ -45,6 +46,29 @@ services:
       RUSTFS_ACCESS_KEY: ${RUSTFS_ACCESS_KEY:-rustfs-local} # RustFS 访问密钥。
       RUSTFS_SECRET_KEY: ${RUSTFS_SECRET_KEY:-rustfs-local-secret} # RustFS 访问密钥对应的密钥。
       RUSTFS_BUCKET: ${RUSTFS_BUCKET:-telegram-resources} # Telegram 资源文件使用的存储桶。
+
+  worker:
+    build:
+      context: ./server
+      dockerfile: ./Dockerfile
+    entrypoint: ["./worker", "-c", "config.docker.yaml"]
+    container_name: xianyu.bot.worker
+    restart: always
+    ports:
+      - '127.0.0.1:18889:8889'
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      XIANYU_POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-xianyu_bot} # Worker 与 API 共享任务和 Outbox 事实表。
+      XIANYU_RABBITMQ_URL: amqp://xianyu_bot:${RABBITMQ_PASSWORD:-xianyu_bot}@rabbitmq:5672/ # 只通过环境注入 Broker 凭据。
+    healthcheck:
+      test: ['CMD-SHELL', 'wget -q -O - http://127.0.0.1:8889/ready >/dev/null']
+      interval: 5s
+      timeout: 3s
+      retries: 20
 
   postgres:
     image: postgres:19-alpine
@@ -89,6 +113,24 @@ services:
     volumes:
       - postgres19:/var/lib/postgresql
       - ./server/internal/infra/migrations/init.sql:/docker-entrypoint-initdb.d/001-init.sql:ro
+
+  rabbitmq:
+    image: rabbitmq:4.4.1-management-alpine
+    container_name: xianyu.bot.rabbitmq
+    restart: always
+    ports:
+      - '127.0.0.1:${RABBITMQ_HOST_PORT:-15672}:5672'
+      - '127.0.0.1:${RABBITMQ_MANAGEMENT_HOST_PORT:-15673}:15672'
+    environment:
+      RABBITMQ_DEFAULT_USER: xianyu_bot
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-xianyu_bot}
+    healthcheck:
+      test: ['CMD', 'rabbitmq-diagnostics', '-q', 'ping']
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    volumes:
+      - rabbitmq:/var/lib/rabbitmq
 
   rustfs:
     image: rustfs/rustfs:latest

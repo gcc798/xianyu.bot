@@ -28,6 +28,17 @@ mcp:
   health-check-concurrency: 8
   connection-sweep-interval-seconds: 30
 
+rabbitmq:
+  url: amqp://xianyu_bot:xianyu_bot@rabbitmq:5672/
+  prefetch: 8
+  publish-timeout-seconds: 10
+  retry-short-ttl-seconds: 10
+  retry-medium-ttl-seconds: 60
+  retry-long-ttl-seconds: 300
+
+worker:
+  health-port: 8889
+
 postgres:
   host: postgres
   port: "5432"

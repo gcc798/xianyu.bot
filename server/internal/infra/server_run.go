@@ -30,7 +30,11 @@ func RunServer(ctx context.Context, router *gin.Engine, port int) error {
 		WriteTimeout:   10 * time.Minute,
 		MaxHeaderBytes: 1 << 20,
 	}
-	return runServer(ctx, srv)
+	if err := runServer(ctx, srv); err != nil {
+		return err
+	}
+	zap.L().Info("WEB服务已关闭")
+	return nil
 }
 
 // runServer 协调服务运行错误和调用方取消信号。
@@ -47,14 +51,11 @@ func runServer(ctx context.Context, srv server) error {
 		return err
 	case <-ctx.Done():
 	}
-	zap.L().Info("关闭WEB服务...")
-
 	shutdownCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
 	defer cancel()
 	if err := srv.Shutdown(shutdownCtx); err != nil {
 		return fmt.Errorf("shutdown server: %w", err)
 	}
 
-	zap.L().Info("WEB服务已关闭")
 	return nil
 }

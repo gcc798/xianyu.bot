@@ -4,11 +4,11 @@
 
 | 项目 | 当前状态 |
 | --- | --- |
-| 当前开发阶段 | Phase 02：多进程架构、消息队列及异步任务机制（未开始） |
+| 当前开发阶段 | Phase 02：多进程架构、消息队列及异步任务机制（进行中） |
 | 已完成阶段 | Phase 01 |
 | 总体开发进度 | 1 / 11（9%） |
 | 当前阻塞问题 | 无；评估集人工核验和最终效果调优按用户决定延后至功能完成后的 Phase 09，不阻塞功能开发 |
-| 下一步开发任务 | 开始 Phase 02：Worker 进程、RabbitMQ、Transactional Outbox 和可恢复任务骨架 |
+| 下一步开发任务 | 实现 RAG 任务状态、Transactional Outbox Relay、Publisher Confirm 后落库、幂等消费、租约心跳和过期恢复 |
 | 最后更新时间 | 2026-11-28 |
 
 > 本文档是 RAG 知识库与智能客服 Agent 后续开发的唯一实施和进度基准。只有任务完成且通过对应验收后，才能勾选任务和阶段。实施中如调整设计，必须同步更新“决策与调整记录”、当前进度、遗留问题和下一步任务。
@@ -31,8 +31,8 @@
 
 当前需要补齐的关键能力：
 
-- 后端只有 `cmd/server` 进程，MCP 后台任务和 Telegram 资源任务也在 Server 内运行，尚无通用 Worker 进程。
-- 尚未引入生产用 RabbitMQ、Transactional Outbox、pgvector、Milvus、Embedding Provider 或 Reranker；已建立独立的本地 Embedding 与检索指标验证工具，但尚未接入业务运行链路。
+- 后端已增加独立 `cmd/worker` 进程和 RabbitMQ 基础设施；MCP 后台任务和 Telegram 资源任务仍在 Server 内运行，RAG 业务任务尚未接入 Worker。
+- 已引入 RabbitMQ，尚未引入 Transactional Outbox、pgvector、Milvus、业务 Embedding Provider 或 Reranker；已建立独立的本地 Embedding 与检索指标验证工具，但尚未接入业务运行链路。
 - Eino 已提供 Document、Embedding、Indexer 和 Retriever 基础接口，但仓库只使用了 Chat Model；现有依赖不能直接完成完整知识构建与 Advanced RAG。
 - 当前自动回复是确定性规则匹配，尚无客服 Agent 的意图识别、知识检索、可信度降级和 Agentic RAG。
 - 当前 PostgreSQL 镜像是官方 `postgres:19-alpine`，不包含 pgvector 扩展，必须先验证兼容的构建和升级方式。
@@ -426,8 +426,8 @@ Embedding 模型、维度、归一化方式或 Chunking 变化必须产生新索
 
 **核心开发任务**：
 
-- [ ] 增加 Worker 进程入口、共享配置、优雅退出、健康检查和 Compose 部署。
-- [ ] 接入 RabbitMQ，建立持久主队列、分级重试队列、死信队列和手动 Ack。
+- [x] 增加 Worker 进程入口、共享配置、优雅退出、健康检查和 Compose 部署。
+- [x] 接入 RabbitMQ，建立持久主队列、分级重试队列、死信队列和手动 Ack。
 - [ ] 实现任务状态、Outbox Relay、Publisher Confirm、幂等消费、租约心跳和过期恢复。
 - [ ] 增加多 Worker 并发、Provider 级限流、任务取消和管理端重试能力。
 - [ ] 建立 RabbitMQ 与 PostgreSQL 真实组件集成测试。
@@ -676,7 +676,7 @@ Embedding 模型、维度、归一化方式或 Chunking 变化必须产生新索
 | 阶段 | 状态 | 完成时间 | 验收记录 | 遗留问题 |
 | --- | --- | --- | --- | --- |
 | Phase 01 基础架构与领域模型设计 | 已完成 | 2026-11-28 | 领域边界、Provider 契约、双向量库、Embedding 运行基线及 Tika Parser 首个实现已锁定 | 效果准确性核验按用户决定转入 Phase 09 |
-| Phase 02 多进程、消息队列与异步任务 | 未开始 | - | - | 无 |
+| Phase 02 多进程、消息队列与异步任务 | 进行中 | - | Worker 独立进程、健康探针、RabbitMQ 持久拓扑、Publisher Confirm、手动 Ack、短时连接自动恢复和恢复耗尽退出重启已通过真实组件验证 | Outbox、任务租约、幂等消费、并发限制和任务恢复机制尚未实现 |
 | Phase 03 VectorStore 与双实现 | 未开始 | - | - | - |
 | Phase 04 知识管理与构建 Pipeline | 未开始 | - | - | - |
 | Phase 05 基础 RAG | 未开始 | - | - | - |
@@ -696,9 +696,9 @@ Embedding 模型、维度、归一化方式或 Chunking 变化必须产生新索
 
 ### 下一步任务
 
-1. 开始 Phase 02，建立独立 Worker 进程入口、共享配置、优雅退出和健康检查。
-2. 接入 RabbitMQ、Transactional Outbox、Publisher Confirm、幂等消费和任务恢复机制。
-3. 保留现有模拟集和文档金标准作为开发回归样本，不提前把自动结果表述为真实业务准确率；最终核验与调优在 Phase 09 执行。
+1. 新增 RAG 构建任务和 Outbox 增量迁移，在同一 PostgreSQL 事务内创建任务与待投递事件。
+2. 实现 Worker Outbox Relay、`FOR UPDATE SKIP LOCKED` 竞争领取和 Confirm 后落库。
+3. 实现 Consumer 幂等领取、租约心跳、过期恢复、分级重试和死信状态同步。
 
 ## 15. 决策与调整记录
 
@@ -715,5 +715,7 @@ Embedding 模型、维度、归一化方式或 Chunking 变化必须产生新索
 | 2026-11-28 | Phase 01 | Reranker 评估保留在 Phase 06，不作为 Phase 01 阻塞 | Phase 01 只需锁定可插拔边界；Reranker 收益必须建立在稳定召回基线上 | Phase 01 可在 Embedding 与 Parser 验收后结束，不等待 Reranker 凭据 |
 | 2026-11-28 | Phase 01 | PDF/Office 首个实现锁定为 Tika 3.3.0 Full Sidecar，并加入固定版本简体中文 OCR 模型 | 单一实现覆盖 Office、文本 PDF 和扫描 PDF；5 类自建金标准按文本、顺序、表格和 OCR 规则全部通过 | Phase 04 实现 Parser Provider；真实文档泛化、资源限制和降级策略继续验收，不把小样本结果表述为生产准确率 |
 | 2026-11-28 | Phase 01/09 | 人工 Qrels、文档业务预期、公开集基线和最终效果调优延后至功能完成后 | 自动化只能验证结构一致性和已给定金标准，不能替代用户判断业务真值；通用公开集也不能代表闲鱼真实分布 | Phase 01 完成并进入 Phase 02；Phase 02 至 Phase 08 使用当前开发基线，Phase 09 由用户参与核验和调优，未核验结果不得用于生产效果承诺 |
+| 2026-11-28 | Phase 02 | RabbitMQ 锁定 4.4.1，Go 客户端锁定 `amqp091-go` v1.15.0；API 与 Worker 使用同一镜像的独立入口 | 官方当前稳定版本和客户端已修复既有安全问题；独立消费连接避免 Broker 流控同时阻塞发布确认与消费 Ack | 默认 Compose 增加 RabbitMQ 和 Worker；发布使用持久消息与 Confirm，消费使用 Prefetch 和手动 Ack，Outbox/租约在下一任务组落地 |
+| 2026-11-28 | Phase 02 | 发布与消费连接启用自动恢复，Worker 就绪探针跟随连接生命周期状态 | RabbitMQ 容器重启实测暴露旧连接不会自行恢复，Worker 会持续未就绪 | Broker 短时中断时 Worker 暂时退出就绪状态，连接和拓扑恢复后无需重启即可继续；自动恢复耗尽后进程退出并由编排器重启，任务级恢复仍由后续 Outbox 与租约实现 |
 
 后续调整必须追加记录，不覆盖历史原因。阶段顺序可以因验证结果调整，但不得跳过实际前置依赖或提前标记完成。

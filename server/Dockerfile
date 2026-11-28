@@ -11,7 +11,8 @@ RUN --mount=type=cache,target=/go/pkg/mod go mod download
 COPY . .
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
-    go build -o server ./cmd/server
+    go build -o server ./cmd/server \
+    && go build -o worker ./cmd/worker
 
 FROM alpine:latest
 
@@ -24,7 +25,8 @@ RUN apk update && apk add --no-cache tzdata openntpd \
 WORKDIR /go/src/github.com/gcc798/xianyu.bot
 
 COPY --from=0 /go/src/github.com/gcc798/xianyu.bot/server ./
+COPY --from=0 /go/src/github.com/gcc798/xianyu.bot/worker ./
 COPY --from=0 /go/src/github.com/gcc798/xianyu.bot/config.docker.yaml ./
 
-EXPOSE 8888
+EXPOSE 8888 8889
 ENTRYPOINT ["./server", "-c", "config.docker.yaml"]
