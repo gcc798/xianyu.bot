@@ -5,7 +5,7 @@
 本报告记录 2026-11-28 在本机完成的 Embedding、检索指标和文档解析验证。原始 JSON、日志和外部样本保存在被 Git 忽略的 `.codex-work/`，仓库只提交可复现脚本、统一评估结构和结果摘要。
 
 - Ollama OpenAI Compatible Embedding 的连通性、1024 维输出、批量、并发、取消和无效模型处理均已通过。
-- Recall@K、Precision@K、MRR、NDCG 已用确定性单元测试和 32 条模拟业务查询端到端验证；结果仍标记为 `pending_human_review`，不用于最终模型选择。
+- Recall@K、Precision@K、MRR、NDCG 已用确定性单元测试和 32 条模拟业务查询端到端验证；结果仍标记为 `pending_human_review`，仅作为开发回归基线，最终核验与调优按用户决定延后至 Phase 09。
 - Apache Tika 3.3.0 Full 加固定版本中文 OCR 模型通过 5 类自建金标准样本，作为首个 PDF/Office Parser 实现候选锁定；真实文档泛化仍需在 Phase 04 持续回归。
 - EcomRetrieval 数据卡未声明明确许可证。未获得上游许可确认前，不下载、不分发、不生成可对外引用的公开集结论。
 
@@ -45,7 +45,7 @@
 
 逐查询证据已写入 JSON 报告。Top 1 失败集中在已发货/未发货退款区分和质量问题举证材料等难负例，证明小规模满分结果不能代表业务效果。当前 Qrels 由开发阶段构造，未经过领域人员逐条核验；即使 `bge-m3` 当前数字略高，也不能据此锁定生产默认模型。
 
-人工核验通过 `scripts/rag-eval/review_evaluation_dataset.py` 导出 CSV。脚本要求每条原始 Qrel 都有接受或拒绝结论、记录核验人，并允许补充漏标的有效查询/文档对；只有所有查询仍保留正相关文档时才生成 `human_reviewed` 版本。
+人工核验通过 `scripts/rag-eval/review_evaluation_dataset.py` 导出 CSV。脚本要求每条原始 Qrel 都有接受或拒绝结论、记录核验人，并允许补充漏标的有效查询/文档对；只有所有查询仍保留正相关文档时才生成 `human_reviewed` 版本。该流程保留到 Phase 09，由用户结合完整功能和真实使用反馈执行，不阻塞当前功能开发。
 
 ## 4. 通用检索集
 
@@ -113,4 +113,4 @@ go run ./cmd/rag-eval \
   --output ../.codex-work/reports/rag-embedding-business.json
 ```
 
-公开集许可、业务 Qrels 人工核验或真实复杂文档回归有新证据后，必须同步更新本报告和 `docs/rag-development-plan.md`，不能沿用过期结论。
+Phase 09 开始公开集评估、业务 Qrels 人工核验或真实复杂文档回归后，必须同步更新本报告和 `docs/rag-development-plan.md`，不能沿用当前开发基线作为最终效果结论。
