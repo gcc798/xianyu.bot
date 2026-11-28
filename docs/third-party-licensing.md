@@ -8,4 +8,6 @@
 
 测试 Fixture 必须脱敏，不得提交真实账号、Cookie、Token 或业务记录。
 
+RAG 验证命令使用 CloudWeGo Eino OpenAI Embedding 组件，许可证为 Apache License 2.0。外部评估数据和文档样本只通过脚本按需下载到 `.codex-work/`，不随仓库分发；使用前必须审查上游许可和隐私要求。OmniDocBench 仅限研究评估，不得进入产品运行数据或商业数据集。
+
 本文件只说明工程约束，不构成法律意见。

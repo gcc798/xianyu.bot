@@ -1,0 +1,35 @@
+{
+  "schemaVersion": "1",
+  "name": "xianyu-business-simulation",
+  "version": "v1",
+  "kind": "business_simulation",
+  "source": "synthetic xianyu customer-service scenarios",
+  "license": "project test fixture",
+  "reviewStatus": "pending_human_review",
+  "corpus": [
+    {"id": "return-7d", "title": "七天退货", "text": "买家签收后七天内可以申请退货，定制商品和已经影响二次销售的商品除外。"},
+    {"id": "refund-unshipped", "title": "未发货退款", "text": "订单尚未发货时可以直接申请退款，卖家应在二十四小时内处理。"},
+    {"id": "quality-proof", "title": "质量问题举证", "text": "商品存在质量问题时，请买家在四十八小时内提供清晰照片或视频。"},
+    {"id": "shipping-sf", "title": "发货方式", "text": "默认使用顺丰快递，付款后四十八小时内发货，偏远地区时效可能延长。"},
+    {"id": "digital-delivery", "title": "虚拟商品", "text": "虚拟商品付款后通过聊天发送兑换信息，兑换后不支持无理由退款。"},
+    {"id": "bargain", "title": "议价规则", "text": "商品支持合理议价，确认价格前请勿直接付款，恶意砍价不会回复。"},
+    {"id": "authenticity", "title": "商品真伪", "text": "二手数码商品提供序列号和实拍图，买家可以在平台验货服务中核验。"},
+    {"id": "pickup", "title": "同城自提", "text": "同城买家可以预约自提，自提时当面验货，确认无误后再确认收货。"}
+  ],
+  "queries": [
+    {"id": "q-return", "text": "收到以后不喜欢，七天内能退吗？"},
+    {"id": "q-refund", "text": "还没发货怎么退款？"},
+    {"id": "q-quality", "text": "东西坏了需要提供什么证明？"},
+    {"id": "q-shipping", "text": "用什么快递，多久发出？"},
+    {"id": "q-digital", "text": "兑换码使用后还能退款吗？"},
+    {"id": "q-pickup", "text": "可以同城见面验货吗？"}
+  ],
+  "qrels": [
+    {"queryId": "q-return", "documentId": "return-7d", "relevance": 2},
+    {"queryId": "q-refund", "documentId": "refund-unshipped", "relevance": 2},
+    {"queryId": "q-quality", "documentId": "quality-proof", "relevance": 2},
+    {"queryId": "q-shipping", "documentId": "shipping-sf", "relevance": 2},
+    {"queryId": "q-digital", "documentId": "digital-delivery", "relevance": 2},
+    {"queryId": "q-pickup", "documentId": "pickup", "relevance": 2}
+  ]
+}
